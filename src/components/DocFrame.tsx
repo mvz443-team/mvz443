@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { VERSION } from '../../public/constants'
 import LevelSelect from './menu/levelSelect';
 import Pokedex from './menu/pokedex';
 import Settings from './menu/settings';
@@ -20,7 +19,7 @@ import GlobalRoomListener from './GlobalRoomListener';
 // Docs site lives on Vercel (kept off gh-pages so it doesn't fight the game deploy).
 // Override per environment with VITE_DOCS_URL if the project's domain changes.
 const docsBaseUrl = (
-  (import.meta.env.VITE_DOCS_URL as string | undefined) || 'https://mvz443-docs.vercel.app'
+  (import.meta.env.VITE_DOCS_URL as string | undefined) || 'https://mvz443-team.github.io/docs/'
 ).replace(/\/$/, '');
 
 interface Props {
@@ -52,7 +51,8 @@ export default function DocFrame({ width, height, setGameParams, gameStart }: Pr
   const [islord, setIslord] = useState(false);
   const { translate } = useLocaleMessages();
 
-  const [commitVersion, setCommitVersion] = useState('develop');
+  const VERSION = import.meta.env.VITE_APP_VERSION ?? 'develop';
+  const commitVersion = import.meta.env.VITE_APP_COMMIT ?? 'local';
   const deviceType = useDeviceType();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -125,20 +125,6 @@ export default function DocFrame({ width, height, setGameParams, gameStart }: Pr
       PhaserEventBus.off(PhaserEvents.RoomAllReady, handleRoomAllReady);
     };
   }, []);
-
-  useEffect(() => {
-    // 读取版本文件
-    const versionFile = `${publicUrl}/version.txt`;
-    fetch(versionFile)
-      .then(response => response.text())
-      .then(data => {
-        setCommitVersion(data.trim());
-      })
-      .catch(error => {
-        console.error('获取版本信息失败:', error);
-      });
-  }, []);
-
 
   // 主菜单组件
   const MainMenu = () => (
@@ -320,7 +306,7 @@ export default function DocFrame({ width, height, setGameParams, gameStart }: Pr
                 {translate('menu.docs')}
               </a>
               <a
-                href={`${docsBaseUrl}/updates_log/`}
+                href={`${docsBaseUrl}/update-logs/`}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: "#00ccff", textDecoration: "underline" }}

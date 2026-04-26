@@ -1,14 +1,16 @@
-const getPublicUrl = () => {
-    const path = window.location.pathname;
-    // 假设你的 GitHub Pages 路径总是 `/MVZ443/`，可以通过正则判断
-    if (path.includes('/MVZ443')) {
-        return '/MVZ443';
-    } else if (path.includes('/mvz443')) {
-        return '/mvz443';
-    } else {
-        return '';
-    }
-}
+// Build-time injected base path. In CI this is set to "/<repo-name>/" by the
+// deploy workflow; in local dev/build it falls back to "./" (a relative root).
+const rawBase = (import.meta.env.VITE_APP_BASE ?? '').trim();
 
-export const publicUrl = getPublicUrl();
+const getBaseUrl = (): string => {
+    if (!rawBase || rawBase === './' || rawBase === '/') return '/';
+    return rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
+};
 
+const getPublicUrl = (base: string): string => {
+    if (base === '/') return '';
+    return base.replace(/\/$/, '');
+};
+
+export const baseUrl = getBaseUrl();
+export const publicUrl = getPublicUrl(baseUrl);

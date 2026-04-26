@@ -1,0 +1,80 @@
+name: Deploy to GitHub Pages
+
+# 仅在推送形如 v* 的 tag 时触发(例如 v1.0.0 / v0.2.1)
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时刻只允许一次 Pages 部署
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with full history)
+        uses: actions/checkout@v4
+        with:
+          # rev-list --count HEAD 需要完整 git 历史
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve build metadata
+        id: meta
+        run: |
+          # 从 tag 名字中提取版本号(去掉前缀 v)
+          TAG_NAME="${GITHUB_REF_NAME}"
+          APP_VERSION="${TAG_NAME#v}"
+
+          # 提交序号 = 当前 HEAD 之前的 commit 总数
+          APP_COMMIT="$(git rev-list --count HEAD)"
+
+          # GitHub Pages 的 base 路径就是仓库名,带前后斜杠
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          APP_BASE="/${REPO_NAME}/"
+
+          echo "version=${APP_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "commit=${APP_COMMIT}"   >> "$GITHUB_OUTPUT"
+          echo "base=${APP_BASE}"       >> "$GITHUB_OUTPUT"
+
+          echo "Building ${REPO_NAME} v${APP_VERSION} (commit #${APP_COMMIT}) at base ${APP_BASE}"
+
+      - name: Build
+        env:
+          VITE_APP_VERSION: ${{ steps.meta.outputs.version }}
+          VITE_APP_COMMIT: ${{ steps.meta.outputs.commit }}
+          VITE_APP_BASE: ${{ steps.meta.outputs.base }}
+          VITE_DOCS_URL: "https://mvz443-team.github.io/docs/"
+        run: npm run build-nolog
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

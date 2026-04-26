@@ -28,9 +28,7 @@
     "dev-nolog": "vite --config vite/config.dev.mjs",
     "build-nolog": "vite build --config vite/config.prod.mjs",
     "doctor:deps": "node scripts/doctor-deps.mjs",
-    "doctor:deps:fix": "node scripts/doctor-deps.mjs --fix",
-    "predeploy": "sh ./scripts/predeploy.sh",
-    "deploy": "gh-pages -d dist"
+    "doctor:deps:fix": "node scripts/doctor-deps.mjs --fix"
   },
   "dependencies": {
     "-": "^0.0.1",
@@ -45,7 +43,6 @@
     "chalk": "^5.6.2",
     "denque": "^2.1.0",
     "dexie": "^4.0.11",
-    "gh-pages": "^6.3.0",
     "i18next": "^26.0.7",
     "idb": "^8.0.2",
     "lodash": "^4.17.21",
