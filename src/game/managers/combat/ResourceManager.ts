@@ -7,6 +7,8 @@ import { RoomAllReadyEvent } from "../../../types/online";
 
 export type PlayerIdentify = number;
 
+const MAX_STAR_SHARDS = 10;
+
 type ResourceManagerEvents = {
   onEnergyUpdate: (newEnergy: number, playerId: PlayerIdentify) => void;
   onStarShardsUpdate: (newStarShards: number, playerId: PlayerIdentify) => void;
@@ -103,9 +105,10 @@ export default class ResourceManager extends BaseManager {
       playerId = this.mineId;
     }
     const currentStarShards = this.StarShardsMaps.get(playerId) || 0;
-    const newStarShards = currentStarShards + starShardsDelta;
+    const newStarShards = Math.max(0, Math.min(MAX_STAR_SHARDS, currentStarShards + starShardsDelta));
+    const actualDelta = newStarShards - currentStarShards;
     this.StarShardsMaps.set(playerId, newStarShards);
-    this.reconcilePreviewDelta(this.previewStarShardsDeltaMaps, starShardsDelta, playerId);
+    this.reconcilePreviewDelta(this.previewStarShardsDeltaMaps, actualDelta, playerId);
     this.Eventbus.emit('onStarShardsUpdate', this.getDisplayStarShards(playerId), playerId);
   }
 

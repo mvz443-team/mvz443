@@ -133,6 +133,34 @@ export default function BottomTools({ width, chapterID }: Props) {
     PhaserEventBus.emit(PhaserEvents.TogglePause);
   });
 
+  const StarShardsDisplay = () => {
+    if (starShards >= 5) {
+      return (
+        <div className="stars-count">
+          <img
+            draggable={false}
+            src={starUri}
+            alt=""
+          />
+          <span>x {starShards}</span>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {Array.from({ length: starShards }).map((_, index) => (
+          <img
+            draggable={false}
+            key={index}
+            src={starUri}
+            alt=""
+          />
+        ))}
+      </>
+    );
+  };
+
   const ProgressBarComponent = () => {
     if (progressState.mode === ProgressMode.Boss) {
       const progress = (progressState.bossHealthPercent || 0) * 100;
@@ -203,13 +231,7 @@ export default function BottomTools({ width, chapterID }: Props) {
     }}>
       <div className="money">{savectx.currentProgress.items.get(1) ? savectx.currentProgress.items.get(1)?.count : '0'} $</div>
       <div className={`stars ${starshardsInsufficientFlash ? 'insufficient-flash' : ''}`} onClick={handleStarClick}>
-        {Array.from({ length: starShards }).map((_, index) => (
-          <img
-            draggable={false}
-            key={index}
-            src={starUri}
-          />
-        ))}
+        <StarShardsDisplay />
       </div>
 
       <ProgressBarComponent />

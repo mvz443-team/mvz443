@@ -93,7 +93,7 @@ const zhCN = {
     "settings_general_language": "Language 语言",
     "settings_general_language_t": "选择游戏显示语言",
     "settings_general_debug": "显示调试信息",
-    "settings_general_debug_t": "开关调试信息显示,仅碰撞箱",
+    "settings_general_debug_t": "开关调试信息显示",
     "settings_general_saves": "存档管理",
     "settings_general_save_progress": "保存进度",
     "settings_general_save_progress_t": "手动保存当前游戏进度",
