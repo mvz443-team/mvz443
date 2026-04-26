@@ -39,11 +39,11 @@ export type DebugConsoleCommands = {
 };
 
 type ConsoleWindow = Window & typeof globalThis & {
-  DBGCMD?: DebugConsoleCommands;
+  DBG?: DebugConsoleCommands;
 };
 
 const chalk = new Chalk({ level: 3 });
-const badge = chalk.hex("#151018").bgHex("#ffd166").bold(" DBGCMD ");
+const badge = chalk.hex("#151018").bgHex("#ffd166").bold(" DBG ");
 const ok = chalk.hex("#052e1a").bgHex("#7ee787").bold;
 const warn = chalk.hex("#fff7ed").bgHex("#f97316").bold;
 const infoLabel = chalk.hex("#e0f2fe").bgHex("#2563eb").bold;
@@ -55,7 +55,7 @@ namespace ConsoleCmd {
   export function install(scene: Game) {
     currentScene = scene;
     const commands = createCommands();
-    (window as ConsoleWindow).DBGCMD = commands;
+    (window as ConsoleWindow).DBG = commands;
     printBanner();
     return commands;
   }
@@ -63,7 +63,7 @@ namespace ConsoleCmd {
   export function uninstall(scene?: Game) {
     if (!scene || currentScene === scene) {
       currentScene = null;
-      delete (window as ConsoleWindow).DBGCMD;
+      delete (window as ConsoleWindow).DBG;
     }
   }
 
@@ -200,7 +200,7 @@ namespace ConsoleCmd {
 
     if (!isLocalSinglePlayer) {
       const mode = BackendWS.isMockRoomMode() ? "mock" : BackendWS.isOnlineMode() ? "online" : "local";
-      printBlocked(`DBGCMD is only available in local single-player games. current mode=${mode}, players=${playerCount}`);
+      printBlocked(`DBG is only available in local single-player games. current mode=${mode}, players=${playerCount}`);
       return false;
     }
     return true;
@@ -213,10 +213,10 @@ namespace ConsoleCmd {
 
   function printHelp() {
     console.log(`${badge} ${infoLabel(" Commands ")}`);
-    console.log(`${command(" DBGCMD.spawnMonster(mid, row = 0, col = MaxCol + 1, carryStarShards = false) ")} 生成怪物`);
-    console.log(`${command(" DBGCMD.addResource('energy' | 'starshards', amount) ")} 为 all 玩家增加资源`);
-    console.log(`${command(" DBGCMD.reloadCard(slot) ")} 冷却指定卡槽，slot 从 0 开始`);
-    console.log(`${command(" DBGCMD.cards() ")} 查看卡槽 pid / level / 冷却 ms 和 frame`);
+    console.log(`${command(" DBG.spawnMonster(mid, row = 0, col = MaxCol + 1, carryStarShards = false) ")} 生成怪物`);
+    console.log(`${command(" DBG.addResource('energy' | 'starshards', amount) ")} 为 all 玩家增加资源`);
+    console.log(`${command(" DBG.reloadCard(slot) ")} 冷却指定卡槽，slot 从 0 开始`);
+    console.log(`${command(" DBG.cards() ")} 查看卡槽 pid / level / 冷却 ms 和 frame`);
   }
 
   function printOk(message: string) {
