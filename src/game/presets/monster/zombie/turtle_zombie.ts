@@ -1,5 +1,6 @@
-import { BaseZombieArmorEntity, PresetMonsterModel } from "../../../models/entities/MonsterEntity";
+import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
+import { BaseZombieArmorEntity } from "./zombie";
 
 
 export class TurtleZombieEntity extends BaseZombieArmorEntity {

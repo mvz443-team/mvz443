@@ -1,6 +1,7 @@
-import { BaseZombieEntity, PresetMonsterModel, addHandAttachment } from "../../../models/entities/MonsterEntity";
+import { PresetMonsterModel, addHandAttachment } from "../../../models/entities/MonsterEntity";
 import type { Game } from "../../../scenes/Game";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
+import { BaseZombieEntity } from "./zombie";
 
 export class MinerZombieEntity extends BaseZombieEntity {
   private swingTween: Phaser.Tweens.Tween | null = null;

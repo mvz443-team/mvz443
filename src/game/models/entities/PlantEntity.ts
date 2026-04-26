@@ -11,6 +11,7 @@ import { CollisionContext } from "../../types";
 import { BaseEntity } from "../core/BaseEntity";
 import { SfxCmd } from "../../utils/cmd/SfxCmd";
 import { StarShardsBurstSfx } from "../../sfx/star/StarShardsBurstSfx";
+import { MonsterEntity } from "./MonsterEntity";
 
 // entities/PlantEntity.ts
 export abstract class PlantEntity extends CombatEntity {
@@ -159,7 +160,7 @@ export abstract class PlantEntity extends CombatEntity {
   public destroy() {
     this.currentHealth = 0;
     for (const attacker of [...this.underAttackBy]) {
-      if (typeof (attacker as { stopAttacking?: () => void }).stopAttacking === "function") {
+      if (attacker instanceof MonsterEntity) {
         attacker.stopAttacking?.();
       }
     }

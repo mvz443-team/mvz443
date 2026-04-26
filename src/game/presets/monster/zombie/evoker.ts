@@ -1,9 +1,10 @@
-import { PresetMonsterModel, BaseZombieEntity } from "../../../models/entities/MonsterEntity";
+import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import { createZombieAnimController } from "../../../models/monster/anims/LegacyMonsterAnimControllers";
 import type { Game } from "../../../scenes/Game";
 import MobCmd from "../../../utils/cmd/MobCmd";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
 import { VindicatorData } from "./vindicator";
+import { BaseZombieEntity } from "./zombie";
 
 export const EvokerData = new PresetMonsterModel({
   mid: 9,

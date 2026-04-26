@@ -142,6 +142,11 @@ export class TntMinesEntity extends PlantEntity {
   private colliderZombie: Phaser.Physics.Arcade.Collider | null = null;
   public game: Game;
 
+  // Flying monsters whose overlap-start was skipped while airborne. We re-check
+  // them each step in case they land while still over the mine — Rapier only
+  // dispatches `started` events so the landing alone wouldn't re-trigger.
+  private pendingFlyingMonsters: Set<MonsterEntity> = new Set();
+
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, TntMinesData, level);
     this.random = seedrandom.alea(String(CombatManager.Instance.seed * 3));
@@ -192,15 +197,37 @@ export class TntMinesEntity extends PlantEntity {
   }
 
   public override onCollision(ctx: CollisionContext): void {
-    // 出土后与僵尸接触立即爆炸
-    if (!this.isBuried && this.currentHealth > 0 && !this.hasExploded) {
-      if (ctx.targetEntity instanceof CombatEntity &&
-        ctx.targetEntity.faction !== this.faction
-      ) {
-        if (!(ctx.targetEntity instanceof MonsterEntity) ||
-          (ctx.targetEntity.isFlying === false && ctx.targetEntity.isInVoid === false)) {
-          this.explode();
-        }
+    if (this.isBuried || this.currentHealth <= 0 || this.hasExploded) return;
+    if (!(ctx.targetEntity instanceof CombatEntity)) return;
+    if (ctx.targetEntity.faction === this.faction) return;
+
+    if (ctx.targetEntity instanceof MonsterEntity) {
+      if (ctx.targetEntity.isInVoid) return;
+      if (ctx.targetEntity.isFlying) {
+        this.pendingFlyingMonsters.add(ctx.targetEntity);
+        return;
+      }
+    }
+    this.explode();
+  }
+
+  public override stepUpdate(): void {
+    if (this.hasExploded || this.isBuried || this.currentHealth <= 0) {
+      if (this.pendingFlyingMonsters.size > 0) this.pendingFlyingMonsters.clear();
+      return;
+    }
+    if (this.pendingFlyingMonsters.size === 0) return;
+
+    const range = PositionManager.Instance.GRID_SIZEX * 0.5;
+    for (const m of this.pendingFlyingMonsters) {
+      if (m.isDying || m.currentHealth <= 0 || m.isInVoid ||
+        m.row !== this.row || Math.abs(m.x - this.x) > range) {
+        this.pendingFlyingMonsters.delete(m);
+        continue;
+      }
+      if (!m.isFlying) {
+        this.explode();
+        return;
       }
     }
   }

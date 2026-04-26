@@ -14,7 +14,7 @@ import GridManager from "../../managers/combat/GridManager";
 import PlantHelper from "../../utils/helper/PlantHelper";
 import { PlantEntity } from "./PlantEntity";
 import { BaseEntity } from "../core/BaseEntity";
-import { createZombieAnimController, LegacyMonsterAnimController } from "../monster/anims/LegacyMonsterAnimControllers";
+import { LegacyMonsterAnimController } from "../monster/anims/LegacyMonsterAnimControllers";
 import ResourceCmd from "../../utils/cmd/ResourceCmd";
 import { SfxCmd } from "../../utils/cmd/SfxCmd";
 import { StarShardsOrbitSfx } from "../../sfx/star/StarShardsOrbitSfx";
@@ -619,107 +619,4 @@ export function addHandAttachment(entity: BaseMonsterEntity, key: string, scale 
   sprite.setScale(scale * PositionManager.Instance.scaleFactor).setOrigin(0.5, 1).setDepth(entity.baseDepth + depth);
   entity.attachSprites.set(key, sprite);
   return sprite;
-}
-
-
-export class BaseZombieEntity extends StagedBodyMonsterEntity {
-  protected damageThresholds = [150];
-
-  public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
-    super(scene, col, row, model, waveID);
-  }
-
-  protected createAnimController() {
-    return createZombieAnimController("zombie", this.scene, this.x, this.y);
-  }
-}
-
-export class BaseSkeletonEntity extends StagedBodyMonsterEntity {
-  protected damageThresholds = [100];
-
-  public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
-    super(scene, col, row, model, waveID);
-  }
-
-  protected createAnimController() {
-    return createZombieAnimController("skeleton", this.scene, this.x, this.y);
-  }
-}
-
-export class BaseVindicatorEntity extends StagedBodyMonsterEntity {
-  protected damageThresholds = [180];
-  protected attackTween: Phaser.Tweens.Tween | null = null;
-  protected weaponKey = "attach/hd_axe";
-
-  public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
-    super(scene, col, row, model, waveID);
-    addHandAttachment(this, this.weaponKey);
-  }
-
-  protected createAnimController() {
-    return createZombieAnimController("vindicator", this.scene, this.x, this.y);
-  }
-
-  public override startAttacking(target: any) {
-    if (!this.attackTween) {
-      const sprite = this.attachSprites.get(this.weaponKey);
-      if (sprite) {
-        this.attackTween = this.scene.tweens.add({
-          targets: sprite,
-          angle: -15,
-          duration: 200,
-          yoyo: true,
-          repeat: -1,
-          ease: "Sine.easeInOut",
-        });
-      }
-    }
-    super.startAttacking(target);
-  }
-
-  public override stopAttacking() {
-    this.attackTween?.stop();
-    this.attackTween = null;
-    this.attachSprites.get(this.weaponKey)?.setAngle(0);
-    super.stopAttacking();
-  }
-}
-
-export class ShieldVindicatorEntity extends BaseVindicatorEntity {
-  private shieldHealth = 1000;
-
-  public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
-    super(scene, col, row, model, waveID);
-    const shield = this.scene.add.sprite(
-      this.x + this.offsetX - PositionManager.Instance.GRID_SIZEX * 0.42,
-      this.y - PositionManager.Instance.GRID_SIZEY * 0.7 + this.offsetY,
-      "attach/hd_shield",
-    );
-    shield.setScale(PositionManager.Instance.scaleFactor * 2.2).setOrigin(0.5, 0.35).setFrame(0).setDepth(this.baseDepth + 14);
-    this.attachSprites.set("shield", shield);
-  }
-
-  public override takeDamage(amount: number, dealer?: BaseEntity, source?: BaseEntity): void {
-    if (this.shieldHealth > 0) {
-      const blocked = amount * 0.5;
-      if (this.shieldHealth > blocked) {
-        this.shieldHealth -= blocked;
-        this.attachSprites.get("shield")?.setFrame(this.shieldHealth > 500 ? 0 : 1);
-        this.scene.musical.shieldHitAudio.play("ironHit");
-        this.animController.highlight();
-        return;
-      }
-      this.shieldHealth = 0;
-      this.attachSprites.get("shield")?.setVisible(false);
-    }
-    super.takeDamage(amount, dealer, source);
-  }
-}
-
-export class BaseZombieArmorEntity extends ArmorMonsterEntity {
-  protected damageThresholds = [150];
-
-  protected createAnimController() {
-    return createZombieAnimController("zombie", this.scene, this.x, this.y);
-  }
 }

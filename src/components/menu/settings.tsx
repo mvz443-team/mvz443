@@ -13,26 +13,42 @@ interface Props {
     onBack: () => void;
 }
 
-interface SettingItem {
+interface SettingItemBase {
     titleKey: string;
     descriptionKey: string;
-    controlType: 'button' | 'switcher' | 'input' | 'selections';
-    controlProps?: {
-        onClick?: () => void; // for button
-        btnText?: string; // for button
-
-        value?: boolean; // for switcher
-        onToggle?: (value: boolean) => void; // for switcher
-
-        placeholder?: string; // for input
-        value?: string; // for input
-        onChange?: (value: string) => void; // for input
-
-        options?: string[]; // for selections
-        selected?: string; // for selections
-        onSelect?: (value: string) => void; // for selections
-    };
 }
+
+type SettingItem =
+    | (SettingItemBase & {
+        controlType: 'button';
+        controlProps?: {
+            onClick?: () => void;
+            btnText?: string;
+        };
+    })
+    | (SettingItemBase & {
+        controlType: 'switcher';
+        controlProps?: {
+            value?: boolean;
+            onToggle?: (value: boolean) => void;
+        };
+    })
+    | (SettingItemBase & {
+        controlType: 'input';
+        controlProps?: {
+            placeholder?: string;
+            value?: string;
+            onChange?: (value: string) => void;
+        };
+    })
+    | (SettingItemBase & {
+        controlType: 'selections';
+        controlProps?: {
+            options?: string[];
+            selected?: string;
+            onSelect?: (value: string) => void;
+        };
+    });
 
 interface SettingPanel {
     title: string;

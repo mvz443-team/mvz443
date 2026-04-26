@@ -1,6 +1,7 @@
-import { BaseZombieArmorEntity, PresetMonsterModel } from "../../../models/entities/MonsterEntity";
+import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import type { Game } from "../../../scenes/Game";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
+import { BaseZombieArmorEntity } from "./zombie";
 
 export class HelmetZombieEntity extends BaseZombieArmorEntity {
   public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {

@@ -1,7 +1,8 @@
 import type { Game } from "../../../scenes/Game";
 import { PositionManager } from "../../../managers/view/PositionManager";
-import { BaseZombieEntity, PresetMonsterModel, addHandAttachment } from "../../../models/entities/MonsterEntity";
+import { PresetMonsterModel, addHandAttachment } from "../../../models/entities/MonsterEntity";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
+import { BaseZombieEntity } from "./zombie";
 
 
 export class StickZombieEntity extends BaseZombieEntity {

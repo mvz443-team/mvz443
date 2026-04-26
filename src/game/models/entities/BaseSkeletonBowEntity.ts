@@ -2,7 +2,8 @@ import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
 import { ArrowData } from "../../presets/bullet/arrow";
 import { Faction } from "../Enum";
 import type { Game } from "../../scenes/Game";
-import { addHandAttachment, BaseSkeletonEntity, PresetMonsterModel } from "./MonsterEntity";
+import { addHandAttachment, PresetMonsterModel } from "./MonsterEntity";
+import { BaseSkeletonEntity } from "../../presets/monster/zombie/skeleton";
 
 export class BaseSkeletonBowEntity extends BaseSkeletonEntity {
   protected arrowDamage = 70;
