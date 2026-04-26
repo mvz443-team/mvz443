@@ -28,7 +28,8 @@
     "dev-nolog": "vite --config vite/config.dev.mjs",
     "build-nolog": "vite build --config vite/config.prod.mjs",
     "doctor:deps": "node scripts/doctor-deps.mjs",
-    "doctor:deps:fix": "node scripts/doctor-deps.mjs --fix"
+    "doctor:deps:fix": "node scripts/doctor-deps.mjs --fix",
+    "prepare:protos": "node scripts/prepare-protos.mjs --repo https://github.com/mvz443-team/protos"
   },
   "dependencies": {
     "-": "^0.0.1",
