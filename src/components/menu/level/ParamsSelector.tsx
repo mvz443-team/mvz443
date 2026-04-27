@@ -113,9 +113,16 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
       return [];
     }
 
-    let newAvailablePlants: PlantElem[] = [];
-    for (let i = 0; i < plantProgress.length; ++i) {
-      const pid = plantProgress[i].pid;
+    const plantLevelByPid = new Map<number, number>();
+    for (const plant of plantProgress) {
+      const currentLevel = plantLevelByPid.get(plant.pid) ?? 0;
+      if (plant.level > currentLevel) {
+        plantLevelByPid.set(plant.pid, plant.level);
+      }
+    }
+
+    const newAvailablePlants: PlantElem[] = [];
+    for (const [pid, level] of plantLevelByPid) {
       const plantModel = PlantLibrary.GetModel(pid);
       if (!plantModel) {
         console.warn(`Plant with pid ${pid} not found in PlantFactoryMap`);
@@ -125,7 +132,7 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
         pid: pid,
         name: plantModel.nameKey,
         imgUrl: `${publicUrl}/assets/card/${plantModel.texturePath}.png`,
-        level: plantProgress[i].level
+        level
       };
       newAvailablePlants.push(newPlant);
     }
