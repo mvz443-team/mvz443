@@ -3,6 +3,7 @@ import { BulletEntity } from "../../models/projectiles/BulletEntity";
 import { BulletConfig, BulletModel } from "../../models/projectiles/ProjectileModels";
 import type { Game } from "../../scenes/Game";
 import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
+import SoundCmd from "../../utils/cmd/SoundCmd";
 import { SfxCmd } from "../../utils/cmd/SfxCmd";
 import { RocketSmokeSfx } from "../../sfx/trail/RocketSmokeSfx";
 
@@ -32,7 +33,7 @@ export class HFireWorkEntity extends BulletEntity {
     const size = PositionManager.Instance.getBulletDisplaySize();
     this.sprite.setDisplaySize(size.sizeX * 2, size.sizeY / 2);
 
-    scene.musical.shootFireworkPool.play();
+    SoundCmd.PlayShootFirework();
   }
 
   stepUpdate(): void {

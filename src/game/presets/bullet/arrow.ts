@@ -5,6 +5,7 @@ import type { Game } from "../../scenes/Game";
 import { _TypeArrowEnhancement, EnhancementPriority } from "../../../constants/game";
 import { CombatEntity } from "../../models/core/CombatEntity";
 import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
+import SoundCmd from "../../utils/cmd/SoundCmd";
 
 export interface ArrowConfig extends BulletConfig {
   enhancement?: _TypeArrowEnhancement;
@@ -32,7 +33,7 @@ export class ArrowEntity extends BulletEntity {
     this.sprite.setDisplaySize(size.sizeX * 2, size.sizeY / 2);
 
     // 2. 播放专属音效
-    scene.musical.shootArrowPool.play();
+    SoundCmd.PlayShootArrow();
 
     // 3. 初始化附魔动画
     if (cfg.enhancement && cfg.enhancement !== 'none') {
@@ -237,6 +238,7 @@ export class MutantYAxisArrowEntity extends ArrowEntity {
   private targetRow: number;
   private targetY: number;
   private ySpeed: number;
+  private hasReachedTargetY = false;
   /**
    * 方向标志：true 表示向上超越某个 row（即 row 小于 targetRow）
    *           false 表示向下
@@ -266,18 +268,20 @@ export class MutantYAxisArrowEntity extends ArrowEntity {
 
   public override stepUpdate() {
     // 检查是否到达目标 row
-    if (this.rigidBody) {
+    if (this.rigidBody && !this.hasReachedTargetY) {
       if (this.lowerOrUpper) {
         // 向上模式：检查是否到达或超过目标Y
         if (this.y <= this.targetY) {
           this.rigidBody.setLinvel({ x: this.rigidBody.linvel().x, y: 0 }, true);
           this.y = this.targetY;
+          this.hasReachedTargetY = true;
         }
       } else {
         // 向下模式：检查是否到达或超过目标Y
         if (this.y >= this.targetY) {
           this.rigidBody.setLinvel({ x: this.rigidBody.linvel().x, y: 0 }, true);
           this.y = this.targetY;
+          this.hasReachedTargetY = true;
         }
       }
     }

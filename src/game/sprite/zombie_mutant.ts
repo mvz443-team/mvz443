@@ -839,10 +839,19 @@ export default class IMutantAnim {
       this.lowerArmLeft,
       this.lowerArmRight,
       this.lowerLegLeft,
-      this.lowerLegRight
+      this.lowerLegRight,
+      this.handObject,
+      this.backObject,
+      this.dirt
     ]);
 
     // 销毁所有组件
+    this.handObject?.destroy();
+    this.handObject = null;
+    this.backObject?.destroy();
+    this.backObject = null;
+    this.dirt?.destroy();
+    this.dirt = null;
     this.lowerArmLeft.destroy();
     this.lowerArmRight.destroy();
     this.body.destroy();
@@ -858,7 +867,7 @@ export default class IMutantAnim {
     this.legTweens.forEach(tween => tween.stop());
     this.armTweens.forEach(tween => tween.stop());
 
-    // 动画特效相关（例如：this.stopSlowEffect();）
+    this.stopSlowEffect();
   }
 
   highlight() {

@@ -13,7 +13,8 @@ import BackendWS from '../../utils/net/sync';
 import seedrandom from 'seedrandom';
 import { translate } from '../../i18n';
 import DepthUtils from '../../utils/depth';
-import Musical from '../utils/musical';
+import SoundManager from '../managers/SoundManager';
+import SoundCmd from '../utils/cmd/SoundCmd';
 import RAPIER from '@dimforge/rapier2d-deterministic-compat';
 import CombatManager from '../managers/CombatManager';
 import GridManager from '../managers/combat/GridManager';
@@ -58,7 +59,6 @@ export class Game extends Scene {
 
   public stageData: StageData;
 
-  musical: Musical;
   private readonly onCombatPauseHandler = () => {
     this.handlePause({ paused: true });
   };
@@ -89,6 +89,7 @@ export class Game extends Scene {
       ObstacleManager.Instance,
       PlantsManager.Instance,
       ResourceManager.Instance,
+      SoundManager.Instance,
       PresetEventManager.Instance,
       SyncManager.Instance,
       TickerManager.Instance,
@@ -177,7 +178,6 @@ export class Game extends Scene {
     CombatManager.Instance.Eventbus.on('onCombatPause', this.onCombatPauseHandler);
     CombatManager.Instance.Eventbus.on('onCombatResume', this.onCombatResumeHandler);
 
-    this.musical = new Musical(this, this.params.gameSettings.isBgm, this.params.gameSettings.isSoundAudio);
     ConsoleCmd.install(this);
 
     console.log('load finish');
@@ -235,7 +235,7 @@ export class Game extends Scene {
 
 
   broadCastFlag() {
-    this.musical.unlimitAudio.play('wave1');
+    SoundCmd.Play('wave1');
     // 创建新的广播文本
     const zombieText = this.add.text(
       this.cameras.main.width / 2,
@@ -253,7 +253,7 @@ export class Game extends Scene {
     this.time.addEvent({
       delay: 4000,
       callback: () => {
-        this.musical.unlimitAudio.play('wave2');
+        SoundCmd.Play('wave2');
         zombieText.setText(translate("game.incoming"));
         // 3秒后销毁文本对象
         this.time.addEvent({
@@ -302,7 +302,7 @@ export class Game extends Scene {
     this.anims?.pauseAll();
     this.tweens?.pauseAll();
     this.time.paused = true;
-    this.musical?.pause();
+    SoundManager.Instance.pause();
   }
 
   // 恢复game scene
@@ -310,7 +310,7 @@ export class Game extends Scene {
     this.anims?.resumeAll();
     this.tweens?.resumeAll();
     this.time.paused = false;
-    this.musical?.resume();
+    SoundManager.Instance.resume();
   }
 
   // 游戏退出真实入口, 由消息队列调用
@@ -320,7 +320,7 @@ export class Game extends Scene {
     CombatManager.Instance.Eventbus.off('onCombatResume', this.onCombatResumeHandler);
 
     ConsoleCmd.uninstall(this);
-    this.musical?.destroy();
+    SoundManager.Instance.Reset();
     this.debugFrameText?.destroy();
     this.debugFrameText = null;
 

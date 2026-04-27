@@ -9,6 +9,7 @@ import CursorManager from "./CursorManager";
 import GridManager from "./GridManager";
 import ResourceManager, { PlayerIdentify } from "./ResourceManager";
 import SyncManager from "./SyncManager";
+import SoundCmd from "../../utils/cmd/SoundCmd";
 
 type PlantsManagerEvent = {
   // 用户决定操作事件，之后要在send_queue监听
@@ -130,6 +131,7 @@ export default class PlantsManager extends BaseManager {
     }
     if (!isGiftPlant && playerId === ResourceManager.Instance.mineId) {
       CardpileManager.Instance.reloadCard(pid);
+      SoundCmd.PlayPlant('placePlant');
     }
 
     DeferredManager.Instance.defer(() => {

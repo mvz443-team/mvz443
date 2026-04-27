@@ -6,6 +6,7 @@ import type { Game } from "../../../scenes/Game";
 import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import { BaseSkeletonBowEntity } from "../../../models/entities/BaseSkeletonBowEntity";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
+import SoundCmd from "../../../utils/cmd/SoundCmd";
 
 export class TurtleSkeletonBowEntity extends BaseSkeletonBowEntity {
   private shellHealth = 375;
@@ -30,7 +31,7 @@ export class TurtleSkeletonBowEntity extends BaseSkeletonBowEntity {
       if (this.shellHealth > real) {
         this.shellHealth -= real;
         this.attachSprites.get("turtle_shell")?.setFrame(this.shellHealth > 250 ? 0 : this.shellHealth > 125 ? 1 : 2);
-        this.scene.musical.shieldHitAudio.play("leatherHit");
+        SoundCmd.PlayShieldHit("leatherHit");
         this.animController.highlight();
         return;
       }

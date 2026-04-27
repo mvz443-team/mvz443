@@ -6,6 +6,7 @@ import { CombatEntity } from "../core/CombatEntity";
 import { ProjectileEntity } from "../entities/ProjectileEntity";
 import { Faction } from "../Enum";
 import { ExplosionConfig, LaserConfig, LaserModel } from "./ProjectileModels";
+import SoundCmd from "../../utils/cmd/SoundCmd";
 
 export class LaserEntity extends ProjectileEntity<LaserModel> {
   public baseDepth: number;
@@ -38,7 +39,7 @@ export class LaserEntity extends ProjectileEntity<LaserModel> {
       rect.setAlpha(0);
       scene.time.delayedCall(105, () => this.destroy());
     } else {
-      scene.musical.shootLaserPool.play();
+      SoundCmd.PlayShootLaser();
       scene.tweens.add({
         targets: rect,
         alpha: cfg.alphaTo,

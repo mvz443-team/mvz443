@@ -109,39 +109,34 @@ export class MutantModel extends PresetMonsterModel {
 
     const raw = entity.getLegacyController()?.raw;
     raw?.stopArmSwing?.();
-    raw?.startLeftArmSmash?.(() => { });
-
     const attackTargets = [...entity.attackedPlants];
-    entity.attackTimer?.remove();
-    entity.attackTimer = entity.tickmanager.delayedCall({
-      delay: this.chargeMs,
-      callback: () => {
-        if (entity.currentHealth <= 0 || entity.isFrozen || entity.isDying) return;
 
-        const cells = attackTargets.map((plant) => ({ col: plant.col, row: plant.row }));
-        MobCmd.DamagePlantsInCells(cells, this.smashDamage);
+    raw?.startLeftArmSmash?.(() => {
+      if (entity.currentHealth <= 0 || entity.isFrozen || entity.isDying) return;
 
-        entity.recoverTimer?.remove();
-        entity.recoverTimer = entity.tickmanager.delayedCall({
-          delay: this.recoverMs,
-          callback: () => {
-            if (entity.currentHealth <= 0 || entity.isFrozen || entity.isDying) return;
+      const cells = attackTargets.map((plant) => ({ col: plant.col, row: plant.row }));
+      MobCmd.DamagePlantsInCells(cells, this.smashDamage);
 
-            entity.attackedPlants = [];
-            if (entity.preAttackedPlant) {
-              entity.attackedPlants.push(entity.preAttackedPlant);
-              entity.preAttackedPlant = null;
-              this.startAttackProcess(entity);
-              return;
-            }
+      entity.recoverTimer?.remove();
+      entity.recoverTimer = entity.tickmanager.delayedCall({
+        delay: this.recoverMs,
+        callback: () => {
+          if (entity.currentHealth <= 0 || entity.isFrozen || entity.isDying) return;
 
-            entity.isAttacking = false;
-            entity.isStop = false;
-            entity.attacking = null;
-            entity.startMove();
+          entity.attackedPlants = [];
+          if (entity.preAttackedPlant) {
+            entity.attackedPlants.push(entity.preAttackedPlant);
+            entity.preAttackedPlant = null;
+            this.startAttackProcess(entity);
+            return;
           }
-        });
-      }
+
+          entity.isAttacking = false;
+          entity.isStop = false;
+          entity.attacking = null;
+          entity.startMove();
+        }
+      });
     });
   }
 

@@ -10,6 +10,7 @@ import CombatManager from "../../managers/CombatManager";
 import { CollisionContext } from "../../types";
 import { BaseEntity } from "../core/BaseEntity";
 import { SfxCmd } from "../../utils/cmd/SfxCmd";
+import SoundCmd from "../../utils/cmd/SoundCmd";
 import { StarShardsBurstSfx } from "../../sfx/star/StarShardsBurstSfx";
 import { MonsterEntity } from "./MonsterEntity";
 
@@ -96,7 +97,7 @@ export abstract class PlantEntity extends CombatEntity {
   }
 
   public takeDamage(amount: number, dealer?: BaseEntity, source?: BaseEntity) {
-    this.scene.musical.plantAudio.play('plantHit');
+    SoundCmd.PlayPlant('plantHit');
     super.takeDamage(amount, dealer, source);
   }
 

@@ -1,5 +1,6 @@
 import DepthUtils from "../../../utils/depth";
 import { defaultRandom } from "../../../utils/random";
+import SoundCmd from "../../utils/cmd/SoundCmd";
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
 
 export interface ExplosionSfxArgs extends BaseSfxArgs {
@@ -18,7 +19,7 @@ export class ExplosionSfx extends BaseSfx<ExplosionSfxArgs> {
     const { x, y, totalWidth, totalHeight, leftWidth, downHeight, baseSize, viewGroup } = this.args;
     const scene = this.scene;
 
-    scene.musical.explodeAudio.play(`explode${Math.floor(Math.random() * 3) + 1}`);
+    SoundCmd.PlayExplosion(`explode${Math.floor(Math.random() * 3) + 1}`);
 
     const spriteBaseSize = baseSize * 0.6;
     const cols = Math.ceil(totalWidth / spriteBaseSize);

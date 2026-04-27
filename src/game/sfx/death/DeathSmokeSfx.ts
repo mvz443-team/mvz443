@@ -1,4 +1,5 @@
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
+import SoundCmd from "../../utils/cmd/SoundCmd";
 
 export interface DeathSmokeSfxArgs extends BaseSfxArgs {
   x: number;
@@ -10,7 +11,7 @@ export interface DeathSmokeSfxArgs extends BaseSfxArgs {
 export class DeathSmokeSfx extends BaseSfx<DeathSmokeSfxArgs> {
   play(): void {
     const scene = this.scene;
-    scene.musical.zombieDeathPool.play();
+    SoundCmd.PlayZombieDeath();
 
     const size = this.args.displaySize ?? 100;
     const smoke = scene.add.sprite(this.args.x, this.args.y, "anime/death_smoke")

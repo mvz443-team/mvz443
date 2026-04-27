@@ -20,6 +20,7 @@ import { SfxCmd } from "../../utils/cmd/SfxCmd";
 import { StarShardsOrbitSfx } from "../../sfx/star/StarShardsOrbitSfx";
 import { DeathRotateSfx } from "../../sfx/death/DeathRotateSfx";
 import { DeathSmokeSfx } from "../../sfx/death/DeathSmokeSfx";
+import SoundCmd from "../../utils/cmd/SoundCmd";
 
 export abstract class MonsterEntity extends CombatEntity {
   declare public scene: Game;
@@ -290,7 +291,7 @@ export abstract class MonsterEntity extends CombatEntity {
 
   protected playSpawnAudio() {
     const idx = Math.floor(Math.random() * 3) + 1;
-    this.scene.musical.zombieSpawnAudio.play(`zombieSpawn${idx}`);
+    SoundCmd.PlayZombieSpawn(idx);
   }
 
   protected playDeathSmokeAnimation() {
@@ -455,7 +456,7 @@ export abstract class BaseMonsterEntity extends MonsterEntity {
     }
 
     if (amount > 10) {
-      this.scene.musical.generalHitAudio.play("generalHit");
+      SoundCmd.PlayGeneralHit();
     }
   }
 
@@ -590,7 +591,7 @@ export abstract class ArmorMonsterEntity extends StagedBodyMonsterEntity {
         this.armorHealth -= real;
         this.animController.highlight();
         if (this.armorConfig.hitSound) {
-          this.scene.musical.shieldHitAudio.play(this.armorConfig.hitSound);
+          SoundCmd.PlayShieldHit(this.armorConfig.hitSound);
         }
         this.updateArmorFrame();
         return;

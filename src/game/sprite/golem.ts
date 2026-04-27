@@ -151,6 +151,11 @@ export default class GolemAnim {
     this.legRight.setOrigin(x, 0);
   }
 
+  private clearDirt() {
+    this.dirt?.destroy();
+    this.dirt = null;
+  }
+
   destroy() {
     // Stop any existing tweens before destroying
     this.scene.tweens.killTweensOf([
@@ -159,7 +164,8 @@ export default class GolemAnim {
       this.armLeft,
       this.armRight,
       this.legLeft,
-      this.legRight
+      this.legRight,
+      this.dirt
     ]);
 
     // Destroy all components
@@ -169,6 +175,7 @@ export default class GolemAnim {
     this.armRight.destroy();
     this.legLeft.destroy();
     this.legRight.destroy();
+    this.clearDirt();
 
     // Stop and clean up leg and arm tweens
     this.legLeftTween?.stop();
@@ -433,10 +440,7 @@ export default class GolemAnim {
       ease: 'Sine.easeIn',
       onComplete: () => {
         this.head.setVisible(false);
-        if (this.dirt) {
-          this.dirt.destroy();
-          this.dirt = null;
-        }
+        this.clearDirt();
         this.isInAnim = false;
         this.offsetY = +48 * this.scaleFactor;
       },
@@ -445,6 +449,7 @@ export default class GolemAnim {
 
     // make dirt
 
+    this.clearDirt();
     this.dirt = this.scene.add.sprite(this.x, this.y, 'anime/dirt')
       .setOrigin(0.5, 0.5).setScale(this.scaleFactor)
       .setDepth(this.baseDepth + 14);
@@ -489,10 +494,7 @@ export default class GolemAnim {
       onComplete: () => {
         this.offsetY = 0;
         this.isInAnim = false;
-        if (this.dirt) {
-          this.dirt.destroy();
-          this.dirt = null;
-        }
+        this.clearDirt();
 
       },
     });
@@ -509,9 +511,19 @@ export default class GolemAnim {
       ease: 'Sine.easeOut',
     });
 
+    this.clearDirt();
     this.dirt = this.scene.add.sprite(this.x, this.y, 'anime/dirt')
       .setOrigin(0.5, 0.5).setScale(this.scaleFactor)
       .setDepth(this.baseDepth + 14);
+
+    const dirt = this.dirt;
+    this.scene.time.delayedCall(900, () => {
+      if (this.dirt === dirt) {
+        this.clearDirt();
+      } else if (dirt.active) {
+        dirt.destroy();
+      }
+    });
   }
 }
 

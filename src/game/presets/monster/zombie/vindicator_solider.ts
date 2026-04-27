@@ -5,6 +5,7 @@ import type { Game } from "../../../scenes/Game";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
 import { BaseVindicatorEntity } from "./vindicator";
 import { BulletEntity } from "../../../models/projectiles/BulletEntity";
+import SoundCmd from "../../../utils/cmd/SoundCmd";
 
 
 export class ShieldVindicatorEntity extends BaseVindicatorEntity {
@@ -31,7 +32,7 @@ export class ShieldVindicatorEntity extends BaseVindicatorEntity {
       if (this.shieldHealth > blocked) {
         this.shieldHealth -= blocked;
         this.attachSprites.get("shield")?.setFrame(this.shieldHealth > 500 ? 0 : 1);
-        this.scene.musical.shieldHitAudio.play("ironHit");
+        SoundCmd.PlayShieldHit("ironHit");
         this.animController.highlight();
         return;
       }

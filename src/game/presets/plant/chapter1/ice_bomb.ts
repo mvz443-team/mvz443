@@ -5,6 +5,7 @@ import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { SfxCmd } from "../../../utils/cmd/SfxCmd";
+import SoundCmd from "../../../utils/cmd/SoundCmd";
 import { PowderScatterSfx } from "../../../sfx/powder/PowderScatterSfx";
 
 
@@ -126,7 +127,7 @@ export class IceBombEntity extends PlantEntity {
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, IceBombData, level);
     // 播放冻结音效
-    scene.musical.plantAudio.play('freeze');
+    SoundCmd.PlayPlant('freeze');
   }
 
   protected buildView() {

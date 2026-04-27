@@ -6,6 +6,7 @@ import type { Game } from "../../../scenes/Game";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { SfxCmd } from "../../../utils/cmd/SfxCmd";
 import { PowderScatterSfx } from "../../../sfx/powder/PowderScatterSfx";
+import SoundCmd from "../../../utils/cmd/SoundCmd";
 
 /**
  * 魔法粉 - 瞬间植物
@@ -87,9 +88,7 @@ export class MagicPowderEntity extends PlantEntity {
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, MagicPowderData, level);
     // 播放音效
-    if (scene.musical && scene.musical.plantAudio) {
-      scene.musical.plantAudio.play('magic');
-    }
+    SoundCmd.PlayPlant('magic');
   }
 
   protected buildView(): void {

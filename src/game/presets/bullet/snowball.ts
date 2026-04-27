@@ -1,6 +1,7 @@
 import { BulletEntity } from "../../models/projectiles/BulletEntity";
 import { BulletConfig, BulletModel } from "../../models/projectiles/ProjectileModels";
 import type { Game } from "../../scenes/Game";
+import SoundCmd from "../../utils/cmd/SoundCmd";
 import ProjectileDamage from "../../../constants/damage";
 import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
 import { PositionManager } from "../../managers/view/PositionManager";
@@ -17,7 +18,7 @@ export const SnowBallData = new SnowBallModel();
 export class SnowBallEntity extends BulletEntity {
   constructor(scene: Game, x: number, row: number, model: SnowBallModel, cfg: BulletConfig) {
     super(scene, x, row, model, cfg);
-    scene.musical.shootArrowPool.play();
+    SoundCmd.PlayShootArrow();
   }
 }
 

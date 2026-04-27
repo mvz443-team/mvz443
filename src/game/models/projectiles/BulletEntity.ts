@@ -133,7 +133,6 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
 
   // Override collision handling to support piercing and priority logic.
   override onCollision(ctx: CollisionContext): void {
-    console.log(`BulletEntity collided with entity at (${ctx.targetEntity.x.toFixed(2)}, ${ctx.targetEntity.y.toFixed(2)})`);
     // Only combat entities can be hit.
     if (!(ctx.targetEntity instanceof CombatEntity)) return;
 

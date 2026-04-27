@@ -221,7 +221,6 @@ export default class CombatManager extends BaseManager {
         this.scene?.rapierWorld?.step(this.scene.rapierEventQueue);
         // Drain collision events.
         this.scene?.rapierEventQueue.drainCollisionEvents((handle1: number, handle2: number, started: boolean) => {
-          console.log(`Collision event: handle1=${handle1}, handle2=${handle2}, started=${started}`);
           if (started) {
             this.scene?.handleCollision(handle1, handle2);
           }

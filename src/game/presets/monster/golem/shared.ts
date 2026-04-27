@@ -7,6 +7,7 @@ import { GolemAnimProps } from "../../../sprite/golem";
 import MobCmd from "../../../utils/cmd/MobCmd";
 import StageHelper from "../../../utils/helper/StageHelper";
 import { BaseMonsterEntity, PresetMonsterModel } from "../../../models/entities/MonsterEntity";
+import SoundCmd from "../../../utils/cmd/SoundCmd";
 
 
 export abstract class BaseGolemEntity extends BaseMonsterEntity {
@@ -17,7 +18,7 @@ export abstract class BaseGolemEntity extends BaseMonsterEntity {
     super(scene, col, row, model, waveID);
     this.random = seedrandom.alea(String((scene as any).seed * seedFactor));
     PhaserEventBus.emit(PhaserEvents.BossHealth, { health: 100 });
-    scene.musical.coverCurrent("bgm1");
+    SoundCmd.CoverBgm("bgm1");
 
     this.tickmanager.delayedCall({
       delay: 2500,
@@ -46,7 +47,7 @@ export abstract class BaseGolemEntity extends BaseMonsterEntity {
 
   public override destroy(): void {
     PhaserEventBus.emit(PhaserEvents.BossHealth, { health: -1 });
-    this.scene.musical.backToDump();
+    SoundCmd.BackToPreviousBgm();
     super.destroy();
   }
 
@@ -121,6 +122,5 @@ export abstract class BaseGolemEntity extends BaseMonsterEntity {
     spawnNext();
   }
 }
-
 
 
