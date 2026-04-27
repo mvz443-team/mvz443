@@ -38,6 +38,10 @@ export abstract class BaseGolemEntity extends BaseMonsterEntity {
     return createGolemAnimController(this.scene, this.x, this.y, this.createProps());
   }
 
+  public override startMove(): void {
+    this.stopMove();
+  }
+
   public override takeDamage(amount: number): void {
     super.takeDamage(amount);
     if (this.currentHealth > 0) {
@@ -122,5 +126,4 @@ export abstract class BaseGolemEntity extends BaseMonsterEntity {
     spawnNext();
   }
 }
-
 

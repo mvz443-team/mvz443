@@ -26,8 +26,8 @@ export const MonsterSpeed = {
   HelmetZombie: 35,
   TurtleSkeletonBow: 35,
   Evoker: 40,
-  ObsidianGolem: 40,
-  Warden: 40,
+  ObsidianGolem: 0,
+  Warden: 0,
   Vindicator: 55,
   StickZombie: 60,
 } as const;
@@ -47,4 +47,3 @@ export const ZombieAttackInterval = {
   TurtleZombie: 200,
   TurtleSkeletonBow: 200,
 } as const;
-

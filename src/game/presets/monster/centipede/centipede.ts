@@ -22,6 +22,7 @@ import { CentipedeMinionData } from "./centipede_minion";
 const PAUSE_BEFORE_SKILL_MS = 6000;
 const SKILL_DURATION_MS = 4000;
 const HIDDEN_DURATION_MS = 3000;
+const CHARGE_DURATION_MS = 700;
 const HEALTH_TRIGGERS = [0.8, 0.6, 0.4, 0.2];
 const HEALTH_FLASH_TRIGGER = 0.5;
 
@@ -70,6 +71,10 @@ export class CentipedeEntity extends BaseMonsterEntity {
       strokeColor: 0xc46af0,
       strokeWidth: 3,
     });
+  }
+
+  public override startMove(): void {
+    this.stopMove();
   }
 
   public override takeDamage(amount: number, dealer?: any, source?: any): void {
@@ -233,31 +238,23 @@ export class CentipedeEntity extends BaseMonsterEntity {
     const startCol = this.col;
     const targetCol = Math.max(2, startCol - 5);
     const targetRow = this.row;
-    const targetX = PositionManager.Instance.getZombieBottomCenter(targetCol, targetRow).x;
-    const dashDuration = 700;
+    const startPos = PositionManager.Instance.getZombieBottomCenter(startCol, targetRow);
+    const targetBodyPos = PositionManager.Instance.getZombieBodyCenter(targetCol, targetRow);
+    const targetViewPos = PositionManager.Instance.getZombieBottomCenter(targetCol, targetRow);
+    const chargeSpeed = (startPos.x - targetViewPos.x) / (CHARGE_DURATION_MS / 1000);
 
-    const ctrl = this.animController as ColorBlockAnimController;
-    const rect = ctrl.getRect();
-    ctrl.isInAnim = true;
-    this.scene.tweens.add({
-      targets: rect,
-      x: targetX,
-      duration: dashDuration,
-      ease: "Cubic.easeInOut",
-    });
-
+    this.setVelocityX(-chargeSpeed);
+    this.animController.startLegSwing();
     this.tickmanager.delayedCall({
-      delay: dashDuration,
+      delay: CHARGE_DURATION_MS,
       callback: () => {
-        ctrl.isInAnim = false;
         if (this.currentHealth <= 0) return;
+        this.stopMove();
         this.col = targetCol;
-        if (this.rigidBody) {
-          const bodyPos = PositionManager.Instance.getZombieBodyCenter(targetCol, targetRow);
-          this.rigidBody.setTranslation(bodyPos, true);
-        }
-        const viewPos = PositionManager.Instance.getZombieBottomCenter(targetCol, targetRow);
-        this.animController.updatePosition(viewPos.x + this.offsetX, viewPos.y + this.offsetY);
+        this.x = targetViewPos.x;
+        this.y = targetViewPos.y;
+        this.rigidBody?.setTranslation(targetBodyPos, true);
+        this.animController.updatePosition(targetViewPos.x + this.offsetX, targetViewPos.y + this.offsetY);
 
         const minCol = Math.min(startCol, targetCol);
         const maxCol = Math.max(startCol, targetCol);
