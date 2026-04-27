@@ -1,14 +1,12 @@
 import seedrandom from "seedrandom";
-import { GetDecValue, GetIncValue, PlantStat } from "../../../../utils/numbervalue";
+import { PlantStat } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { SfxCmd } from "../../../utils/cmd/SfxCmd";
-import { ArcSfx } from "../../../sfx/arc/ArcSfx";
 import { AlphaBlinkSfx } from "../../../sfx/flash/AlphaBlinkSfx";
-import { Faction } from "../../../models/Enum";
 import CombatManager from "../../../managers/CombatManager";
 
 export class TntModel extends PlantModel {
@@ -65,102 +63,8 @@ export class TntModel extends PlantModel {
     });
   }
 
-  public override onStarShards(entity: TntEntity): void {
-    if (!entity.game) return;
-
-    const scene = entity.game;
-
-    function getExplosionTargets(game: Game, col: number, row: number) {
-      const targets: number[][] = [];
-      if (col === PositionManager.Instance.Col_Number - 1) {
-        // 最右边的列：在左侧生成爆炸
-        if (row === 0) {
-          targets.push([col - 2, row]);
-          targets.push([col, row + 2]);
-        } else if (row === PositionManager.Instance.Row_Number - 1) {
-          targets.push([col - 2, row]);
-          targets.push([col, row - 2]);
-        } else {
-          targets.push([col - 1, Math.max(row - 2, 0)]);
-          targets.push([col - 1, Math.min(row + 2, PositionManager.Instance.Row_Number - 1)]);
-        }
-      } else {
-        // 非最右边的列：向前生成爆炸
-        const newCol = Math.min(col + 2, PositionManager.Instance.Col_Number - 1);
-        if (row === 0) {
-          targets.push([newCol, row]);
-          targets.push([newCol, row + 2]);
-        } else if (row === PositionManager.Instance.Row_Number - 1) {
-          targets.push([newCol, row]);
-          targets.push([newCol, row - 2]);
-        } else {
-          targets.push([newCol, Math.max(row - 2, 0)]);
-          targets.push([newCol, Math.min(row + 2, PositionManager.Instance.Row_Number - 1)]);
-        }
-      }
-      return targets;
-    }
-
-    // 生成爆炸效果
-    const targets = getExplosionTargets(scene, entity.col, entity.row);
-    const arcDuration = 800;
-    targets.forEach(([targetCol, targetRow]) => {
-      const { x, y } = PositionManager.Instance.getPlantBottomCenter(targetCol, targetRow);
-      SfxCmd.Create(ArcSfx, {
-        scene,
-        x1: entity.x, y1: entity.y,
-        x2: x, y2: y,
-        texture: 'plant/tnt',
-        duration: arcDuration,
-      });
-      entity.tickmanager.delayedCall({
-        delay: arcDuration,
-        callback: () => {
-          ProjectileCmd.CreateExplosion(scene, x, targetRow, {
-            damage: entity.explosionDamage,
-            rightGrid: 1.5,
-            leftGrid: 1.5,
-            upGrid: 1,
-            faction: entity.faction,
-            dealer: entity
-          });
-
-          // 精英7+：延迟爆炸
-          if (entity.level >= 7) {
-            entity.tickmanager.delayedCall({
-              delay: 3900,
-              callback: () => {
-                ProjectileCmd.CreateExplosion(scene, x, targetRow, {
-                  damage: entity.explosionDamage / 3,
-                  rightGrid: 1.5,
-                  leftGrid: 1.5,
-                  upGrid: 1,
-                  faction: entity.faction,
-                  dealer: entity
-                });
-              }
-            });
-          }
-        }
-      });
-    });
-
-    // 中心延迟爆炸（精英7+）
-    if (entity.level >= 7) {
-      entity.tickmanager.delayedCall({
-        delay: 4750,
-        callback: () => {
-          ProjectileCmd.CreateExplosion(scene, entity.x, entity.row, {
-            damage: entity.explosionDamage / 3,
-            rightGrid: 1.5,
-            leftGrid: 1.5,
-            upGrid: 1,
-            faction: entity.faction,
-            dealer: entity
-          });
-        }
-      });
-    }
+  public override onStarShards(_entity: TntEntity): void {
+    // TNT cannot use Star Shards.
   }
 }
 
