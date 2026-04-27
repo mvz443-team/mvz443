@@ -178,12 +178,13 @@ export default function BottomTools({ width, chapterID }: Props) {
 
     // Normal mode
     const { totalWaves, currentWave, flagWaves } = progressState;
+    const maxWaveIndex = Math.max(0, totalWaves - 1);
 
     let progress = 0;
-    if (totalWaves > 1) {
+    if (maxWaveIndex > 0) {
       if (currentWave <= 0) progress = 0;
-      else if (currentWave >= totalWaves) progress = 100;
-      else progress = (currentWave / totalWaves) * 100;
+      else if (currentWave >= maxWaveIndex) progress = 100;
+      else progress = (currentWave / maxWaveIndex) * 100;
     } else {
       progress = currentWave > 0 ? 100 : 0;
     }
@@ -202,8 +203,8 @@ export default function BottomTools({ width, chapterID }: Props) {
             }}
           ></div>
           {/* 渲染旗帜分割线 */}
-          {flagWaves && totalWaves > 1 && flagWaves.map((flagWaveId, idx) => {
-            const flagPercent = (flagWaveId / (totalWaves - 1)) * 100;
+          {flagWaves && maxWaveIndex > 0 && flagWaves.map((flagWaveId, idx) => {
+            const flagPercent = (flagWaveId / maxWaveIndex) * 100;
             return (
               <div
                 key={idx}

@@ -65,6 +65,10 @@ export class Game extends Scene {
   private readonly onCombatResumeHandler = () => {
     this.handlePause({ paused: false });
   };
+  private offNotifyFlagWave: (() => void) | null = null;
+  private readonly onNotifyFlagWaveHandler = () => {
+    this.broadCastFlag();
+  };
 
 
   constructor() {
@@ -177,6 +181,8 @@ export class Game extends Scene {
     PhaserEventBus.on(PhaserEvents.RoomGameEnd, this.handleRoomGameEnd, this);
     CombatManager.Instance.Eventbus.on('onCombatPause', this.onCombatPauseHandler);
     CombatManager.Instance.Eventbus.on('onCombatResume', this.onCombatResumeHandler);
+    this.offNotifyFlagWave = MobManager.Instance.EventBus.on('onNotifyFlagWave', this.onNotifyFlagWaveHandler);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanupSceneListeners, this);
 
     ConsoleCmd.install(this);
 
@@ -313,11 +319,17 @@ export class Game extends Scene {
     SoundManager.Instance.resume();
   }
 
-  // 游戏退出真实入口, 由消息队列调用
-  private handleRoomGameEnd({ isWin = false }: { isWin?: boolean } = {}) {
+  private cleanupSceneListeners() {
     PhaserEventBus.off(PhaserEvents.RoomGameEnd, this.handleRoomGameEnd, this);
     CombatManager.Instance.Eventbus.off('onCombatPause', this.onCombatPauseHandler);
     CombatManager.Instance.Eventbus.off('onCombatResume', this.onCombatResumeHandler);
+    this.offNotifyFlagWave?.();
+    this.offNotifyFlagWave = null;
+  }
+
+  // 游戏退出真实入口, 由消息队列调用
+  private handleRoomGameEnd({ isWin = false }: { isWin?: boolean } = {}) {
+    this.cleanupSceneListeners();
 
     ConsoleCmd.uninstall(this);
     SoundManager.Instance.Reset();
