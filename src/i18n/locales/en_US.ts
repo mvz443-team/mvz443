@@ -149,7 +149,13 @@ const enUS = {
     "speed": "Speed {{speed}}x",
     "waiting": "Waiting...",
     "bigWave": "A huge wave of monsters is approaching",
-    "debugHint": "Press {{key}} to toggle Rapier debug"
+    "debugHint": "Press {{key}} to toggle Rapier debug",
+    "boss_skill": {
+      "skill_mine_rock": "Mine Wreckage",
+      "skill_charge": "Tunnel Borer",
+      "skill_summon": "Centipede Swarm",
+      "skill_blast": "Mine Blast"
+    }
   }
 } as const;
 

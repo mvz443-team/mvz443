@@ -15,3 +15,4 @@ export {
 } from "./zombie";
 export { MutantData } from "./mutant";
 export { ObsidianGolemData, WardenData } from "./golem";
+export { CentipedeData, CentipedeMinionData } from "./centipede";

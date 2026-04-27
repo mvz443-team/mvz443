@@ -1,28 +1,65 @@
 {
-    "comment": "1-9, Rainbow dragon Cave BOSS,体验版",
+    "comment": "1-9, final stage, Centipede boss",
     "rows": 6,
     "type": 1,
     "stageScript": {
         "first_wave_id": 0,
-        "total_waves": 10,
-        "difficulty_limit": 114514,
-        "phase1_end": 8,
+        "total_waves": 36,
+        "base_difficulty": 0,
+        "difficulty_limit": 56,
+        "phase1_end": 11,
         "phase2_end": 28,
         "dayOrNight": 2,
         "flagWaves": [ 10, 25, 35 ],
-        "waterWays": [ 2, 3 ],
-        "AllowedMobs": [ 1, 15 ],
-        "globalRatio": [ [ 0, 1.0 ], [ 21, 1.3 ] ],
-        "bossInsert": [ [ 1, 13 ] ]
+        "waterWays": [ ],
+        "AllowedMobs": [ 1, 2, 3, 8, 5, 7, 9, 11, 14, 15, 16 ],
+        "globalRatio": [ [ 0, 1.0 ], [ 21, 2 ] ],
+        "bossInsert": [ [ 20, 12 ], [ 25, 13 ], [ 35, 17 ] ]
     },
     "onWin": {
         "unLock": [ ],
         "unLockPlant": [ ]
     },
-    "energy": 5555,
-    "rewards": [ ],
+    "energy": 100,
+    "rewards": [
+        {
+            "progress": 75,
+            "reward": {
+                "type": 1,
+                "count": 120
+            }
+        },
+        {
+            "progress": 90,
+            "reward": {
+                "type": 2,
+                "count": 3
+            }
+        },
+        {
+            "progress": 90,
+            "reward": {
+                "type": 3,
+                "count": 3
+            }
+        },
+        {
+            "progress": 100,
+            "reward": {
+                "type": 1,
+                "count": 200
+            }
+        },
+        {
+            "progress": 100,
+            "reward": {
+                "type": 5,
+                "count": 3
+            }
+        }
+    ],
     "load": {
-        "bgimg": [ "bg/bgRainbowCave1.png" ],
+        "bgimg": [ "bg/bgDeepMine.png" ],
         "bgm": [ "audio/OLJA-0021-08.ogg", "audio/ZCDS-0014-05.ogg" ]
     }
 }

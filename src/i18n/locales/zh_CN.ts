@@ -153,7 +153,13 @@ const zhCN = {
     "speed": "速度 {{speed}}x",
     "waiting": "等待中...",
     "bigWave": "一大波怪物即将登场",
-    "debugHint": "按 {{key}} 切换 Rapier 调试"
+    "debugHint": "按 {{key}} 切换 Rapier 调试",
+    "boss_skill": {
+      "skill_mine_rock": "矿山废石",
+      "skill_charge": "盾构机",
+      "skill_summon": "蜈蚣召唤",
+      "skill_blast": "矿山爆破"
+    }
   }
 } as const;
 

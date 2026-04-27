@@ -1,3 +1,4 @@
+import { setCentipedeHooks } from "../../presets/monster/centipede/centipede";
 import { DispenserData } from "../../presets/plant/chapter1/dispenser";
 import { FurnaceData } from "../../presets/plant/chapter1/furnace";
 import type { Game } from "../../scenes/Game";
@@ -10,7 +11,7 @@ import GridManager from "./GridManager";
 import MobManager from "./MobManager";
 import PlantsManager from "./PlantsManager";
 import ResourceManager from "./ResourceManager";
-import TickerManager from "./TickerManager";
+import TickerManager, { FrameTimer } from "./TickerManager";
 
 /**
  * 预设事件管理器
@@ -19,6 +20,7 @@ import TickerManager from "./TickerManager";
 export class PresetEventManager extends BaseManager {
   private static _instance: PresetEventManager;
   private onNewWaveHandler: ((waveId: number, isFlag: boolean) => void) | null = null;
+  private autoEnergyTimer: FrameTimer | null = null;
 
   public static get Instance(): PresetEventManager {
     if (!this._instance) {
@@ -78,19 +80,27 @@ export class PresetEventManager extends BaseManager {
       MobManager.Instance.EventBus.off('onNewWave', this.onNewWaveHandler);
       this.onNewWaveHandler = null;
     }
+    this.stopAutoGenerateEnergy();
+    setCentipedeHooks(null);
     this.scene = null;
   }
 
   // 自动产能设置
   private setAutoGenerateEnergy(startAtMs: number, intervalMs: number, delta: number) {
-    TickerManager.Instance.addEvent({
+    this.stopAutoGenerateEnergy();
+    this.autoEnergyTimer = TickerManager.Instance.addEvent({
       delay: intervalMs,
       loop: true,
       startAt: startAtMs,
       callback: () => {
         ResourceManager.Instance.UpdateEnergy(+delta, 'all');
       }
-    })
+    });
+  }
+
+  private stopAutoGenerateEnergy() {
+    this.autoEnergyTimer?.remove();
+    this.autoEnergyTimer = null;
   }
 
   // 初始能量
@@ -146,17 +156,26 @@ export class PresetEventManager extends BaseManager {
       }
     }
 
-    if (stageId === 6 || stageId === 9) {
+    if (stageId === 6) {
       CombatManager.Instance.combatStatus.dayOrNight = false;
       game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(2);
-      if (stageId === 9) {
-        // 在stage 8 基础上,在第一个elite结束后沙砾和碎石砖块会消失变为sky
+    }
 
-        // 切换地图为 `bg/bgRainbowCave2`
+    if (stageId === 9) {
+      CombatManager.Instance.combatStatus.dayOrNight = false;
+      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(2);
 
-        // 开始定时能量恢复
-      }
+      // 关卡开局即自动产能；boss 出场时停产，到达 50% 血量时再恢复
+      this.setAutoGenerateEnergy(10000, 20000, 25);
 
+      setCentipedeHooks({
+        onSpawn: () => {
+          this.stopAutoGenerateEnergy();
+        },
+        onHalfHealth: () => {
+          this.setAutoGenerateEnergy(0, 20000, 25);
+        }
+      });
     }
 
 

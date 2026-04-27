@@ -1,6 +1,8 @@
 import { MonsterModel } from "../../models/MonsterModel";
 import {
   CapZombieData,
+  CentipedeData,
+  CentipedeMinionData,
   EvokerData,
   HelmetZombieData,
   MinerHelmetZombieData,
@@ -44,6 +46,8 @@ export class MonsterLibrary {
     this.Register(TurtleZombieData);
     this.Register(MutantData);
     this.Register(TurtleSkeletonBowData);
+    this.Register(CentipedeData);
+    this.Register(CentipedeMinionData);
 
     console.log(`[MonsterLibrary] Initialized ${this.models.size} Monsters.`);
   }

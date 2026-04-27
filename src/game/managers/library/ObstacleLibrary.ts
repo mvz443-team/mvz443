@@ -1,5 +1,5 @@
 import { ObstacleModel } from "../../models/ObstacleModel";
-import { ObsidianObstacleData } from "../../presets/obstacle";
+import { MineRockObstacleData, ObsidianObstacleData } from "../../presets/obstacle";
 
 export class ObstacleLibrary {
   private static models: Map<number, ObstacleModel> = new Map();
@@ -12,6 +12,7 @@ export class ObstacleLibrary {
     if (this.models.size > 0) return;
 
     this.Register(ObsidianObstacleData);
+    this.Register(MineRockObstacleData);
 
     console.log(`[ObstacleLibrary] Initialized ${this.models.size} obstacles.`);
   }

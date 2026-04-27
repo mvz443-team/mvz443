@@ -57,9 +57,18 @@ namespace MobCmd {
     });
   }
 
+  export function DeterministicRandom(min: number = 0, max: number = 1): number {
+    if (min === max) return min;
+    const low = Math.min(min, max);
+    const high = Math.max(min, max);
+    return low + MobManager.Instance.SeedRandom() * (high - low);
+  }
+
   function scenePlantsAt(col: number, row: number) {
     return [...(PlantsManager.Instance.PlantsMap.get(`${col}-${row}`) ?? [])];
   }
+
+
 }
 
 export default MobCmd;
