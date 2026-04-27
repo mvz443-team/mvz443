@@ -138,7 +138,7 @@ class MockServer {
         case "loaded":
           return this.handleLoadedRequest(this.myId, request.payload.loaded.isLoaded, now);
         case "endGame":
-          return [this.makeGameEndPacket(request.payload.endGame.gameResult)];
+          return this.handleEndGameRequest(this.myId, request.payload.endGame.gameResult, now);
         case "blank":
         case "plant":
         case "removePlant":
@@ -220,6 +220,22 @@ class MockServer {
         client.highestSubmittedFrame = Math.max(client.highestSubmittedFrame, targetFrameId);
       }
     }
+
+    this.advanceFrames(now);
+    this.pruneHistories();
+    return this.collectPacketsForClient(client.id);
+  }
+
+  private handleEndGameRequest(clientId: number, gameResult: number, now: number): MockPacket[] {
+    if (!this.areAllClientsLoaded()) {
+      return [];
+    }
+
+    const client = this.ensureClient(clientId, now);
+    client.lastSeenAt = now;
+    const frameId = Math.max(client.ackFrameId + 1, this.serverFrameId + 1);
+    this.recordGameEndSubmission(frameId, gameResult);
+    client.highestSubmittedFrame = Math.max(client.highestSubmittedFrame, frameId);
 
     this.advanceFrames(now);
     this.pruneHistories();
@@ -358,6 +374,33 @@ class MockServer {
       operationKind: operation.payload.oneofKind,
       operationCount: submission.operations.length
     });
+  }
+
+  private recordGameEndSubmission(frameId: number, gameResult: number) {
+    const operation = this.buildGameEndOperation(frameId, gameResult);
+    const existingFrame = this.frameHistory.get(frameId);
+    if (existingFrame) {
+      existingFrame.operations.push(operation);
+      existingFrame.operations.sort((a, b) => this.compareInGameOperations(a, b));
+      this.frameHistory.set(frameId, existingFrame);
+      return;
+    }
+
+    let submission = this.scheduledFrames.get(frameId);
+    if (!submission) {
+      submission = {
+        operations: [],
+        operationSignatures: new Set<string>()
+      };
+      this.scheduledFrames.set(frameId, submission);
+    }
+
+    const signature = this.getOperationSignature(operation);
+    if (submission.operationSignatures.has(signature)) {
+      return;
+    }
+    submission.operationSignatures.add(signature);
+    submission.operations.push(operation);
   }
 
   private advanceFrames(now: number) {
@@ -603,6 +646,20 @@ class MockServer {
     };
   }
 
+  private buildGameEndOperation(frameId: number, gameResult: number): InGameOperation {
+    return {
+      processFrameId: frameId,
+      operationIndex: this.nextOperationIndex(),
+      payload: {
+        oneofKind: "gameEvent",
+        gameEvent: {
+          eventType: 0x4000,
+          message: gameResult === 1 ? "1" : "0"
+        }
+      }
+    };
+  }
+
   private getOperationSignature(operation: InGameOperation): string {
     switch (operation.payload.oneofKind) {
       case "cardPlant":
@@ -704,17 +761,6 @@ class MockServer {
     };
   }
 
-  private makeGameEndPacket(gameResult: number): MockPacket {
-    return {
-      channel: "room",
-      data: RoomResponse.toBinary({
-        payload: {
-          oneofKind: "gameEnd",
-          gameEnd: { gameResult }
-        }
-      })
-    };
-  }
 }
 
 const mockServer = new MockServer();

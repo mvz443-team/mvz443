@@ -1,6 +1,9 @@
 import { FrameInterval } from "../../../../public/constants";
+import { onlineStateManager } from "../../../store/OnlineStateManager";
 import { EventBus } from "../../../utils/eventBus";
+import EnumGameStage from "../../../utils/net/game_state";
 import BackendWS from "../../../utils/net/sync";
+import { PhaserEventBus, PhaserEvents } from "../../EventBus";
 import type { Game } from "../../scenes/Game";
 import QueueReceive from "../../sync/queue_receive";
 import QueueSend from "../../sync/queue_send";
@@ -59,6 +62,7 @@ export default class SyncManager extends BaseManager {
     this.recvQueue.InGameEventBus.on("onCardPlant", this.handleRecvCardPlant);
     this.recvQueue.InGameEventBus.on("onUseStarShards", this.handleRecvUseStarShards);
     this.recvQueue.InGameEventBus.on("onRemovePlant", this.handleRecvRemovePlant);
+    this.recvQueue.InGameEventBus.on("onGameEnd", this.handleRecvGameEnd);
   }
 
   private unbindQueueAndPlantEvents() {
@@ -74,6 +78,7 @@ export default class SyncManager extends BaseManager {
     this.recvQueue?.InGameEventBus.off("onCardPlant", this.handleRecvCardPlant);
     this.recvQueue?.InGameEventBus.off("onUseStarShards", this.handleRecvUseStarShards);
     this.recvQueue?.InGameEventBus.off("onRemovePlant", this.handleRecvRemovePlant);
+    this.recvQueue?.InGameEventBus.off("onGameEnd", this.handleRecvGameEnd);
   }
 
   private handleDeterminePlant = (pid: number, level: number, col: number, row: number, cost: number) => {
@@ -98,6 +103,11 @@ export default class SyncManager extends BaseManager {
 
   private handleRecvRemovePlant = (pid: number, col: number, row: number) => {
     this.Eventbus.emit("onRequestRemovePlant", pid, col, row);
+  };
+
+  private handleRecvGameEnd = (isWin: boolean) => {
+    onlineStateManager.updateGameStage(EnumGameStage.PostGame);
+    PhaserEventBus.emit(PhaserEvents.RoomGameEnd, { isWin });
   };
 
   public update(): boolean {

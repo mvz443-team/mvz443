@@ -84,6 +84,7 @@ export default class MobManager extends BaseManager {
 
   private bossObj: CombatEntity | null = null; // boss对象,如果有最后一波boss,监听boss存活,
   // BOSS死亡自动emit游戏胜利,不再做胜利判断
+  private hasRequestedWin = false;
   private readonly handleRoomAllReady = (data: { allPlayerCount: number, seed: number, myId: number, playerIds: number }) => {
     this.seed = data.seed;
   };
@@ -136,6 +137,7 @@ export default class MobManager extends BaseManager {
     this.killed_count = 0;
     this.total_count = 0;
     this.bossObj = null;
+    this.hasRequestedWin = false;
     this.EventBus.removeAllListeners();
     this.scene = null;
   }
@@ -167,7 +169,17 @@ export default class MobManager extends BaseManager {
     this.current_wave_idx = -1;
     this.killed_count = 0;
     this.total_count = 0;
+    this.hasRequestedWin = false;
     this.nextWave();
+  }
+
+  private completeAllWaves() {
+    if (this.hasRequestedWin) {
+      return;
+    }
+    this.hasRequestedWin = true;
+    this.EventBus.emit('onAllWavesCompleted');
+    CombatManager.Instance.EndGame(true);
   }
 
   // Next
@@ -516,7 +528,7 @@ export default class MobManager extends BaseManager {
           });
         } else if (waveObj.flag === 'boss') {
           console.log('BOSS已击杀, 游戏胜利！');
-          this.EventBus.emit('onAllWavesCompleted');
+          this.completeAllWaves();
         }
       }
       return;
@@ -536,7 +548,7 @@ export default class MobManager extends BaseManager {
           callback: () => {
             if (this.MobsByLane.size === 0) {
               console.log('No monsters left on the field, game victory!');
-              this.EventBus.emit('onAllWavesCompleted');
+              this.completeAllWaves();
               victoryCheckTimer.remove();
             } else {
               console.log('Monsters still on field:', this.MobsByLane.size);

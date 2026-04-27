@@ -11,8 +11,11 @@ type InGameEvent = {
   onRemovePlant: (pid: number, col: number, row: number) => void;
   onUseStarShards: (pid: number, col: number, row: number, uid: number) => void;
   onGameEvent: (eventType: number, message: string) => void;
+  onGameEnd: (isWin: boolean) => void;
   onError: (message: string) => void;
 };
+
+const GameEndEventType = 0x4000;
 
 const inGameOperationTypePriority: Record<string, number> = {
   removePlant: 0,
@@ -58,6 +61,23 @@ export default class QueueReceive {
     this.queues.push(response);
   }
 
+  handleGameEndResponse(isWin: boolean) {
+    this.handleInGameResponse({
+      frameId: this.currentFrameId + 1,
+      operations: [{
+        processFrameId: this.currentFrameId + 1,
+        operationIndex: Number.MAX_SAFE_INTEGER,
+        payload: {
+          oneofKind: "gameEvent",
+          gameEvent: {
+            eventType: GameEndEventType,
+            message: isWin ? "1" : "0"
+          }
+        }
+      }]
+    });
+  }
+
   public ConsumeInGameOperation(operation: InGameOperation): void {
     switch (operation.payload.oneofKind) {
       case "cardPlant": {
@@ -100,7 +120,8 @@ export default class QueueReceive {
       case "gameEvent": {
         const gameEvent = operation.payload.gameEvent;
         if (gameEvent) {
-          if (gameEvent.eventType === 0x4000) {
+          if (gameEvent.eventType === GameEndEventType) {
+            this.InGameEventBus.emit("onGameEnd", gameEvent.message === "1");
             return;
           }
           this.InGameEventBus.emit("onGameEvent", gameEvent.eventType, gameEvent.message);

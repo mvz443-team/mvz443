@@ -125,8 +125,13 @@ export default class WSClientHandlers {
       }
       case 'gameEnd': {
         const gameEnd = roomResponse.payload.gameEnd;
-        onlineStateManager.updateGameStage(EnumGameStage.PostGame);
-        PhaserEventBus.emit(PhaserEvents.RoomGameEnd, { isWin: gameEnd.gameResult === 1 });
+        const receiveQueue = this.ws.getReceiveQueue();
+        if (onlineStateManager.getCurrentGameStage() === EnumGameStage.InGame && receiveQueue) {
+          receiveQueue.handleGameEndResponse(gameEnd.gameResult === 1);
+        } else {
+          onlineStateManager.updateGameStage(EnumGameStage.PostGame);
+          PhaserEventBus.emit(PhaserEvents.RoomGameEnd, { isWin: gameEnd.gameResult === 1 });
+        }
         break;
       }
       case 'roomClosed': {
@@ -149,6 +154,13 @@ export default class WSClientHandlers {
 
   public handleInGameResponse(response: Uint8Array) {
     const inGameResponse = InGameResponse.fromBinary(response);
+    if (inGameResponse.frameId === 0 && inGameResponse.operations.length === 0) {
+      const roomResponse = RoomResponse.fromBinary(response);
+      if (roomResponse.payload.oneofKind === "gameEnd") {
+        this.handleRoomResponse(response);
+        return;
+      }
+    }
     // console.log("[WSClientHandlers] handleInGameResponse", {
     //   frameId: inGameResponse.frameId,
     //   operationCount: inGameResponse.operations.length,

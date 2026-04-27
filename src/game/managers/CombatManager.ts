@@ -7,7 +7,6 @@ import { EventBus } from "../../utils/eventBus";
 import SyncManager from "./combat/SyncManager";
 import TickerManager from "./combat/TickerManager";
 import { BaseEntity } from "../models/core/BaseEntity";
-import { SendEndGame } from "../../utils/net/room";
 import { DeferredManager } from "./DeferredManager";
 import { onlineStateManager } from "../../store/OnlineStateManager";
 import { RoomAllReadyEvent } from "../../types/online";
@@ -41,6 +40,7 @@ export default class CombatManager extends BaseManager {
   private isInFixedStep = false;
   private pendingPausedState: boolean | null = null;
   isGameEnd: boolean = true;
+  private isEndGameRequested: boolean = false;
   private readonly handleRoomAllReady = (data: RoomAllReadyEvent) => {
     this.seed = data.seed;
   };
@@ -130,6 +130,7 @@ export default class CombatManager extends BaseManager {
     this.isInFixedStep = false;
     this.isPaused = true;
     this.isGameEnd = true;
+    this.isEndGameRequested = false;
     this.Eventbus.removeAllListeners();
     this.combatStatus = {
       dayOrNight: true,
@@ -138,8 +139,12 @@ export default class CombatManager extends BaseManager {
 
   // Local active game over.
   public EndGame(isWin: boolean) {
-    SendEndGame(isWin);
-    this.handleRoomGameEnd({ isWin });
+    if (this.isGameEnd || this.isEndGameRequested) {
+      return;
+    }
+    this.isEndGameRequested = true;
+    SyncManager.Instance.sendQueue.sendGameEnd(isWin ? 1 : 0);
+    SyncManager.Instance.sendQueue.Consume();
   }
 
   private handleTogglePause() {
@@ -160,6 +165,7 @@ export default class CombatManager extends BaseManager {
     }
     this.elapsedFrameTime = 0;
     this.isGameEnd = false;
+    this.isEndGameRequested = false;
     this.isPaused = false;
   }
 
