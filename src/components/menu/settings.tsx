@@ -42,6 +42,16 @@ type SettingItem =
         };
     })
     | (SettingItemBase & {
+        controlType: 'slider';
+        controlProps?: {
+            value?: number;
+            min?: number;
+            max?: number;
+            step?: number;
+            onChange?: (value: number) => void;
+        };
+    })
+    | (SettingItemBase & {
         controlType: 'selections';
         controlProps?: {
             options?: string[];
@@ -250,20 +260,20 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
                     {
                         titleKey: "menu.settings_gaming_background_music",
                         descriptionKey: "menu.settings_gaming_background_music_t",
-                        controlType: "switcher",
+                        controlType: "slider",
                         controlProps: {
-                            value: settingManager.isBgm, onToggle: (val) => {
-                                debounce((newVal) => settingManager.setIsBgm(newVal), 50)(val);
+                            value: settingManager.bgmVolume, min: 0, max: 1, step: 0.01, onChange: (val) => {
+                                debounce((newVal) => settingManager.setBgmVolume(newVal), 50)(val);
                             }
                         }
                     },
                     {
                         titleKey: "menu.settings_gaming_sound_effects",
                         descriptionKey: "menu.settings_gaming_sound_effects_t",
-                        controlType: "switcher",
+                        controlType: "slider",
                         controlProps: {
-                            value: settingManager.isSoundAudio, onToggle: (val) => {
-                                debounce((newVal) => settingManager.setIsSoundAudio(newVal), 50)(val);
+                            value: settingManager.soundAudioVolume, min: 0, max: 1, step: 0.01, onChange: (val) => {
+                                debounce((newVal) => settingManager.setSoundAudioVolume(newVal), 50)(val);
                             }
                         }
                     }
@@ -631,6 +641,26 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
                                                 borderRadius: "3px"
                                             }}
                                         />
+                                    )}
+                                    {item.controlType === 'slider' && (
+                                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                            <input
+                                                type="range"
+                                                min={item.controlProps?.min ?? 0}
+                                                max={item.controlProps?.max ?? 1}
+                                                step={item.controlProps?.step ?? 0.01}
+                                                value={item.controlProps?.value ?? 0}
+                                                onChange={(e) => item.controlProps?.onChange?.(Number(e.target.value))}
+                                                style={{
+                                                    flex: 1,
+                                                    accentColor: "#00ccff",
+                                                    cursor: "pointer"
+                                                }}
+                                            />
+                                            <span style={{ width: "44px", color: "#ddd", fontSize: "13px", textAlign: "right" }}>
+                                                {Math.round((item.controlProps?.value ?? 0) * 100)}%
+                                            </span>
+                                        </div>
                                     )}
                                     {item.controlType === 'selections' && (
                                         <select

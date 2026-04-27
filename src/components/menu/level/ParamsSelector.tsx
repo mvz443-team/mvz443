@@ -214,6 +214,8 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
           isDebug: settings.isDebug,
           isBgm: settings.isBgm,
           isSoundAudio: settings.isSoundAudio,
+          bgmVolume: settings.bgmVolume,
+          soundAudioVolume: settings.soundAudioVolume,
         }
       };
 
@@ -248,6 +250,8 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
         isDebug: settings.isDebug,
         isBgm: settings.isBgm,
         isSoundAudio: settings.isSoundAudio,
+        bgmVolume: settings.bgmVolume,
+        soundAudioVolume: settings.soundAudioVolume,
       }
     };
 

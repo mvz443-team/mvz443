@@ -218,10 +218,8 @@ export class Preloader extends Scene {
     for (let i = 1; i < preloadData.bgimg.length; ++i) {
       this.load.image(`bgimg${i}`, preloadData.bgimg[i]);
     }
-    if (params.gameSettings.isBgm) {
-      for (let i = 1; i < preloadData.bgm.length; ++i) {
-        this.load.audio(`bgm${i}`, preloadData.bgm[i]);
-      }
+    for (let i = 1; i < preloadData.bgm.length; ++i) {
+      this.load.audio(`bgm${i}`, preloadData.bgm[i]);
     }
 
     // 预先需要加载的器械

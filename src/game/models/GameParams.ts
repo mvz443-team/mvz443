@@ -20,6 +20,8 @@ export interface GameSettings {
   isDebug: boolean;
   isBgm: boolean;
   isSoundAudio: boolean;
+  bgmVolume?: number;
+  soundAudioVolume?: number;
 }
 
 export interface ChapterDescription {

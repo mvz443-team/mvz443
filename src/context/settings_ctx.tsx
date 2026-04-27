@@ -22,6 +22,8 @@ interface GameSettings {
     isDebug: boolean;
     isBgm: boolean;
     isSoundAudio: boolean;
+    bgmVolume: number;
+    soundAudioVolume: number;
     linkOptions: {
         baseUrl: string;
         key: string;
@@ -33,6 +35,8 @@ interface GameSettings {
     setIsDebug: (isDebug: boolean) => void;
     setIsBgm: (isBgm: boolean) => void;
     setIsSoundAudio: (isSoundAudio: boolean) => void;
+    setBgmVolume: (volume: number) => void;
+    setSoundAudioVolume: (volume: number) => void;
     setLinkOptions: (baseUrl: string, key: string) => void;
     exportAsJson: () => string;
     importFromJson: (jsonString: string) => void;
@@ -52,8 +56,8 @@ export function SettingsProvider(props: Props) {
     const [language, setLanguage] = useState<Locale>(loadCookie('language', 'zh_CN'));
     const [isBluePrint, setIsBluePrintStatus] = useState<boolean>(loadCookie('isBluePrint', false));
     const [isDebug, setIsDebugStatus] = useState<boolean>(loadCookie('isDebug', false));
-    const [isBgm, setIsBgmStatus] = useState<boolean>(loadCookie('isBgm', true));
-    const [isSoundAudio, setIsSoundAudioStatus] = useState<boolean>(loadCookie('isSoundAudio', true));
+    const [bgmVolume, setBgmVolumeStatus] = useState<number>(loadCookie('bgmVolume', loadCookie('isBgm', true) ? 1 : 0));
+    const [soundAudioVolume, setSoundAudioVolumeStatus] = useState<number>(loadCookie('soundAudioVolume', loadCookie('isSoundAudio', true) ? 1 : 0));
     const [linkOptions, setLinkOptionsStatus] = useState<{ baseUrl: string; key: string }>(
         loadCookie('linkOptions', { baseUrl: '', key: '' })
     );
@@ -73,16 +77,40 @@ export function SettingsProvider(props: Props) {
     };
 
     const setIsBgm = (value: boolean) => {
-        debounce((newVal) => {
-            setIsBgmStatus(newVal);
+        debounce((newVal: boolean) => {
+            const volume = newVal ? 1 : 0;
+            setBgmVolumeStatus(volume);
+            storeCookie('bgmVolume', volume);
             storeCookie('isBgm', newVal);
         }, 50)(value);
     };
 
     const setIsSoundAudio = (value: boolean) => {
-        debounce((newVal) => {
-            setIsSoundAudioStatus(newVal);
+        debounce((newVal: boolean) => {
+            const volume = newVal ? 1 : 0;
+            setSoundAudioVolumeStatus(volume);
+            storeCookie('soundAudioVolume', volume);
             storeCookie('isSoundAudio', newVal);
+        }, 50)(value);
+    };
+
+    const clampVolume = (volume: number) => Math.max(0, Math.min(1, volume));
+
+    const setBgmVolume = (value: number) => {
+        debounce((newVal: number) => {
+            const volume = clampVolume(newVal);
+            setBgmVolumeStatus(volume);
+            storeCookie('bgmVolume', volume);
+            storeCookie('isBgm', volume > 0);
+        }, 50)(value);
+    };
+
+    const setSoundAudioVolume = (value: number) => {
+        debounce((newVal: number) => {
+            const volume = clampVolume(newVal);
+            setSoundAudioVolumeStatus(volume);
+            storeCookie('soundAudioVolume', volume);
+            storeCookie('isSoundAudio', volume > 0);
         }, 50)(value);
     };
 
@@ -123,9 +151,11 @@ export function SettingsProvider(props: Props) {
             isFullScreen,
             width,
             language,
-            isBluePrint
+            isBluePrint,
+            bgmVolume,
+            soundAudioVolume
         });
-    }, [isFullScreen, width, language, isBluePrint]);
+    }, [isFullScreen, width, language, isBluePrint, bgmVolume, soundAudioVolume]);
 
     const importFromJson = (jsonString: string) => {
         const data = JSON.parse(jsonString);
@@ -134,6 +164,12 @@ export function SettingsProvider(props: Props) {
         setLanguage(data.language);
         changeLocale(data.language);
         setIsBluePrintStatus(data.isBluePrint);
+        if (typeof data.bgmVolume === 'number') {
+            setBgmVolumeStatus(clampVolume(data.bgmVolume));
+        }
+        if (typeof data.soundAudioVolume === 'number') {
+            setSoundAudioVolumeStatus(clampVolume(data.soundAudioVolume));
+        }
     };
 
     useEffect(() => {
@@ -144,8 +180,8 @@ export function SettingsProvider(props: Props) {
         changeLocale(storedLanguage);
         setIsBluePrintStatus(loadCookie('isBluePrint', false));
         setIsDebugStatus(loadCookie('isDebug', false));
-        setIsBgmStatus(loadCookie('isBgm', true));
-        setIsSoundAudioStatus(loadCookie('isSoundAudio', true));
+        setBgmVolumeStatus(loadCookie('bgmVolume', loadCookie('isBgm', true) ? 1 : 0));
+        setSoundAudioVolumeStatus(loadCookie('soundAudioVolume', loadCookie('isSoundAudio', true) ? 1 : 0));
         setLinkOptionsStatus(loadCookie('linkOptions', { baseUrl: '', key: '' }));
     }, []);
 
@@ -155,8 +191,10 @@ export function SettingsProvider(props: Props) {
         language,
         isBluePrint,
         isDebug,
-        isBgm,
-        isSoundAudio,
+        isBgm: bgmVolume > 0,
+        isSoundAudio: soundAudioVolume > 0,
+        bgmVolume,
+        soundAudioVolume,
         linkOptions,
         toggleFullScreen,
         setWidth,
@@ -165,6 +203,8 @@ export function SettingsProvider(props: Props) {
         setIsDebug,
         setIsBgm,
         setIsSoundAudio,
+        setBgmVolume,
+        setSoundAudioVolume,
         setLinkOptions,
         exportAsJson,
         importFromJson,
