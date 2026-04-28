@@ -8,7 +8,7 @@ import createShootBurstAnim from "../../../sprite/shoot_anim";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import CombatHelper from "../../../utils/helper/CombatHelper";
 import ShootHeadAnimationHelper from "../../../utils/helper/ShootHeadAnimationHelper";
-import {ArrowData, ArrowEntity, ArrowModel } from "../../bullet/arrow";
+import { ArrowData, ArrowModel } from "../../bullet/arrow";
 
 
 export class DispenserModel extends PlantModel {
@@ -23,7 +23,8 @@ export class DispenserModel extends PlantModel {
   public cooldownStartAtRatio = 0; // 不需要等待，立即装填
 
   public damage = new PlantStat(ProjectileDamage.bullet.arrow).setIncRatio(1.35);
-  public penetrate = new PlantStat(1).setThreshold(3, 2).setThreshold(5, 3); // 原代码逻辑：>=3变为2，星辰大招时特殊处理
+  public penetratePower = new PlantStat(1).setThreshold(3, 2);
+  public starShardsPenetratePower = new PlantStat(1).setThreshold(3, 2).setThreshold(5, 3);
 
   isNightPlant = false;
 
@@ -62,7 +63,7 @@ export class DispenserModel extends PlantModel {
     });
   }
 
-  protected normalShot(scene: Game, entity: DispenserEntity) {
+  protected normalShot(scene: Game, entity: DispenserEntity, penetratePower = this.penetratePower.getValueAt(entity.level)) {
     ProjectileCmd.Create<ArrowModel>(
       ArrowData, scene, entity.x, entity.row, {
       damage: this.damage.getValueAt(entity.level),
@@ -70,6 +71,7 @@ export class DispenserModel extends PlantModel {
       speed: 500,
       bounceable: true,
       dealer: entity,
+      penetratePower,
     });
   }
 
@@ -81,7 +83,7 @@ export class DispenserModel extends PlantModel {
       delay: 50,
       repeat: totalArrows - 1,
       callback: () => {
-        this.normalShot(scene, entity);
+        this.normalShot(scene, entity, this.starShardsPenetratePower.getValueAt(entity.level));
       }
     });
     // 计算总持续时间：Tween 200ms + Timer 发射的时长
