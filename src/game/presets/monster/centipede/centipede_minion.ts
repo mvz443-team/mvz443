@@ -2,25 +2,27 @@ import { SECKILL } from "../../../../../public/constants";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { BaseMonsterEntity, PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
-import { ColorBlockAnimController } from "../../../models/monster/anims/ColorBlockAnimController";
 import { CombatEntity } from "../../../models/core/CombatEntity";
 import type { Game } from "../../../scenes/Game";
 import { PlantCmd } from "../../../utils/cmd/PlantCmd";
+import { CentipedeMinionAnimController } from "./centipede_anim";
+
+export const CENTIPEDE_MINION_WIDTH_CELLS = 1.6;
 
 export class CentipedeMinionEntity extends BaseMonsterEntity {
   public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
     super(scene, col, row, model, waveID);
   }
 
+  protected override getPhysicsBodySize(): { sizeX: number; sizeY: number } {
+    return {
+      sizeX: PositionManager.Instance.GRID_SIZEX * CENTIPEDE_MINION_WIDTH_CELLS,
+      sizeY: PositionManager.Instance.getZombieBodySize().sizeY,
+    };
+  }
+
   protected createAnimController() {
-    const size = PositionManager.Instance.getZombieDisplaySize();
-    return new ColorBlockAnimController(this.scene, this.x, this.y, {
-      width: size.sizeX * 0.8,
-      height: size.sizeY * 0.7,
-      fillColor: 0x8b3a62,
-      strokeColor: 0x3a1426,
-      strokeWidth: 2,
-    });
+    return new CentipedeMinionAnimController(this.scene, this.x, this.y);
   }
 
   public override startAttacking(target: CombatEntity): void {

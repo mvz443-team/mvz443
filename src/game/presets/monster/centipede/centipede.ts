@@ -5,9 +5,9 @@ import PlantsManager from "../../../managers/combat/PlantsManager";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { BaseMonsterEntity, PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import { Faction } from "../../../models/Enum";
-import { ColorBlockAnimController } from "../../../models/monster/anims/ColorBlockAnimController";
 import type { Game } from "../../../scenes/Game";
 import { ArcSfx } from "../../../sfx/arc/ArcSfx";
+import { CentipedeSkillSfx } from "../../../sfx/centipede/CentipedeSkillSfx";
 import { DirtOutSfx } from "../../../sfx/dirt/DirtOutSfx";
 import { ExplosionSfx } from "../../../sfx/explosion/ExplosionSfx";
 import MobCmd from "../../../utils/cmd/MobCmd";
@@ -17,11 +17,12 @@ import SoundCmd from "../../../utils/cmd/SoundCmd";
 import { SfxCmd } from "../../../utils/cmd/SfxCmd";
 import { announceBossSkill } from "../../../utils/skill_announce";
 import { MineRockObstacleData } from "../../obstacle";
-import { CentipedeMinionData } from "./centipede_minion";
+import { CentipedeAnimController } from "./centipede_anim";
+import { CENTIPEDE_MINION_WIDTH_CELLS, CentipedeMinionData } from "./centipede_minion";
 
 const PAUSE_BEFORE_SKILL_MS = 6000;
 const SKILL_DURATION_MS = 4000;
-const HIDDEN_DURATION_MS = 3000;
+const REPOSITION_ARC_DURATION_MS = 900;
 const CHARGE_DURATION_MS = 700;
 const HEALTH_TRIGGERS = [0.8, 0.6, 0.4, 0.2];
 const HEALTH_FLASH_TRIGGER = 0.5;
@@ -63,14 +64,7 @@ export class CentipedeEntity extends BaseMonsterEntity {
   }
 
   protected createAnimController() {
-    const size = PositionManager.Instance.getZombieDisplaySize();
-    return new ColorBlockAnimController(this.scene, this.x, this.y, {
-      width: size.sizeX * 1.4,
-      height: size.sizeY * 1.4,
-      fillColor: 0x4b2350,
-      strokeColor: 0xc46af0,
-      strokeWidth: 3,
-    });
+    return new CentipedeAnimController(this.scene, this.x, this.y);
   }
 
   public override startMove(): void {
@@ -123,6 +117,20 @@ export class CentipedeEntity extends BaseMonsterEntity {
     });
   }
 
+  private getCentipedeAnim(): CentipedeAnimController {
+    return this.animController as CentipedeAnimController;
+  }
+
+  private playSkillSfx(kind: "mine" | "charge" | "summon" | "blast", x = this.x, y = this.y): void {
+    this.getCentipedeAnim().playSkillPose(kind);
+    SfxCmd.Create(CentipedeSkillSfx, {
+      scene: this.scene,
+      x,
+      y: y - PositionManager.Instance.GRID_SIZEY * 0.55,
+      kind,
+    });
+  }
+
   private beginCycle(): void {
     if (this.currentHealth <= 0 || this.isDying) return;
     this.stopMove();
@@ -152,32 +160,29 @@ export class CentipedeEntity extends BaseMonsterEntity {
     if (this.currentHealth <= 0 || this.isDying) return;
 
     this.isHidden = true;
-    const ctrl = this.animController as ColorBlockAnimController;
-    ctrl.getRect().setVisible(false);
+    const ctrl = this.getCentipedeAnim();
     ctrl.isInAnim = true;
 
-    this.tickmanager.delayedCall({
-      delay: HIDDEN_DURATION_MS,
-      callback: () => {
-        if (this.currentHealth <= 0 || this.isDying) return;
-        const newRow = Math.floor(MobCmd.DeterministicRandom(0, PositionManager.Instance.Row_Number));
-        const clamped = Phaser.Math.Clamp(newRow, 0, PositionManager.Instance.Row_Number - 1);
-        const newCol = PositionManager.Instance.Col_Number - 1;
+    const newRow = Math.floor(MobCmd.DeterministicRandom(0, PositionManager.Instance.Row_Number));
+    const clamped = Phaser.Math.Clamp(newRow, 0, PositionManager.Instance.Row_Number - 1);
+    const newCol = PositionManager.Instance.Col_Number - 1;
+    const from = { x: this.x + this.offsetX, y: this.y + this.offsetY };
+    const toViewPos = PositionManager.Instance.getZombieBottomCenter(newCol, clamped);
+    const to = { x: toViewPos.x + this.offsetX, y: toViewPos.y + this.offsetY };
+    const arcHeight = PositionManager.Instance.GRID_SIZEY * 1.45;
 
-        const bodyPos = PositionManager.Instance.getZombieBodyCenter(newCol, clamped);
-        const viewPos = PositionManager.Instance.getZombieBottomCenter(newCol, clamped);
-        this.col = newCol;
-        this.row = clamped;
-        this.x = viewPos.x;
-        this.y = viewPos.y;
-        this.rigidBody?.setTranslation(bodyPos, true);
-        this.animController.updatePosition(viewPos.x + this.offsetX, viewPos.y + this.offsetY);
-        ctrl.getRect().setVisible(true);
-        ctrl.isInAnim = false;
-        this.isHidden = false;
-
-        this.beginCycle();
-      }
+    ctrl.startArc(from, to, REPOSITION_ARC_DURATION_MS, arcHeight, undefined, () => {
+      if (this.currentHealth <= 0 || this.isDying) return;
+      const bodyPos = PositionManager.Instance.getZombieBodyCenter(newCol, clamped);
+      this.col = newCol;
+      this.row = clamped;
+      this.x = toViewPos.x;
+      this.y = toViewPos.y;
+      this.rigidBody?.setTranslation(bodyPos, true);
+      this.animController.updatePosition(to.x, to.y);
+      ctrl.isInAnim = false;
+      this.isHidden = false;
+      this.beginCycle();
     });
   }
 
@@ -189,6 +194,7 @@ export class CentipedeEntity extends BaseMonsterEntity {
 
   private castSkill0(): void {
     announceBossSkill(this.scene, "skill_mine_rock");
+    this.playSkillSfx("mine");
     const colNum = PositionManager.Instance.Col_Number;
     const rowNum = PositionManager.Instance.Row_Number;
     const minCol = 5;
@@ -207,7 +213,7 @@ export class CentipedeEntity extends BaseMonsterEntity {
       y1: targetPos.y - PositionManager.Instance.GRID_SIZEY * 5,
       x2: targetPos.x,
       y2: targetPos.y,
-      texture: "starshards",
+      texture: "sfxCentipedeOrb",
       duration: arcDuration,
       arcHeight: 0,
     });
@@ -235,26 +241,59 @@ export class CentipedeEntity extends BaseMonsterEntity {
 
   private castSkill1(): void {
     announceBossSkill(this.scene, "skill_charge");
+    this.playSkillSfx("charge");
     const startCol = this.col;
     const targetCol = Math.max(2, startCol - 5);
     const targetRow = this.row;
     const startPos = PositionManager.Instance.getZombieBottomCenter(startCol, targetRow);
-    const targetBodyPos = PositionManager.Instance.getZombieBodyCenter(targetCol, targetRow);
     const targetViewPos = PositionManager.Instance.getZombieBottomCenter(targetCol, targetRow);
-    const chargeSpeed = (startPos.x - targetViewPos.x) / (CHARGE_DURATION_MS / 1000);
 
-    this.setVelocityX(-chargeSpeed);
-    this.animController.startLegSwing();
-    this.tickmanager.delayedCall({
-      delay: CHARGE_DURATION_MS,
-      callback: () => {
+    this.setVelocityX(0);
+    const ctrl = this.getCentipedeAnim();
+    ctrl.isInAnim = true;
+    ctrl.startLegSwing();
+    SfxCmd.Create(CentipedeSkillSfx, {
+      scene: this.scene,
+      x: (startPos.x + targetViewPos.x) / 2,
+      y: targetViewPos.y - PositionManager.Instance.GRID_SIZEY * 0.3,
+      kind: "charge",
+      width: Math.abs(startPos.x - targetViewPos.x),
+      height: PositionManager.Instance.GRID_SIZEY * 0.9,
+    });
+
+    const state = { x: startPos.x };
+    let nextDustX = startPos.x - PositionManager.Instance.GRID_SIZEX * 0.75;
+    this.scene.tweens.add({
+      targets: state,
+      x: targetViewPos.x,
+      duration: CHARGE_DURATION_MS,
+      ease: "Quad.easeIn",
+      onUpdate: () => {
+        this.x = state.x;
+        this.y = startPos.y;
+        this.rigidBody?.setTranslation(PositionManager.Instance.getZombieBodyCenterByBottom(this.x, this.y), true);
+        this.animController.updatePosition(this.x + this.offsetX, this.y + this.offsetY);
+        if (state.x <= nextDustX) {
+          SfxCmd.Create(CentipedeSkillSfx, {
+            scene: this.scene,
+            x: state.x,
+            y: startPos.y - PositionManager.Instance.GRID_SIZEY * 0.3,
+            kind: "charge",
+            width: PositionManager.Instance.GRID_SIZEX,
+            height: PositionManager.Instance.GRID_SIZEY * 0.8,
+          });
+          nextDustX -= PositionManager.Instance.GRID_SIZEX * 0.75;
+        }
+      },
+      onComplete: () => {
         if (this.currentHealth <= 0) return;
-        this.stopMove();
         this.col = targetCol;
         this.x = targetViewPos.x;
         this.y = targetViewPos.y;
-        this.rigidBody?.setTranslation(targetBodyPos, true);
+        this.rigidBody?.setTranslation(PositionManager.Instance.getZombieBodyCenter(targetCol, targetRow), true);
         this.animController.updatePosition(targetViewPos.x + this.offsetX, targetViewPos.y + this.offsetY);
+        ctrl.stopLegSwing();
+        ctrl.isInAnim = false;
 
         const minCol = Math.min(startCol, targetCol);
         const maxCol = Math.max(startCol, targetCol);
@@ -274,8 +313,9 @@ export class CentipedeEntity extends BaseMonsterEntity {
 
   private castSkill2(): void {
     announceBossSkill(this.scene, "skill_summon");
+    this.playSkillSfx("summon");
     const rowNum = PositionManager.Instance.Row_Number;
-    const colSpawn = PositionManager.Instance.Col_Number;
+    const spawnCol = PositionManager.Instance.Col_Number - 1;
     const allRows = Array.from({ length: rowNum }, (_, i) => i);
     const picked: number[] = [];
     const pool = [...allRows];
@@ -290,15 +330,27 @@ export class CentipedeEntity extends BaseMonsterEntity {
         callback: () => {
           SfxCmd.Create(DirtOutSfx, {
             scene: this.scene,
-            col: colSpawn - 1,
+            col: spawnCol,
             row,
-            size: { sizeX: PositionManager.Instance.GRID_SIZEX * 1.2, sizeY: PositionManager.Instance.GRID_SIZEY * 1.0 },
+            size: {
+              sizeX: PositionManager.Instance.GRID_SIZEX * CENTIPEDE_MINION_WIDTH_CELLS,
+              sizeY: PositionManager.Instance.GRID_SIZEY * 1.0,
+            },
+          });
+          const ringPos = PositionManager.Instance.getZombieBottomCenter(spawnCol, row);
+          SfxCmd.Create(CentipedeSkillSfx, {
+            scene: this.scene,
+            x: ringPos.x,
+            y: ringPos.y - PositionManager.Instance.GRID_SIZEY * 0.35,
+            kind: "summon",
+            width: PositionManager.Instance.GRID_SIZEX * CENTIPEDE_MINION_WIDTH_CELLS,
+            height: PositionManager.Instance.GRID_SIZEY,
           });
 
           this.tickmanager.delayedCall({
             delay: 450,
             callback: () => {
-              MobCmd.Spawn(CentipedeMinionData.mid, this.scene, colSpawn, row, -10);
+              MobCmd.Spawn(CentipedeMinionData.mid, this.scene, spawnCol, row, -10);
             }
           });
         }
@@ -308,6 +360,7 @@ export class CentipedeEntity extends BaseMonsterEntity {
 
   private castSkill3(): void {
     announceBossSkill(this.scene, "skill_blast");
+    this.playSkillSfx("blast");
     const usableCols: number[] = [];
     for (let c = 3; c <= 5; c++) usableCols.push(c);
 
@@ -330,7 +383,7 @@ export class CentipedeEntity extends BaseMonsterEntity {
         y1: this.y - PositionManager.Instance.GRID_SIZEY * 0.5,
         x2: targetPos.x,
         y2: targetPos.y,
-        texture: "anime/explosion",
+        texture: "sfxCentipedeOrb",
         duration: arcDuration,
         arcHeight: 220,
       });

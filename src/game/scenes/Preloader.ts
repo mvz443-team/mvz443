@@ -180,6 +180,24 @@ export class Preloader extends Scene {
     this.load.image('sprMutantUpperLeg', 'sprite/mutant/upperLeg.png');
     this.load.image('sprMutantLowerLeg', 'sprite/mutant/lowerLeg.png');
     this.load.image('sprMutantCover', 'sprite/mutant/cover.png');
+
+    this.load.spritesheet('sprCentipedeCharacter', 'sprite/centipede/sprCentipedeCharacter.png',
+      { frameWidth: 128, frameHeight: 160 });
+    this.load.image('sfxCentipedeOrb', 'sprite/centipede/sfxCentipedeOrb.png');
+    this.load.image('sfxCentipedeSlash', 'sprite/centipede/sfxCentipedeSlash.png');
+    this.load.image('sfxCentipedeSummonRing', 'sprite/centipede/sfxCentipedeSummonRing.png');
+    this.load.spritesheet('sfxCentipedeChargeDust', 'sprite/centipede/sfxCentipedeChargeDust.png',
+      { frameWidth: 32, frameHeight: 32 });
+    this.load.image('sfxCentipedeMinionOrb', 'sprite/centipede/sfxCentipedeMinionOrb.png');
+
+    this.load.spritesheet('sprCentipedeDeprecatedBody', 'sprite/centipede_deprecated/sprCentipedeBody.png',
+      { frameWidth: 60, frameHeight: 48 });
+    this.load.image('sprCentipedeDeprecatedHead', 'sprite/centipede_deprecated/sprCentipedeHead.png');
+    this.load.image('sprCentipedeDeprecatedSegment', 'sprite/centipede_deprecated/sprCentipedeSegment.png');
+    this.load.image('sprCentipedeDeprecatedJoint', 'sprite/centipede_deprecated/sprCentipedeJoint.png');
+    this.load.image('sprCentipedeDeprecatedArm', 'sprite/centipede_deprecated/sprCentipedeArm.png');
+    this.load.image('sprCentipedeDeprecatedLeg', 'sprite/centipede_deprecated/sprCentipedeLeg.png');
+    this.load.image('sprCentipedeDeprecatedSickle', 'sprite/centipede_deprecated/sprCentipedeSickle.png');
   }
 
 

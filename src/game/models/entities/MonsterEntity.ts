@@ -106,8 +106,12 @@ export abstract class MonsterEntity extends CombatEntity {
     return this;
   }
 
+  protected getPhysicsBodySize(): { sizeX: number; sizeY: number } {
+    return PositionManager.Instance.getZombieBodySize();
+  }
+
   private buildPhysics() {
-    const size = PositionManager.Instance.getZombieBodySize();
+    const size = this.getPhysicsBodySize();
     const physicsCenter = PositionManager.Instance.getZombieBodyCenterByBottom(this.x, this.y);
     const rigidBodyDesc = RAPIER.RigidBodyDesc.kinematicVelocityBased().setTranslation(physicsCenter.x, physicsCenter.y);
     rigidBodyDesc.setUserData(this);
