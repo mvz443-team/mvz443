@@ -76,7 +76,7 @@ const zhCN = {
     "updates": "更新记录",
     "docs": "游戏文档",
     "about": "关于",
-    "about_text": "MC VS Zombie 443\n\n        作者：scarletborder\n        版本：V{VERSION} - COMMIT {commitVersion}\n\n        联系方式：baishuibeef@gmail.com\n        bilibili: https://space.bilibili.com/123796349\n\n        材质来源: Minecraft VS Zombie2 GMS2版\n        原作者:  Cuerzor58 \n\n        以下是公益服务器地址可以填进服务器地址输入框\n        中国北部 103.228.12.180:49870\n        美国西部 scarletborder.cn",
+    "about_text": "MC VS Zombie 443\n\n        作者：scarletborder\n        版本：V{{VERSION}} - COMMIT {{commitVersion}}\n\n        联系方式：baishuibeef@gmail.com\n        bilibili: https://space.bilibili.com/123796349\n\n        材质来源: Minecraft VS Zombie2 GMS2版\n        原作者:  Cuerzor58 \n\n        以下是公益服务器地址可以填进服务器地址输入框\n        中国北部 103.228.12.180:49870\n        美国西部 scarletborder.cn",
     "homepage_text": "注意！这是“MVZ443”的测试版本。\n测试版本不代表本产品的最终质量。感谢您的理解和支持，祝你好运！\n\n    通过过关获得更多器械,目前进度以至chapter1-stage8,剧情仍然在完善中,在迭代期间平衡性和关卡会发生多次变化\n    \n    体验版本联机功能处于测试阶段,请在游戏文档页面搜索联机教程查看更多描述\n    ",
     "homepage_title": "我的世界大战僵尸 443版",
     "homepage_version": "版本",

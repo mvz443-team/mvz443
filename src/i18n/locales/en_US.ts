@@ -72,7 +72,7 @@ const enUS = {
     "start": "Start Game"
   },
   "menu": {
-    "about_text": "MC VS Zombie 443\n\n        Author: scarletborder\n        Version: V{VERSION} - COMMIT {commitVersion}\n\n        Contact: baishuibeef@gmail.com\n        bilibili: https://space.bilibili.com/123796349\n\n        Texture Source: Minecraft VS Zombie2 GMS2 Edition\n        Original Author: Cuerzor58 \n\n        Below are public server addresses you can enter in the server address field:\n        Northern China: 103.228.12.180:49870\n        Western US: scarletborder.cn",
+    "about_text": "MC VS Zombie 443\n\n        Author: scarletborder\n        Version: V{{VERSION}} - COMMIT {{commitVersion}}\n\n        Contact: baishuibeef@gmail.com\n        bilibili: https://space.bilibili.com/123796349\n\n        Texture Source: Minecraft VS Zombie2 GMS2 Edition\n        Original Author: Cuerzor58 \n\n        Below are public server addresses you can enter in the server address field:\n        Northern China: 103.228.12.180:49870\n        Western US: scarletborder.cn",
     "homepage_text": "The game is still in development. Current state does not represent final quality.\n\n    Unlock more devices by completing levels. Current progress reaches Chapter1-Stage8. The storyline is still being refined. Balance and levels may change multiple times during iterations.\n    \n    The multiplayer feature in this beta version is in testing phase. Please search for the multiplayer tutorial on the game documentation page for more details.\n    ",
     "homepage_title": "My World VS Zombies 443 Edition",
     "homepage_version": "Version",
