@@ -30,9 +30,9 @@ import DebugManager from '../managers/view/DebugManager';
 import { BaseEntity } from '../models/core/BaseEntity';
 import { DeferredManager } from '../managers/DeferredManager';
 import StageHelper from '../utils/helper/StageHelper';
-import { Request, RequestLoaded } from '../../pb/request';
 import { PresetEventManager } from '../managers/combat/PresetEventManager';
 import ConsoleCmd from '../utils/ConsoleCmd';
+import { SendLoaded } from '../../utils/net/room';
 
 
 export class Game extends Scene {
@@ -100,6 +100,12 @@ export class Game extends Scene {
       DebugManager.Instance,
       PositionManager.Instance,
     ];
+
+    // Audio must be initialized before the room loaded signal is sent.
+    // Preloader has already decoded the assets, so this creates BGM/SFX objects
+    // during Game.preload instead of waiting for Game.create.
+    SoundManager.Instance.setScene(this);
+    SoundManager.Instance.Load();
   }
 
   async create() {
@@ -188,9 +194,139 @@ export class Game extends Scene {
 
     console.log('load finish');
     if (BackendWS.isRoomSessionMode()) {
-      const request: RequestLoaded = { isLoaded: true };
-      BackendWS.send(Request.toBinary({ payload: { loaded: request, oneofKind: 'loaded' } }));
+      try {
+        await this.waitForMediaReady();
+        SendLoaded(true);
+      } catch (error) {
+        console.error("[Game] media assets are not ready; loaded signal was not sent.", error);
+      }
     }
+  }
+
+  private async waitForMediaReady(): Promise<void> {
+    await Promise.all([
+      this.waitForAudioCacheReady(),
+      this.waitForVideoCacheReady(),
+      this.waitForBrowserMediaTick(),
+    ]);
+  }
+
+  private async waitForAudioCacheReady(): Promise<void> {
+    const audioCache = this.cache.audio;
+    const keys = audioCache.getKeys();
+    const waits: Array<Promise<void>> = [];
+
+    for (const key of keys) {
+      const data = audioCache.get(key);
+
+      if (data instanceof AudioBuffer) {
+        if (data.duration <= 0) {
+          throw new Error(`Decoded audio "${key}" has invalid duration.`);
+        }
+        continue;
+      }
+
+      if (Array.isArray(data)) {
+        for (const audio of data) {
+          if (audio instanceof HTMLMediaElement) {
+            waits.push(this.waitForMediaElementReady(audio, `audio:${key}`));
+          }
+        }
+      }
+    }
+
+    await Promise.all(waits);
+  }
+
+  private async waitForVideoCacheReady(): Promise<void> {
+    const videoCache = this.cache.video;
+    const keys = videoCache.getKeys();
+    const waits: Array<Promise<void>> = [];
+
+    for (const key of keys) {
+      const data = videoCache.get(key) as {
+        url?: string;
+        noAudio?: boolean;
+        crossOrigin?: string;
+      } | null;
+
+      if (!data?.url) {
+        continue;
+      }
+
+      const video = document.createElement("video");
+      video.preload = "auto";
+      video.playsInline = true;
+      video.muted = true;
+      if (data.crossOrigin) {
+        video.crossOrigin = data.crossOrigin;
+      }
+      video.src = data.url;
+
+      waits.push(
+        this.waitForMediaElementReady(video, `video:${key}`).finally(() => {
+          video.removeAttribute("src");
+          video.load();
+        })
+      );
+    }
+
+    await Promise.all(waits);
+  }
+
+  private waitForMediaElementReady(media: HTMLMediaElement, label: string): Promise<void> {
+    const enoughData = () => media.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA;
+    if (enoughData()) {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve, reject) => {
+      const timeout = window.setTimeout(() => {
+        cleanup();
+        reject(new Error(`${label} did not become ready in time.`));
+      }, 20000);
+
+      const onReady = () => {
+        if (!enoughData()) {
+          return;
+        }
+        cleanup();
+        resolve();
+      };
+
+      const onError = () => {
+        cleanup();
+        reject(new Error(`${label} failed to load.`));
+      };
+
+      const cleanup = () => {
+        window.clearTimeout(timeout);
+        media.removeEventListener("loadeddata", onReady);
+        media.removeEventListener("canplay", onReady);
+        media.removeEventListener("canplaythrough", onReady);
+        media.removeEventListener("error", onError);
+      };
+
+      media.addEventListener("loadeddata", onReady);
+      media.addEventListener("canplay", onReady);
+      media.addEventListener("canplaythrough", onReady);
+      media.addEventListener("error", onError);
+
+      try {
+        media.load();
+      } catch (error) {
+        cleanup();
+        reject(error);
+      }
+    });
+  }
+
+  private waitForBrowserMediaTick(): Promise<void> {
+    return new Promise(resolve => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
   }
 
   update(time: number, delta: number): void {

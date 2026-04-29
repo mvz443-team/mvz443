@@ -20,7 +20,7 @@ export class ThrottledAudio {
 
   play(key: string, config?: Phaser.Types.Sound.SoundConfig) {
     const now = this.scene.time.now;
-    const last = this.lastPlayTime.get(key) ?? 0;
+    const last = this.lastPlayTime.get(key) ?? Number.NEGATIVE_INFINITY;
     if (now - last < this.throttleDelay) return;
 
     this.lastPlayTime.set(key, now);
@@ -33,7 +33,7 @@ export class ThrottledAudio {
 
 export class AudioPool {
   private pool: PoolItem[] = [];
-  private lastPlayTime = 0;
+  private lastPlayTime = Number.NEGATIVE_INFINITY;
 
   constructor(
     private scene: Phaser.Scene,
@@ -99,6 +99,7 @@ export default class SoundManager extends BaseManager {
 
   private bgmVolume = 1;
   private soundAudioVolume = 1;
+  private loaded = false;
   private music: Phaser.Sound.BaseSound | null = null;
   private dumpMusic: Phaser.Sound.BaseSound | null = null;
 
@@ -125,6 +126,7 @@ export default class SoundManager extends BaseManager {
 
   public Load(): void {
     if (!this.scene) return;
+    if (this.loaded) return;
 
     this.bgmVolume = this.normalizeVolume(
       this.scene.params.gameSettings.bgmVolume ?? (this.scene.params.gameSettings.isBgm ? 1 : 0)
@@ -150,6 +152,7 @@ export default class SoundManager extends BaseManager {
     this.skeletonDeathPool = new AudioPool(this.scene, "sfx", "skeletonDeath", 4, () => this.soundAudioVolume);
 
     PhaserEventBus.on(PhaserEvents.RoomGameStart, this.handleRoomGameStart, this);
+    this.loaded = true;
   }
 
   private handleRoomGameStart() {
@@ -301,6 +304,7 @@ export default class SoundManager extends BaseManager {
     this.skeletonDeathPool?.stopAll();
 
     this.scene = null;
+    this.loaded = false;
     this.bgmVolume = 1;
     this.soundAudioVolume = 1;
     this.music = null;

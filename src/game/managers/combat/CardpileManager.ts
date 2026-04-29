@@ -39,7 +39,7 @@ export default class CardpileManager extends BaseManager {
   cardpileStatus: Map<number, {
     level: number; // 卡片等级
     leftMs: number; // 正式剩余冷却时间，单位毫秒
-    previewLeftMs: number; // 表现层预演剩余冷却时间，单位毫秒
+    previewLeftMs: number; // 表现层预演剩余冷却时间，单位毫秒；远端确认前保持满值不倒计时
     totalMs: number; // 总冷却时间，单位毫秒
   }> = new Map();
   private readonly handlePointerUp = (pointer: Phaser.Input.Pointer) => {
@@ -109,14 +109,12 @@ export default class CardpileManager extends BaseManager {
     for (const pid of this.cardpileStatus.keys()) {
       const status = this.cardpileStatus.get(pid);
       if (status) {
-        const { leftMs, totalMs } = status;
+        const { leftMs, totalMs, previewLeftMs } = status;
         const newLeftMs = Math.max(0, leftMs - elasp);
-        const newPreviewLeftMs = Math.max(0, status.previewLeftMs - elasp);
-        const displayLeftMs = Math.max(newLeftMs, newPreviewLeftMs);
+        const displayLeftMs = Math.max(newLeftMs, previewLeftMs);
         this.cardpileStatus.set(pid, {
           ...status,
           leftMs: newLeftMs,
-          previewLeftMs: newPreviewLeftMs,
         });
         newStatus.set(pid, {
           hasReloaded: displayLeftMs === 0,
@@ -132,6 +130,7 @@ export default class CardpileManager extends BaseManager {
     const status = this.cardpileStatus.get(pid);
     if (status) {
       status.leftMs = status.totalMs;
+      status.previewLeftMs = 0;
       this.cardpileStatus.set(pid, status);
     }
   }
