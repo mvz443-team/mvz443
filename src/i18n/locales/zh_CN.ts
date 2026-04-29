@@ -141,7 +141,8 @@ const zhCN = {
     "ready": "准备",
     "next": "下一步",
     "unknown": "未知",
-    "start": "开始游戏"
+    "start": "开始游戏",
+    "waiting_other_players_select": "等待其他玩家选择"
   },
   "game": {
     "gameOver": "游戏结束",

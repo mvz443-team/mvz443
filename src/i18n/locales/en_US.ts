@@ -69,7 +69,8 @@ const enUS = {
     "ready": "Ready",
     "next": "Next",
     "unknown": "Unknown",
-    "start": "Start Game"
+    "start": "Start Game",
+    "waiting_other_players_select": "Waiting for other players"
   },
   "menu": {
     "about_text": "MC VS Zombie 443\n\n        Author: scarletborder\n        Version: V{{VERSION}} - COMMIT {{commitVersion}}\n\n        Contact: baishuibeef@gmail.com\n        bilibili: https://space.bilibili.com/123796349\n\n        Texture Source: Minecraft VS Zombie2 GMS2 Edition\n        Original Author: Cuerzor58 \n\n        Below are public server addresses you can enter in the server address field:\n        Northern China: 103.228.12.180:49870\n        Western US: scarletborder.cn",

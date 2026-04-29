@@ -79,6 +79,9 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
   const settings = useSettings();
   const saveManager = useSaveManager();
   const { translate } = useLocaleMessages();
+  const waitingText = translate('common.waiting_other_players_select') || '等待其他玩家选择';
+  const isSelectionLocked = state.hasUserClicked || isLoading;
+  const canStart = canProceed && !isSelectionLocked;
 
   // 联机模式下监听准备状态更新
   useEffect(() => {
@@ -154,6 +157,10 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
 
   // 重选上次的植物配置
   const handleReloadLastSelection = useMemoizedFn(() => {
+    if (isSelectionLocked) {
+      return;
+    }
+
     if (plantSelection.lastStageId === stageId && plantSelection.lastSelectedPlants.length > 0) {
       const plants = state.availablePlants;
       const upperLimit = state.selectUpperLimit;
@@ -167,6 +174,10 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
   });
 
   const handlePlantToggle = useMemoizedFn((pid: number) => {
+    if (isSelectionLocked) {
+      return;
+    }
+
     setState(prevState => {
       if (prevState.selectedPlants.includes(pid)) {
         // 取消选择植物
@@ -193,6 +204,12 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
   });
 
   const handleStart = useMemoizedFn(() => {
+    if (!canStart) {
+      return;
+    }
+
+    setState({ hasUserClicked: true });
+
     const pidToLevel = new Map(state.availablePlants.map(p => [p.pid, p.level]));
     const chosenPlants = state.selectedPlants.map(pid => ({
       pid,
@@ -201,9 +218,6 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
 
     // 联机模式下的特殊处理
     if (isOnlineMode) {
-      // 标记用户已经点击了准备按钮
-      setState({ hasUserClicked: true });
-
       // 在线模式下，房主和普通玩家都需要设置GameParams
       const params: GameParams = {
         level: stageId,
@@ -305,19 +319,22 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
               padding: '8px 16px',
               background: 'none',
               border: '2px solid #666',
-              color: '#ddd',
-              cursor: 'pointer',
+              color: isSelectionLocked ? '#888' : '#ddd',
+              cursor: isSelectionLocked ? 'not-allowed' : 'pointer',
               transition: 'all 0.3s ease',
             }}
+            disabled={isSelectionLocked}
             onMouseOver={(e) => {
+              if (isSelectionLocked) return;
               e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
               e.currentTarget.style.borderColor = '#00ccff';
             }}
             onMouseOut={(e) => {
+              if (isSelectionLocked) return;
               e.currentTarget.style.background = 'none';
               e.currentTarget.style.borderColor = '#666';
             }}
-            onClick={onBack}
+            onClick={isSelectionLocked ? undefined : onBack}
           >
             {translate('menu.back')}
           </button>
@@ -335,8 +352,8 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
               fontWeight: 'bold'
             }}>
               {islord ? '房主模式' : '玩家模式'} | {
-                state.hasUserClicked ?
-                  `等待其他玩家 (${state.readyPlayerCount}/${state.totalPlayerCount})` :
+                isSelectionLocked ?
+                  `${waitingText} (${state.readyPlayerCount}/${state.totalPlayerCount})` :
                   isLoading ? '等待中...' :
                     !canProceed ? '请等待房主操作' :
                       gameStage === 0x21 ? '准备阶段' : '可以操作'
@@ -366,21 +383,22 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
                 border: state.selectedPlants.includes(plant.pid)
                   ? '2px solid #00ccff'
                   : '2px solid rgba(100, 100, 100, 0.5)',
-                cursor: 'pointer',
+                cursor: isSelectionLocked ? 'not-allowed' : 'pointer',
                 transition: 'all 0.3s ease',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 padding: '5px',
-                background: 'rgba(255, 255, 255, 0.05)'
+                background: 'rgba(255, 255, 255, 0.05)',
+                opacity: isSelectionLocked && !state.selectedPlants.includes(plant.pid) ? 0.55 : 1
               }}
               onClick={() => handlePlantToggle(plant.pid)}
               onMouseOver={(e) => {
-                if (!state.selectedPlants.includes(plant.pid))
+                if (!isSelectionLocked && !state.selectedPlants.includes(plant.pid))
                   e.currentTarget.style.borderColor = '#00ccff';
               }}
               onMouseOut={(e) => {
-                if (!state.selectedPlants.includes(plant.pid))
+                if (!isSelectionLocked && !state.selectedPlants.includes(plant.pid))
                   e.currentTarget.style.borderColor = 'rgba(100, 100, 100, 0.5)';
               }}
             >
@@ -434,21 +452,24 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
             <button
               style={{
                 padding: '4px 8px',
-                background: '#4CAF50',
+                background: isSelectionLocked ? '#666' : '#4CAF50',
                 border: 'none',
-                color: '#fff',
-                cursor: 'pointer',
+                color: isSelectionLocked ? '#ccc' : '#fff',
+                cursor: isSelectionLocked ? 'not-allowed' : 'pointer',
                 fontSize: '12px',
                 borderRadius: '4px',
                 transition: 'all 0.3s ease',
               }}
+              disabled={isSelectionLocked}
               onMouseOver={(e) => {
+                if (isSelectionLocked) return;
                 e.currentTarget.style.background = '#45a049';
               }}
               onMouseOut={(e) => {
+                if (isSelectionLocked) return;
                 e.currentTarget.style.background = '#4CAF50';
               }}
-              onClick={handleReloadLastSelection}
+              onClick={isSelectionLocked ? undefined : handleReloadLastSelection}
             >
               重选上次
             </button>
@@ -475,13 +496,16 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
                   marginBottom: '10px',
                   background: 'rgba(255, 255, 255, 0.05)',
                   transition: 'border 0.3s, background 0.3s',
+                  cursor: isSelectionLocked ? 'default' : 'pointer',
                 }}
                 onClick={() => handlePlantToggle(plant.pid)}
                 onMouseEnter={(e) => {
+                  if (isSelectionLocked) return;
                   e.currentTarget.style.border = '1px solid red';
                   e.currentTarget.style.background = 'rgba(255, 0, 0, 0.1)';
                 }}
                 onMouseLeave={(e) => {
+                  if (isSelectionLocked) return;
                   e.currentTarget.style.border = '1px solid #666';
                   e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
                 }}
@@ -501,23 +525,32 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
         </div>
 
         <button
-          style={buttonStyle || {
+          style={isSelectionLocked || !canProceed ? {
+            ...(buttonStyle || {}),
             padding: '3% 40%',
-            background: (canProceed && !(isOnlineMode && state.hasUserClicked)) ? '#00ccff' : '#666',
+            background: '#666',
             border: 'none',
-            color: (canProceed && !(isOnlineMode && state.hasUserClicked)) ? '#fff' : '#ccc',
-            cursor: (canProceed && !(isOnlineMode && state.hasUserClicked)) ? 'pointer' : 'not-allowed',
+            color: '#ccc',
+            cursor: 'not-allowed',
             transition: 'all 0.3s ease',
             alignSelf: 'center'
-          }}
-          onClick={(canProceed && !(isOnlineMode && state.hasUserClicked)) ? handleStart : undefined}
-          disabled={!canProceed || isLoading || (isOnlineMode && state.hasUserClicked)}
+          } : (buttonStyle || {
+            padding: '3% 40%',
+            background: '#00ccff',
+            border: 'none',
+            color: '#fff',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            alignSelf: 'center'
+          })}
+          onClick={canStart ? handleStart : undefined}
+          disabled={!canStart}
         >
           {isLoading && (
             <span style={{ marginRight: '8px' }}>⏳</span>
           )}
-          {(isOnlineMode && state.hasUserClicked) ?
-            `等待其他玩家 (${state.readyPlayerCount}/${state.totalPlayerCount})` :
+          {isSelectionLocked ?
+            waitingText :
             (buttonText || translate('common.start'))
           }
         </button>

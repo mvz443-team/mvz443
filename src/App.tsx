@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { MutableRefObject } from 'react';
 import { IRefPhaserGame, PhaserGame } from './game/PhaserGame';
 import { CardSlotHorizontal, CardSlotVertical, EnergySlot, VerticalEnergySlot, ViceCardSlot } from './components/widget/cardslot';
 import BottomTools from './components/widget/bottom';
@@ -10,12 +11,148 @@ import { StageResult } from './game/models/IRecord';
 import GameResultView from './components/menu/result';
 import { useDeviceType } from './hooks/useDeviceType';
 import BackendWS from './utils/net/sync';
-import { BrowserRouter as Router, Route, Routes, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import SettingsPage from './pages/settings';
 import { publicUrl } from './utils/browser';
 import { initializeGameLibraries } from './game/managers/library/initializeGameLibraries';
 
 initializeGameLibraries();
+
+interface GameMainWindowProps {
+  width: number;
+  deviceType: string;
+  showGameTool: boolean;
+  showGameScreen: boolean;
+  showGameResult: boolean;
+  gameParams: GameParams | null;
+  gameResult: StageResult | null;
+  phaserRef: MutableRefObject<IRefPhaserGame | null>;
+  currentScene: (_scene: Phaser.Scene) => void;
+  gameExit: (result: StageResult) => void;
+  exitResultView: () => void;
+  setGameParams: (gameParams: GameParams) => void;
+  gameStart: () => void;
+}
+
+function GameMainWindow({
+  width,
+  deviceType,
+  showGameTool,
+  showGameScreen,
+  showGameResult,
+  gameParams,
+  gameResult,
+  phaserRef,
+  currentScene,
+  gameExit,
+  exitResultView,
+  setGameParams,
+  gameStart,
+}: GameMainWindowProps) {
+  return (<div id="app" onContextMenu={(e) => { e?.preventDefault() }} style={{
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    MozUserSelect: "none",
+    msUserSelect: "none",
+    KhtmlUserSelect: "none",
+    display: "flex",
+    flexDirection: "row",
+    justifyContent: "center",
+  }}>
+    <div style={{
+      flexDirection: deviceType === 'pc' ? "column" : "row",
+    }}>  {showGameTool && deviceType === 'pc' &&
+      <div id="cardsContainer" style={{
+        "height": width / 8,
+        "maxHeight": '135px',
+        "width": width,
+        display: "flex",
+        "flexDirection": "row"
+      }}>
+        <EnergySlot />
+        <CardSlotHorizontal gameParams={gameParams} />
+      </div>}
+
+      <div style={{
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "center",
+      }}>
+        {showGameTool && deviceType === 'mobile' &&
+          <div id='mobileCardContainer' style={{
+            width: width / 7,
+            maxWidth: '135px',
+            height: width * 79 / 100,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            marginRight: "10px",
+          }}>
+            <VerticalEnergySlot />
+            <CardSlotVertical
+              gameParams={gameParams}
+            />
+          </div>
+        }
+        <div id="mainContainer" style={{
+          width: width,
+          display: "flex",
+          flexDirection: "column", // 改为垂直布局以容纳 BottomTools
+        }}>
+          <div id="controlContainer">
+          </div>
+          {showGameScreen && (!showGameResult) &&
+            <PhaserGame
+              ref={phaserRef}
+              currentActiveScene={currentScene}
+              isVisibility={showGameScreen}
+              gameParams={gameParams}
+              gameExit={gameExit}
+            />
+          }
+          {(!showGameScreen) && (!showGameResult) &&
+            <DocFrame
+              width={width}
+              sceneRef={phaserRef}
+              setGameParams={setGameParams}
+              gameStart={gameStart}
+            />
+          }
+          {showGameResult && (!showGameScreen) && (gameResult) &&
+            <GameResultView
+              isWin={gameResult?.isWin ? gameResult.isWin : false}
+              onWin={gameResult?.onWin}
+              progressRewards={gameResult?.rewards}
+              myProgress={gameResult?.progress ? gameResult.progress : 0}
+              onBack={exitResultView}
+              width={width}
+              height={width * 3 / 4}
+            />
+          }
+          {showGameTool &&
+            <BottomTools
+              width={width}
+              chapterID={gameParams?.level ?? null}
+            />
+          }
+        </div>
+      </div>
+    </div>
+    {showGameTool &&
+      <div style={{
+        width: width / 7,
+        maxWidth: '135px',
+        height: (width * 29 / 32),
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        marginRight: "10px",
+      }}>
+        <ViceCardSlot
+          gameParams={gameParams} />
+      </div>}
+  </div>);
+}
 
 function App() {
   // State to control the visibility of the game tool
@@ -87,119 +224,29 @@ function App() {
     }, true);
   }, []);
 
-  const GameMainWindow = () => {
-    return (<div id="app" onContextMenu={(e) => { e?.preventDefault() }} style={{
-      userSelect: "none",
-      WebkitUserSelect: "none",
-      MozUserSelect: "none",
-      msUserSelect: "none",
-      KhtmlUserSelect: "none",
-      display: "flex",
-      flexDirection: "row",
-      justifyContent: "center",
-    }}>
-      <div style={{
-        flexDirection: deviceType === 'pc' ? "column" : "row",
-      }}>  {showGameTool && deviceType === 'pc' &&
-        <div id="cardsContainer" style={{
-          "height": width / 8,
-          "maxHeight": '135px',
-          "width": width,
-          display: "flex",
-          "flexDirection": "row"
-        }}>
-          <EnergySlot />
-          <CardSlotHorizontal gameParams={gameParams} />
-        </div>}
-
-        <div style={{
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "center",
-        }}>
-          {showGameTool && deviceType === 'mobile' &&
-            <div id='mobileCardContainer' style={{
-              width: width / 7,
-              maxWidth: '135px',
-              height: width * 79 / 100,
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              marginRight: "10px",
-            }}>
-              <VerticalEnergySlot />
-              <CardSlotVertical
-                gameParams={gameParams}
-              />
-            </div>
-          }
-          <div id="mainContainer" style={{
-            width: width,
-            display: "flex",
-            flexDirection: "column", // 改为垂直布局以容纳 BottomTools
-          }}>
-            <div id="controlContainer">
-            </div>
-            {showGameScreen && (!showGameResult) &&
-              <PhaserGame
-                ref={phaserRef}
-                currentActiveScene={currentScene}
-                isVisibility={showGameScreen}
-                gameParams={gameParams}
-                gameExit={gameExit}
-              />
-            }
-            {(!showGameScreen) && (!showGameResult) &&
-              <DocFrame
-                width={width}
-                sceneRef={phaserRef}
-                setGameParams={setGameParams}
-                gameStart={gameStart}
-              />
-            }
-            {showGameResult && (!showGameScreen) && (gameResult) &&
-              <GameResultView
-                isWin={gameResult?.isWin ? gameResult.isWin : false}
-                onWin={gameResult?.onWin}
-                progressRewards={gameResult?.rewards}
-                myProgress={gameResult?.progress ? gameResult.progress : 0}
-                onBack={exitResultView}
-                width={width}
-                height={width * 3 / 4}
-              />
-            }
-            {showGameTool &&
-              <BottomTools
-                width={width}
-                chapterID={gameParams?.level ?? null}
-              />
-            }
-          </div>
-        </div>
-      </div>
-      {showGameTool &&
-        <div style={{
-          width: width / 7,
-          maxWidth: '135px',
-          height: (width * 29 / 32),
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          marginRight: "10px",
-        }}>
-          <ViceCardSlot
-            gameParams={gameParams} />
-        </div>}
-    </div>);
-  }
-
   return (
     <Router>
       {/* 全局在线状态变化监听器 */}
       <GlobalOnlineStateListener />
 
       <Routes>
-        <Route path={`${publicUrl}/`} element={<GameMainWindow />} />
+        <Route path={`${publicUrl}/`} element={
+          <GameMainWindow
+            width={width}
+            deviceType={deviceType}
+            showGameTool={showGameTool}
+            showGameScreen={showGameScreen}
+            showGameResult={showGameResult}
+            gameParams={gameParams}
+            gameResult={gameResult}
+            phaserRef={phaserRef}
+            currentScene={currentScene}
+            gameExit={gameExit}
+            exitResultView={exitResultView}
+            setGameParams={setGameParams}
+            gameStart={gameStart}
+          />
+        } />
         <Route path={`${publicUrl}/settings`} element={<SettingsPage width={width} height={width * 3 / 4} />} />
       </Routes>
     </Router>

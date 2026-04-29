@@ -47,6 +47,11 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
         readyPlayerCount: 0, // 宸插噯澶囩殑鐜╁鏁伴噺
         totalPlayerCount: 0, // 鎬荤帺瀹舵暟閲?
     });
+    const stateRef = React.useRef(state);
+
+    React.useEffect(() => {
+        stateRef.current = state;
+    }, [state]);
 
     // 浣跨敤 useLocalStorageState 鎸佷箙鍖栭€夊叧鐘舵€?
     const [levelSelectorState, setLevelSelectorState] = useLocalStorageState('levelSelectorState', {
@@ -78,13 +83,14 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
     // 统一监听房间阶段变化，mock 单人房也需要经过完整状态流转。
     useMount(() => {
         const handleGameStageChange = (gameStage: number) => {
-            console.log('馃幃 GameStage changed from', state.gameStage, 'to', gameStage, 'current step:', state.currentStep);
+            const currentState = stateRef.current;
+            console.log('馃幃 GameStage changed from', currentState.gameStage, 'to', gameStage, 'current step:', currentState.currentStep);
             setState({ gameStage });
 
             // 鏍规嵁娓告垙闃舵璋冩暣UI鐘舵€?
             if (gameStage === EnumGameStage.Preparing) {
                 // 鍑嗗闃舵锛岃烦杞埌閫夊崱鐣岄潰
-                if (state.selectedChapterId && state.selectedStageId) {
+                if (currentState.selectedChapterId && currentState.selectedStageId) {
                     setState({ currentStep: 'params' });
                 }
             } else if (gameStage === EnumGameStage.Loading) {
@@ -92,12 +98,12 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
             } else if (gameStage === EnumGameStage.InLobby) {
                 // 鍙湁鍦ㄦ槑纭渶瑕佸洖鍒板ぇ鍘呮椂鎵嶉噸缃姸鎬?
                 // 閬垮厤鍦ㄥ噯澶囬樁娈电殑鐘舵€佹洿鏂板鑷磋璺宠浆
-                console.log('馃攧 Received InLobby state, current step:', state.currentStep);
+                console.log('馃攧 Received InLobby state, current step:', currentState.currentStep);
 
                 // 濡傛灉褰撳墠鍦ㄩ€夊崱鐣岄潰锛屼笉瑕侀噸缃紝闄ら潪鏄庣‘鏄粠娓告垙缁撴潫鎴栨埧闂村叧闂瓑鎯呭喌
-                const shouldReset = state.currentStep !== 'params' ||
-                                  state.gameStage === EnumGameStage.PostGame ||
-                                  state.gameStage === EnumGameStage.InGame;
+                const shouldReset = currentState.currentStep !== 'params' ||
+                                  currentState.gameStage === EnumGameStage.PostGame ||
+                                  currentState.gameStage === EnumGameStage.InGame;
 
                 if (shouldReset) {
                     console.log('馃攧 Resetting to chapter selection');

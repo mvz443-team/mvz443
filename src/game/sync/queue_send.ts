@@ -10,11 +10,11 @@ import {
 } from "../../pb/request";
 import BackendWS from "../../utils/net/sync";
 import ResourceManager from "../managers/combat/ResourceManager";
-import { CommandLeadFrames, FrameInterval } from "../../../public/constants";
+import { FrameInterval } from "../../../public/constants";
 
 export default class QueueSend {
   queues: Denque<Request>;
-  private readonly commandDelayFrames: number = CommandLeadFrames;
+  private readonly commandBaseDeltaFrames: number = 2;
   private readonly blankPollIntervalMs: number = FrameInterval;
   private lastBlankAckFrameIdSent: number = -1;
   private lastBlankAckFrameIdQueued: number = -1;
@@ -73,17 +73,26 @@ export default class QueueSend {
   }
 
   private createOperationBase(col: number, row: number): RequestGridOperation {
+    const currentFrameId = BackendWS.GetFrameID();
+    const processFrameId = currentFrameId + this.getCommandDelayFrames();
+
     return {
       base: {
-        frameId: BackendWS.GetFrameID(),
+        frameId: currentFrameId,
         ackFrameId: BackendWS.AckFrameID
       },
       col,
       row,
-      // Match deterministic-lockstep-demo: schedule local input
-      // to a fixed future frame instead of estimating server drift.
-      processFrameId: BackendWS.GetFrameID() + this.commandDelayFrames
+      processFrameId
     };
+  }
+
+  private getCommandDelayFrames(): number {
+    const { sendLatencyMs, receiveLatencyMs } = BackendWS.getDebugLatencyConfig();
+    const roundTripLatencyMs = sendLatencyMs + receiveLatencyMs;
+    const networkDelayFrames = Math.ceil(roundTripLatencyMs / FrameInterval);
+
+    return networkDelayFrames + this.commandBaseDeltaFrames;
   }
 
   public sendCardPlant(pid: number, col: number, row: number, level: number, cost: number) {
