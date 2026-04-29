@@ -22,18 +22,6 @@ const config: Phaser.Types.Core.GameConfig = {
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_HORIZONTALLY,
-
-    // Minimum size
-    min: {
-      width: 800,
-      height: 600
-    },
-    // Maximum size
-    max: {
-      width: 1600,
-      height: 1200
-    },
-
   },
   parent: 'game-container',
   backgroundColor: 'rgba(0,0,0,0)',
@@ -50,7 +38,7 @@ const StartGame = (parent: string, width: number, GameParams: GameParams) => {
   void width;
   config.width = LOGICAL_GAME_WIDTH;
   config.height = LOGICAL_GAME_HEIGHT;
-  let game = new Game({ ...config, parent })
+  const game = new Game({ ...config, parent })
   game.registry.set('gameParams', GameParams);
   return game;
 

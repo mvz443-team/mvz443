@@ -4,7 +4,6 @@ import {
   PhaserEventBus,
   PhaserEvents,
 } from './EventBus';
-import { useSettings } from '../context/settings_ctx';
 import { GameParams } from './models/GameParams';
 import { StageResult } from './models/IRecord';
 
@@ -17,22 +16,25 @@ interface IProps {
   currentActiveScene?: (scene_instance: Phaser.Scene) => void,
   isVisibility: boolean,
   gameParams: GameParams | null,
-  gameExit: (result: StageResult) => void
+  gameExit: (result: StageResult) => void,
+  width: number,
+  height: number,
 }
 
 
 export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame({
-  currentActiveScene, isVisibility, gameParams, gameExit }, ref) {
-  if (!gameParams) {
-    return <p>no game params!@!</p>
+  currentActiveScene, isVisibility, gameParams, gameExit, width, height }, ref) {
+  if (gameParams) {
+    gameParams.gameExit = gameExit;
   }
-  gameParams.gameExit = gameExit;
 
-  const { width } = useSettings();
   const game = useRef<Phaser.Game | null>(null!);
-  const gameHeight = width * 3 / 4;
 
   useLayoutEffect(() => {
+    if (!gameParams) {
+      return;
+    }
+
     if (game.current === null) {
 
       game.current = StartGame("game-container", width, gameParams);
@@ -53,7 +55,23 @@ export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame
         }
       }
     }
-  }, [ref]);
+  }, [gameParams, ref, width]);
+
+  useEffect(() => {
+    const currentGame = game.current;
+
+    if (!currentGame) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      currentGame.scale.refresh();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [width, height]);
 
   useEffect(() => {
     PhaserEventBus.on(PhaserEvents.CurrentSceneReady, (scene_instance: Phaser.Scene) => {
@@ -73,11 +91,15 @@ export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame
     }
   }, [currentActiveScene, ref]);
 
+  if (!gameParams) {
+    return <p>no game params!@!</p>
+  }
+
   return (
     <div id="game-container" style={{
       visibility: isVisibility ? 'visible' : 'hidden',
       width,
-      height: gameHeight,
+      height,
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'flex-start',

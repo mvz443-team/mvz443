@@ -19,7 +19,8 @@ export default function SettingsPage({ width, height }: Props) {
                 justifyContent: 'center',
                 alignItems: 'center',
                 width: '100vw',
-                height: '100vh',
+                height: '100dvh',
+                overflow: 'hidden',
             }}>
             <Settings
                 width={width}

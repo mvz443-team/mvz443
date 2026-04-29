@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { IRefPhaserGame, PhaserGame } from './game/PhaserGame';
 import { CardSlotHorizontal, CardSlotVertical, EnergySlot, VerticalEnergySlot, ViceCardSlot } from './components/widget/cardslot';
@@ -20,6 +20,9 @@ initializeGameLibraries();
 
 interface GameMainWindowProps {
   width: number;
+  height: number;
+  nonGameWidth: number;
+  nonGameHeight: number;
   deviceType: string;
   showGameTool: boolean;
   showGameScreen: boolean;
@@ -36,6 +39,9 @@ interface GameMainWindowProps {
 
 function GameMainWindow({
   width,
+  height,
+  nonGameWidth,
+  nonGameHeight,
   deviceType,
   showGameTool,
   showGameScreen,
@@ -49,6 +55,15 @@ function GameMainWindow({
   setGameParams,
   gameStart,
 }: GameMainWindowProps) {
+  const bottomHeight = showGameTool ? width / 32 : 0;
+  const mainTotalHeight = height + bottomHeight;
+  const sideToolWidth = Math.min(width / 7, 135);
+  const topToolHeight = Math.min(width / 8, 135);
+  const rightToolHeight = mainTotalHeight + (deviceType === 'pc' ? topToolHeight : 0);
+  const isGameLayout = showGameScreen || showGameTool;
+  const mainWidth = isGameLayout ? width : nonGameWidth;
+  const mainHeight = isGameLayout ? (showGameTool ? mainTotalHeight : height) : nonGameHeight;
+
   return (<div id="app" onContextMenu={(e) => { e?.preventDefault() }} style={{
     userSelect: "none",
     WebkitUserSelect: "none",
@@ -58,13 +73,22 @@ function GameMainWindow({
     display: "flex",
     flexDirection: "row",
     justifyContent: "center",
+    alignItems: "center",
+    width: "100vw",
+    height: "100dvh",
+    maxWidth: "100vw",
+    maxHeight: "100dvh",
+    overflow: "hidden",
+    boxSizing: "border-box",
   }}>
     <div style={{
+      display: "flex",
       flexDirection: deviceType === 'pc' ? "column" : "row",
+      alignItems: "center",
+      flex: "0 0 auto",
     }}>  {showGameTool && deviceType === 'pc' &&
       <div id="cardsContainer" style={{
-        "height": width / 8,
-        "maxHeight": '135px',
+        "height": topToolHeight,
         "width": width,
         display: "flex",
         "flexDirection": "row"
@@ -80,9 +104,8 @@ function GameMainWindow({
       }}>
         {showGameTool && deviceType === 'mobile' &&
           <div id='mobileCardContainer' style={{
-            width: width / 7,
-            maxWidth: '135px',
-            height: width * 79 / 100,
+            width: sideToolWidth,
+            height: mainTotalHeight,
             display: "flex",
             flexDirection: "column",
             justifyContent: "center",
@@ -95,7 +118,8 @@ function GameMainWindow({
           </div>
         }
         <div id="mainContainer" style={{
-          width: width,
+          width: mainWidth,
+          height: mainHeight,
           display: "flex",
           flexDirection: "column", // 改为垂直布局以容纳 BottomTools
         }}>
@@ -108,11 +132,14 @@ function GameMainWindow({
               isVisibility={showGameScreen}
               gameParams={gameParams}
               gameExit={gameExit}
+              width={width}
+              height={height}
             />
           }
           {(!showGameScreen) && (!showGameResult) &&
             <DocFrame
-              width={width}
+              width={mainWidth}
+              height={mainHeight}
               sceneRef={phaserRef}
               setGameParams={setGameParams}
               gameStart={gameStart}
@@ -125,8 +152,8 @@ function GameMainWindow({
               progressRewards={gameResult?.rewards}
               myProgress={gameResult?.progress ? gameResult.progress : 0}
               onBack={exitResultView}
-              width={width}
-              height={width * 3 / 4}
+              width={mainWidth}
+              height={mainHeight}
             />
           }
           {showGameTool &&
@@ -140,9 +167,8 @@ function GameMainWindow({
     </div>
     {showGameTool &&
       <div style={{
-        width: width / 7,
-        maxWidth: '135px',
-        height: (width * 29 / 32),
+        width: sideToolWidth,
+        height: rightToolHeight,
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
@@ -154,6 +180,118 @@ function GameMainWindow({
   </div>);
 }
 
+type ViewportSize = {
+  width: number;
+  height: number;
+};
+
+const getViewportSize = (): ViewportSize => {
+  const viewport = window.visualViewport;
+
+  return {
+    width: Math.round(viewport?.width ?? window.innerWidth),
+    height: Math.round(viewport?.height ?? window.innerHeight),
+  };
+};
+
+function useViewportSize(): ViewportSize {
+  const [viewportSize, setViewportSize] = useState<ViewportSize>(() => getViewportSize());
+
+  useEffect(() => {
+    const updateViewportSize = () => {
+      setViewportSize(getViewportSize());
+    };
+
+    window.addEventListener('resize', updateViewportSize);
+    window.addEventListener('orientationchange', updateViewportSize);
+    window.visualViewport?.addEventListener('resize', updateViewportSize);
+    window.visualViewport?.addEventListener('scroll', updateViewportSize);
+
+    return () => {
+      window.removeEventListener('resize', updateViewportSize);
+      window.removeEventListener('orientationchange', updateViewportSize);
+      window.visualViewport?.removeEventListener('resize', updateViewportSize);
+      window.visualViewport?.removeEventListener('scroll', updateViewportSize);
+    };
+  }, []);
+
+  return viewportSize;
+}
+
+function getFittedMainWidth(
+  preferredWidth: number,
+  viewportSize: ViewportSize,
+  deviceType: 'mobile' | 'pc',
+  showGameTool: boolean,
+) {
+  const viewportPadding = deviceType === 'mobile' ? 8 : 16;
+  const availableWidth = Math.max(240, viewportSize.width - viewportPadding * 2);
+  const availableHeight = Math.max(180, viewportSize.height - viewportPadding * 2);
+
+  const getSideToolWidth = (mainWidth: number) => Math.min(mainWidth / 7, 135);
+  const getTotalWidth = (mainWidth: number) => {
+    if (!showGameTool) {
+      return mainWidth;
+    }
+
+    const rightToolWidth = getSideToolWidth(mainWidth) + 10;
+    const leftToolWidth = deviceType === 'mobile' ? getSideToolWidth(mainWidth) + 10 : 0;
+
+    return mainWidth + leftToolWidth + rightToolWidth;
+  };
+
+  const getTotalHeight = (mainWidth: number) => {
+    const gameHeight = mainWidth * 3 / 4;
+
+    if (!showGameTool) {
+      return gameHeight;
+    }
+
+    const bottomHeight = mainWidth / 32;
+    const topToolHeight = deviceType === 'pc' ? Math.min(mainWidth / 8, 135) : 0;
+
+    return gameHeight + bottomHeight + topToolHeight;
+  };
+
+  let low = 160;
+  let high = Math.max(low, preferredWidth);
+
+  for (let i = 0; i < 24; i += 1) {
+    const mid = (low + high) / 2;
+    if (getTotalWidth(mid) <= availableWidth && getTotalHeight(mid) <= availableHeight) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  return Math.max(160, Math.floor(Math.min(preferredWidth, low)));
+}
+
+function getNonGameMainSize(
+  preferredWidth: number,
+  viewportSize: ViewportSize,
+  deviceType: 'mobile' | 'pc',
+) {
+  if (deviceType === 'pc') {
+    const fittedWidth = getFittedMainWidth(preferredWidth, viewportSize, deviceType, false);
+
+    return {
+      width: fittedWidth,
+      height: Math.floor(fittedWidth * 3 / 4),
+    };
+  }
+
+  const viewportPadding = 16;
+  const availableWidth = Math.max(240, viewportSize.width - viewportPadding * 2);
+  const availableHeight = Math.max(180, viewportSize.height - viewportPadding * 2);
+
+  return {
+    width: Math.max(160, Math.floor(Math.min(preferredWidth, availableWidth))),
+    height: Math.floor(availableHeight),
+  };
+}
+
 function App() {
   // State to control the visibility of the game tool
   const [showGameTool, setShowGameTool] = useState(false);
@@ -162,11 +300,19 @@ function App() {
   const [gameParams, setGameParams] = useState<GameParams | null>(null);
   const [gameResult, setGameResult] = useState<StageResult | null>(null);
   const deviceType = useDeviceType();
+  const viewportSize = useViewportSize();
 
   //  References to the PhaserGame component (game and scene are exposed)
   const phaserRef = useRef<IRefPhaserGame | null>(null);
 
   const { width } = useSettings();
+  const layoutWidth = useMemo(() => (
+    getFittedMainWidth(width, viewportSize, deviceType, showGameTool)
+  ), [width, viewportSize, deviceType, showGameTool]);
+  const layoutHeight = Math.floor(layoutWidth * 3 / 4);
+  const nonGameLayout = useMemo(() => (
+    getNonGameMainSize(width, viewportSize, deviceType)
+  ), [width, viewportSize, deviceType]);
 
   const gameStart = useCallback(() => {
     setShowGameScreen(true);
@@ -232,7 +378,10 @@ function App() {
       <Routes>
         <Route path={`${publicUrl}/`} element={
           <GameMainWindow
-            width={width}
+            width={layoutWidth}
+            height={layoutHeight}
+            nonGameWidth={nonGameLayout.width}
+            nonGameHeight={nonGameLayout.height}
             deviceType={deviceType}
             showGameTool={showGameTool}
             showGameScreen={showGameScreen}
@@ -247,7 +396,7 @@ function App() {
             gameStart={gameStart}
           />
         } />
-        <Route path={`${publicUrl}/settings`} element={<SettingsPage width={width} height={width * 3 / 4} />} />
+        <Route path={`${publicUrl}/settings`} element={<SettingsPage width={layoutWidth} height={layoutHeight} />} />
       </Routes>
     </Router>
   )

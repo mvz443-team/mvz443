@@ -9,6 +9,7 @@ import { useLocaleMessages } from '../../hooks/useLocaleMessages';
 import { cardKey } from '../../i18n/keys';
 import { PlantLibrary } from '../../game/managers/library/PlantLibrary';
 import LevelBadge from '../widget/levelBadge';
+import { useDeviceType } from '../../hooks/useDeviceType';
 
 interface Props {
   width: number;
@@ -48,9 +49,13 @@ export default function Pokedex({ width, height, onBack }: Props) {
 
   const saveManager = useSaveManager();
   const { translate } = useLocaleMessages();
+  const deviceType = useDeviceType();
 
   const plants = saveManager.currentProgress.plants;
 
+  const isMobile = deviceType === 'mobile';
+  // 左侧图鉴固定每排 5 个，卡片宽度随容器自适应。
+  const itemsPerRow = 5;
   // 使用 useCreation 来管理 pokedexItems
   const pokedexItems = useCreation(() => {
     const tmpMap = new Map<number, PokedexItem>();
@@ -213,183 +218,195 @@ export default function Pokedex({ width, height, onBack }: Props) {
     <div style={{
       width: `${width}px`,
       height: `${height}px`,
-      perspective: '1200px',
       background: "linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)",
       position: "relative",
       overflow: "hidden",
       border: "2px solid #444",
       boxShadow: "0 0 15px rgba(0, 0, 0, 0.5)",
-      animation: "frameFadeIn 0.5s ease-out"
+      animation: "frameFadeIn 0.5s ease-out",
+      whiteSpace: "pre-wrap",
+      display: "flex",
+      flexDirection: "column"
     }}>
-      {/* 左侧边栏（保持不变） */}
       <div style={{
-        width: "50%",
-        height: "90%",
-        position: "absolute",
-        left: 0,
-        top: 0,
-        background: "rgba(20, 20, 20, 0.85)",
-        backdropFilter: "blur(5px)",
-        overflowY: "auto",
-        scrollbarWidth: "thin",
-        scrollbarColor: "#666 #333",
-        padding: "60px 20px 20px 20px"
+        height: "52px",
+        minHeight: "52px",
+        borderBottom: "1px solid #444",
+        padding: "10px",
+        display: "flex",
+        alignItems: "center",
+        gap: "12px"
       }}>
-        {/* 返回按钮（保持不变） */}
         <button
           style={{
-            position: "absolute",
-            top: "2%",
-            left: "5%",
-            padding: "8px 16px",
-            background: "none",
-            border: "2px solid #666",
-            color: "#ddd",
+            padding: "6px 10px",
+            background: "#444",
+            border: "none",
+            color: "#fff",
             cursor: "pointer",
-            transition: "all 0.3s ease"
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)";
-            e.currentTarget.style.borderColor = "#00ccff";
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = "none";
-            e.currentTarget.style.borderColor = "#666";
+            borderRadius: "4px",
+            fontSize: "14px"
           }}
           onClick={onBack}
         >
           {translate('menu.back')}
         </button>
-        <p style={{
-          position: "absolute",
-          top: "0",
-          left: "45%",
-          background: "none",
+        <h2 style={{
+          margin: 0,
           color: "#ddd",
-          fontSize: "24px",
-          fontWeight: "bold"
-        }}>图鉴</p>
-
-        {/* 项目网格（恢复原来的样式） */}
-        {Array(Math.ceil(pokedexItems.size / 5)).fill(0).map((_, rowIndex) => (
-          <div key={rowIndex} style={{
-            display: "flex",
-            justifyContent: "flex-start",
-            marginBottom: "20px",
-          }}>
-            {Array.from(pokedexItems.keys()).slice(rowIndex * 5, (rowIndex + 1) * 5).map((pid, index) => (
-              <div
-                key={index}
-                style={{
-                  minWidth: "16%",
-                  maxWidth: "16%",
-                  textAlign: "center",
-                  cursor: "pointer",
-                  border: "2px solid rgba(100, 100, 100, 0.5)",
-                  padding: "1%",
-                  marginRight: "2%",
-                  transition: "all 0.3s ease"
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.borderColor = "#00ccff";
-                  e.currentTarget.style.boxShadow = "0 0 8px rgba(0, 204, 255, 0.5)";
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(100, 100, 100, 0.5)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-                onClick={() => selectItem(pid)}
-              >
-                <div style={{ width: "64px", height: "64px", overflow: "hidden", position: "relative" }}>
-                  {pokedexItems.get(pid) && (
-                    <>
-                      <LevelBadge level={pokedexItems.get(pid)!.level} />
-                      <img
-                        src={pokedexItems.get(pid)!.image}
-                        alt={translate(cardKey(pokedexItems.get(pid)!.nameKey))}
-                        style={{ display: "block" }}
-                        draggable="false"
-                      />
-                    </>
-                  )}
-                </div>
-                <div style={{ color: "#ddd", fontSize: "14px" }}>
-                  {pokedexItems.get(pid) ? translate(cardKey(pokedexItems.get(pid)!.nameKey)) : ""}
-                </div>
-              </div>
-            ))}
-          </div>
-        ))}
+          fontSize: "22px",
+          fontWeight: 700
+        }}>图鉴</h2>
       </div>
 
-      {/* 右侧详情面板 */}
       <div style={{
-        width: "40%",
-        height: "96%",
-        position: "absolute",
-        right: 0,
-        top: 0,
-        padding: "20px",
-        color: "#ddd",
-        scrollbarWidth: "thin",
-        scrollbarColor: "#666 #333",
-        background: "rgba(30, 30, 30, 0.9)",
-        overflowY: "auto", // 添加这一行使内容可滚动
+        flex: 1,
+        minHeight: 0,
+        display: "flex"
       }}>
-        <div className={state.animationClass} style={{
-          position: "relative",
-          width: "103%"
+        <div style={{
+          width: "40%",
+          minWidth: "300px",
+          height: "100%",
+          borderRight: "1px solid #444",
+          overflowY: "auto",
+          padding: "10px",
+          display: "grid",
+          gridTemplateColumns: `repeat(${itemsPerRow}, minmax(0, 1fr))`,
+          alignContent: "start",
+          gap: "8px",
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#888 #333',
         }}>
-          <h2 style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {Array.from(pokedexItems.keys()).map((pid) => {
+            const item = pokedexItems.get(pid);
+            const isChosen = pid === state.selectedItemPid;
+
+            return (
+              <div
+                key={pid}
+                style={{
+                  boxSizing: 'border-box',
+                  position: "relative",
+                  width: '100%',
+                  minWidth: 0,
+                  aspectRatio: "1 / 1.22",
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  background: isChosen ? "#3f5360" : "#303030",
+                  border: isChosen ? "2px solid #f4f4f4" : "1px solid #555",
+                  borderRadius: "6px",
+                  padding: '4px',
+                  transition: 'border-color 0.15s, background 0.15s',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  overflow: "hidden"
+                }}
+                onClick={() => selectItem(pid)}
+                title={item ? translate(cardKey(item.nameKey)) : undefined}
+              >
+                {item && (
+                  <>
+                    <LevelBadge level={item.level} />
+                    <img
+                      src={item.image}
+                      alt={translate(cardKey(item.nameKey))}
+                      style={{
+                        width: "100%",
+                        height: "70%",
+                        objectFit: "contain"
+                      }}
+                      draggable="false"
+                    />
+                  </>
+                )}
+                <div style={{
+                  color: "#ddd",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  maxWidth: "100%",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  textShadow: "0 1px 2px #000"
+                }}>
+                  {item ? translate(cardKey(item.nameKey)) : ""}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{
+          flex: 1,
+          height: "100%",
+          padding: isMobile ? "16px" : "20px",
+          color: "#ddd",
+          scrollbarWidth: "thin",
+          scrollbarColor: "#888 #333",
+          background: "rgba(30, 30, 30, 0.9)",
+          overflowY: "auto",
+          overflowX: "hidden"
+        }}>
+          <div className={state.animationClass} style={{
+            position: "relative",
+            width: "100%",
+            minHeight: "100%"
+          }}>
+            <h2 style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {state.selectedItem ? (
+                <>
+                  <span>{translate(cardKey(state.selectedItem.nameKey))}</span>
+                  <LevelBadge level={state.selectedItem.level} className="level-badge--inline" />
+                </>
+              ) : '未选择'}
+            </h2>
+
             {state.selectedItem ? (
               <>
-                <span>{translate(cardKey(state.selectedItem.nameKey))}</span>
-                <LevelBadge level={state.selectedItem.level} className="level-badge--inline" />
+                <div style={{ whiteSpace: 'pre-wrap', marginBottom: '16px' }}>
+                  {translate(cardKey(state.selectedItem.descriptionKey))}
+                </div>
+                <hr style={{ borderColor: '#666', margin: '16px 0' }} />
+                <div>
+                  <h3 style={{ margin: '0 0 12px 0' }}>
+                    升级到 LV.{state.selectedItem.level + 1}
+                  </h3>
+                  {/* 材料列表 */}
+                  <StuffList
+                    items={state.upgradeMaterials}
+                    currentItems={getCurrentItems()}
+                    translate={translate}
+                  />
+
+                  {/* 升级按钮 - 使用新的handleUpgrade函数，不依赖selected参数 */}
+                  <button
+                    onClick={handleUpgrade}
+                    disabled={!canUpgrade()}
+                    style={{
+                      padding: '10px 24px',
+                      marginTop: '16px',
+                      border: 'none',
+                      borderRadius: '4px',
+                      background: canUpgrade() ? '#007bff' : '#555',
+                      color: '#fff',
+                      cursor: canUpgrade() ? 'pointer' : 'not-allowed',
+                      opacity: state.loadingMaterials ? 0.6 : 1,
+                    }}
+                  >
+                    {state.loadingMaterials ? '加载中...' : (canUpgrade() ? '升级' : '材料不足')}
+                  </button>
+                </div>
               </>
-            ) : '未选择'}
-          </h2>
-
-          {state.selectedItem ? (
-            <>
-              <div style={{ whiteSpace: 'pre-wrap', marginBottom: '16px' }}>
-                {translate(cardKey(state.selectedItem.descriptionKey))}
+            ) : (
+              <div style={{ paddingTop: '40px', textAlign: 'center', color: '#888' }}>
+                请选择左侧项目查看详情
               </div>
-              <hr style={{ borderColor: '#666', margin: '16px 0' }} />
-              <div>
-                <h3 style={{ margin: '0 0 12px 0' }}>
-                  升级到 LV.{state.selectedItem.level + 1}
-                </h3>
-                {/* 材料列表 */}
-                <StuffList
-                  items={state.upgradeMaterials}
-                  currentItems={getCurrentItems()}
-                  translate={translate}
-                />
-
-                {/* 升级按钮 - 使用新的handleUpgrade函数，不依赖selected参数 */}
-                <button
-                  onClick={handleUpgrade}
-                  disabled={!canUpgrade()}
-                  style={{
-                    padding: '10px 24px',
-                    marginTop: '16px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    background: canUpgrade() ? '#007bff' : '#555',
-                    color: '#fff',
-                    cursor: canUpgrade() ? 'pointer' : 'not-allowed',
-                    opacity: state.loadingMaterials ? 0.6 : 1,
-                  }}
-                >
-                  {state.loadingMaterials ? '加载中...' : (canUpgrade() ? '升级' : '材料不足')}
-                </button>
-              </div>
-            </>
-          ) : (
-            <div style={{ paddingTop: '40px', textAlign: 'center', color: '#888' }}>
-              请选择左侧项目查看详情
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

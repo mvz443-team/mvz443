@@ -131,11 +131,11 @@ export default function DocFrame({ width, height, setGameParams, gameStart }: Pr
     <div style={{
       width: `${width}px`,
       height: `${height}px`,
-      minHeight: `${height}px`,
-      minWidth: `${width}px`,
       backgroundImage: `url("${publicUrl}/assets/intro.jpg")`,
 
       backgroundRepeat: 'no-repeat',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
       position: "relative",
       overflow: "hidden",
       border: "2px solid #444",

@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from "react";
 import Stuff from "../../constants/stuffs";
 import { useLocaleMessages } from "../../hooks/useLocaleMessages";
+import { useDeviceType } from "../../hooks/useDeviceType";
 import { getItemIcon } from "./assets";
 import StuffList, { CurrentStuffs } from "./stuff_list";
 import { IGoods, item } from "./types";
@@ -105,11 +106,14 @@ interface DetailGoodsProps {
 export function DetailGoods({ good, canAfford, canPurchase, hasBought,
     priceItems, myItems, handlePurchase }: DetailGoodsProps) {
     const { translate } = useLocaleMessages();
+    const deviceType = useDeviceType();
+    const isMobile = deviceType === 'mobile';
 
     return (
         <div style={{ color: "#fff", paddingRight: "8px" }}>
             <div style={{
                 display: "flex",
+                flexDirection: isMobile ? "column" : "row",
                 alignItems: "flex-start",
                 gap: "16px",
                 marginBottom: "16px",
@@ -123,6 +127,7 @@ export function DetailGoods({ good, canAfford, canPurchase, hasBought,
                     onClick={() => handlePurchase(good)}
                     style={{
                         flex: "0 0 auto",
+                        width: isMobile ? "100%" : "auto",
                         padding: "10px 18px",
                         background: hasBought || !canPurchase ? "#666" : canAfford ? "#2178d6" : "#8b3a3a",
                         border: "none",
@@ -134,7 +139,7 @@ export function DetailGoods({ good, canAfford, canPurchase, hasBought,
                 >
                     {hasBought ? "Purchased" : !canAfford ? "Cannot Afford" : "Purchase"}
                 </button>
-                <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ minWidth: 0, flex: 1, width: isMobile ? "100%" : undefined }}>
                     <StuffList
                         items={priceItems}
                         currentItems={myItems}

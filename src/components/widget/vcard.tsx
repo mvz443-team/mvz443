@@ -5,7 +5,6 @@ import CardpileManager from '../../game/managers/combat/CardpileManager';
 import ResourceManager from '../../game/managers/combat/ResourceManager';
 import PlantsManager from '../../game/managers/combat/PlantsManager';
 import { CardProps } from './card';
-import LevelBadge from './levelBadge';
 
 export default function VCard({ plantModel, level }: CardProps) {
   const { pid, texturePath, nameKey, cost: costStat } = plantModel;
@@ -99,6 +98,7 @@ export default function VCard({ plantModel, level }: CardProps) {
   return (
     <button
       className={`horizontal-card ${reloaded ? '' : 'cooling'} 
+                v-card
                 ${isChosen ? 'chosen' : ''} 
                 ${(energy < cost) ? 'expensive' : ''}`}
       onClick={handleClick}
@@ -106,7 +106,6 @@ export default function VCard({ plantModel, level }: CardProps) {
     >
       <div className="horizontal-card-content">
         <div className={`plant-image ${plantModel.isNightPlant ? 'night-plant-image' : ''}`}>
-          <LevelBadge level={level} />
           {texturePath && texturePath !== "" && (
             <img
               src={`${publicUrl}/assets/card/${texturePath}.png`}

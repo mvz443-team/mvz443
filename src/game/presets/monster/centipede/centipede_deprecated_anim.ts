@@ -71,8 +71,9 @@ export class CentipedeDeprecatedAnimController implements IMonsterAnimController
   public setDepth(depth: number): void {
     this.container.setDepth(depth);
     for (const child of this.container.list) {
-      const localDepth = (child as Phaser.GameObjects.GameObject).getData?.("localDepth") ?? 0;
-      (child as Phaser.GameObjects.Components.Depth).setDepth?.(depth + localDepth);
+      const gameObject = child as Phaser.GameObjects.GameObject & Partial<Phaser.GameObjects.Components.Depth>;
+      const localDepth = gameObject.getData?.("localDepth") ?? 0;
+      gameObject.setDepth?.(depth + localDepth);
     }
   }
 
