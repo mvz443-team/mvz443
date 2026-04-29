@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useMemoizedFn } from 'ahooks';
 import { publicUrl } from '../../utils/browser';
-import { useLocaleMessages } from '../../hooks/useLocaleMessages';
-import { cardKey } from '../../i18n/keys';
 import CardpileManager from '../../game/managers/combat/CardpileManager';
 import ResourceManager from '../../game/managers/combat/ResourceManager';
 import PlantsManager from '../../game/managers/combat/PlantsManager';
 import { CardProps } from './card';
+import LevelBadge from './levelBadge';
 
 export default function VCard({ plantModel, level }: CardProps) {
   const { pid, texturePath, nameKey, cost: costStat } = plantModel;
@@ -16,8 +15,6 @@ export default function VCard({ plantModel, level }: CardProps) {
 
   const [isChosen, setIsChosen] = useState(false);
   const [energy, setEnergy] = useState(0); // 从 ResourceManager 获取能量
-
-  const { translate } = useLocaleMessages();
 
   const handleDeselect = useMemoizedFn((data: { pid: number | null }) => {
     if (data.pid !== pid) {
@@ -108,20 +105,19 @@ export default function VCard({ plantModel, level }: CardProps) {
       disabled={!reloaded || (energy < cost)}
     >
       <div className="horizontal-card-content">
-        <div className="plant-image">
+        <div className={`plant-image ${plantModel.isNightPlant ? 'night-plant-image' : ''}`}>
+          <LevelBadge level={level} />
           {texturePath && texturePath !== "" && (
             <img
               src={`${publicUrl}/assets/card/${texturePath}.png`}
-              alt={translate(cardKey(nameKey))}
-              style={{
-                width: "100%",
-                height: "100%",
-              }}
+              alt={nameKey}
               draggable="false"
             />
           )}
         </div>
-        <div className="plant-cost">{cost}</div>
+        <div className="plant-cost">
+          <span className="plant-cost-value">{cost}</span>
+        </div>
       </div>
       {!reloaded && (
         <div
