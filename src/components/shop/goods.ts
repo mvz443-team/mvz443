@@ -8,6 +8,7 @@ class SeventhSlot implements IGoods {
     id: number = 1;
     name: string = "7th Slot";
     price: number = 220;
+    icon: string = "/assets/card/items/slot7.svg";
 
     constructor(
         private purchasedIds: Set<number>,
@@ -36,6 +37,7 @@ class EighthSlot implements IGoods {
     id: number = 2;
     name: string = "8th Slot";
     price: number = 450;
+    icon: string = "/assets/card/items/slot8.svg";
 
     constructor(
         private purchasedIds: Set<number>,
@@ -64,6 +66,7 @@ class Cp1Kit implements IGoods {
     id: number = 3;
     name: string = "Chapter 1 Kit";
     price: number = 200;
+    icon: string = "/assets/card/items/chapter1_kit.svg";
 
     constructor(
         private purchasedIds: Set<number>,
@@ -98,6 +101,7 @@ class ScarletborderCrystal implements IGoods {
     id: number = SECKILL;
     name: string = "黯绯结晶";
     price: number = 1;
+    icon: string = "/assets/card/items/scb.svg";
 
     constructor(
         private purchasedIds: Set<number>,
@@ -126,6 +130,7 @@ class PumpkinWan implements IGoods {
     id: number = 4;
     name: string = "Mr. Pumpkin Wan";
     price: number = 600;
+    icon: string = "/assets/card/plant/pumpkin_wan.png";
 
     constructor(
         private purchasedIds: Set<number>,
@@ -164,6 +169,7 @@ class ATDispenser implements IGoods {
     id: number = 5;
     name: string = "反坦克炮台";
     price: number = 800;
+    icon: string = "/assets/card/plant/at_dispenser.png";
 
     constructor(
         private purchasedIds: Set<number>,
@@ -201,6 +207,7 @@ class NinthSlot implements IGoods {
     id: number = 6;
     name: string = "9th Slot";
     price: number = 1000;
+    icon: string = "/assets/card/items/slot9.svg";
 
     constructor(
         private purchasedIds: Set<number>,
@@ -229,6 +236,7 @@ class Chapter2Plants implements IGoods {
     id: number = 7;
     name: string = "第二章前期器械包";
     price: number = 0;
+    icon: string = "/assets/card/plant/elastic_putin.png";
 
     constructor(
         private purchasedIds: Set<number>,

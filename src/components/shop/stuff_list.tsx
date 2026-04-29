@@ -1,5 +1,5 @@
 import Stuff from "../../constants/stuffs";
-import { useLocaleMessages } from "../../hooks/useLocaleMessages";
+import { getItemIcon } from "./assets";
 import { item } from "./types";
 
 type Props = {
@@ -18,15 +18,32 @@ export default function StuffList({ items, currentItems, translate }: Props) {
         const isInsufficient = requiredCount > availableCount;
 
         return (
-            <div style={{ color: isInsufficient ? 'red' : 'white' }}>
+            <div style={{
+                color: isInsufficient ? '#ff6868' : '#f3f3f3',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                minHeight: '28px',
+                whiteSpace: 'nowrap'
+            }}>
+                <img
+                    src={getItemIcon(type)}
+                    alt={Stuff(type, translate)}
+                    style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                    draggable="false"
+                />
                 <span>{`${Stuff(type, translate)}: ${availableCount}/${requiredCount}`}</span>
-                {isInsufficient && <span> (缺少相关材料)</span>}
             </div>
         );
     }
 
     return (
-        <div>
+        <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '8px 14px',
+            alignItems: 'center'
+        }}>
             {items.map((item, index) => (
                 <div key={index}>
                     {stuffItem(item.type, item.count)}
@@ -40,54 +57,39 @@ export function CurrentStuffs(items: item[], translate: (key: string, params?: R
 
     return (
         <div style={{
-            backgroundColor: '#000000',
-            padding: '2%',
-            borderRadius: '8px',
-            maxWidth: '400px',
-            margin: '20px auto',
-            fontFamily: 'Arial, sans-serif'
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(52px, 1fr))',
+            gap: '8px',
+            width: '100%'
         }}>
-            <table style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                color: '#ffffff'
-            }}>
-                <thead>
-                    <tr>
-                        <th style={{
-                            backgroundColor: '#1a1a1a',
-                            padding: '12px',
-                            textAlign: 'left',
-                            fontWeight: 'bold',
-                            borderBottom: '2px solid #333333'
-                        }}>Type</th>
-                        <th style={{
-                            backgroundColor: '#1a1a1a',
-                            padding: '12px',
-                            textAlign: 'left',
-                            fontWeight: 'bold',
-                            borderBottom: '2px solid #333333'
-                        }}>Count</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {items.map((item, index) => (
-                        <tr key={index} style={{
-                            transition: 'background-color 0.3s'
-                        }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#2a2a2a'}
-                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                            <td style={{
-                                padding: '10px',
-                                borderBottom: '1px solid #333333'
-                            }}>{Stuff(item.type, translate)}</td>
-                            <td style={{
-                                padding: '10px',
-                                borderBottom: '1px solid #333333'
-                            }}>{item.count}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+            {items.map((item, index) => (
+                <div key={index} title={Stuff(item.type, translate)} style={{
+                    position: 'relative',
+                    height: '52px',
+                    border: '1px solid #555',
+                    borderRadius: '6px',
+                    background: '#2d2d2d',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}>
+                    <img
+                        src={getItemIcon(item.type)}
+                        alt={Stuff(item.type, translate)}
+                        style={{ width: '34px', height: '34px', objectFit: 'contain' }}
+                        draggable="false"
+                    />
+                    <span style={{
+                        position: 'absolute',
+                        right: '4px',
+                        bottom: '2px',
+                        color: '#fff',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        textShadow: '0 1px 2px #000'
+                    }}>{item.count}</span>
+                </div>
+            ))}
         </div>
     );
 }

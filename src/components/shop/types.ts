@@ -14,6 +14,7 @@ export interface IGoods {
     id: number;
     name: string;
     price: number;
+    icon: string;
     description: () => string;
     hasBought: (id: number, progress: GameProgress) => boolean;
     afterBought: (id: number, save: GameManager) => void;
