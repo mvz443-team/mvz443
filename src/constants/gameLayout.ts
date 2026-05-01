@@ -1,7 +1,27 @@
-export const LOGICAL_GAME_WIDTH = 800;
-export const LOGICAL_GAME_HEIGHT = 600;
-export const GAME_ASPECT_RATIO = LOGICAL_GAME_HEIGHT / LOGICAL_GAME_WIDTH;
+export const LOGICAL_BATTLE_WIDTH = 800;
+export const BATTLE_GRID_COLS = 9;
+export const BATTLE_GRID_MAX_ROWS = 7;
+export const BATTLE_GRID_CELL_WIDTH = 80;
+export const BATTLE_GRID_CELL_HEIGHT = 90;
+export const BATTLE_GRID_OFFSET_X = 50;
+export const BATTLE_GRID_OFFSET_Y_FOR_MAX_ROWS = 20;
+export const BATTLE_GRID_BOTTOM_MARGIN_FOR_MAX_ROWS = 40;
+export const LOGICAL_BATTLE_HEIGHT =
+  BATTLE_GRID_OFFSET_Y_FOR_MAX_ROWS
+  + BATTLE_GRID_MAX_ROWS * BATTLE_GRID_CELL_HEIGHT
+  + BATTLE_GRID_BOTTOM_MARGIN_FOR_MAX_ROWS;
+export const LOGICAL_GAME_WIDTH = LOGICAL_BATTLE_WIDTH;
+export const LOGICAL_GAME_HEIGHT = LOGICAL_BATTLE_HEIGHT;
+export const GAME_ASPECT_RATIO = LOGICAL_BATTLE_HEIGHT / LOGICAL_BATTLE_WIDTH;
 export const GAME_SIDE_TOOL_GAP = 10;
+export const PC_TOP_CARD_SLOT_RATIO = 1 / 8;
+export const PC_SIDE_CARD_SLOT_RATIO = 1 / 7;
+export const MOBILE_TOOL_WIDTH_RATIO_BY_HEIGHT = 1 / 7;
+export const MOBILE_TOOL_MIN_WIDTH = 46;
+export const MOBILE_TOOL_MAX_WIDTH = 68;
+export const MOBILE_BATTLE_RIGHT_EXTRA_COL_RATIO = 0.25;
+export const MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO = 0.25;
+export const BOTTOM_TOOLBAR_RATIO = 1 / 32;
 
 export type GameDeviceType = 'pc' | 'mobile' | string;
 
@@ -19,6 +39,9 @@ export type GameToolLayoutMetrics = {
   topCardSlotHeight: number;
   bottomToolbarHeight: number;
   sideCardSlotWidth: number;
+  mobileLeftCardSlotWidth: number;
+  mobileRightCardSlotWidth: number;
+  mobileBottomToolbarWidth: number;
   sideToolGap: number;
   leftCardSlotWidth: number;
   rightCardSlotWidth: number;
@@ -34,12 +57,15 @@ export type GameSceneChromeLayout = GameToolLayoutMetrics & {
   mainViewport: Rect;
   topCardSlot: Rect;
   bottomToolbar: Rect;
+  mobileBottomToolbar: Rect;
   leftCardSlot: Rect;
+  mobileLeftCardSlot: Rect;
+  mobileRightCardSlot: Rect;
   rightCardSlot: Rect;
 };
 
 export function getBottomToolbarHeight(mainWidth: number, showGameTool = true): number {
-  return showGameTool ? mainWidth / 32 : 0;
+  return showGameTool ? mainWidth * BOTTOM_TOOLBAR_RATIO : 0;
 }
 
 export function getTopCardSlotHeight(
@@ -47,11 +73,52 @@ export function getTopCardSlotHeight(
   deviceType: GameDeviceType,
   showGameTool = true,
 ): number {
-  return showGameTool && deviceType === 'pc' ? Math.min(mainWidth / 8, 135) : 0;
+  return showGameTool && deviceType === 'pc' ? mainWidth * PC_TOP_CARD_SLOT_RATIO : 0;
 }
 
 export function getSideCardSlotWidth(mainWidth: number, showGameTool = true): number {
-  return showGameTool ? Math.min(mainWidth / 7, 135) : 0;
+  return showGameTool ? mainWidth * PC_SIDE_CARD_SLOT_RATIO : 0;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+export function normalizeBattleGridRows(rows: number | undefined, fallback = BATTLE_GRID_MAX_ROWS): number {
+  const value = Number.isFinite(rows) ? Math.floor(rows as number) : fallback;
+  return clamp(value, 1, BATTLE_GRID_MAX_ROWS);
+}
+
+export function getBattleGridHeightForRows(rows: number | undefined, fallback = BATTLE_GRID_MAX_ROWS): number {
+  return normalizeBattleGridRows(rows, fallback) * BATTLE_GRID_CELL_HEIGHT;
+}
+
+export function getMobileBattleTargetWorldWidth(): number {
+  return LOGICAL_BATTLE_WIDTH
+    - BATTLE_GRID_OFFSET_X
+    + BATTLE_GRID_CELL_WIDTH * MOBILE_BATTLE_RIGHT_EXTRA_COL_RATIO;
+}
+
+export function getMobileToolWidth(mainHeight: number, showGameTool = true): number {
+  if (!showGameTool) {
+    return 0;
+  }
+
+  return clamp(
+    mainHeight * MOBILE_TOOL_WIDTH_RATIO_BY_HEIGHT,
+    MOBILE_TOOL_MIN_WIDTH,
+    MOBILE_TOOL_MAX_WIDTH,
+  );
+}
+
+export function getMobileCardSlotWidth(mainWidth: number, mainHeight: number, showGameTool = true): number {
+  void mainWidth;
+  return getMobileToolWidth(mainHeight, showGameTool);
+}
+
+export function getMobileBottomToolbarWidth(mainWidth: number, mainHeight: number, showGameTool = true): number {
+  void mainWidth;
+  return getMobileToolWidth(mainHeight, showGameTool);
 }
 
 export function getGameToolLayoutMetrics(
@@ -60,13 +127,22 @@ export function getGameToolLayoutMetrics(
   deviceType: GameDeviceType,
   showGameTool = true,
 ): GameToolLayoutMetrics {
-  const bottomToolbarHeight = getBottomToolbarHeight(mainWidth, showGameTool);
+  const isMobile = deviceType === 'mobile';
+  const bottomToolbarHeight = !isMobile ? getBottomToolbarHeight(mainWidth, showGameTool) : 0;
   const topCardSlotHeight = getTopCardSlotHeight(mainWidth, deviceType, showGameTool);
-  const sideCardSlotWidth = getSideCardSlotWidth(mainWidth, showGameTool);
+  const sideCardSlotWidth = deviceType === 'mobile'
+    ? getMobileCardSlotWidth(mainWidth, mainHeight, showGameTool)
+    : getSideCardSlotWidth(mainWidth, showGameTool);
   const sideToolGap = showGameTool ? GAME_SIDE_TOOL_GAP : 0;
-  const leftCardSlotWidth = showGameTool && deviceType === 'mobile' ? sideCardSlotWidth : 0;
-  const rightCardSlotWidth = showGameTool ? sideCardSlotWidth : 0;
-  const leftToolOuterWidth = leftCardSlotWidth > 0 ? leftCardSlotWidth + sideToolGap : 0;
+  const mobileLeftCardSlotWidth = showGameTool && deviceType === 'mobile' ? sideCardSlotWidth : 0;
+  const mobileRightCardSlotWidth = showGameTool && deviceType === 'mobile' ? sideCardSlotWidth : 0;
+  const mobileBottomToolbarWidth = showGameTool && deviceType === 'mobile'
+    ? getMobileBottomToolbarWidth(mainWidth, mainHeight, showGameTool)
+    : 0;
+  const leftCardSlotWidth = mobileLeftCardSlotWidth + mobileRightCardSlotWidth;
+  const rightCardSlotWidth = showGameTool && deviceType === 'pc' ? sideCardSlotWidth : 0;
+  const mobileLeftToolWidth = mobileBottomToolbarWidth + leftCardSlotWidth;
+  const leftToolOuterWidth = mobileLeftToolWidth > 0 ? mobileLeftToolWidth + sideToolGap : 0;
   const rightToolOuterWidth = rightCardSlotWidth > 0 ? rightCardSlotWidth + sideToolGap : 0;
   const mainTotalHeight = mainHeight + bottomToolbarHeight;
   const rightCardSlotHeight = showGameTool
@@ -80,6 +156,9 @@ export function getGameToolLayoutMetrics(
     topCardSlotHeight,
     bottomToolbarHeight,
     sideCardSlotWidth,
+    mobileLeftCardSlotWidth,
+    mobileRightCardSlotWidth,
+    mobileBottomToolbarWidth,
     sideToolGap,
     leftCardSlotWidth,
     rightCardSlotWidth,
@@ -126,10 +205,28 @@ export function getGameSceneChromeLayout(
       width: mainWidth,
       height: metrics.bottomToolbarHeight,
     },
-    leftCardSlot: {
+    mobileBottomToolbar: {
       x: 0,
       y: mainViewport.y,
+      width: metrics.mobileBottomToolbarWidth,
+      height: mainHeight,
+    },
+    leftCardSlot: {
+      x: metrics.mobileBottomToolbarWidth,
+      y: mainViewport.y,
       width: metrics.leftCardSlotWidth,
+      height: metrics.mainTotalHeight,
+    },
+    mobileLeftCardSlot: {
+      x: metrics.mobileBottomToolbarWidth,
+      y: mainViewport.y,
+      width: metrics.mobileLeftCardSlotWidth,
+      height: metrics.mainTotalHeight,
+    },
+    mobileRightCardSlot: {
+      x: metrics.mobileBottomToolbarWidth + metrics.mobileLeftCardSlotWidth,
+      y: mainViewport.y,
+      width: metrics.mobileRightCardSlotWidth,
       height: metrics.mainTotalHeight,
     },
     rightCardSlot: {

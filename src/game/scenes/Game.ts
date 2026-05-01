@@ -10,7 +10,6 @@ import { GameParams, GameSettings } from '../models/GameParams';
 import CreateInnerMenu from '../utils/inner_menu';
 import { StageData } from '../models/IRecord';
 import BackendWS from '../../utils/net/sync';
-import seedrandom from 'seedrandom';
 import { translate } from '../../i18n';
 import DepthUtils from '../../utils/depth';
 import SoundManager from '../managers/SoundManager';
@@ -29,16 +28,29 @@ import TickerManager from '../managers/combat/TickerManager';
 import DebugManager from '../managers/view/DebugManager';
 import { BaseEntity } from '../models/core/BaseEntity';
 import { DeferredManager } from '../managers/DeferredManager';
-import StageHelper from '../utils/helper/StageHelper';
 import { PresetEventManager } from '../managers/combat/PresetEventManager';
 import ConsoleCmd from '../utils/ConsoleCmd';
 import { SendLoaded } from '../../utils/net/room';
-import { LOGICAL_GAME_WIDTH } from '../../constants/gameLayout';
+import {
+  BATTLE_GRID_CELL_HEIGHT,
+  BATTLE_GRID_COLS,
+  LOGICAL_BATTLE_HEIGHT,
+  LOGICAL_BATTLE_WIDTH,
+  MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO,
+} from '../../constants/gameLayout';
+import { CardSlots } from '../ui/cardslots';
+import { MobileCardSlots } from '../ui/cardslots_mobile';
+import { BottomBar } from '../ui/bottom';
+import { MobileBottomBar } from '../ui/bottom_mobile';
 
 
 export class Game extends Scene {
   private ManagerGroup: BaseManager[] = [];
   private scaleFactor: number = 1;
+  private battleCamera: Phaser.Cameras.Scene2D.Camera | null = null;
+  private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
+  private readonly cameraLayerState = new WeakMap<Phaser.GameObjects.GameObject, "battle" | "ui">();
+  private readonly uiDepthThreshold = DepthUtils.getInGameUIElementDepth(0);
 
   public innerSettings: GameSettings;
 
@@ -55,6 +67,8 @@ export class Game extends Scene {
   speedText: Phaser.GameObjects.Text;
   debugFrameText: Phaser.GameObjects.Text | null = null;
   private waitTextVisibleTarget: boolean = false;
+  private cardSlotsUi: CardSlots | MobileCardSlots | null = null;
+  private bottomBarUi: BottomBar | MobileBottomBar | null = null;
 
   params: GameParams;
 
@@ -113,7 +127,13 @@ export class Game extends Scene {
     // read external data
     // TODO : 根据type具体判断放置那张背景图
     this.params = this.game.registry.get('gameParams') as GameParams;
-    this.scaleFactor = this.scale.gameSize.width / LOGICAL_GAME_WIDTH;
+    const deviceType = this.params.deviceType ?? 'pc';
+    this.scaleFactor = 1;
+    PositionManager.Instance.setSceneViewportSize(
+      this.params.mainViewportWidth ?? LOGICAL_BATTLE_WIDTH,
+      this.params.mainViewportHeight ?? LOGICAL_BATTLE_HEIGHT,
+      deviceType,
+    );
 
     // 初始化各个Manager
     for (const manager of this.ManagerGroup) {
@@ -121,14 +141,10 @@ export class Game extends Scene {
       manager.Load();
     }
 
-    PositionManager.Instance.setStageGrid(this.scaleFactor, this.stageData.rows);
+    PositionManager.Instance.setStageGrid(1, this.stageData.rows, BATTLE_GRID_COLS, { deviceType });
     const gridProperties = new Array(PositionManager.Instance.Row_Number)
       .fill(0).map(() => new Array(PositionManager.Instance.Col_Number).fill('ground')); //  默认全为地板
     GridManager.Instance.setGridProperty(gridProperties);
-
-    const randomPrng = seedrandom.alea(String(CombatManager.Instance.seed));
-    const waves = StageHelper.generateStageScript(this.stageData.stageScript, randomPrng, this.params.level);
-    MobManager.Instance.setWaves(waves);
 
     // 菜单
     CreateInnerMenu(this);
@@ -139,17 +155,27 @@ export class Game extends Scene {
 
     // 添加背景
     this.background = this.add.image(0, 0, 'bgimg');
-    // 拉伸裁剪后的图片以填充整个场景宽度，保持高度比例
-    this.background.setOrigin(0, 0).setDepth(2).setDisplaySize(this.scale.width, this.scale.height);
+    const gameViewport = PositionManager.Instance.getGameViewportBounds(deviceType);
+    // Battle objects stay in battle-local coordinates. The battle camera projects them into the viewport.
+    this.background
+      .setOrigin(0, 0)
+      .setDepth(2)
+      .setDisplaySize(LOGICAL_BATTLE_WIDTH, LOGICAL_BATTLE_HEIGHT);
 
-    // 调整摄像机位置，确保从 (0, 0) 开始显示
-    this.cameras.main.scrollX = 0;
-    this.cameras.main.scrollY = 0;
+    if (deviceType === 'mobile') {
+      this.bottomBarUi = new MobileBottomBar(this);
+      this.cardSlotsUi = new MobileCardSlots(this);
+    } else {
+      this.cardSlotsUi = new CardSlots(this);
+      this.bottomBarUi = new BottomBar(this);
+    }
+
+    this.configureBattleViewCameras(deviceType);
 
     // 创建一个waiting text
     this.waitText = this.add.text(
-      this.cameras.main.width / 2,
-      18 * this.scaleFactor,
+      gameViewport.x + gameViewport.width / 2,
+      gameViewport.y + 18 * this.scaleFactor,
       translate("game.waiting"),
       {
         fontSize: `${Math.max(12, Math.round(this.scale.displaySize.width / 45))}px`,
@@ -160,9 +186,10 @@ export class Game extends Scene {
     ).setOrigin(0.5, 0).setDepth(DepthUtils.getInGameUIElementDepth(60)).setVisible(false).setAlpha(0);
 
     if (this.innerSettings.isDebug) {
+      const sceneBounds = PositionManager.Instance.getSceneBounds(deviceType);
       this.debugFrameText = this.add.text(
         8,
-        this.cameras.main.height - 8,
+        sceneBounds.height - 8,
         'frameId: 0\nackFrameId: 0',
         {
           fontSize: '12px',
@@ -333,6 +360,7 @@ export class Game extends Scene {
   update(time: number, delta: number): void {
     CombatManager.Instance.update(time, delta);
     DebugManager.Instance.update();
+    this.syncCameraLayers();
     this.updateWaitText(delta);
     if (this.debugFrameText && this.innerSettings.isDebug) {
       this.debugFrameText.setText(`frameId: ${BackendWS.FrameID}\nackFrameId: ${BackendWS.AckFrameID}`);
@@ -379,10 +407,11 @@ export class Game extends Scene {
 
   broadCastFlag() {
     SoundCmd.Play('wave1');
+    const gameViewport = PositionManager.Instance.getGameViewportBounds(this.params.deviceType ?? 'pc');
     // 创建新的广播文本
     const zombieText = this.add.text(
-      this.cameras.main.width / 2,
-      this.cameras.main.height * 0.3,
+      gameViewport.x + gameViewport.width / 2,
+      gameViewport.y + gameViewport.height * 0.3,
       translate("game.bigWave"),
       {
         fontSize: this.scale.displaySize.width / 20,
@@ -456,6 +485,90 @@ export class Game extends Scene {
     SoundManager.Instance.resume();
   }
 
+  public getBattleWorldPoint(pointer: Phaser.Input.Pointer): { x: number; y: number } {
+    const camera = this.battleCamera ?? this.cameras.main;
+    const point = camera.getWorldPoint(pointer.x, pointer.y);
+    return { x: point.x, y: point.y };
+  }
+
+  private configureBattleViewCameras(deviceType: string) {
+    const layout = PositionManager.Instance.getSceneChromeLayout(deviceType);
+    const viewport = layout.mainViewport;
+    const gridBounds = PositionManager.Instance.getGridBounds();
+    const cameraView = deviceType === "mobile"
+      ? this.getMobileBattleCameraView(viewport, gridBounds)
+      : {
+        zoom: 1,
+        scrollX: 0,
+        scrollY: 0,
+      };
+
+    this.battleCamera = this.cameras.main;
+    this.battleCamera.setName("battle");
+    this.battleCamera.setViewport(viewport.x, viewport.y, viewport.width, viewport.height);
+    this.battleCamera.setZoom(cameraView.zoom);
+    this.battleCamera.setScroll(cameraView.scrollX, cameraView.scrollY);
+    this.battleCamera.setBackgroundColor('rgba(0,0,0,0)');
+
+    this.uiCamera = this.cameras.add(
+      0,
+      0,
+      layout.sceneBounds.width,
+      layout.sceneBounds.height,
+      false,
+      "ui",
+    );
+    this.uiCamera.setScroll(0, 0);
+    this.uiCamera.setZoom(1);
+    this.uiCamera.setBackgroundColor('rgba(0,0,0,0)');
+    this.syncCameraLayers();
+  }
+
+  private getMobileBattleCameraView(viewport: Phaser.Geom.Rectangle | { width: number; height: number }, gridBounds: { x: number; y: number; width: number; height: number }) {
+    const plantableLeft = gridBounds.x;
+    const bottomOverscan = BATTLE_GRID_CELL_HEIGHT * MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO;
+    const targetHeight = gridBounds.height + bottomOverscan;
+    const paddingX = 0;
+    const zoom = viewport.height / targetHeight;
+
+    return {
+      zoom,
+      scrollX: plantableLeft - paddingX,
+      scrollY: gridBounds.y,
+    };
+  }
+
+  private syncCameraLayers() {
+    if (!this.battleCamera || !this.uiCamera) {
+      return;
+    }
+
+    for (const object of this.children.list) {
+      const depth = (object as Phaser.GameObjects.GameObject & { depth?: number }).depth ?? 0;
+      const layer = depth >= this.uiDepthThreshold ? "ui" : "battle";
+      if (this.cameraLayerState.get(object) === layer) {
+        continue;
+      }
+
+      this.cameraLayerState.set(object, layer);
+      this.setCameraIgnore(this.battleCamera, object, layer === "ui");
+      this.setCameraIgnore(this.uiCamera, object, layer === "battle");
+    }
+  }
+
+  private setCameraIgnore(
+    camera: Phaser.Cameras.Scene2D.Camera,
+    object: Phaser.GameObjects.GameObject,
+    ignored: boolean,
+  ) {
+    if (ignored) {
+      camera.ignore(object);
+      return;
+    }
+
+    object.cameraFilter &= ~camera.id;
+  }
+
   private cleanupSceneListeners() {
     PhaserEventBus.off(PhaserEvents.RoomGameEnd, this.handleRoomGameEnd, this);
     CombatManager.Instance.Eventbus.off('onCombatPause', this.onCombatPauseHandler);
@@ -472,6 +585,10 @@ export class Game extends Scene {
     SoundManager.Instance.Reset();
     this.debugFrameText?.destroy();
     this.debugFrameText = null;
+    this.cardSlotsUi?.destroy();
+    this.cardSlotsUi = null;
+    this.bottomBarUi?.destroy();
+    this.bottomBarUi = null;
 
     // 销毁暂停菜单
     const pauseMenu = (this as any).pauseMenu;

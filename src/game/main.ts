@@ -4,14 +4,18 @@ import { Game as MainGame } from './scenes/Game';
 import { AUTO, Game } from 'phaser';
 import { Preloader } from './scenes/Preloader';
 import { GameParams } from './models/GameParams';
-import { LOGICAL_GAME_HEIGHT, LOGICAL_GAME_WIDTH } from '../constants/gameLayout';
+import {
+  getGameSceneChromeLayout,
+  LOGICAL_BATTLE_HEIGHT,
+  LOGICAL_BATTLE_WIDTH,
+} from '../constants/gameLayout';
 
 //  Find out more information about the Game Config at:
 //  https://newdocs.phaser.io/docs/3.70.0/Phaser.Types.Core.GameConfig
 const config: Phaser.Types.Core.GameConfig = {
   type: AUTO,
-  width: LOGICAL_GAME_WIDTH,
-  height: LOGICAL_GAME_HEIGHT,
+  width: LOGICAL_BATTLE_WIDTH,
+  height: LOGICAL_BATTLE_HEIGHT,
 
   autoRound: true,
   fps: {
@@ -32,10 +36,16 @@ const config: Phaser.Types.Core.GameConfig = {
   ]
 };
 
-const StartGame = (parent: string, width: number, GameParams: GameParams) => {
+const StartGame = (parent: string, width: number, GameParams: GameParams, deviceType: string) => {
   void width;
-  config.width = LOGICAL_GAME_WIDTH;
-  config.height = LOGICAL_GAME_HEIGHT;
+  const sceneBounds = getGameSceneChromeLayout(
+    GameParams.mainViewportWidth ?? LOGICAL_BATTLE_WIDTH,
+    GameParams.mainViewportHeight ?? LOGICAL_BATTLE_HEIGHT,
+    deviceType,
+    true,
+  ).sceneBounds;
+  config.width = sceneBounds.width;
+  config.height = sceneBounds.height;
   const game = new Game({ ...config, parent })
   game.registry.set('gameParams', GameParams);
   return game;

@@ -183,7 +183,8 @@ export default class CursorManager extends BaseManager {
     }
     this.prevMovementTime = time;
 
-    const { col, row } = PositionManager.Instance.GetGridByPos(pointer.x, pointer.y);
+    const worldPoint = this.scene.getBattleWorldPoint(pointer);
+    const { col, row } = PositionManager.Instance.GetGridByPos(worldPoint.x, worldPoint.y);
     if ((col === this.prevCol && row === this.prevRow) || col < 0 || row < 0) {
       return;
     }
@@ -207,7 +208,8 @@ export default class CursorManager extends BaseManager {
     this.changeCursorMode({ mode: 'default' });
 
     if (choice.useStarShards) {
-      const { col, row, aspect } = PositionManager.Instance.GetGridByPos(pointer.x, pointer.y);
+      const worldPoint = this.scene.getBattleWorldPoint(pointer);
+      const { col, row, aspect } = PositionManager.Instance.GetGridByPos(worldPoint.x, worldPoint.y);
       if (col >= 0 && row >= 0) {
         this.EventBus.emit('onAttemptUseStarShards', col, row, aspect);
         // 取消Choice
@@ -217,7 +219,8 @@ export default class CursorManager extends BaseManager {
     }
 
     if (choice.usePickaxe) {
-      const { col, row, aspect } = PositionManager.Instance.GetGridByPos(pointer.x, pointer.y);
+      const worldPoint = this.scene.getBattleWorldPoint(pointer);
+      const { col, row, aspect } = PositionManager.Instance.GetGridByPos(worldPoint.x, worldPoint.y);
       if (col >= 0 && row >= 0) {
         this.EventBus.emit('onAttemptRemovePlant', col, row, aspect);
         // 取消Choice
@@ -231,7 +234,8 @@ export default class CursorManager extends BaseManager {
         return;
       }
 
-      const { col, row } = PositionManager.Instance.GetGridByPos(pointer.x, pointer.y);
+      const worldPoint = this.scene.getBattleWorldPoint(pointer);
+      const { col, row } = PositionManager.Instance.GetGridByPos(worldPoint.x, worldPoint.y);
       if (col >= 0 && row >= 0) {
         // CAUTION : && PlantsManager.Instance.canPlant(choice.prePlantPid[0], col, row) 
         // 判断是否能够种植逻辑放在了PlantsManager里，CursorManager只负责发出尝试种植的事件，具体能不能种成功由PlantsManager根据规则判断后决定

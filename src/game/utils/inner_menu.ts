@@ -4,6 +4,7 @@ import DepthUtils from "../../utils/depth";
 import { HasConnected } from "../../utils/net/sync";
 import { PhaserEventBus, PhaserEvents } from "../EventBus";
 import CombatManager from "../managers/CombatManager";
+import { PositionManager } from "../managers/view/PositionManager";
 import { Game } from "../scenes/Game";
 import { PauseMenu } from "./PauseMenu";
 
@@ -61,17 +62,18 @@ export default function CreateInnerMenu(game: Game) {
   const speedPaddingX = 16;
   const speedPaddingY = 8;
   const getSpeedLabel = () => translate("game.speed", { speed: game.time.timeScale > 1 ? 2 : 1 });
+  const gameViewport = PositionManager.Instance.getGameViewportBounds(game.params.deviceType ?? 'pc');
 
   game.pauseBtn = game.add.text(
-    game.cameras.main.width - 10,
-    game.cameras.main.height - 10,
+    gameViewport.x + gameViewport.width - 10,
+    gameViewport.y + gameViewport.height - 10,
     translate("game.pause"),
     {}
   ).setOrigin(1, 1).setDepth(DepthUtils.getMenuDepth()).setInteractive({ useHandCursor: true });
 
   game.speedText = game.add.text(
-    game.cameras.main.width - 10,
-    12,
+    gameViewport.x + gameViewport.width - 10,
+    gameViewport.y + 12,
     getSpeedLabel(),
     {}
   ).setOrigin(1, 0).setVisible(true).setDepth(DepthUtils.getMenuDepth()).setInteractive({ useHandCursor: true });

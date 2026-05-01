@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <radialGradient id="badgeGradient" cx="50%" cy="40%" r="62%">
+      <stop offset="0%" stop-color="#7dedff"/>
+      <stop offset="45%" stop-color="#c4f4ff"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </radialGradient>
+    <linearGradient id="gloss" x1="8" y1="4" x2="40" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.7"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="60%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.3"/>
+    </linearGradient>
+    <filter id="badgeShadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="0" flood-color="#003a8c"/>
+      <feDropShadow dx="0" dy="-1.5" stdDeviation="0" flood-color="#003a8c"/>
+      <feDropShadow dx="1.5" dy="0" stdDeviation="0" flood-color="#003a8c"/>
+      <feDropShadow dx="-1.5" dy="0" stdDeviation="0" flood-color="#003a8c"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#00aaff"/>
+    </filter>
+  </defs>
+  <g filter="url(#badgeShadow)">
+    <polygon points="7.2 4.8 40.8 4.8 48 21.6 24 47.04 0 21.6" fill="url(#badgeGradient)"/>
+    <polygon points="7.2 4.8 40.8 4.8 48 21.6 24 47.04 0 21.6" fill="url(#gloss)"/>
+  </g>
+  <text x="24" y="24" transform="translate(-0.8 -1)" text-anchor="middle" dominant-baseline="middle" font-family="Arial Black, Impact, Segoe UI, sans-serif" font-size="25" font-weight="900" letter-spacing="0" fill="#ffffff" stroke="#004bb5" stroke-width="3" paint-order="stroke fill">5</text>
+</svg>

@@ -16,6 +16,7 @@ import { PlantLibrary } from '../../../game/managers/library/PlantLibrary';
 import BackendWS from '../../../utils/net/sync';
 import { Request, RequestChooseMap, RequestReady } from '../../../pb/request';
 import { SendReady } from '../../../utils/net/room';
+import type { StageData } from '../../../game/models/IRecord';
 
 interface ParamsSelectorProps {
   chapterId: number;
@@ -82,6 +83,19 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
   const waitingText = translate('common.waiting_other_players_select') || '等待其他玩家选择';
   const isSelectionLocked = state.hasUserClicked || isLoading;
   const canStart = canProceed && !isSelectionLocked;
+
+  const loadStageRows = useMemoizedFn(async () => {
+    try {
+      const response = await fetch(`${publicUrl}/stages/ch${stageId}.json`);
+      if (!response.ok) {
+        return undefined;
+      }
+      const stage = await response.json() as Pick<StageData, 'rows'>;
+      return Number.isInteger(stage.rows) ? stage.rows : undefined;
+    } catch {
+      return undefined;
+    }
+  });
 
   // 联机模式下监听准备状态更新
   useEffect(() => {
@@ -203,7 +217,7 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
     });
   });
 
-  const handleStart = useMemoizedFn(() => {
+  const handleStart = useMemoizedFn(async () => {
     if (!canStart) {
       return;
     }
@@ -215,6 +229,8 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
       pid,
       level: pidToLevel.get(pid) ?? 1,
     }));
+    const gold = saveManager.currentProgress.items.get(1)?.count ?? 0;
+    const stageRows = await loadStageRows();
 
     // 联机模式下的特殊处理
     if (isOnlineMode) {
@@ -222,6 +238,8 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
       const params: GameParams = {
         level: stageId,
         plants: chosenPlants,
+        gold,
+        stageRows,
         gameExit: () => { console.log('no gameexit Implemented') },
         gameSettings: {
           isBluePrint: settings.isBluePrint,
@@ -258,6 +276,8 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
     const params: GameParams = {
       level: stageId,
       plants: chosenPlants,
+      gold,
+      stageRows,
       gameExit: () => { console.log('no gameexit Implemented') },
       gameSettings: {
         isBluePrint: settings.isBluePrint,

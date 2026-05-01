@@ -1,5 +1,7 @@
 ﻿import { translate } from "../../i18n";
 import DepthUtils from "../../utils/depth";
+import BackendWS from "../../utils/net/sync";
+import { PhaserEventBus, PhaserEvents } from "../EventBus";
 import CombatManager from "../managers/CombatManager";
 import SoundManager from "../managers/SoundManager";
 import { Game } from "../scenes/Game";
@@ -176,6 +178,9 @@ export class PauseMenu {
       buttonPaddingY,
       () => {
         CombatManager.Instance.EndGame(false);
+        if (!BackendWS.isOnlineMode()) {
+          PhaserEventBus.emit(PhaserEvents.RoomGameEnd, { isWin: false });
+        }
       }
     );
   }

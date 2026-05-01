@@ -8,6 +8,7 @@ import MobCmd from "../../../utils/cmd/MobCmd";
 import StageHelper from "../../../utils/helper/StageHelper";
 import { BaseMonsterEntity, PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import SoundCmd from "../../../utils/cmd/SoundCmd";
+import CombatManager from "../../../managers/CombatManager";
 
 
 export abstract class BaseGolemEntity extends BaseMonsterEntity {
@@ -16,7 +17,7 @@ export abstract class BaseGolemEntity extends BaseMonsterEntity {
 
   protected constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number, seedFactor: number) {
     super(scene, col, row, model, waveID);
-    this.random = seedrandom.alea(String((scene as any).seed * seedFactor));
+    this.random = seedrandom.alea(String(CombatManager.Instance.seed * seedFactor));
     PhaserEventBus.emit(PhaserEvents.BossHealth, { health: 100 });
     SoundCmd.CoverBgm("bgm1");
 
@@ -33,6 +34,17 @@ export abstract class BaseGolemEntity extends BaseMonsterEntity {
   protected abstract getCallBase(): number;
   protected abstract getCastDelay(): number;
   protected abstract getRecoverDelay(): number;
+
+  protected randomInt(maxExclusive: number): number {
+    return Math.floor(this.random() * maxExclusive);
+  }
+
+  protected shuffleWithCombatSeed<T>(items: T[]): void {
+    for (let i = items.length - 1; i > 0; i--) {
+      const j = this.randomInt(i + 1);
+      [items[i], items[j]] = [items[j], items[i]];
+    }
+  }
 
   protected createAnimController() {
     return createGolemAnimController(this.scene, this.x, this.y, this.createProps());
@@ -104,7 +116,7 @@ export abstract class BaseGolemEntity extends BaseMonsterEntity {
         mids.push(record.mid);
       }
     }
-    Phaser.Utils.Array.Shuffle(mids);
+    this.shuffleWithCombatSeed(mids);
 
     const spawnNext = () => {
       if (this.currentHealth <= 0 || mids.length === 0) return;
@@ -112,7 +124,7 @@ export abstract class BaseGolemEntity extends BaseMonsterEntity {
       for (let i = 0; i < batch; i++) {
         const mid = mids.shift();
         if (mid === undefined) break;
-        const row = Math.floor(this.random() * PositionManager.Instance.Row_Number);
+        const row = this.randomInt(PositionManager.Instance.Row_Number);
         MobCmd.Spawn(mid, this.scene, PositionManager.Instance.Col_Number, row, -10);
       }
       if (mids.length > 0) {
@@ -126,4 +138,3 @@ export abstract class BaseGolemEntity extends BaseMonsterEntity {
     spawnNext();
   }
 }
-

@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { IRefPhaserGame, PhaserGame } from './game/PhaserGame';
-import { CardSlotHorizontal, CardSlotVertical, EnergySlot, VerticalEnergySlot, ViceCardSlot } from './components/widget/cardslot';
-import BottomTools from './components/widget/bottom';
 import DocFrame from './components/DocFrame';
 import GlobalOnlineStateListener from './components/GlobalOnlineStateListener';
 import { useSettings } from './context/settings_ctx';
@@ -39,6 +37,7 @@ interface GameMainWindowProps {
   exitResultView: () => void;
   setGameParams: (gameParams: GameParams) => void;
   gameStart: () => void;
+  forceLandscape: boolean;
 }
 
 function GameMainWindow({
@@ -58,15 +57,14 @@ function GameMainWindow({
   exitResultView,
   setGameParams,
   gameStart,
+  forceLandscape,
 }: GameMainWindowProps) {
   const toolLayout = getGameToolLayoutMetrics(width, height, deviceType, showGameTool);
-  const mainTotalHeight = toolLayout.mainTotalHeight;
-  const sideToolWidth = toolLayout.sideCardSlotWidth;
-  const topToolHeight = toolLayout.topCardSlotHeight;
-  const rightToolHeight = toolLayout.rightCardSlotHeight;
   const isGameLayout = showGameScreen || showGameTool;
-  const mainWidth = isGameLayout ? width : nonGameWidth;
-  const mainHeight = isGameLayout ? (showGameTool ? mainTotalHeight : height) : nonGameHeight;
+  const gameSurfaceWidth = showGameTool ? toolLayout.totalWidth : width;
+  const gameSurfaceHeight = showGameTool ? toolLayout.totalHeight : height;
+  const mainWidth = isGameLayout ? gameSurfaceWidth : nonGameWidth;
+  const mainHeight = isGameLayout ? gameSurfaceHeight : nonGameHeight;
 
   return (<div id="app" onContextMenu={(e) => { e?.preventDefault() }} style={{
     userSelect: "none",
@@ -85,102 +83,53 @@ function GameMainWindow({
     overflow: "hidden",
     boxSizing: "border-box",
   }}>
-    <div style={{
+    <div id="mainContainer" style={{
+      width: mainWidth,
+      height: mainHeight,
       display: "flex",
-      flexDirection: deviceType === 'pc' ? "column" : "row",
-      alignItems: "center",
+      flexDirection: "column",
       flex: "0 0 auto",
-    }}>  {showGameTool && deviceType === 'pc' &&
-      <div id="cardsContainer" style={{
-        "height": topToolHeight,
-        "width": width,
-        display: "flex",
-        "flexDirection": "row"
-      }}>
-        <EnergySlot />
-        <CardSlotHorizontal gameParams={gameParams} />
-      </div>}
-
-      <div style={{
-        display: "flex",
-        flexDirection: "row",
-        alignItems: "center",
-      }}>
-        {showGameTool && deviceType === 'mobile' &&
-          <div id='mobileCardContainer' style={{
-            width: sideToolWidth,
-            height: mainTotalHeight,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            marginRight: "10px",
-          }}>
-            <VerticalEnergySlot />
-            <CardSlotVertical
-              gameParams={gameParams}
-            />
-          </div>
-        }
-        <div id="mainContainer" style={{
-          width: mainWidth,
-          height: mainHeight,
-          display: "flex",
-          flexDirection: "column", // 改为垂直布局以容纳 BottomTools
-        }}>
-          <div id="controlContainer">
-          </div>
-          {showGameScreen && (!showGameResult) &&
-            <PhaserGame
-              ref={phaserRef}
-              currentActiveScene={currentScene}
-              isVisibility={showGameScreen}
-              gameParams={gameParams}
-              gameExit={gameExit}
-              width={width}
-              height={height}
-            />
-          }
-          {(!showGameScreen) && (!showGameResult) &&
-            <DocFrame
-              width={mainWidth}
-              height={mainHeight}
-              sceneRef={phaserRef}
-              setGameParams={setGameParams}
-              gameStart={gameStart}
-            />
-          }
-          {showGameResult && (!showGameScreen) && (gameResult) &&
-            <GameResultView
-              isWin={gameResult?.isWin ? gameResult.isWin : false}
-              onWin={gameResult?.onWin}
-              progressRewards={gameResult?.rewards}
-              myProgress={gameResult?.progress ? gameResult.progress : 0}
-              onBack={exitResultView}
-              width={mainWidth}
-              height={mainHeight}
-            />
-          }
-          {showGameTool &&
-            <BottomTools
-              width={width}
-              chapterID={gameParams?.level ?? null}
-            />
-          }
-        </div>
+      transform: forceLandscape ? "rotate(90deg)" : undefined,
+      transformOrigin: "center center",
+      touchAction: isGameLayout ? "none" : undefined,
+    }}>
+      <div id="controlContainer">
       </div>
+      {showGameScreen && (!showGameResult) &&
+        <PhaserGame
+          ref={phaserRef}
+          currentActiveScene={currentScene}
+          isVisibility={showGameScreen}
+          gameParams={gameParams}
+          gameExit={gameExit}
+          width={gameSurfaceWidth}
+          height={gameSurfaceHeight}
+          mainViewportWidth={width}
+          mainViewportHeight={height}
+          deviceType={deviceType}
+        />
+      }
+      {(!showGameScreen) && (!showGameResult) &&
+        <DocFrame
+          width={mainWidth}
+          height={mainHeight}
+          sceneRef={phaserRef}
+          setGameParams={setGameParams}
+          gameStart={gameStart}
+        />
+      }
+      {showGameResult && (!showGameScreen) && (gameResult) &&
+        <GameResultView
+          isWin={gameResult?.isWin ? gameResult.isWin : false}
+          onWin={gameResult?.onWin}
+          progressRewards={gameResult?.rewards}
+          myProgress={gameResult?.progress ? gameResult.progress : 0}
+          onBack={exitResultView}
+          width={mainWidth}
+          height={mainHeight}
+        />
+      }
     </div>
-    {showGameTool &&
-      <div style={{
-        width: sideToolWidth,
-        height: rightToolHeight,
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        marginRight: "10px",
-      }}>
-        <ViceCardSlot
-          gameParams={gameParams} />
-      </div>}
   </div>);
 }
 
@@ -257,6 +206,59 @@ function getFittedMainWidth(
   return Math.max(160, Math.floor(Math.min(preferredWidth, low)));
 }
 
+function getLandscapeViewportSize(viewportSize: ViewportSize): ViewportSize {
+  return {
+    width: Math.max(viewportSize.width, viewportSize.height),
+    height: Math.min(viewportSize.width, viewportSize.height),
+  };
+}
+
+function getMobileGameMainSize(
+  viewportSize: ViewportSize,
+  showGameTool: boolean,
+  stageRows?: number,
+): ViewportSize {
+  void stageRows;
+  const landscape = getLandscapeViewportSize(viewportSize);
+  const availableWidth = Math.max(240, landscape.width);
+  const availableHeight = Math.max(180, landscape.height);
+  let low = 120;
+  let high = Math.max(low, availableWidth);
+
+  for (let i = 0; i < 24; i += 1) {
+    const mid = (low + high) / 2;
+    const metrics = getGameToolLayoutMetrics(mid, availableHeight, 'mobile', showGameTool);
+    if (metrics.totalWidth <= availableWidth && metrics.totalHeight <= availableHeight) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  return {
+    width: Math.floor(Math.max(120, low)),
+    height: Math.floor(availableHeight),
+  };
+}
+
+function getFittedMainSize(
+  preferredWidth: number,
+  viewportSize: ViewportSize,
+  deviceType: 'mobile' | 'pc',
+  showGameTool: boolean,
+  stageRows?: number,
+): ViewportSize {
+  if (deviceType === 'mobile' && showGameTool) {
+    return getMobileGameMainSize(viewportSize, showGameTool, stageRows);
+  }
+
+  const fittedWidth = getFittedMainWidth(preferredWidth, viewportSize, deviceType, showGameTool);
+  return {
+    width: fittedWidth,
+    height: Math.floor(fittedWidth * GAME_ASPECT_RATIO),
+  };
+}
+
 function getNonGameMainSize(
   preferredWidth: number,
   viewportSize: ViewportSize,
@@ -295,13 +297,17 @@ function App() {
   const phaserRef = useRef<IRefPhaserGame | null>(null);
 
   const { width } = useSettings();
-  const layoutWidth = useMemo(() => (
-    getFittedMainWidth(width, viewportSize, deviceType, showGameTool)
-  ), [width, viewportSize, deviceType, showGameTool]);
-  const layoutHeight = Math.floor(layoutWidth * GAME_ASPECT_RATIO);
+  const layoutSize = useMemo(() => (
+    getFittedMainSize(width, viewportSize, deviceType, showGameTool, gameParams?.stageRows)
+  ), [width, viewportSize, deviceType, showGameTool, gameParams?.stageRows]);
+  const layoutWidth = layoutSize.width;
+  const layoutHeight = layoutSize.height;
   const nonGameLayout = useMemo(() => (
     getNonGameMainSize(width, viewportSize, deviceType)
   ), [width, viewportSize, deviceType]);
+  const forceLandscape = deviceType === 'mobile'
+    && showGameScreen
+    && viewportSize.height > viewportSize.width;
 
   const gameStart = useCallback(() => {
     setShowGameScreen(true);
@@ -359,6 +365,22 @@ function App() {
     }, true);
   }, []);
 
+  useEffect(() => {
+    if (!(deviceType === 'mobile' && showGameScreen)) {
+      return;
+    }
+
+    const orientation = screen.orientation as (ScreenOrientation & {
+      lock?: (orientation: OrientationLockType) => Promise<void>;
+      unlock?: () => void;
+    }) | undefined;
+    void orientation?.lock?.('landscape').catch(() => undefined);
+
+    return () => {
+      orientation?.unlock?.();
+    };
+  }, [deviceType, showGameScreen]);
+
   return (
     <Router>
       {/* 全局在线状态变化监听器 */}
@@ -383,6 +405,7 @@ function App() {
             exitResultView={exitResultView}
             setGameParams={setGameParams}
             gameStart={gameStart}
+            forceLandscape={forceLandscape}
           />
         } />
         <Route path={`${publicUrl}/settings`} element={<SettingsPage width={layoutWidth} height={layoutHeight} />} />

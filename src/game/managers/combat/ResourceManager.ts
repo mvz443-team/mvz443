@@ -133,8 +133,15 @@ export default class ResourceManager extends BaseManager {
   }
 
   public SetInitialEnergy(initialEnergy: number): void {
+    if (this.EnergyMaps.size === 0) {
+      this.EnergyMaps.set(this.mineId, initialEnergy);
+      this.Eventbus.emit('onEnergyUpdate', this.getDisplayEnergy(this.mineId), this.mineId);
+      return;
+    }
+
     for (let playerId of this.EnergyMaps.keys()) {
       this.EnergyMaps.set(playerId, initialEnergy);
+      this.Eventbus.emit('onEnergyUpdate', this.getDisplayEnergy(playerId), playerId);
     }
   }
 

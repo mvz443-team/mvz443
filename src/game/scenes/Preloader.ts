@@ -2,6 +2,11 @@ import { Scene } from 'phaser';
 import { GameParams } from '../models/GameParams';
 import { preloadData, StageData } from '../models/IRecord';
 import { PlantLibrary } from '../managers/library/PlantLibrary';
+import {
+  getLevelBadgeAssetPath,
+  getLevelBadgeTextureKey,
+  LEVEL_BADGE_TEXTURE_LEVELS,
+} from '../ui/levelBadgeSvg';
 
 export class Preloader extends Scene {
   private loaderDebugBound = false;
@@ -65,6 +70,7 @@ export class Preloader extends Scene {
       this.load.spritesheet(record.texturePath, record.texturePath + '.png', {
         frameWidth: 64, frameHeight: 64
       });
+      this.load.image(`card/${record.texturePath}`, `card/${record.texturePath}.png`);
     }
 
     return;
@@ -115,6 +121,7 @@ export class Preloader extends Scene {
   loadAllSprite() {
     this.load.image('pickaxe', 'sprite/pickaxe.png');
     this.load.image('starshards', 'sprite/star.png');
+    this.load.image('redstone', 'sprite/redstone.png');
     this.load.spritesheet('anime/death_smoke', 'anime/death_smoke.png',
       { frameWidth: 16, frameHeight: 16 });
     this.load.spritesheet('anime/explosion', 'anime/explosion.png',
@@ -198,6 +205,13 @@ export class Preloader extends Scene {
     this.load.image('sprCentipedeDeprecatedArm', 'sprite/centipede_deprecated/sprCentipedeArm.png');
     this.load.image('sprCentipedeDeprecatedLeg', 'sprite/centipede_deprecated/sprCentipedeLeg.png');
     this.load.image('sprCentipedeDeprecatedSickle', 'sprite/centipede_deprecated/sprCentipedeSickle.png');
+
+    for (const level of LEVEL_BADGE_TEXTURE_LEVELS) {
+      this.load.svg(getLevelBadgeTextureKey(level), getLevelBadgeAssetPath(level), {
+        width: 48,
+        height: 48,
+      });
+    }
   }
 
 

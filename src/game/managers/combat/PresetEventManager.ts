@@ -12,6 +12,7 @@ import MobManager from "./MobManager";
 import PlantsManager from "./PlantsManager";
 import ResourceManager from "./ResourceManager";
 import TickerManager, { FrameTimer } from "./TickerManager";
+import { LOGICAL_BATTLE_HEIGHT, LOGICAL_BATTLE_WIDTH } from "../../../constants/gameLayout";
 
 /**
  * 预设事件管理器
@@ -115,7 +116,8 @@ export class PresetEventManager extends BaseManager {
 
   Chapter1Dispatch(game: Game, stageId: number) {
     // 第一章的
-    const { width, height } = game.scale;
+    const width = LOGICAL_BATTLE_WIDTH;
+    const height = LOGICAL_BATTLE_HEIGHT;
     // 白天
     if (stageId === 1 || stageId === 2) {
       // 白天关卡，能量增加逻辑现在由React组件处理

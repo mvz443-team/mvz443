@@ -17,20 +17,21 @@ export default class DebugManager extends BaseManager {
   }
 
   public Load(): void {
-    const baseDepth = DepthUtils.getMenuDepth() - 10;
+    const debugWorldDepth = DepthUtils.getInGameUIElementDepth(-10);
+    const debugUiDepth = DepthUtils.getMenuDepth() - 10;
     if (!this.scene?.innerSettings.isDebug) {
       return;
     }
 
     this.debugGraphics = this.scene.add.graphics();
-    this.debugGraphics.setDepth(baseDepth);
+    this.debugGraphics.setDepth(debugWorldDepth);
 
     this.debugHintText = this.scene.add.text(10, 10, translate("game.debugHint", { key: DEBUG_TOGGLE_KEY }), {
       fontSize: '16px',
       color: '#00ff00',
       backgroundColor: 'rgba(0, 0, 0, 0.45)',
       padding: { x: 8, y: 6 },
-    }).setDepth(baseDepth + 1);
+    }).setDepth(debugUiDepth + 1);
 
     this.debugKey = this.scene.input.keyboard?.addKey(DEBUG_TOGGLE_KEY) ?? null;
     this.debugKey?.on('down', this.toggleDebug, this);

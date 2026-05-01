@@ -66,7 +66,7 @@ export class WardenEntity extends BaseGolemEntity {
     this.tickmanager.delayedCall({
       delay: 1600,
       callback: () => {
-        const newRow = Phaser.Math.Between(0, PositionManager.Instance.Row_Number - 1);
+        const newRow = this.randomInt(PositionManager.Instance.Row_Number);
         const newCol = this.random() > 0.5 ? 8 : 3;
         const bodyPos = PositionManager.Instance.getZombieBodyCenter(newCol, newRow);
         const viewPos = PositionManager.Instance.getZombieBottomCenter(newCol, newRow);

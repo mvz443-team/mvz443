@@ -6,6 +6,7 @@ import {
 } from './EventBus';
 import { GameParams } from './models/GameParams';
 import { StageResult } from './models/IRecord';
+import { LOGICAL_BATTLE_HEIGHT, LOGICAL_BATTLE_WIDTH } from '../constants/gameLayout';
 
 export interface IRefPhaserGame {
   game: Phaser.Game | null;
@@ -19,13 +20,23 @@ interface IProps {
   gameExit: (result: StageResult) => void,
   width: number,
   height: number,
+  mainViewportWidth: number,
+  mainViewportHeight: number,
+  deviceType: string,
 }
 
 
 export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame({
-  currentActiveScene, isVisibility, gameParams, gameExit, width, height }, ref) {
+  currentActiveScene, isVisibility, gameParams, gameExit, width, height, mainViewportWidth, mainViewportHeight, deviceType }, ref) {
   if (gameParams) {
     gameParams.gameExit = gameExit;
+    gameParams.deviceType = deviceType;
+    gameParams.mainViewportHeight = deviceType === 'mobile'
+      ? Math.max(1, mainViewportHeight)
+      : LOGICAL_BATTLE_HEIGHT;
+    gameParams.mainViewportWidth = deviceType === 'mobile'
+      ? Math.max(1, mainViewportWidth)
+      : LOGICAL_BATTLE_WIDTH;
   }
 
   const game = useRef<Phaser.Game | null>(null!);
@@ -37,7 +48,7 @@ export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame
 
     if (game.current === null) {
 
-      game.current = StartGame("game-container", width, gameParams);
+      game.current = StartGame("game-container", width, gameParams, deviceType);
 
       if (typeof ref === 'function') {
         ref({ game: game.current, scene: null });
@@ -55,7 +66,7 @@ export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame
         }
       }
     }
-  }, [gameParams, ref, width]);
+  }, [deviceType, gameParams, mainViewportHeight, mainViewportWidth, ref, width]);
 
   useEffect(() => {
     const currentGame = game.current;

@@ -12,6 +12,11 @@ export interface GameParams {
   plants: Array<PlantSelection>; // 携带的植物以及其等级
   gameExit: (result: StageResult) => void;
   gameSettings: GameSettings;
+  deviceType?: string;
+  gold?: number;
+  stageRows?: number;
+  mainViewportWidth?: number;
+  mainViewportHeight?: number;
   [key: string]: any; // 允许动态扩展其他参数
 }
 

@@ -92,7 +92,7 @@ export class ObsidianGolemEntity extends BaseGolemEntity {
     this.tickmanager.delayedCall({
       delay: 1200,
       callback: () => {
-        const newRow = Phaser.Math.Between(0, PositionManager.Instance.Row_Number - 1);
+        const newRow = this.randomInt(PositionManager.Instance.Row_Number);
         const bodyPos = PositionManager.Instance.getZombieBodyCenter(8, newRow);
         const viewPos = PositionManager.Instance.getZombieBottomCenter(8, newRow);
         this.col = 8;

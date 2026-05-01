@@ -1,21 +1,19 @@
 import argparse
 from PIL import Image, ImageDraw
 
-LOGICAL_GAME_WIDTH = 800
-LOGICAL_GAME_HEIGHT = 600
-BASE_GRID_OFFSET_X = 50
-BASE_GRID_OFFSET_Y = 100
-BASE_GRID_SIZE_X = 80
-BASE_GRID_SIZE_Y = 90
+LOGICAL_BATTLE_WIDTH = 800
+GRID_OFFSET_X = 50
+GRID_OFFSET_Y_FOR_MAX_ROWS = 20
+GRID_SIZE_X = 80
+GRID_SIZE_Y = 90
 MAX_GRID_ROWS = 7
-MAX_FULL_SIZE_ROWS = 6
-MAX_FULL_SIZE_GRID_OFFSET_Y = 20
-MAX_FULL_SIZE_GRID_BOTTOM_MARGIN = 40
-COMPATIBLE_GRID_AREA_HEIGHT = (
-    LOGICAL_GAME_HEIGHT
-    - MAX_FULL_SIZE_GRID_OFFSET_Y
-    - MAX_FULL_SIZE_GRID_BOTTOM_MARGIN
+GRID_BOTTOM_MARGIN_FOR_MAX_ROWS = 40
+LOGICAL_BATTLE_HEIGHT = (
+    GRID_OFFSET_Y_FOR_MAX_ROWS
+    + MAX_GRID_ROWS * GRID_SIZE_Y
+    + GRID_BOTTOM_MARGIN_FOR_MAX_ROWS
 )
+
 
 def get_grid_geometry(grid_rows):
     if grid_rows <= 0:
@@ -23,24 +21,13 @@ def get_grid_geometry(grid_rows):
     if grid_rows > MAX_GRID_ROWS:
         raise ValueError(f"row_number should be less than or equal to {MAX_GRID_ROWS}")
 
-    if grid_rows > MAX_FULL_SIZE_ROWS:
-        return {
-            "offset_x": BASE_GRID_OFFSET_X,
-            "offset_y": MAX_FULL_SIZE_GRID_OFFSET_Y,
-            "size_x": BASE_GRID_SIZE_X,
-            "size_y": COMPATIBLE_GRID_AREA_HEIGHT / grid_rows,
-        }
-
-    if grid_rows == MAX_FULL_SIZE_ROWS:
-        grid_offset_y = MAX_FULL_SIZE_GRID_OFFSET_Y
-    else:
-        grid_offset_y = BASE_GRID_OFFSET_Y + (5 - grid_rows) * (BASE_GRID_SIZE_Y * 2 / 3)
+    grid_offset_y = GRID_OFFSET_Y_FOR_MAX_ROWS + (MAX_GRID_ROWS - grid_rows) * GRID_SIZE_Y / 2
 
     return {
-        "offset_x": BASE_GRID_OFFSET_X,
+        "offset_x": GRID_OFFSET_X,
         "offset_y": grid_offset_y,
-        "size_x": BASE_GRID_SIZE_X,
-        "size_y": BASE_GRID_SIZE_Y,
+        "size_x": GRID_SIZE_X,
+        "size_y": GRID_SIZE_Y,
     }
 
 def get_grid_top_left(col, row, grid_rows):
@@ -50,8 +37,8 @@ def get_grid_top_left(col, row, grid_rows):
     return x, y
 
 def main(grid_rows, grid_cols):
-    # 创建一张 800×600 的透明背景图片
-    width, height = LOGICAL_GAME_WIDTH, LOGICAL_GAME_HEIGHT
+    # 创建一张固定 battle viewport 尺寸的透明背景图片
+    width, height = LOGICAL_BATTLE_WIDTH, LOGICAL_BATTLE_HEIGHT
     image = Image.new("RGBA", (width, height), (255,255,255,0))
     draw = ImageDraw.Draw(image)
     

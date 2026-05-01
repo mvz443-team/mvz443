@@ -1,8 +1,14 @@
 import { BaseManager } from "../BaseManager";
 import {
+  BATTLE_GRID_CELL_HEIGHT,
+  BATTLE_GRID_CELL_WIDTH,
+  BATTLE_GRID_COLS,
+  BATTLE_GRID_MAX_ROWS,
+  BATTLE_GRID_OFFSET_X,
+  BATTLE_GRID_OFFSET_Y_FOR_MAX_ROWS,
   getGameSceneChromeLayout,
-  LOGICAL_GAME_HEIGHT,
-  LOGICAL_GAME_WIDTH,
+  LOGICAL_BATTLE_HEIGHT,
+  LOGICAL_BATTLE_WIDTH,
 } from "../../../constants/gameLayout";
 import type {
   GameDeviceType,
@@ -19,9 +25,8 @@ type GridGeometry = {
 
 export type StageGridLayoutOptions = {
   /**
-   * Keep false while React owns the surrounding UI. When the top/bottom/side
-   * tools move into Phaser, set this to true so grid coordinates are placed
-   * inside the full scene chrome instead of the local 800x600 viewport.
+   * Deprecated compatibility flag. UI chrome is projected by cameras/layout
+   * helpers; world/grid coordinates must always remain battle-local.
    */
   includeUiChrome?: boolean;
   deviceType?: GameDeviceType;
@@ -35,31 +40,25 @@ export type StageGridLayoutOptions = {
 export class PositionManager extends BaseManager {
   private static _instance: PositionManager;
 
-  private static readonly BASE_GRID_OFFSET_X = 50;
-  private static readonly BASE_GRID_OFFSET_Y = 100;
-  private static readonly BASE_GRID_SIZE_X = 80;
-  private static readonly BASE_GRID_SIZE_Y = 90;
+  private static readonly BASE_GRID_OFFSET_X = BATTLE_GRID_OFFSET_X;
+  private static readonly BASE_GRID_OFFSET_Y = BATTLE_GRID_OFFSET_Y_FOR_MAX_ROWS;
+  private static readonly BASE_GRID_SIZE_X = BATTLE_GRID_CELL_WIDTH;
+  private static readonly BASE_GRID_SIZE_Y = BATTLE_GRID_CELL_HEIGHT;
   private static readonly WORLD_HORIZONTAL_MARGIN = 40;
   private static readonly WORLD_VERTICAL_MARGIN = 40;
-  private static readonly MAX_ROW_NUMBER = 7;
-  private static readonly MAX_FULL_SIZE_ROW_NUMBER = 6;
-  private static readonly MAX_FULL_SIZE_GRID_OFFSET_Y = 20;
-  private static readonly MAX_FULL_SIZE_GRID_BOTTOM_MARGIN = 40;
-  private static readonly COMPATIBLE_GRID_AREA_HEIGHT =
-    LOGICAL_GAME_HEIGHT
-    - PositionManager.MAX_FULL_SIZE_GRID_OFFSET_Y
-    - PositionManager.MAX_FULL_SIZE_GRID_BOTTOM_MARGIN;
+  private static readonly MAX_ROW_NUMBER = BATTLE_GRID_MAX_ROWS;
 
   private _scaleFactor = 1;
-  private _gridOffsetX = PositionManager.BASE_GRID_OFFSET_X;
-  private _gridOffsetY = PositionManager.BASE_GRID_OFFSET_Y;
-  private _GRID_SIZEX = PositionManager.BASE_GRID_SIZE_X;
-  private _GRID_SIZEY = PositionManager.BASE_GRID_SIZE_Y;
+  private _gridOffsetX = PositionManager.calculateGridGeometry(4).offsetX;
+  private _gridOffsetY = PositionManager.calculateGridGeometry(4).offsetY;
+  private _GRID_SIZEX = PositionManager.calculateGridGeometry(4).sizeX;
+  private _GRID_SIZEY = PositionManager.calculateGridGeometry(4).sizeY;
 
   private _Row_Number = 4;
-  private _Col_Number = 9;
-  private _layoutIncludesUiChrome = false;
+  private _Col_Number = BATTLE_GRID_COLS;
   private _sceneLayoutDeviceType: GameDeviceType = 'pc';
+  private _sceneMainWidth = LOGICAL_BATTLE_WIDTH;
+  private _sceneMainHeight = LOGICAL_BATTLE_HEIGHT;
 
   public static get Instance(): PositionManager {
     if (!PositionManager._instance) {
@@ -70,42 +69,53 @@ export class PositionManager extends BaseManager {
 
   public Load(): void { }
 
+  public setSceneViewportSize(
+    width: number = LOGICAL_BATTLE_WIDTH,
+    height: number = LOGICAL_BATTLE_HEIGHT,
+    deviceType: GameDeviceType = this._sceneLayoutDeviceType,
+  ): void {
+    this._sceneMainWidth = Math.max(1, width);
+    this._sceneMainHeight = Math.max(1, height);
+    this._sceneLayoutDeviceType = deviceType;
+  }
+
   public setStageGrid(
     scaleFactor: number,
     row_number: number = 4,
-    col_number: number = 9,
+    col_number: number = BATTLE_GRID_COLS,
     options: StageGridLayoutOptions = {},
   ): void {
     PositionManager.validateGridSize(row_number, col_number);
 
     const geometry = PositionManager.calculateGridGeometry(row_number);
     const deviceType = options.deviceType ?? this._sceneLayoutDeviceType;
-    const sceneLayout = this.getSceneChromeLayout(deviceType);
-    const mainViewport = options.includeUiChrome ? sceneLayout.mainViewport : { x: 0, y: 0 };
+    void scaleFactor;
+    void options.includeUiChrome;
 
     this._Row_Number = row_number;
     this._Col_Number = col_number;
-    this._scaleFactor = scaleFactor;
-    this._layoutIncludesUiChrome = options.includeUiChrome ?? false;
+    this._scaleFactor = 1;
     this._sceneLayoutDeviceType = deviceType;
 
-    // Logical world size is fixed; screen scaling should not affect physics/world coordinates.
-    this._gridOffsetX = mainViewport.x + geometry.offsetX;
-    this._gridOffsetY = mainViewport.y + geometry.offsetY;
+    // Logical world size is fixed; screen scaling/UI chrome belong to cameras.
+    this._gridOffsetX = geometry.offsetX;
+    this._gridOffsetY = geometry.offsetY;
     this._GRID_SIZEX = geometry.sizeX;
     this._GRID_SIZEY = geometry.sizeY;
   }
 
   public Reset(): void {
+    const geometry = PositionManager.calculateGridGeometry(4);
     this._scaleFactor = 1;
-    this._gridOffsetX = PositionManager.BASE_GRID_OFFSET_X;
-    this._gridOffsetY = PositionManager.BASE_GRID_OFFSET_Y;
-    this._GRID_SIZEX = PositionManager.BASE_GRID_SIZE_X;
-    this._GRID_SIZEY = PositionManager.BASE_GRID_SIZE_Y;
+    this._gridOffsetX = geometry.offsetX;
+    this._gridOffsetY = geometry.offsetY;
+    this._GRID_SIZEX = geometry.sizeX;
+    this._GRID_SIZEY = geometry.sizeY;
     this._Row_Number = 4;
-    this._Col_Number = 9;
-    this._layoutIncludesUiChrome = false;
+    this._Col_Number = BATTLE_GRID_COLS;
     this._sceneLayoutDeviceType = 'pc';
+    this._sceneMainWidth = LOGICAL_BATTLE_WIDTH;
+    this._sceneMainHeight = LOGICAL_BATTLE_HEIGHT;
   }
 
   public getGridTopLeft(col: number, row: number): { x: number; y: number } {
@@ -340,7 +350,7 @@ export class PositionManager extends BaseManager {
   }
 
   public getSceneChromeLayout(deviceType: GameDeviceType = this._sceneLayoutDeviceType): GameSceneChromeLayout {
-    return getGameSceneChromeLayout(LOGICAL_GAME_WIDTH, LOGICAL_GAME_HEIGHT, deviceType, true);
+    return getGameSceneChromeLayout(this._sceneMainWidth, this._sceneMainHeight, deviceType, true);
   }
 
   public getGameViewportBounds(deviceType: GameDeviceType = this._sceneLayoutDeviceType): Rect {
@@ -353,10 +363,6 @@ export class PositionManager extends BaseManager {
 
   public getGridBoundsInScene(deviceType: GameDeviceType = this._sceneLayoutDeviceType): Rect {
     const gridBounds = this.getGridBounds();
-    if (this._layoutIncludesUiChrome) {
-      return gridBounds;
-    }
-
     const viewport = this.getGameViewportBounds(deviceType);
     return {
       x: viewport.x + gridBounds.x,
@@ -369,9 +375,9 @@ export class PositionManager extends BaseManager {
   public getWorldBounds(): { left: number; right: number; top: number; bottom: number } {
     return {
       left: -PositionManager.WORLD_HORIZONTAL_MARGIN,
-      right: this._gridOffsetX + this._GRID_SIZEX * this._Col_Number + PositionManager.WORLD_HORIZONTAL_MARGIN,
+      right: LOGICAL_BATTLE_WIDTH + PositionManager.WORLD_HORIZONTAL_MARGIN,
       top: -PositionManager.WORLD_VERTICAL_MARGIN,
-      bottom: this._gridOffsetY + this._GRID_SIZEY * this._Row_Number + PositionManager.WORLD_VERTICAL_MARGIN,
+      bottom: LOGICAL_BATTLE_HEIGHT + PositionManager.WORLD_VERTICAL_MARGIN,
     };
   }
 
@@ -388,22 +394,9 @@ export class PositionManager extends BaseManager {
   }
 
   private static calculateGridGeometry(rowNumber: number): GridGeometry {
-    if (rowNumber > PositionManager.MAX_FULL_SIZE_ROW_NUMBER) {
-      return {
-        offsetX: PositionManager.BASE_GRID_OFFSET_X,
-        offsetY: PositionManager.MAX_FULL_SIZE_GRID_OFFSET_Y,
-        sizeX: PositionManager.BASE_GRID_SIZE_X,
-        sizeY: PositionManager.COMPATIBLE_GRID_AREA_HEIGHT / rowNumber,
-      };
-    }
-
-    let offsetY = PositionManager.BASE_GRID_OFFSET_Y;
-    if (rowNumber === PositionManager.MAX_FULL_SIZE_ROW_NUMBER) {
-      offsetY = PositionManager.MAX_FULL_SIZE_GRID_OFFSET_Y;
-    } else if (rowNumber <= 5) {
-      offsetY = PositionManager.BASE_GRID_OFFSET_Y
-        + (5 - rowNumber) * (PositionManager.BASE_GRID_SIZE_Y * 2 / 3);
-    }
+    const extraRows = PositionManager.MAX_ROW_NUMBER - rowNumber;
+    const offsetY = PositionManager.BASE_GRID_OFFSET_Y
+      + extraRows * PositionManager.BASE_GRID_SIZE_Y / 2;
 
     return {
       offsetX: PositionManager.BASE_GRID_OFFSET_X,

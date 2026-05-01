@@ -18,6 +18,7 @@ import { MonsterLibrary } from "../library/MonsterLibrary";
 import { DeferredManager } from "../DeferredManager";
 import { MonsterEntity } from "../../models/entities/MonsterEntity";
 import { onlineStateManager } from "../../../store/OnlineStateManager";
+import StageHelper from "../../utils/helper/StageHelper";
 
 type Mob = CombatEntity;
 
@@ -130,6 +131,8 @@ export default class MobManager extends BaseManager {
     this.Timer = null;
     this.SpawnTimer?.remove();
     this.MobsByLane.clear();
+    this.seed = 0;
+    this.waves = [];
     this.progress = 0;
     this.current_wave_idx = 0;
     this.prev_wave_frame = 0;
@@ -584,10 +587,19 @@ export default class MobManager extends BaseManager {
   }
 
   private handleRoomGameStart() {
-    if (!this.seed) {
-      this.seed = CombatManager.Instance.seed;
-    }
+    const roomAllReady = onlineStateManager.getRoomAllReady();
+    this.seed = roomAllReady?.seed ?? CombatManager.Instance.seed;
     this.setRandomSeed(this.seed);
+    if (!this.scene?.stageData) {
+      console.error("No stage data found for MobManager game start.");
+      return;
+    }
+    const stageScriptRandom = seedrandom.alea(String(this.seed));
+    this.setWaves(StageHelper.generateStageScript(
+      this.scene.stageData.stageScript,
+      stageScriptRandom,
+      this.scene.params.level,
+    ));
     this.startFirstWave();
   }
 }
