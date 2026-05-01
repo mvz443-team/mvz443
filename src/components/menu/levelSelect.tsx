@@ -37,15 +37,15 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
     const onlineManager = OnlineStateManager.getInstance();
     const { translate } = useLocaleMessages();
 
-    // 浣跨敤 useSetState 绠＄悊缁勪欢鐘舵€?
+    // 使用 useSetState 管理组件状态
     const [state, setState] = useSetState({
         currentStep: 'chapter' as 'chapter' | 'stage' | 'params',
         selectedChapterId: null as number | null,
         selectedStageId: null as number | null,
-        isLoading: false, // 鑱旀満妯″紡涓嬬殑鍔犺浇鐘舵€?
-        gameStage: EnumGameStage.InLobby, // 褰撳墠娓告垙闃舵
-        readyPlayerCount: 0, // 宸插噯澶囩殑鐜╁鏁伴噺
-        totalPlayerCount: 0, // 鎬荤帺瀹舵暟閲?
+        isLoading: false, // 联机模式下的加载状态
+        gameStage: EnumGameStage.InLobby, // 当前游戏阶段
+        readyPlayerCount: 0, // 已准备的玩家数量
+        totalPlayerCount: 0, // 总玩家数量
     });
     const stateRef = React.useRef(state);
 
@@ -53,7 +53,7 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
         stateRef.current = state;
     }, [state]);
 
-    // 浣跨敤 useLocalStorageState 鎸佷箙鍖栭€夊叧鐘舵€?
+    // 使用 useLocalStorageState 持久化选关状态
     const [levelSelectorState, setLevelSelectorState] = useLocalStorageState('levelSelectorState', {
         defaultValue: {
             lastChapterId: null as number | null,
@@ -62,19 +62,19 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
         }
     });
 
-    // 娓呴櫎閫夊叧鐩稿叧鐨?localStorage锛堜繚鐣欐鐗╅€夋嫨锛?
+    // 清除选关相关的 localStorage（保留植物选择）
     const clearLevelSelection = () => {
         setLevelSelectorState({
             lastChapterId: null,
             lastStageId: null,
             lastStep: 'chapter'
         });
-        // 娓呴櫎绔犺妭鍜屽叧鍗￠€夋嫨锛屼絾淇濈暀妞嶇墿閫夋嫨
+        // 清除章节和关卡选择，但保留植物选择
         localStorage.removeItem('chapterSelection');
         localStorage.removeItem('stageSelection');
     };
 
-    // 澶勭悊杩斿洖鎿嶄綔锛屾竻闄?localStorage
+    // 处理返回操作，清除 localStorage
     const handleBackWithClear = () => {
         clearLevelSelection();
         onBack();
@@ -87,20 +87,20 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
             console.log('馃幃 GameStage changed from', currentState.gameStage, 'to', gameStage, 'current step:', currentState.currentStep);
             setState({ gameStage });
 
-            // 鏍规嵁娓告垙闃舵璋冩暣UI鐘舵€?
+            // 根据游戏阶段调整UI状态
             if (gameStage === EnumGameStage.Preparing) {
-                // 鍑嗗闃舵锛岃烦杞埌閫夊崱鐣岄潰
+                // 准备阶段，跳转到选卡界面
                 if (currentState.selectedChapterId && currentState.selectedStageId) {
                     setState({ currentStep: 'params' });
                 }
             } else if (gameStage === EnumGameStage.Loading) {
                 setState({ isLoading: true });
             } else if (gameStage === EnumGameStage.InLobby) {
-                // 鍙湁鍦ㄦ槑纭渶瑕佸洖鍒板ぇ鍘呮椂鎵嶉噸缃姸鎬?
-                // 閬垮厤鍦ㄥ噯澶囬樁娈电殑鐘舵€佹洿鏂板鑷磋璺宠浆
+                // 只有在明确需要回到大厅时才重置状态
+                // 避免在准备阶段的状态更新导致误跳转
                 console.log('馃攧 Received InLobby state, current step:', currentState.currentStep);
 
-                // 濡傛灉褰撳墠鍦ㄩ€夊崱鐣岄潰锛屼笉瑕侀噸缃紝闄ら潪鏄庣‘鏄粠娓告垙缁撴潫鎴栨埧闂村叧闂瓑鎯呭喌
+                // 如果当前在选卡界面，不要重置，除非明确是从游戏结束或房间关闭等情况
                 const shouldReset = currentState.currentStep !== 'params' ||
                                   currentState.gameStage === EnumGameStage.PostGame ||
                                   currentState.gameStage === EnumGameStage.InGame;
@@ -122,7 +122,7 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
             }
         };
 
-        // 鐩戝惉鎴块棿淇℃伅鍙樺寲
+        // 监听房间信息变化
         const handleRoomInfoChange = () => {
             const peersData = onlineManager.getRoomPeersData();
             setState({
@@ -133,7 +133,7 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
         onlineManager.onGameStageUpdate(handleGameStageChange);
         onlineManager.onRoomInfoUpdate(handleRoomInfoChange);
 
-        // 鍒濆鍖栫姸鎬?
+        // 初始化状态
         setState({
             gameStage: onlineManager.getCurrentGameStage(),
             totalPlayerCount: onlineManager.getPlayerCount()
@@ -146,7 +146,7 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
     });
 
     const handleBack = () => {
-        // 閫夋嫨绔犺妭涓殑缁嗗垎鍦板浘
+        // 选择章节中的细分地图
         if (state.currentStep === 'stage') {
             setState({ currentStep: 'chapter' });
             setLevelSelectorState({
@@ -156,7 +156,7 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
             });
         }
 
-        // 閫夊崱锛坧reparing闃舵锛?
+        // 选卡（preparing阶段）
         if (state.currentStep === 'params') {
             setState({ currentStep: 'stage' });
             setLevelSelectorState({
@@ -190,7 +190,7 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
             lastStep: 'params'
         });
 
-        // 鑱旀満妯″紡涓嬫埧涓诲彂閫侀€夊浘娑堟伅
+        // 联机模式下房主发送选图消息
         if (isOnlineMode && islord) {
             console.log("鎴夸富鍙戦€侀€夊浘娑堟伅: stageId =", stageId);
             const chapterId = StageDataRecords[stageId]?.chapterID || 1;
@@ -199,29 +199,29 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
     };
 
     const handleParamsBack = () => {
-        // 鑱旀満妯″紡涓嬫埧涓诲彂閫佺寮€閫夊浘娑堟伅
+        // 联机模式下房主发送离开选图消息
         if (isOnlineMode && islord) {
             SendLeaveChooseMap();
         }
         handleBack();
     };
 
-    // 鍒ゆ柇鏄惁鍙互杩涜涓嬩竴姝ยู搷浣滐紙鑱旀満妯″紡涓嬬殑鏉冮檺闄愬埗锛?
+    // 判断是否可以进行下一步操作（联机模式下的权限限制）
     const canProceedToNextStep = () => {
         if (!isOnlineMode) {
-            return true; // 鍗曟満妯″紡鏃犻檺鍒?
+            return true; // 单机模式无限制
         }
 
-        // 鑱旀満妯″紡涓嬬殑闄愬埗
+        // 联机模式下的限制
         if (state.currentStep === 'stage' && !islord) {
-            // 鏅€氱帺瀹舵棤娉曠偣鍑诲叧鍗￠€夋嫨鏃跺€欑殑'涓嬩竴姝?
+            // 普通玩家无法点击关卡选择时候的'下一步'
             return false;
         }
 
         return true;
     };
 
-    // 鑾峰彇鎸夐挳鏄剧ず鏂囨湰
+    // 获取按钮显示文本
     const getButtonText = () => {
         if (state.isLoading) {
             return translate(commonKey('loading')) || '鍔犺浇涓?..';
@@ -236,7 +236,7 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
         return translate(commonKey('next')) || '涓嬩竴姝?';
     };
 
-    // 鑾峰彇鎸夐挳鐘舵€佹牱寮?
+    // 获取按钮状态样式
     const getButtonStyle = () => {
         const baseStyle = {
             padding: '12px 24px',
@@ -265,7 +265,7 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
         };
     };
 
-    // 鍒濆鍖栨椂娓呴櫎 localStorage锛堥櫎闈炴槸 skipToParams锛?
+    // 初始化时清除 localStorage（除非是 skipToParams）
     useMount(() => {
         if (skipToParams && chosenStage) {
             const chapterId = StageDataRecords[chosenStage].chapterID;
@@ -280,7 +280,7 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
                 lastStep: 'params'
             });
         } else {
-            // 姝ｅ父杩涘叆閫夊叧鏃讹紝娓呴櫎 localStorage
+            // 正常进入选关时，清除 localStorage
             clearLevelSelection();
         }
     });
@@ -318,7 +318,7 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
                     startGame={startGame}
                     onBack={handleParamsBack}
                     clearLevelSelection={clearLevelSelection}
-                    // 浼犻€掕仈鏈烘ā寮忕浉鍏崇殑 props
+                    // 传递联机模式相关的 props
                     isOnlineMode={isOnlineMode}
                     islord={islord}
                     gameStage={state.gameStage}
