@@ -159,7 +159,8 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
   // 初始化植物选择（不立即加载 localStorage）
   useMount(() => {
     const plants = calculateAvailablePlants();
-    const upperLimit = saveManager.currentProgress.slotNum;
+    const rawSlotNum = saveManager.currentProgress.slotNum ?? 0;
+    const upperLimit = rawSlotNum >= 16 ? 15 : rawSlotNum;
 
     setState({
       availablePlants: plants,

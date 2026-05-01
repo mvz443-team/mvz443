@@ -1,5 +1,8 @@
 import type { PlantModel } from "../../models/PlantModel";
 import { Chapter1Plants } from "../../presets/plant/chapter1";
+import { Chapter2Plants } from "../../presets/plant/chapter2";
+
+const AllPlants = [...Chapter1Plants, ...Chapter2Plants];
 
 export class PlantLibrary {
   // 存储所有的植物蓝图
@@ -9,7 +12,7 @@ export class PlantLibrary {
   public static Initialize() {
     if (this.models.size > 0) return; // 防止重复初始化
 
-    for (const plant of Chapter1Plants) {
+    for (const plant of AllPlants) {
       this.Register(plant);
     }
 
