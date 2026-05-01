@@ -33,6 +33,7 @@ import StageHelper from '../utils/helper/StageHelper';
 import { PresetEventManager } from '../managers/combat/PresetEventManager';
 import ConsoleCmd from '../utils/ConsoleCmd';
 import { SendLoaded } from '../../utils/net/room';
+import { LOGICAL_GAME_WIDTH } from '../../constants/gameLayout';
 
 
 export class Game extends Scene {
@@ -112,7 +113,7 @@ export class Game extends Scene {
     // read external data
     // TODO : 根据type具体判断放置那张背景图
     this.params = this.game.registry.get('gameParams') as GameParams;
-    this.scaleFactor = this.scale.gameSize.width / 800;
+    this.scaleFactor = this.scale.gameSize.width / LOGICAL_GAME_WIDTH;
 
     // 初始化各个Manager
     for (const manager of this.ManagerGroup) {

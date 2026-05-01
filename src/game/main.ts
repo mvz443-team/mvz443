@@ -4,9 +4,7 @@ import { Game as MainGame } from './scenes/Game';
 import { AUTO, Game } from 'phaser';
 import { Preloader } from './scenes/Preloader';
 import { GameParams } from './models/GameParams';
-
-const LOGICAL_GAME_WIDTH = 800;
-const LOGICAL_GAME_HEIGHT = 600;
+import { LOGICAL_GAME_HEIGHT, LOGICAL_GAME_WIDTH } from '../constants/gameLayout';
 
 //  Find out more information about the Game Config at:
 //  https://newdocs.phaser.io/docs/3.70.0/Phaser.Types.Core.GameConfig

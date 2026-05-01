@@ -15,6 +15,10 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import SettingsPage from './pages/settings';
 import { publicUrl } from './utils/browser';
 import { initializeGameLibraries } from './game/managers/library/initializeGameLibraries';
+import {
+  GAME_ASPECT_RATIO,
+  getGameToolLayoutMetrics,
+} from './constants/gameLayout';
 
 initializeGameLibraries();
 
@@ -55,11 +59,11 @@ function GameMainWindow({
   setGameParams,
   gameStart,
 }: GameMainWindowProps) {
-  const bottomHeight = showGameTool ? width / 32 : 0;
-  const mainTotalHeight = height + bottomHeight;
-  const sideToolWidth = Math.min(width / 7, 135);
-  const topToolHeight = Math.min(width / 8, 135);
-  const rightToolHeight = mainTotalHeight + (deviceType === 'pc' ? topToolHeight : 0);
+  const toolLayout = getGameToolLayoutMetrics(width, height, deviceType, showGameTool);
+  const mainTotalHeight = toolLayout.mainTotalHeight;
+  const sideToolWidth = toolLayout.sideCardSlotWidth;
+  const topToolHeight = toolLayout.topCardSlotHeight;
+  const rightToolHeight = toolLayout.rightCardSlotHeight;
   const isGameLayout = showGameScreen || showGameTool;
   const mainWidth = isGameLayout ? width : nonGameWidth;
   const mainHeight = isGameLayout ? (showGameTool ? mainTotalHeight : height) : nonGameHeight;
@@ -228,29 +232,14 @@ function getFittedMainWidth(
   const availableWidth = Math.max(240, viewportSize.width - viewportPadding * 2);
   const availableHeight = Math.max(180, viewportSize.height - viewportPadding * 2);
 
-  const getSideToolWidth = (mainWidth: number) => Math.min(mainWidth / 7, 135);
   const getTotalWidth = (mainWidth: number) => {
-    if (!showGameTool) {
-      return mainWidth;
-    }
-
-    const rightToolWidth = getSideToolWidth(mainWidth) + 10;
-    const leftToolWidth = deviceType === 'mobile' ? getSideToolWidth(mainWidth) + 10 : 0;
-
-    return mainWidth + leftToolWidth + rightToolWidth;
+    const gameHeight = mainWidth * GAME_ASPECT_RATIO;
+    return getGameToolLayoutMetrics(mainWidth, gameHeight, deviceType, showGameTool).totalWidth;
   };
 
   const getTotalHeight = (mainWidth: number) => {
-    const gameHeight = mainWidth * 3 / 4;
-
-    if (!showGameTool) {
-      return gameHeight;
-    }
-
-    const bottomHeight = mainWidth / 32;
-    const topToolHeight = deviceType === 'pc' ? Math.min(mainWidth / 8, 135) : 0;
-
-    return gameHeight + bottomHeight + topToolHeight;
+    const gameHeight = mainWidth * GAME_ASPECT_RATIO;
+    return getGameToolLayoutMetrics(mainWidth, gameHeight, deviceType, showGameTool).totalHeight;
   };
 
   let low = 160;
@@ -278,7 +267,7 @@ function getNonGameMainSize(
 
     return {
       width: fittedWidth,
-      height: Math.floor(fittedWidth * 3 / 4),
+      height: Math.floor(fittedWidth * GAME_ASPECT_RATIO),
     };
   }
 
@@ -309,7 +298,7 @@ function App() {
   const layoutWidth = useMemo(() => (
     getFittedMainWidth(width, viewportSize, deviceType, showGameTool)
   ), [width, viewportSize, deviceType, showGameTool]);
-  const layoutHeight = Math.floor(layoutWidth * 3 / 4);
+  const layoutHeight = Math.floor(layoutWidth * GAME_ASPECT_RATIO);
   const nonGameLayout = useMemo(() => (
     getNonGameMainSize(width, viewportSize, deviceType)
   ), [width, viewportSize, deviceType]);

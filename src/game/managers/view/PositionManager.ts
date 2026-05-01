@@ -1,4 +1,31 @@
 import { BaseManager } from "../BaseManager";
+import {
+  getGameSceneChromeLayout,
+  LOGICAL_GAME_HEIGHT,
+  LOGICAL_GAME_WIDTH,
+} from "../../../constants/gameLayout";
+import type {
+  GameDeviceType,
+  GameSceneChromeLayout,
+  Rect,
+} from "../../../constants/gameLayout";
+
+type GridGeometry = {
+  offsetX: number;
+  offsetY: number;
+  sizeX: number;
+  sizeY: number;
+};
+
+export type StageGridLayoutOptions = {
+  /**
+   * Keep false while React owns the surrounding UI. When the top/bottom/side
+   * tools move into Phaser, set this to true so grid coordinates are placed
+   * inside the full scene chrome instead of the local 800x600 viewport.
+   */
+  includeUiChrome?: boolean;
+  deviceType?: GameDeviceType;
+};
 
 /**
  * PositionManager
@@ -14,6 +41,14 @@ export class PositionManager extends BaseManager {
   private static readonly BASE_GRID_SIZE_Y = 90;
   private static readonly WORLD_HORIZONTAL_MARGIN = 40;
   private static readonly WORLD_VERTICAL_MARGIN = 40;
+  private static readonly MAX_ROW_NUMBER = 7;
+  private static readonly MAX_FULL_SIZE_ROW_NUMBER = 6;
+  private static readonly MAX_FULL_SIZE_GRID_OFFSET_Y = 20;
+  private static readonly MAX_FULL_SIZE_GRID_BOTTOM_MARGIN = 40;
+  private static readonly COMPATIBLE_GRID_AREA_HEIGHT =
+    LOGICAL_GAME_HEIGHT
+    - PositionManager.MAX_FULL_SIZE_GRID_OFFSET_Y
+    - PositionManager.MAX_FULL_SIZE_GRID_BOTTOM_MARGIN;
 
   private _scaleFactor = 1;
   private _gridOffsetX = PositionManager.BASE_GRID_OFFSET_X;
@@ -23,6 +58,8 @@ export class PositionManager extends BaseManager {
 
   private _Row_Number = 4;
   private _Col_Number = 9;
+  private _layoutIncludesUiChrome = false;
+  private _sceneLayoutDeviceType: GameDeviceType = 'pc';
 
   public static get Instance(): PositionManager {
     if (!PositionManager._instance) {
@@ -33,26 +70,30 @@ export class PositionManager extends BaseManager {
 
   public Load(): void { }
 
-  public setStageGrid(scaleFactor: number, row_number: number = 4, col_number: number = 9): void {
-    if (row_number > 6) throw new Error("row_number should be less than or equal to 6");
+  public setStageGrid(
+    scaleFactor: number,
+    row_number: number = 4,
+    col_number: number = 9,
+    options: StageGridLayoutOptions = {},
+  ): void {
+    PositionManager.validateGridSize(row_number, col_number);
 
-    let gridOffsetY = PositionManager.BASE_GRID_OFFSET_Y;
-    if (row_number === 6) {
-      gridOffsetY = 20;
-    } else if (row_number <= 5) {
-      gridOffsetY = PositionManager.BASE_GRID_OFFSET_Y
-        + (5 - row_number) * (PositionManager.BASE_GRID_SIZE_Y * 2 / 3);
-    }
+    const geometry = PositionManager.calculateGridGeometry(row_number);
+    const deviceType = options.deviceType ?? this._sceneLayoutDeviceType;
+    const sceneLayout = this.getSceneChromeLayout(deviceType);
+    const mainViewport = options.includeUiChrome ? sceneLayout.mainViewport : { x: 0, y: 0 };
 
     this._Row_Number = row_number;
     this._Col_Number = col_number;
     this._scaleFactor = scaleFactor;
+    this._layoutIncludesUiChrome = options.includeUiChrome ?? false;
+    this._sceneLayoutDeviceType = deviceType;
 
     // Logical world size is fixed; screen scaling should not affect physics/world coordinates.
-    this._gridOffsetX = PositionManager.BASE_GRID_OFFSET_X;
-    this._gridOffsetY = gridOffsetY;
-    this._GRID_SIZEX = PositionManager.BASE_GRID_SIZE_X;
-    this._GRID_SIZEY = PositionManager.BASE_GRID_SIZE_Y;
+    this._gridOffsetX = mainViewport.x + geometry.offsetX;
+    this._gridOffsetY = mainViewport.y + geometry.offsetY;
+    this._GRID_SIZEX = geometry.sizeX;
+    this._GRID_SIZEY = geometry.sizeY;
   }
 
   public Reset(): void {
@@ -63,6 +104,8 @@ export class PositionManager extends BaseManager {
     this._GRID_SIZEY = PositionManager.BASE_GRID_SIZE_Y;
     this._Row_Number = 4;
     this._Col_Number = 9;
+    this._layoutIncludesUiChrome = false;
+    this._sceneLayoutDeviceType = 'pc';
   }
 
   public getGridTopLeft(col: number, row: number): { x: number; y: number } {
@@ -287,12 +330,86 @@ export class PositionManager extends BaseManager {
     };
   }
 
+  public getGridBounds(): Rect {
+    return {
+      x: this._gridOffsetX,
+      y: this._gridOffsetY,
+      width: this._GRID_SIZEX * this._Col_Number,
+      height: this._GRID_SIZEY * this._Row_Number,
+    };
+  }
+
+  public getSceneChromeLayout(deviceType: GameDeviceType = this._sceneLayoutDeviceType): GameSceneChromeLayout {
+    return getGameSceneChromeLayout(LOGICAL_GAME_WIDTH, LOGICAL_GAME_HEIGHT, deviceType, true);
+  }
+
+  public getGameViewportBounds(deviceType: GameDeviceType = this._sceneLayoutDeviceType): Rect {
+    return this.getSceneChromeLayout(deviceType).mainViewport;
+  }
+
+  public getSceneBounds(deviceType: GameDeviceType = this._sceneLayoutDeviceType): Rect {
+    return this.getSceneChromeLayout(deviceType).sceneBounds;
+  }
+
+  public getGridBoundsInScene(deviceType: GameDeviceType = this._sceneLayoutDeviceType): Rect {
+    const gridBounds = this.getGridBounds();
+    if (this._layoutIncludesUiChrome) {
+      return gridBounds;
+    }
+
+    const viewport = this.getGameViewportBounds(deviceType);
+    return {
+      x: viewport.x + gridBounds.x,
+      y: viewport.y + gridBounds.y,
+      width: gridBounds.width,
+      height: gridBounds.height,
+    };
+  }
+
   public getWorldBounds(): { left: number; right: number; top: number; bottom: number } {
     return {
       left: -PositionManager.WORLD_HORIZONTAL_MARGIN,
       right: this._gridOffsetX + this._GRID_SIZEX * this._Col_Number + PositionManager.WORLD_HORIZONTAL_MARGIN,
       top: -PositionManager.WORLD_VERTICAL_MARGIN,
       bottom: this._gridOffsetY + this._GRID_SIZEY * this._Row_Number + PositionManager.WORLD_VERTICAL_MARGIN,
+    };
+  }
+
+  private static validateGridSize(rowNumber: number, colNumber: number): void {
+    if (!Number.isInteger(rowNumber) || rowNumber <= 0) {
+      throw new Error("row_number should be a positive integer");
+    }
+    if (rowNumber > PositionManager.MAX_ROW_NUMBER) {
+      throw new Error(`row_number should be less than or equal to ${PositionManager.MAX_ROW_NUMBER}`);
+    }
+    if (!Number.isInteger(colNumber) || colNumber <= 0) {
+      throw new Error("col_number should be a positive integer");
+    }
+  }
+
+  private static calculateGridGeometry(rowNumber: number): GridGeometry {
+    if (rowNumber > PositionManager.MAX_FULL_SIZE_ROW_NUMBER) {
+      return {
+        offsetX: PositionManager.BASE_GRID_OFFSET_X,
+        offsetY: PositionManager.MAX_FULL_SIZE_GRID_OFFSET_Y,
+        sizeX: PositionManager.BASE_GRID_SIZE_X,
+        sizeY: PositionManager.COMPATIBLE_GRID_AREA_HEIGHT / rowNumber,
+      };
+    }
+
+    let offsetY = PositionManager.BASE_GRID_OFFSET_Y;
+    if (rowNumber === PositionManager.MAX_FULL_SIZE_ROW_NUMBER) {
+      offsetY = PositionManager.MAX_FULL_SIZE_GRID_OFFSET_Y;
+    } else if (rowNumber <= 5) {
+      offsetY = PositionManager.BASE_GRID_OFFSET_Y
+        + (5 - rowNumber) * (PositionManager.BASE_GRID_SIZE_Y * 2 / 3);
+    }
+
+    return {
+      offsetX: PositionManager.BASE_GRID_OFFSET_X,
+      offsetY,
+      sizeX: PositionManager.BASE_GRID_SIZE_X,
+      sizeY: PositionManager.BASE_GRID_SIZE_Y,
     };
   }
 }
