@@ -17,6 +17,13 @@ type VolumeSlider = {
   destroy: () => void;
 };
 
+type ToggleControl = {
+  container: Phaser.GameObjects.Container;
+  setLabel: (label: string) => void;
+  setChecked: (checked: boolean) => void;
+  destroy: () => void;
+};
+
 type PauseMenuLayout = {
   centerX: number;
   startY: number;
@@ -41,6 +48,7 @@ export class PauseMenu {
   private fullMenuEyeIcon: Phaser.GameObjects.Container;
   private soundVolumeSlider: VolumeSlider;
   private bgmVolumeSlider: VolumeSlider;
+  private speedSwitch: ToggleControl;
   private isVisible: boolean = false;
   private isBluePrintMode: boolean = false;
 
@@ -184,6 +192,18 @@ export class PauseMenu {
     );
     this.menuContainer.add(this.bgmVolumeSlider.container);
 
+    this.speedSwitch = this.createToggleControl(
+      centerX - sliderWidth / 2,
+      startY + menuHeight * 0.57,
+      sliderWidth,
+      translate("game.speedUp"),
+      this.game.time.timeScale > 1,
+      (checked) => {
+        this.setGameSpeed(checked ? 2 : 1);
+      }
+    );
+    this.menuContainer.add(this.speedSwitch.container);
+
     this.createButton(
       centerX,
       continueButtonCenterY,
@@ -212,6 +232,17 @@ export class PauseMenu {
         }
       }
     );
+  }
+
+  private setGameSpeed(timeScale: 1 | 2) {
+    if (BackendWS.isOnlineMode()) {
+      this.speedSwitch?.setChecked(false);
+      return;
+    }
+
+    this.game.time.timeScale = timeScale;
+    this.speedSwitch?.setChecked(timeScale > 1);
+    PhaserEventBus.emit(PhaserEvents.TimespeedChanged, { timeScale });
   }
 
   private createVolumeSlider(
@@ -302,6 +333,85 @@ export class PauseMenu {
       destroy: () => {
         this.game.input.off("pointermove", handlePointerMove);
         this.game.input.off("pointerup", handlePointerUp);
+        container.destroy();
+      },
+    };
+  }
+
+  private createToggleControl(
+    x: number,
+    y: number,
+    width: number,
+    label: string,
+    initialChecked: boolean,
+    onChange: (checked: boolean) => void
+  ): ToggleControl {
+    const height = 34;
+    const switchWidth = 58;
+    const switchHeight = 26;
+    const switchX = width - switchWidth;
+    const switchY = height / 2;
+    let checked = initialChecked;
+
+    const container = this.game.add.container(x, y);
+    const labelText = this.game.add.text(0, switchY, label, {
+      fontSize: `${Math.min(this.game.scale.displaySize.width / 42, 15)}px`,
+      color: "#edf6ff",
+      fontFamily: "Arial, sans-serif",
+      fontStyle: "bold",
+    }).setOrigin(0, 0.5);
+    const valueText = this.game.add.text(switchX - 12, switchY, "", {
+      fontSize: `${Math.min(this.game.scale.displaySize.width / 48, 13)}px`,
+      color: "#d7e8f7",
+      fontFamily: "Arial, sans-serif",
+      fontStyle: "bold",
+    }).setOrigin(1, 0.5);
+    const track = this.game.add.graphics();
+    const thumb = this.game.add.circle(0, switchY, 10, 0xf8fbff, 1)
+      .setStrokeStyle(2, 0x1b2733, 1);
+    const hitArea = this.game.add.rectangle(switchX, switchY, switchWidth, height, 0xffffff, 0.001)
+      .setOrigin(0, 0.5)
+      .setInteractive({ useHandCursor: true });
+
+    const render = () => {
+      track.clear();
+      track.fillStyle(checked ? 0x27ae60 : 0x52606d, 0.98);
+      track.fillRoundedRect(switchX, switchY - switchHeight / 2, switchWidth, switchHeight, switchHeight / 2);
+      track.lineStyle(2, checked ? 0x9af0bd : 0xaab7c4, 0.95);
+      track.strokeRoundedRect(switchX, switchY - switchHeight / 2, switchWidth, switchHeight, switchHeight / 2);
+      thumb.x = switchX + (checked ? switchWidth - 13 : 13);
+      valueText.setText(checked ? "2x" : "1x");
+    };
+
+    hitArea.on("pointerover", () => {
+      container.setScale(1.03);
+    });
+    hitArea.on("pointerout", () => {
+      container.setScale(1);
+    });
+    hitArea.on("pointerdown", () => {
+      container.setScale(0.98);
+    });
+    hitArea.on("pointerup", () => {
+      container.setScale(1.03);
+      checked = !checked;
+      render();
+      onChange(checked);
+    });
+
+    container.add([labelText, valueText, track, thumb, hitArea]);
+    render();
+
+    return {
+      container,
+      setLabel(nextLabel: string) {
+        labelText.setText(nextLabel);
+      },
+      setChecked(nextChecked: boolean) {
+        checked = nextChecked;
+        render();
+      },
+      destroy: () => {
         container.destroy();
       },
     };
@@ -504,7 +614,7 @@ export class PauseMenu {
 
     this.menuContainer.setDepth(DepthUtils.getPauseMenuDepth());
     this.bluePrintPauseText.setDepth(DepthUtils.getPauseMenuDepth());
-    this.refreshAudioSliders();
+    this.refreshControls();
 
     if (bluePrintMode) {
       this.showBluePrintCompact();
@@ -557,6 +667,7 @@ export class PauseMenu {
   public destroy() {
     this.soundVolumeSlider?.destroy();
     this.bgmVolumeSlider?.destroy();
+    this.speedSwitch?.destroy();
     this.menuContainer?.destroy();
     this.bluePrintPauseText?.destroy();
     this.bluePrintEyeIcon?.destroy();
@@ -566,11 +677,13 @@ export class PauseMenu {
     return this.isVisible;
   }
 
-  private refreshAudioSliders() {
+  private refreshControls() {
     this.soundVolumeSlider?.setLabel(translate("menu.settings_gaming_sound_effects"));
     this.bgmVolumeSlider?.setLabel(translate("menu.settings_gaming_background_music"));
+    this.speedSwitch?.setLabel(translate("game.speedUp"));
     this.soundVolumeSlider?.setValue(SoundManager.Instance.getSoundAudioVolume());
     this.bgmVolumeSlider?.setValue(SoundManager.Instance.getBgmVolume());
+    this.speedSwitch?.setChecked(this.game.time.timeScale > 1);
   }
 }
 

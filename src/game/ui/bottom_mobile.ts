@@ -1,15 +1,13 @@
 import i18n, { translate } from "../../i18n";
-import { commonKey, stageKey } from "../../i18n/keys";
 import BackendWS from "../../utils/net/sync";
 import { PhaserEventBus, PhaserEvents } from "../EventBus";
 import CardpileManager from "../managers/combat/CardpileManager";
 import MobManager, { ProgressMode, ProgressUpdateEvent } from "../managers/combat/MobManager";
 import PlantsManager from "../managers/combat/PlantsManager";
 import ResourceManager from "../managers/combat/ResourceManager";
-import { PositionManager } from "../managers/view/PositionManager";
 import type { Game } from "../scenes/Game";
-import { StageDataRecords } from "../managers/library/ChapterLibrary";
 import { UI_CHROME_DEPTH } from "./cardslots";
+import { getMobileSideBarLayout } from "./mobileSideBarLayout";
 
 const BAR_BG = 0x333333;
 const PANEL_LINE = 0x111111;
@@ -30,41 +28,20 @@ function fitText(text: Phaser.GameObjects.Text, maxWidth: number, preferred: num
   }
 }
 
-function compactTextToFit(text: Phaser.GameObjects.Text, value: string, maxWidth: number, preferred: number, minSize: number) {
-  text.setText(value);
-  fitText(text, maxWidth, preferred, minSize);
-  if (text.width <= maxWidth) {
-    return;
-  }
-
-  let next = value;
-  while (next.length > 2 && text.width > maxWidth) {
-    next = `${next.slice(0, -2)}.`;
-    text.setText(next);
-    fitText(text, maxWidth, preferred, minSize);
-  }
-}
-
 export class MobileBottomBar {
   private readonly scene: Game;
   private readonly container: Phaser.GameObjects.Container;
   private readonly bg: Phaser.GameObjects.Graphics;
-  private readonly moneyText: Phaser.GameObjects.Text;
   private readonly starsContainer: Phaser.GameObjects.Container;
   private readonly starsBg: Phaser.GameObjects.Graphics;
   private readonly progressBg: Phaser.GameObjects.Graphics;
   private readonly progressFill: Phaser.GameObjects.Graphics;
   private readonly flagGraphics: Phaser.GameObjects.Graphics;
-  private readonly stageBg: Phaser.GameObjects.Graphics;
-  private readonly stageText: Phaser.GameObjects.Text;
+  private readonly starCountText: Phaser.GameObjects.Text;
+  private readonly pauseText: Phaser.GameObjects.Text;
   private readonly unsubs: Array<() => void> = [];
   private readonly starObjects: Phaser.GameObjects.GameObject[] = [];
-  private readonly bounds: { x: number; y: number; width: number; height: number };
-  private readonly goldHeight: number;
-  private readonly starsHeight: number;
-  private readonly stageHeight: number;
-  private readonly progressTop: number;
-  private readonly progressHeight: number;
+  private readonly layout = getMobileSideBarLayout();
   private progressState: ProgressUpdateEvent = {
     mode: ProgressMode.Normal,
     totalWaves: 99,
@@ -77,41 +54,19 @@ export class MobileBottomBar {
 
   constructor(scene: Game) {
     this.scene = scene;
-    const layout = PositionManager.Instance.getSceneChromeLayout("mobile");
-    this.bounds = layout.mobileBottomToolbar;
-    this.goldHeight = Math.max(54, this.bounds.height * 0.13);
-    this.starsHeight = Math.max(82, this.bounds.height * 0.17);
-    this.stageHeight = Math.max(74, this.bounds.height * 0.16);
-    this.progressTop = this.goldHeight + this.starsHeight + 10;
-    this.progressHeight = Math.max(120, this.bounds.height - this.progressTop - this.stageHeight - 10);
+    const bounds = this.layout.bounds;
 
-    this.container = this.scene.add.container(this.bounds.x, this.bounds.y).setDepth(UI_CHROME_DEPTH + 1);
+    this.container = this.scene.add.container(bounds.x, bounds.y).setDepth(UI_CHROME_DEPTH + 1);
     this.bg = this.scene.add.graphics();
     this.container.add(this.bg);
     this.drawBackground();
 
-    const baseFont = Math.max(10, Math.round(this.bounds.width * 0.18));
-    this.moneyText = this.scene.add.text(
-      this.bounds.width / 2,
-      this.goldHeight / 2,
-      `${this.scene.params.gold ?? 0} $`,
-      {
-        fontFamily: "Arial, sans-serif",
-        fontSize: `${baseFont}px`,
-        color: "#ffd700",
-        fontStyle: "bold",
-        align: "center",
-      },
-    ).setOrigin(0.5);
-    fitText(this.moneyText, this.bounds.width * 0.86, baseFont, 8);
-    this.container.add(this.moneyText);
-
-    this.starsContainer = this.scene.add.container(0, this.goldHeight);
+    this.starsContainer = this.scene.add.container(this.layout.actionSection.x, this.layout.actionSection.y);
     this.starsBg = this.scene.add.graphics();
     this.starsContainer.add(this.starsBg);
     this.container.add(this.starsContainer);
 
-    const starsHit = this.scene.add.zone(0, 0, this.bounds.width, this.starsHeight)
+    const starsHit = this.scene.add.zone(0, 0, this.getStarsControlWidth(), this.layout.actionSection.height)
       .setOrigin(0)
       .setInteractive({ useHandCursor: true });
     this.starsContainer.add(starsHit);
@@ -128,37 +83,61 @@ export class MobileBottomBar {
     this.flagGraphics = this.scene.add.graphics();
     this.container.add([this.progressBg, this.progressFill, this.flagGraphics]);
 
-    this.stageBg = this.scene.add.graphics();
-    this.container.add(this.stageBg);
-    this.stageText = this.scene.add.text(
-      this.bounds.width / 2,
-      this.bounds.height - this.stageHeight / 2,
-      "",
+    this.starCountText = this.scene.add.text(
+      0,
+      0,
+      "X0",
       {
         fontFamily: "Arial, sans-serif",
-        fontSize: `${baseFont}px`,
+        fontSize: `${Math.max(10, Math.round(bounds.width * 0.11))}px`,
         color: "#ffffff",
         fontStyle: "bold",
         align: "center",
       },
     ).setOrigin(0.5);
-    this.container.add(this.stageText);
+    this.starsContainer.add(this.starCountText);
 
-    const stageHit = this.scene.add.zone(0, this.bounds.height - this.stageHeight, this.bounds.width, this.stageHeight)
-      .setOrigin(0)
+    this.pauseText = this.scene.add.text(
+      this.layout.actionSection.width * 0.82,
+      this.layout.actionSection.y + this.layout.actionSection.height / 2,
+      translate("game.pause"),
+      {
+        fontFamily: "Arial, sans-serif",
+        fontSize: `${Math.max(10, Math.round(bounds.width * 0.1))}px`,
+        color: "#ffffff",
+        fontStyle: "bold",
+        backgroundColor: "#3f5164",
+        padding: { x: 8, y: 4 },
+      },
+    ).setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
-    this.container.add(stageHit);
-    stageHit.on("pointerup", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+    this.pauseText.setShadow(2, 2, "#18212b", 4);
+    this.container.add(this.pauseText);
+
+    this.pauseText.on("pointerover", () => {
+      if (!BackendWS.isOnlineMode()) {
+        this.pauseText.setStyle({ backgroundColor: "#52687f" });
+        this.pauseText.setScale(1.04);
+      }
+    });
+    this.pauseText.on("pointerout", () => {
+      this.pauseText.setStyle({ backgroundColor: "#3f5164" });
+      this.pauseText.setScale(1);
+    });
+    this.pauseText.on("pointerdown", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+      stopInput(event);
+      if (!BackendWS.isOnlineMode()) {
+        this.pauseText.setScale(0.96);
+      }
+    });
+    this.pauseText.on("pointerup", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       stopInput(event);
       if (!BackendWS.isOnlineMode()) {
         PhaserEventBus.emit(PhaserEvents.TogglePause);
       }
     });
-    stageHit.on("pointerdown", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
-      stopInput(event);
-    });
 
-    this.refreshStageText();
+    this.refreshLabels();
     this.updateStars();
     this.updateProgress();
     this.bindEvents();
@@ -171,21 +150,23 @@ export class MobileBottomBar {
     }
     PhaserEventBus.off(PhaserEvents.BossHealth, this.handleBossHealth);
     PhaserEventBus.off(PhaserEvents.BossDead, this.handleBossDead);
-    i18n.off("languageChanged", this.refreshStageText);
+    i18n.off("languageChanged", this.refreshLabels);
     this.starFlashTimer?.remove(false);
     this.container.destroy(true);
     this.scene.events.off(Phaser.Scenes.Events.SHUTDOWN, this.destroy, this);
   };
 
   private drawBackground() {
+    const bounds = this.layout.bounds;
     this.bg.clear();
     this.bg.fillStyle(BAR_BG, 1);
-    this.bg.fillRect(0, 0, this.bounds.width, this.bounds.height);
+    this.bg.fillRect(0, 0, bounds.width, bounds.height);
     this.bg.lineStyle(2, PANEL_LINE, 0.55);
-    this.bg.strokeRect(0, 0, this.bounds.width, this.bounds.height);
-    this.bg.lineBetween(0, this.goldHeight, this.bounds.width, this.goldHeight);
-    this.bg.lineBetween(0, this.goldHeight + this.starsHeight, this.bounds.width, this.goldHeight + this.starsHeight);
-    this.bg.lineBetween(0, this.bounds.height - this.stageHeight, this.bounds.width, this.bounds.height - this.stageHeight);
+    this.bg.strokeRect(0, 0, bounds.width, bounds.height);
+
+    for (const section of [this.layout.progressSection, this.layout.actionSection]) {
+      this.bg.lineBetween(0, section.y, bounds.width, section.y);
+    }
   }
 
   private bindEvents() {
@@ -221,7 +202,7 @@ export class MobileBottomBar {
 
     PhaserEventBus.on(PhaserEvents.BossHealth, this.handleBossHealth);
     PhaserEventBus.on(PhaserEvents.BossDead, this.handleBossDead);
-    i18n.on("languageChanged", this.refreshStageText);
+    i18n.on("languageChanged", this.refreshLabels);
   }
 
   private handleStarClick() {
@@ -232,73 +213,45 @@ export class MobileBottomBar {
     CardpileManager.Instance.ClickStarShards();
   }
 
-  private refreshStageText = () => {
-    const stageRecord = this.scene.params.level ? StageDataRecords[this.scene.params.level] : null;
-    const label = stageRecord
-      ? translate(stageKey(stageRecord.nameKey))
-      : translate(commonKey("loading"));
-    compactTextToFit(
-      this.stageText,
-      label,
-      this.bounds.width * 0.84,
-      Math.max(10, Math.round(this.bounds.width * 0.16)),
-      7,
-    );
-    this.stageBg.clear();
-    this.stageBg.fillStyle(0x2b2b2b, 1);
-    this.stageBg.fillRoundedRect(4, this.bounds.height - this.stageHeight + 5, this.bounds.width - 8, this.stageHeight - 10, 5);
-    this.stageBg.lineStyle(1, 0x5c5c5c, 1);
-    this.stageBg.strokeRoundedRect(4, this.bounds.height - this.stageHeight + 5, this.bounds.width - 8, this.stageHeight - 10, 5);
+  private refreshLabels = () => {
+    this.pauseText.setText(translate("game.pause"));
+    fitText(this.pauseText, this.layout.actionSection.width * 0.24, Math.max(10, Math.round(this.layout.bounds.width * 0.1)), 8);
+    this.updateStars();
   };
+
+  private getStarsControlWidth() {
+    return this.layout.actionSection.width * 0.58;
+  }
 
   private updateStars() {
     for (const object of this.starObjects.splice(0)) {
       object.destroy();
     }
 
+    const width = this.getStarsControlWidth();
+    const height = this.layout.actionSection.height;
     this.starsBg.clear();
     if (this.starSelected) {
       this.starsBg.lineStyle(2, 0xffee22, 1);
-      this.starsBg.strokeRoundedRect(3, 4, this.bounds.width - 6, this.starsHeight - 8, 5);
+      this.starsBg.strokeRoundedRect(4, 4, width - 8, height - 8, 5);
     }
 
-    const iconSize = Math.min(this.bounds.width * 0.42, this.starsHeight * 0.28);
-    const centerX = this.bounds.width / 2;
-    if (this.starShards >= 5) {
-      const icon = this.scene.add.image(centerX, this.starsHeight * 0.35, "starshards");
-      icon.setDisplaySize(iconSize, iconSize);
-      const text = this.scene.add.text(centerX, this.starsHeight * 0.72, `x${this.starShards}`, {
-        fontFamily: "Arial, sans-serif",
-        fontSize: `${Math.max(9, Math.round(this.bounds.width * 0.16))}px`,
-        color: "#ffffff",
-        fontStyle: "bold",
-      }).setOrigin(0.5);
-      fitText(text, this.bounds.width * 0.8, Math.max(9, Math.round(this.bounds.width * 0.16)), 8);
-      this.starsContainer.add([icon, text]);
-      this.starObjects.push(icon, text);
-      return;
-    }
-
-    const cols = 2;
-    const startY = this.starsHeight * 0.28;
-    const gapX = iconSize * 0.88;
-    const gapY = iconSize * 0.88;
-    for (let i = 0; i < this.starShards; i += 1) {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const x = centerX + (col - 0.5) * gapX;
-      const y = startY + row * gapY;
-      const icon = this.scene.add.image(x, y, "starshards");
-      icon.setDisplaySize(iconSize, iconSize);
-      this.starsContainer.add(icon);
-      this.starObjects.push(icon);
-    }
+    const iconSize = Math.min(height * 0.58, width * 0.26);
+    const centerY = height / 2;
+    const icon = this.scene.add.image(width * 0.35, centerY, "starshards");
+    icon.setDisplaySize(iconSize, iconSize);
+    this.starCountText
+      .setText(`X${this.starShards}`)
+      .setPosition(width * 0.55, centerY);
+    fitText(this.starCountText, width * 0.36, Math.max(10, Math.round(height * 0.34)), 8);
+    this.starsContainer.add(icon);
+    this.starObjects.push(icon);
   }
 
   private flashStars() {
     this.starFlashTimer?.remove(false);
     this.starsBg.lineStyle(2, 0xff3c3c, 1);
-    this.starsBg.strokeRoundedRect(3, 4, this.bounds.width - 6, this.starsHeight - 8, 5);
+    this.starsBg.strokeRoundedRect(4, 4, this.getStarsControlWidth() - 8, this.layout.actionSection.height - 8, 5);
     this.starFlashTimer = this.scene.time.delayedCall(450, () => {
       this.starFlashTimer = null;
       this.updateStars();
@@ -306,21 +259,23 @@ export class MobileBottomBar {
   }
 
   private updateProgress() {
-    const barWidth = Math.max(8, this.bounds.width * 0.28);
-    const x = (this.bounds.width - barWidth) / 2;
-    const y = this.progressTop;
-    const height = this.progressHeight;
+    const section = this.layout.progressSection;
+    const pad = Math.max(8, this.layout.padding * 2);
+    const x = section.x + pad;
+    const width = Math.max(8, section.width - pad * 2);
+    const height = this.layout.progressBarHeight;
+    const y = section.y + (section.height - height) / 2;
     this.progressBg.clear();
     this.progressFill.clear();
     this.flagGraphics.clear();
 
     this.progressBg.fillStyle(PROGRESS_BG, 1);
-    this.progressBg.fillRoundedRect(x, y, barWidth, height, barWidth / 2);
+    this.progressBg.fillRoundedRect(x, y, width, height, height / 2);
 
     if (this.progressState.mode === ProgressMode.Boss) {
       const percent = Math.max(0, Math.min(1, this.progressState.bossHealthPercent || 0));
       this.progressFill.fillStyle(BOSS_FILL, 1);
-      this.progressFill.fillRoundedRect(x, y, barWidth, height * percent, barWidth / 2);
+      this.progressFill.fillRoundedRect(x, y, width * percent, height, height / 2);
       return;
     }
 
@@ -338,16 +293,16 @@ export class MobileBottomBar {
       percent = this.progressState.currentWave > 0 ? 1 : 0;
     }
 
-    const fillHeight = height * Math.max(0, Math.min(1, percent));
+    const fillWidth = width * Math.max(0, Math.min(1, percent));
     this.progressFill.fillStyle(PROGRESS_FILL, 1);
-    this.progressFill.fillRoundedRect(x, y, barWidth, fillHeight, barWidth / 2);
+    this.progressFill.fillRoundedRect(x, y, fillWidth, height, height / 2);
 
     this.flagGraphics.lineStyle(2, 0xffffff, 1);
     if (maxWaveIndex > 0) {
       for (const flagWave of this.progressState.flagWaves) {
         const flagPercent = Math.max(0, Math.min(1, flagWave / maxWaveIndex));
-        const lineY = y + height * flagPercent;
-        this.flagGraphics.lineBetween(x - 4, lineY, x + barWidth + 4, lineY);
+        const lineX = x + width * flagPercent;
+        this.flagGraphics.lineBetween(lineX, y - 3, lineX, y + height + 3);
       }
     }
   }

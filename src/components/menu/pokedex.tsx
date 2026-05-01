@@ -229,37 +229,6 @@ export default function Pokedex({ width, height, onBack }: Props) {
       flexDirection: "column"
     }}>
       <div style={{
-        height: "52px",
-        minHeight: "52px",
-        borderBottom: "1px solid #444",
-        padding: "10px",
-        display: "flex",
-        alignItems: "center",
-        gap: "12px"
-      }}>
-        <button
-          style={{
-            padding: "6px 10px",
-            background: "#444",
-            border: "none",
-            color: "#fff",
-            cursor: "pointer",
-            borderRadius: "4px",
-            fontSize: "14px"
-          }}
-          onClick={onBack}
-        >
-          {translate('menu.back')}
-        </button>
-        <h2 style={{
-          margin: 0,
-          color: "#ddd",
-          fontSize: "22px",
-          fontWeight: 700
-        }}>图鉴</h2>
-      </div>
-
-      <div style={{
         flex: 1,
         minHeight: 0,
         display: "flex"
@@ -268,93 +237,136 @@ export default function Pokedex({ width, height, onBack }: Props) {
           width: "40%",
           minWidth: "300px",
           height: "100%",
+          boxSizing: "border-box",
           borderRight: "1px solid #444",
-          overflowY: "auto",
           padding: "10px",
-          display: "grid",
-          gridTemplateColumns: `repeat(${itemsPerRow}, minmax(0, 1fr))`,
-          alignContent: "start",
-          gap: "8px",
-          scrollbarWidth: 'thin',
-          scrollbarColor: '#888 #333',
+          display: "flex",
+          flexDirection: 'column',
+          gap: '8px',
         }}>
-          {Array.from(pokedexItems.keys()).map((pid) => {
-            const item = pokedexItems.get(pid);
-            const isChosen = pid === state.selectedItemPid;
+          <div style={{
+            height: "52px",
+            minHeight: "52px",
+            borderBottom: "1px solid #444",
+            padding: "6px 4px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px"
+          }}>
+            <button
+              style={{
+                padding: "6px 10px",
+                background: "#444",
+                border: "none",
+                color: "#fff",
+                cursor: "pointer",
+                borderRadius: "4px",
+                fontSize: "14px"
+              }}
+              onClick={onBack}
+            >
+              {translate('menu.back')}
+            </button>
+            <h2 style={{
+              margin: 0,
+              color: "#ddd",
+              fontSize: "18px",
+              fontWeight: 700
+            }}>图鉴</h2>
+          </div>
 
-            return (
-              <div
-                key={pid}
-                style={{
-                  boxSizing: 'border-box',
-                  position: "relative",
-                  width: '100%',
-                  minWidth: 0,
-                  aspectRatio: "1 / 1.22",
-                  textAlign: 'center',
-                  cursor: 'pointer',
-                  background: isChosen ? "#3f5360" : "#303030",
-                  border: isChosen ? "2px solid #f4f4f4" : "1px solid #555",
-                  borderRadius: "6px",
-                  padding: '4px',
-                  transition: 'border-color 0.15s, background 0.15s',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  overflow: "hidden"
-                }}
-                onClick={() => selectItem(pid)}
-                title={item ? translate(cardKey(item.nameKey)) : undefined}
-              >
-                {item && (
-                  <>
-                    <LevelBadge level={item.level} />
-                    <img
-                      src={item.image}
-                      alt={translate(cardKey(item.nameKey))}
-                      style={{
-                        width: "100%",
-                        height: "70%",
-                        objectFit: "contain"
-                      }}
-                      draggable="false"
-                    />
-                  </>
-                )}
-                <div style={{
-                  color: "#ddd",
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  lineHeight: 1,
-                  maxWidth: "100%",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  textShadow: "0 1px 2px #000"
-                }}>
-                  {item ? translate(cardKey(item.nameKey)) : ""}
+          <div style={{
+            flex: 1,
+            minHeight: 0,
+            display: 'grid',
+            gridTemplateColumns: `repeat(${itemsPerRow}, minmax(0, 1fr))`,
+            alignContent: "start",
+            gap: "8px",
+            overflowY: 'auto',
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#888 #333',
+          }}>
+            {Array.from(pokedexItems.keys()).map((pid) => {
+              const item = pokedexItems.get(pid);
+              const isChosen = pid === state.selectedItemPid;
+
+              return (
+                <div
+                  key={pid}
+                  style={{
+                    boxSizing: 'border-box',
+                    position: "relative",
+                    width: '100%',
+                    minWidth: 0,
+                    aspectRatio: "1 / 1.22",
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    background: isChosen ? "#3f5360" : "#303030",
+                    border: isChosen ? "2px solid #f4f4f4" : "1px solid #555",
+                    borderRadius: "6px",
+                    padding: '4px',
+                    transition: 'border-color 0.15s, background 0.15s',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    overflow: "hidden"
+                  }}
+                  onClick={() => selectItem(pid)}
+                  title={item ? translate(cardKey(item.nameKey)) : undefined}
+                >
+                  {item && (
+                    <>
+                      <LevelBadge level={item.level} />
+                      <img
+                        src={item.image}
+                        alt={translate(cardKey(item.nameKey))}
+                        style={{
+                          width: "100%",
+                          height: "70%",
+                          objectFit: "contain"
+                        }}
+                        draggable="false"
+                      />
+                    </>
+                  )}
+                  <div style={{
+                    color: "#ddd",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    maxWidth: "100%",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    textShadow: "0 1px 2px #000"
+                  }}>
+                    {item ? translate(cardKey(item.nameKey)) : ""}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
         <div style={{
           flex: 1,
           height: "100%",
+          boxSizing: "border-box",
           padding: isMobile ? "16px" : "20px",
           color: "#ddd",
-          scrollbarWidth: "thin",
-          scrollbarColor: "#888 #333",
           background: "rgba(30, 30, 30, 0.9)",
-          overflowY: "auto",
-          overflowX: "hidden"
+          display: 'flex',
+          flexDirection: 'column'
         }}>
           <div className={state.animationClass} style={{
             position: "relative",
             width: "100%",
-            minHeight: "100%"
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            scrollbarWidth: "thin",
+            scrollbarColor: "#888 #333",
           }}>
             <h2 style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               {state.selectedItem ? (

@@ -150,6 +150,7 @@ const enUS = {
     "continue": "Continue",
     "exit": "Exit Game",
     "speed": "Speed {{speed}}x",
+    "speedUp": "Game Speed",
     "waiting": "Waiting...",
     "bigWave": "A huge wave of monsters is approaching",
     "debugHint": "Press {{key}} to toggle Rapier debug",

@@ -41,6 +41,7 @@ export class BottomBar {
   private readonly progressFill: Phaser.GameObjects.Graphics;
   private readonly flagGraphics: Phaser.GameObjects.Graphics;
   private readonly stageText: Phaser.GameObjects.Text;
+  private readonly pauseText: Phaser.GameObjects.Text;
   private readonly unsubs: Array<() => void> = [];
   private readonly starObjects: Phaser.GameObjects.GameObject[] = [];
   private readonly bounds: { x: number; y: number; width: number; height: number };
@@ -102,7 +103,7 @@ export class BottomBar {
     this.container.add([this.progressBg, this.progressFill, this.flagGraphics]);
 
     this.stageText = this.scene.add.text(
-      this.bounds.width * 0.9,
+      this.bounds.width * 0.81,
       this.bounds.height / 2,
       "",
       {
@@ -113,18 +114,45 @@ export class BottomBar {
       },
     ).setOrigin(0.5);
     this.container.add(this.stageText);
-    const stageHit = this.scene.add.zone(this.bounds.width * 0.8, 0, this.bounds.width * 0.2, this.bounds.height)
-      .setOrigin(0)
+
+    const pauseFontSize = Math.max(10, Math.round(this.bounds.height * 0.4));
+    this.pauseText = this.scene.add.text(
+      this.bounds.width * 0.94,
+      this.bounds.height / 2,
+      translate("game.pause"),
+      {
+        fontFamily: "Arial, sans-serif",
+        fontSize: `${pauseFontSize}px`,
+        color: "#ffffff",
+        fontStyle: "bold",
+        backgroundColor: "#3f5164",
+        padding: { x: Math.max(8, Math.round(this.bounds.height * 0.22)), y: Math.max(3, Math.round(this.bounds.height * 0.08)) },
+      },
+    ).setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
-    this.container.add(stageHit);
-    stageHit.on("pointerup", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+    this.pauseText.setShadow(2, 2, "#18212b", 4);
+    this.container.add(this.pauseText);
+    this.pauseText.on("pointerover", () => {
+      if (!BackendWS.isOnlineMode()) {
+        this.pauseText.setStyle({ backgroundColor: "#52687f" });
+        this.pauseText.setScale(1.04);
+      }
+    });
+    this.pauseText.on("pointerout", () => {
+      this.pauseText.setStyle({ backgroundColor: "#3f5164" });
+      this.pauseText.setScale(1);
+    });
+    this.pauseText.on("pointerup", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       stopInput(event);
       if (!BackendWS.isOnlineMode()) {
         PhaserEventBus.emit(PhaserEvents.TogglePause);
       }
     });
-    stageHit.on("pointerdown", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+    this.pauseText.on("pointerdown", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       stopInput(event);
+      if (!BackendWS.isOnlineMode()) {
+        this.pauseText.setScale(0.96);
+      }
     });
 
     this.refreshStageText();
@@ -197,6 +225,8 @@ export class BottomBar {
       : translate(commonKey("loading"));
     this.stageText.setText(label);
     fitText(this.stageText, this.bounds.width * 0.18, Math.max(10, Math.round(this.bounds.height * 0.46)), 9);
+    this.pauseText.setText(translate("game.pause"));
+    fitText(this.pauseText, this.bounds.width * 0.1, Math.max(10, Math.round(this.bounds.height * 0.4)), 9);
   };
 
   private updateStars() {
@@ -246,9 +276,9 @@ export class BottomBar {
   }
 
   private updateProgress() {
-    const x = this.bounds.width * 0.43;
+    const x = this.bounds.width * 0.365;
     const y = this.bounds.height * 0.28;
-    const width = this.bounds.width * 0.34;
+    const width = this.bounds.width * 0.31;
     const height = Math.max(8, this.bounds.height * 0.44);
     this.progressBg.clear();
     this.progressFill.clear();

@@ -18,10 +18,12 @@ export const LOGICAL_BATTLE_HEIGHT =
 export const PC_GAME_SCENE_TARGET_ASPECT_RATIO = 16 / 9;
 export const PC_TOP_CARD_SLOT_HEIGHT = LOGICAL_BATTLE_WORLD_WIDTH / 8;
 export const PC_SIDE_CARD_SLOT_WIDTH = LOGICAL_BATTLE_WORLD_WIDTH / 7;
-export const PC_BOTTOM_TOOLBAR_HEIGHT = LOGICAL_BATTLE_WORLD_WIDTH / 32;
+export const PC_BOTTOM_TOOLBAR_BASE_HEIGHT = LOGICAL_BATTLE_WORLD_WIDTH / 32;
+export const PC_BOTTOM_TOOLBAR_OVERLAP_HEIGHT = PC_BOTTOM_TOOLBAR_BASE_HEIGHT * 0.5;
+export const PC_BOTTOM_TOOLBAR_HEIGHT = PC_BOTTOM_TOOLBAR_BASE_HEIGHT * 1.5;
 export const LOGICAL_BATTLE_WIDTH = Math.round(
   PC_GAME_SCENE_TARGET_ASPECT_RATIO
-  * (LOGICAL_BATTLE_HEIGHT + PC_TOP_CARD_SLOT_HEIGHT + PC_BOTTOM_TOOLBAR_HEIGHT)
+  * (LOGICAL_BATTLE_HEIGHT + PC_TOP_CARD_SLOT_HEIGHT + PC_BOTTOM_TOOLBAR_BASE_HEIGHT)
   - PC_SIDE_CARD_SLOT_WIDTH
   - GAME_SIDE_TOOL_GAP
 );
@@ -30,6 +32,7 @@ export const LOGICAL_GAME_HEIGHT = LOGICAL_BATTLE_HEIGHT;
 export const GAME_ASPECT_RATIO = LOGICAL_BATTLE_HEIGHT / LOGICAL_BATTLE_WIDTH;
 export const PC_TOP_CARD_SLOT_RATIO = PC_TOP_CARD_SLOT_HEIGHT / LOGICAL_BATTLE_HEIGHT;
 export const PC_SIDE_CARD_SLOT_RATIO = PC_SIDE_CARD_SLOT_WIDTH / LOGICAL_BATTLE_HEIGHT;
+export const PC_BOTTOM_TOOLBAR_OVERLAP_RATIO = PC_BOTTOM_TOOLBAR_OVERLAP_HEIGHT / LOGICAL_BATTLE_HEIGHT;
 export const MOBILE_TOOL_WIDTH_RATIO_BY_HEIGHT = 1 / 7;
 export const MOBILE_TOOL_MIN_WIDTH = 46;
 export const MOBILE_TOOL_MAX_WIDTH = 68;
@@ -52,6 +55,7 @@ export type GameToolLayoutMetrics = {
   mainTotalHeight: number;
   topCardSlotHeight: number;
   bottomToolbarHeight: number;
+  bottomToolbarOverlapHeight: number;
   sideCardSlotWidth: number;
   mobileLeftCardSlotWidth: number;
   mobileRightCardSlotWidth: number;
@@ -81,6 +85,11 @@ export type GameSceneChromeLayout = GameToolLayoutMetrics & {
 export function getBottomToolbarHeight(mainWidth: number, mainHeight: number, showGameTool = true): number {
   void mainWidth;
   return showGameTool ? mainHeight * BOTTOM_TOOLBAR_RATIO : 0;
+}
+
+export function getBottomToolbarOverlapHeight(mainWidth: number, mainHeight: number, showGameTool = true): number {
+  void mainWidth;
+  return showGameTool ? mainHeight * PC_BOTTOM_TOOLBAR_OVERLAP_RATIO : 0;
 }
 
 export function getTopCardSlotHeight(
@@ -146,6 +155,9 @@ export function getGameToolLayoutMetrics(
 ): GameToolLayoutMetrics {
   const isMobile = deviceType === 'mobile';
   const bottomToolbarHeight = !isMobile ? getBottomToolbarHeight(mainWidth, mainHeight, showGameTool) : 0;
+  const bottomToolbarOverlapHeight = !isMobile
+    ? getBottomToolbarOverlapHeight(mainWidth, mainHeight, showGameTool)
+    : 0;
   const topCardSlotHeight = getTopCardSlotHeight(mainWidth, mainHeight, deviceType, showGameTool);
   const sideCardSlotWidth = deviceType === 'mobile'
     ? getMobileCardSlotWidth(mainWidth, mainHeight, showGameTool)
@@ -161,7 +173,7 @@ export function getGameToolLayoutMetrics(
   const mobileLeftToolWidth = mobileBottomToolbarWidth + leftCardSlotWidth;
   const leftToolOuterWidth = mobileLeftToolWidth > 0 ? mobileLeftToolWidth + sideToolGap : 0;
   const rightToolOuterWidth = rightCardSlotWidth > 0 ? rightCardSlotWidth + sideToolGap : 0;
-  const mainTotalHeight = mainHeight + bottomToolbarHeight;
+  const mainTotalHeight = mainHeight + bottomToolbarHeight - bottomToolbarOverlapHeight;
   const rightCardSlotHeight = showGameTool
     ? mainTotalHeight + topCardSlotHeight
     : 0;
@@ -172,6 +184,7 @@ export function getGameToolLayoutMetrics(
     mainTotalHeight,
     topCardSlotHeight,
     bottomToolbarHeight,
+    bottomToolbarOverlapHeight,
     sideCardSlotWidth,
     mobileLeftCardSlotWidth,
     mobileRightCardSlotWidth,
@@ -183,7 +196,7 @@ export function getGameToolLayoutMetrics(
     rightToolOuterWidth,
     rightCardSlotHeight,
     totalWidth: mainWidth + leftToolOuterWidth + rightToolOuterWidth,
-    totalHeight: mainHeight + bottomToolbarHeight + topCardSlotHeight,
+    totalHeight: mainHeight + bottomToolbarHeight - bottomToolbarOverlapHeight + topCardSlotHeight,
   };
 }
 
@@ -218,7 +231,7 @@ export function getGameSceneChromeLayout(
     },
     bottomToolbar: {
       x: mainViewport.x,
-      y: mainViewport.y + mainHeight,
+      y: mainViewport.y + mainHeight - metrics.bottomToolbarOverlapHeight,
       width: mainWidth,
       height: metrics.bottomToolbarHeight,
     },

@@ -1,15 +1,22 @@
 import type { Game } from "../scenes/Game";
-import { PositionManager } from "../managers/view/PositionManager";
 import ResourceManager from "../managers/combat/ResourceManager";
 import CardpileManager from "../managers/combat/CardpileManager";
 import PlantsManager from "../managers/combat/PlantsManager";
 import { PlantLibrary } from "../managers/library/PlantLibrary";
 import {
-  drawChromePanel,
   EnergyPanelView,
   PlantCardView,
   ToolButtonView,
+  UI_CHROME_DEPTH,
 } from "./cardslots";
+import { getMobileSideBarLayout } from "./mobileSideBarLayout";
+
+type ItemSlot = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 export class MobileCardSlots {
   private readonly scene: Game;
@@ -44,88 +51,85 @@ export class MobileCardSlots {
   };
 
   private create() {
-    const layout = PositionManager.Instance.getSceneChromeLayout("mobile");
-    const leftLane = layout.mobileLeftCardSlot;
-    const rightLane = layout.mobileRightCardSlot;
-    this.panels.push(drawChromePanel(this.scene, leftLane.x, leftLane.y, leftLane.width, leftLane.height));
-    this.panels.push(drawChromePanel(this.scene, rightLane.x, rightLane.y, rightLane.width, rightLane.height));
-
-    const pad = 0;
-    const gap = 5;
-    const mainPlants = this.scene.params.plants.slice(0, 9);
-    const extraPlants = this.scene.params.plants.slice(9);
-
-    const rightCardWidth = rightLane.width;
-    const energyHeight = Math.max(42, Math.min(58, rightLane.height * 0.1));
-    const rightCardHeight = Math.max(
-      38,
-      Math.min(58, (rightLane.height - pad * 2 - energyHeight - gap - gap * Math.max(0, mainPlants.length - 1)) / Math.max(1, mainPlants.length)),
+    const layout = getMobileSideBarLayout();
+    const bounds = layout.bounds;
+    const cardSection = layout.cardSection;
+    const pad = layout.padding;
+    const gap = Math.max(3, Math.round(layout.laneGap));
+    const itemGap = Math.max(3, Math.round(cardSection.height * 0.018));
+    const rowCount = Math.max(2, Math.ceil((this.scene.params.plants.length + 2) / 3));
+    const itemHeight = Math.max(
+      28,
+      Math.min(58, (cardSection.height - pad * 2 - itemGap * Math.max(0, rowCount - 1)) / rowCount),
     );
+    const energyHeight = itemHeight;
+    const lanes = [0, 1, 2].map((lane) => bounds.x + pad + lane * (layout.laneWidth + gap));
+    const sectionTop = bounds.y + cardSection.y + pad;
+    const sectionBottom = bounds.y + cardSection.y + cardSection.height - pad;
+
+    const laneGraphics = this.scene.add.graphics().setDepth(UI_CHROME_DEPTH + 1);
+    laneGraphics.lineStyle(1, 0x111111, 0.55);
+    laneGraphics.lineBetween(lanes[1] - gap / 2, bounds.y + cardSection.y + 4, lanes[1] - gap / 2, bounds.y + cardSection.y + cardSection.height - 4);
+    laneGraphics.lineBetween(lanes[2] - gap / 2, bounds.y + cardSection.y + 4, lanes[2] - gap / 2, bounds.y + cardSection.y + cardSection.height - 4);
+    this.panels.push(laneGraphics);
 
     this.energyPanel = new EnergyPanelView(
       this.scene,
-      rightLane.x,
-      rightLane.y,
-      rightCardWidth,
+      lanes[2],
+      sectionTop,
+      layout.laneWidth,
       energyHeight,
       true,
     );
 
-    let rightY = rightLane.y + energyHeight + gap;
-    for (const plant of mainPlants) {
-      const model = PlantLibrary.GetModel(plant.pid);
-      if (!model) {
-        continue;
+    const slots: ItemSlot[] = [];
+    for (let row = 0; row < rowCount; row += 1) {
+      const y = sectionTop + row * (itemHeight + itemGap);
+      if (y + itemHeight > sectionBottom + 1) {
+        break;
       }
-      this.cards.push(new PlantCardView({
-        scene: this.scene,
-        x: rightLane.x,
-        y: rightY,
-        width: rightCardWidth,
-        height: rightCardHeight,
-        plantModel: model,
-        level: plant.level,
-        orientation: "mobile",
-        disableWhenExpensive: true,
-      }));
-      rightY += rightCardHeight + gap;
+
+      slots.push({ x: lanes[0], y, width: layout.laneWidth, height: itemHeight });
+      slots.push({ x: lanes[1], y, width: layout.laneWidth, height: itemHeight });
+      if (row > 0) {
+        slots.push({ x: lanes[2], y, width: layout.laneWidth, height: itemHeight });
+      }
     }
 
-    const leftCardWidth = leftLane.width;
-    const leftItemCount = Math.max(1, extraPlants.length + 1);
-    const leftCardHeight = Math.max(
-      38,
-      Math.min(58, (leftLane.height - pad * 2 - gap * Math.max(0, leftItemCount - 1)) / leftItemCount),
-    );
-    let leftY = leftLane.y;
-
-    this.pickaxe = new ToolButtonView(
-      this.scene,
-      leftLane.x,
-      leftY,
-      leftCardWidth,
-      leftCardHeight,
-      "text",
-    );
-    leftY += leftCardHeight + gap;
-
-    for (const plant of extraPlants) {
+    const pickaxeSlot = [...slots].reverse().find((slot) => slot.x === lanes[0]);
+    const plants = this.scene.params.plants;
+    const plantSlots = slots.filter((slot) => slot !== pickaxeSlot);
+    plants.forEach((plant, index) => {
+      const slot = plantSlots[index];
+      if (!slot) {
+        return;
+      }
       const model = PlantLibrary.GetModel(plant.pid);
       if (!model) {
-        continue;
+        return;
       }
       this.cards.push(new PlantCardView({
         scene: this.scene,
-        x: leftLane.x,
-        y: leftY,
-        width: leftCardWidth,
-        height: leftCardHeight,
+        x: slot.x,
+        y: slot.y,
+        width: slot.width,
+        height: slot.height,
         plantModel: model,
         level: plant.level,
         orientation: "mobile",
         disableWhenExpensive: true,
       }));
-      leftY += leftCardHeight + gap;
+    });
+
+    if (pickaxeSlot) {
+      this.pickaxe = new ToolButtonView(
+        this.scene,
+        pickaxeSlot.x,
+        pickaxeSlot.y,
+        pickaxeSlot.width,
+        pickaxeSlot.height,
+        "image",
+      );
     }
 
     this.updateEnergy(ResourceManager.Instance.getDisplayEnergy("mine"));

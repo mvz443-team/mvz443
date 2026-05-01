@@ -165,6 +165,7 @@ const zhCN = {
     "continue": "继续游戏",
     "exit": "退出游戏",
     "speed": "速度 {{speed}}x",
+    "speedUp": "游戏加速",
     "waiting": "等待中...",
     "bigWave": "一大波怪物即将登场",
     "debugHint": "按 {{key}} 切换 Rapier 调试",
