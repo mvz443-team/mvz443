@@ -2,9 +2,10 @@
 import React, { useRef } from 'react';
 import { item, IGoods } from './types';
 import { GameProgress, useSaveManager } from '../../context/save_ctx';
-import { DetailGoods, InitDetail, InventoryView, PurchasedDetailGoods, SidebarGoods } from './widget';
 import NewGoodLists from './goods';
 import { useSetState, useMount, useMemoizedFn } from 'ahooks';
+import { ShopDetail, ShopList } from './shop_tab';
+import { BackpackDetail, BackpackList, useBackpackSelection } from './backpack_tab';
 
 interface ShopSelectorProps {
     width: number;
@@ -105,11 +106,8 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
         });
     });
 
-    // 计算当前选中的商品
-    const selectedGood = React.useMemo(() => {
-        if (state.selectedGoodId === null) return null;
-        return goodsList.find(g => g.id === state.selectedGoodId);
-    }, [goodsList, state.selectedGoodId]);
+    const currentItems = getCurrentItems();
+    const backpackSelection = useBackpackSelection(currentItems);
 
     return (
         <div style={{
@@ -122,178 +120,143 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
             boxShadow: "0 0 15px rgba(0, 0, 0, 0.5)",
             animation: "frameFadeIn 0.5s ease-out",
             whiteSpace: "pre-wrap",
-            display: "flex",
-            flexDirection: "column"
+            display: "flex"
         }}>
             <div style={{
-                height: "52px",
-                minHeight: "52px",
-                borderBottom: "1px solid #444",
-                padding: "10px",
+                width: "40%",
+                minWidth: "320px",
+                maxWidth: "520px",
+                height: "100%",
                 display: "flex",
-                alignItems: "center",
-                gap: "12px"
+                flexDirection: "column",
+                borderRight: "1px solid #444",
+                minHeight: 0
             }}>
-                <button
-                    onClick={onBack}
-                    style={{
-                        padding: "6px 10px",
-                        background: "#444",
-                        border: "none",
-                        color: "#fff",
-                        cursor: "pointer",
-                        borderRadius: "4px",
-                        fontSize: "14px"
-                    }}
-                >
-                    Back
-                </button>
+                <div style={{
+                    height: "58px",
+                    minHeight: "58px",
+                    borderBottom: "1px solid #444",
+                    padding: "10px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px"
+                }}>
+                    <button
+                        onClick={onBack}
+                        style={{
+                            padding: "6px 10px",
+                            background: "#444",
+                            border: "none",
+                            color: "#fff",
+                            cursor: "pointer",
+                            borderRadius: "4px",
+                            fontSize: "14px",
+                            flex: "0 0 auto"
+                        }}
+                    >
+                        Back
+                    </button>
 
-                <button
-                    onClick={() => {
-                        setState(prevState => ({
-                            showInventory: !prevState.showInventory,
-                            selectedGoodId: null
-                        }));
-                    }}
-                    style={{
-                        padding: "6px 10px",
-                        backgroundColor: state.showInventory ? "#72B063" : "#719AAC",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "4px",
-                        fontSize: "14px",
-                        cursor: "pointer"
-                    }}
-                >
-                    {state.showInventory ? "回到商店" : "显示背包"}
-                </button>
+                    <button
+                        onClick={() => {
+                            setState(prevState => ({
+                                showInventory: !prevState.showInventory,
+                                selectedGoodId: null
+                            }));
+                        }}
+                        style={{
+                            padding: "6px 10px",
+                            backgroundColor: state.showInventory ? "#72B063" : "#719AAC",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "4px",
+                            fontSize: "14px",
+                            cursor: "pointer",
+                            flex: "0 0 auto"
+                        }}
+                    >
+                        {state.showInventory ? "回到商店" : "显示背包"}
+                    </button>
 
-                <div
-                    onClick={() => {
-                        setState({ selectedGoodId: null });
-                    }}
-                    style={{
-                        marginLeft: "auto",
-                        display: "flex",
-                        justifyContent: "center",
-                        alignItems: "center",
-                        backgroundColor: "#444",
-                        color: "#fff",
-                        borderRadius: "4px",
-                        padding: "6px 12px",
-                        fontSize: "14px",
-                        minWidth: "96px",
-                        cursor: "pointer"
-                    }}
-                >
-                    <span style={{
-                        color: "#ffd700",
-                        fontSize: "16px",
-                        fontWeight: "bold",
-                    }}>
-                        {getGoldAmount()}$
-                    </span>
+                    <div
+                        onClick={() => {
+                            setState({ selectedGoodId: null });
+                        }}
+                        style={{
+                            marginLeft: "auto",
+                            display: "flex",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            backgroundColor: "#444",
+                            color: "#fff",
+                            borderRadius: "4px",
+                            padding: "6px 12px",
+                            fontSize: "14px",
+                            minWidth: "96px",
+                            cursor: "pointer",
+                            flex: "0 0 auto"
+                        }}
+                    >
+                        <span style={{
+                            color: "#ffd700",
+                            fontSize: "16px",
+                            fontWeight: "bold",
+                        }}>
+                            {getGoldAmount()}$
+                        </span>
+                    </div>
+                </div>
+                <div style={{
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: "hidden"
+                }}>
+                    {state.showInventory ? (
+                        <BackpackList
+                            myItems={currentItems}
+                            selectedType={backpackSelection.selectedType}
+                            selectedItem={backpackSelection.selectedItem}
+                            onSelectType={backpackSelection.setSelectedType}
+                        />
+                    ) : (
+                        <ShopList
+                            goodsList={goodsList}
+                            selectedGoodId={state.selectedGoodId}
+                            priceFlashGoodId={state.priceFlashGoodId}
+                            progress={gameManager.currentProgress}
+                            onGoodSelect={handleGoodSelect}
+                        />
+                    )}
                 </div>
             </div>
 
-            {state.showInventory ? (
-                <div style={{
+            <div
+                style={{
                     flex: 1,
-                    minHeight: 0,
-                    padding: "18px 20px",
-                    overflow: "hidden"
-                }}>
-                    <InventoryView myItems={getCurrentItems()} />
-                </div>
-            ) : (
-                <div style={{
-                    flex: 1,
-                    minHeight: 0,
-                    display: "flex"
-                    }}>
-                    <div style={{
-                        width: "40%",
-                        minWidth: "300px",
-                        height: "100%",
-                        borderRight: "1px solid #444",
-                        overflowY: "auto",
-                        padding: "10px",
-                        display: "grid",
-                        gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-                        alignContent: "start",
-                        gap: "8px",
-                        scrollbarWidth: 'thin',
-                        scrollbarColor: '#888 #333',
-                    }}>
-                        {goodsList.length === 0 ? (
-                            <div style={{
-                                gridColumn: "1 / -1",
-                                padding: "20px",
-                                textAlign: "center",
-                                color: "#888",
-                                fontSize: "14px"
-                            }}>
-                                道具列表为空
-                            </div>
-                        ) : (
-                            goodsList.map(good => {
-                                const hasBought = good.hasBought(good.id, gameManager.currentProgress);
-                                return (
-                                    <div key={good.id}>
-                                        <SidebarGoods
-                                            good={good}
-                                            hasBought={hasBought}
-                                            priceFlash={state.priceFlashGoodId === good.id}
-                                            isChosen={(key: number) => key === state.selectedGoodId}
-                                            handleClick={(key: number) => handleGoodSelect(key)}
-                                        />
-                                    </div>
-                                );
-                            })
-                        )}
-                    </div>
-
-                    <div
-                        style={{
-                            flex: 1,
-                            height: "100%",
-                            padding: "20px",
-                            overflowY: "auto",
-                            overflowX: "hidden",
-                            scrollbarWidth: 'thin',
-                            scrollbarColor: '#888 #333',
-                        }}
-                    >
-                        <div
-                            key={state.selectedGoodId ?? "inventory-preview"}
-                            className="detail-switch"
-                            style={{
-                                width: "100%",
-                                minHeight: "100%"
-                            }}
-                        >
-                            {state.selectedGoodId === null ? (
-                                <InitDetail myItems={getCurrentItems()} />
-                            ) : selectedGood ? (
-                                selectedGood.hasBought(selectedGood.id, gameManager.currentProgress) ? (
-                                    <PurchasedDetailGoods {...selectedGood} />
-                                ) : (
-                                    <DetailGoods
-                                        good={selectedGood}
-                                        canAfford={couldAfford(selectedGood)}
-                                        canPurchase={canPurchase(gameManager.currentProgress, selectedGood)}
-                                        hasBought={selectedGood.hasBought(selectedGood.id, gameManager.currentProgress)}
-                                        priceItems={selectedGood.getPriceStructure().items}
-                                        myItems={getCurrentItems()}
-                                        handlePurchase={handlePurchase}
-                                    />
-                                )
-                            ) : null}
-                        </div>
-                    </div>
-                </div>
-            )}
+                    height: "100%",
+                    minWidth: 0,
+                    padding: "20px",
+                    boxSizing: "border-box",
+                    overflowY: state.showInventory ? "hidden" : "auto",
+                    overflowX: "hidden",
+                    scrollbarWidth: "thin",
+                    scrollbarColor: "#888 #333",
+                }}
+            >
+                {state.showInventory ? (
+                    <BackpackDetail selectedItem={backpackSelection.selectedItem} />
+                ) : (
+                    <ShopDetail
+                        goodsList={goodsList}
+                        selectedGoodId={state.selectedGoodId}
+                        progress={gameManager.currentProgress}
+                        myItems={currentItems}
+                        couldAfford={couldAfford}
+                        canPurchase={canPurchase}
+                        onPurchase={handlePurchase}
+                    />
+                )}
+            </div>
 
             <style>
                 {`

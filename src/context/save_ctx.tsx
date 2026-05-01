@@ -17,6 +17,12 @@ interface Item {
     count: number;
 }
 
+interface SerializedItem {
+    id: number;
+    count: number;
+    type?: number;
+}
+
 export interface GameProgress {
     id?: number; // Dexie 会自动管理主键
     level: Set<number>;
@@ -35,7 +41,7 @@ function serializeGameProgress(gameProgress: GameProgress): any {
         zombies: gameProgress.zombies,
         items: Array.from(gameProgress.items.entries()).map(([key, value]) => ({
             id: key,
-            ...value
+            count: value.count
         })),
         slotNum: gameProgress.slotNum,
         updatedAt: gameProgress.updatedAt
@@ -49,8 +55,8 @@ function deserializeGameProgress(data: any): GameProgress {
         level: new Set(data.level),
         plants: data.plants,
         zombies: data.zombies,
-        items: new Map(data.items.map((item: { id: number, type: number, count: number }) => 
-            [item.id, { type: item.type, count: item.count }]
+        items: new Map(data.items.map((item: SerializedItem) =>
+            [item.id, { type: item.type ?? item.id, count: item.count }]
         )),
         slotNum: data.slotNum,
         updatedAt: new Date(data.updatedAt)
