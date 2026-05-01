@@ -1,11 +1,11 @@
-import i18n, { translate } from "../../i18n";
-import { debounce } from "../../utils/debounce";
-import DepthUtils from "../../utils/depth";
-import { HasConnected } from "../../utils/net/sync";
-import { PhaserEventBus, PhaserEvents } from "../EventBus";
-import CombatManager from "../managers/CombatManager";
-import { PositionManager } from "../managers/view/PositionManager";
-import { Game } from "../scenes/Game";
+import i18n, { translate } from "../../../i18n";
+import { debounce } from "../../../utils/debounce";
+import DepthUtils from "../../../utils/depth";
+import { HasConnected } from "../../../utils/net/sync";
+import { PhaserEventBus, PhaserEvents } from "../../EventBus";
+import CombatManager from "../../managers/CombatManager";
+import { PositionManager } from "../../managers/view/PositionManager";
+import { Game } from "../../scenes/Game";
 import { PauseMenu } from "./PauseMenu";
 
 type InGameButtonState = {

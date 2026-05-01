@@ -7,7 +7,7 @@ import { PositionManager } from '../managers/view/PositionManager';
 import CursorManager from '../managers/combat/CursorManager';
 import PlantsManager from '../managers/combat/PlantsManager';
 import { GameParams, GameSettings } from '../models/GameParams';
-import CreateInnerMenu from '../utils/inner_menu';
+import CreateInnerMenu from '../ui/menu/inner_menu';
 import type { StageData } from '../../types/stage';
 import BackendWS from '../../utils/net/sync';
 import { translate } from '../../i18n';
@@ -697,5 +697,4 @@ export class Game extends Scene {
     });
   }
 }
-
 

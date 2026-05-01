@@ -1,10 +1,10 @@
-﻿import { translate } from "../../i18n";
-import DepthUtils from "../../utils/depth";
-import BackendWS from "../../utils/net/sync";
-import { PhaserEventBus, PhaserEvents } from "../EventBus";
-import CombatManager from "../managers/CombatManager";
-import SoundManager from "../managers/SoundManager";
-import { Game } from "../scenes/Game";
+﻿import { translate } from "../../../i18n";
+import DepthUtils from "../../../utils/depth";
+import BackendWS from "../../../utils/net/sync";
+import { PhaserEventBus, PhaserEvents } from "../../EventBus";
+import CombatManager from "../../managers/CombatManager";
+import SoundManager from "../../managers/SoundManager";
+import { Game } from "../../scenes/Game";
 
 type PauseMenuShowOptions = {
   bluePrintMode?: boolean;
@@ -15,6 +15,14 @@ type VolumeSlider = {
   setLabel: (label: string) => void;
   setValue: (value: number) => void;
   destroy: () => void;
+};
+
+type PauseMenuLayout = {
+  centerX: number;
+  startY: number;
+  menuWidth: number;
+  menuHeight: number;
+  titleY: number;
 };
 
 const clampVolume = (volume: number) => Math.max(0, Math.min(1, volume));
@@ -42,6 +50,30 @@ export class PauseMenu {
     this.createBluePrintPauseText();
   }
 
+  private getMenuLayout(): PauseMenuLayout {
+    const centerX = this.game.cameras.main.width / 2;
+    const startY = this.game.cameras.main.height * 0.15;
+    const isMobile = this.game.params.deviceType === "mobile";
+    const menuWidth = Math.min(this.game.scale.displaySize.width * 0.6, 400);
+    const menuHeightRatio = isMobile ? 0.8 : 0.6;
+    const maxMenuHeight = isMobile ? 480 : 360;
+    const bottomSafeArea = 16;
+    const availableMenuHeight = this.game.cameras.main.height - startY - bottomSafeArea;
+    const menuHeight = Math.min(
+      this.game.scale.displaySize.height * menuHeightRatio,
+      maxMenuHeight,
+      availableMenuHeight
+    );
+
+    return {
+      centerX,
+      startY,
+      menuWidth,
+      menuHeight,
+      titleY: startY + menuHeight * 0.2,
+    };
+  }
+
   private createMenu() {
     this.menuContainer = this.game.add.container(0, 0);
     this.menuContainer.setDepth(DepthUtils.getPauseMenuDepth());
@@ -52,20 +84,17 @@ export class PauseMenu {
     overlay.fillRect(0, 0, this.game.cameras.main.width, this.game.cameras.main.height);
     this.menuContainer.add(overlay);
 
-    const centerX = this.game.cameras.main.width / 2;
-    const startY = this.game.cameras.main.height * 0.15;
-    const menuWidth = Math.min(this.game.scale.displaySize.width * 0.6, 400);
-    const menuHeight = Math.min(this.game.scale.displaySize.height * 0.5, 300);
+    const { centerX, startY, menuWidth, menuHeight, titleY } = this.getMenuLayout();
 
     const buttonFontSize = Math.min(this.game.scale.displaySize.width / 25, 24);
     const buttonPaddingY = 10;
     const continueButtonHeightH = buttonFontSize + buttonPaddingY * 2;
     const exitButtonHeightH = continueButtonHeightH;
 
-    const continueButtonTopY = startY + menuHeight * 0.61;
-    const continueToExitButtonGap = menuHeight * 0.06;
-    const continueButtonBottomY = continueButtonTopY + continueButtonHeightH;
-    const exitButtonTopY = continueButtonBottomY + continueToExitButtonGap;
+    const buttonBottomPadding = Math.max(18, menuHeight * 0.08);
+    const continueToExitButtonGap = Math.max(10, menuHeight * 0.05);
+    const exitButtonCenterY = startY + menuHeight - buttonBottomPadding - exitButtonHeightH / 2;
+    const continueButtonCenterY = exitButtonCenterY - exitButtonHeightH / 2 - continueToExitButtonGap - continueButtonHeightH / 2;
 
     this.menuBackground = this.game.add.graphics();
     this.menuBackground.fillStyle(0x2c3e50, 0.95);
@@ -99,7 +128,7 @@ export class PauseMenu {
 
     this.pauseText = this.game.add.text(
       centerX,
-      startY + menuHeight * 0.2,
+      titleY,
       translate("game.paused"),
       {
         fontSize: `${Math.min(this.game.scale.displaySize.width / 18, 32)}px`,
@@ -115,7 +144,7 @@ export class PauseMenu {
 
     this.fullMenuEyeIcon = this.createEyeIcon(
       centerX + this.pauseText.width / 2 + 26,
-      startY + menuHeight * 0.2,
+      titleY,
       true,
       () => this.showBluePrintCompact()
     );
@@ -157,7 +186,7 @@ export class PauseMenu {
 
     this.createButton(
       centerX,
-      continueButtonTopY + continueButtonHeightH / 2,
+      continueButtonCenterY,
       translate("game.continue"),
       "#27ae60",
       "#2ecc71",
@@ -170,7 +199,7 @@ export class PauseMenu {
 
     this.createButton(
       centerX,
-      exitButtonTopY + exitButtonHeightH / 2,
+      exitButtonCenterY,
       translate("game.exit"),
       "#e74c3c",
       "#c0392b",
@@ -279,9 +308,11 @@ export class PauseMenu {
   }
 
   private createBluePrintPauseText() {
+    const { centerX, titleY } = this.getMenuLayout();
+
     this.bluePrintPauseText = this.game.add.text(
-      this.game.cameras.main.width / 2,
-      this.game.cameras.main.height * 0.18,
+      centerX,
+      titleY,
       translate("game.paused"),
       {
         fontSize: `${Math.min(this.game.scale.displaySize.width / 18, 30)}px`,
@@ -299,8 +330,8 @@ export class PauseMenu {
       .setShadow(2, 2, "#1f2937", 6);
 
     this.bluePrintEyeIcon = this.createEyeIcon(
-      this.game.cameras.main.width / 2 + this.bluePrintPauseText.width / 2 + 24,
-      this.game.cameras.main.height * 0.18,
+      centerX + this.bluePrintPauseText.width / 2 + 24,
+      titleY,
       false,
       () => this.showBluePrintFullMenu()
     );
