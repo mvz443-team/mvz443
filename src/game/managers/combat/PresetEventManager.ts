@@ -3,7 +3,7 @@ import { DispenserData } from "../../presets/plant/chapter1/dispenser";
 import { FurnaceData } from "../../presets/plant/chapter1/furnace";
 import type { Game } from "../../scenes/Game";
 import { PlantCmd } from "../../utils/cmd/PlantCmd";
-import { StageDataRecords } from "../../utils/loader";
+import { StageDataRecords } from "../library/ChapterLibrary";
 import { BaseManager } from "../BaseManager";
 import CombatManager from "../CombatManager";
 import { PositionManager } from "../view/PositionManager";

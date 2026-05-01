@@ -1,5 +1,17 @@
 {
     "comment": "1-3,mine passage,体验版",
+    "nameKey": "level_sg3",
+    "descriptionKey": "sg3",
+    "levelIntro": [
+        {
+            "type": "img",
+            "src": "img/sg3.png"
+        },
+        {
+            "type": "text",
+            "content": "sg3"
+        }
+    ],
     "rows": 5,
     "type": 1,
     "stageScript": {

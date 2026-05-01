@@ -5,7 +5,7 @@ import DocFrame from './components/DocFrame';
 import GlobalOnlineStateListener from './components/GlobalOnlineStateListener';
 import { useSettings } from './context/settings_ctx';
 import { GameParams } from './game/models/GameParams';
-import { StageResult } from './game/models/IRecord';
+import type { StageResult } from './types/stage';
 import GameResultView from './components/menu/result';
 import { useDeviceType } from './hooks/useDeviceType';
 import BackendWS from './utils/net/sync';
@@ -17,8 +17,6 @@ import {
   GAME_ASPECT_RATIO,
   getGameToolLayoutMetrics,
 } from './constants/gameLayout';
-
-initializeGameLibraries();
 
 interface GameMainWindowProps {
   width: number;
@@ -284,6 +282,8 @@ function getNonGameMainSize(
 }
 
 function App() {
+  const [librariesReady, setLibrariesReady] = useState(false);
+  const [librariesError, setLibrariesError] = useState<Error | null>(null);
   // State to control the visibility of the game tool
   const [showGameTool, setShowGameTool] = useState(false);
   const [showGameScreen, setShowGameScreen] = useState(false);
@@ -308,6 +308,27 @@ function App() {
   const forceLandscape = deviceType === 'mobile'
     && showGameScreen
     && viewportSize.height > viewportSize.width;
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    initializeGameLibraries()
+      .then(() => {
+        if (!isCancelled) {
+          setLibrariesReady(true);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to initialize game libraries:', error);
+        if (!isCancelled) {
+          setLibrariesError(error instanceof Error ? error : new Error(String(error)));
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   const gameStart = useCallback(() => {
     setShowGameScreen(true);
@@ -380,6 +401,23 @@ function App() {
       orientation?.unlock?.();
     };
   }, [deviceType, showGameScreen]);
+
+  if (!librariesReady) {
+    return (
+      <div id="app" style={{
+        width: "100vw",
+        height: "100dvh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#1a1a1a",
+        color: "#ddd",
+        fontFamily: "Arial, sans-serif",
+      }}>
+        {librariesError ? "Failed to load stage library" : "Loading..."}
+      </div>
+    );
+  }
 
   return (
     <Router>

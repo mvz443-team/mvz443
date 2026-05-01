@@ -1,6 +1,6 @@
 // src/components/ChapterSelector.tsx
 import React from 'react';
-import { ChapterDataRecords, StageDataRecords } from '../../../game/utils/loader';
+import { ChapterDataRecords, StageDataRecords } from '../../../game/managers/library/ChapterLibrary';
 import { useSaveManager } from '../../../context/save_ctx';
 import { useLocaleMessages } from '../../../hooks/useLocaleMessages';
 import { stageKey } from '../../../i18n/keys';

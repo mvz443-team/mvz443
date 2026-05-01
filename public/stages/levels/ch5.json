@@ -1,5 +1,17 @@
 {
     "comment": "1-5,water deep mine,体验版",
+    "nameKey": "level_sg5",
+    "descriptionKey": "sg5",
+    "levelIntro": [
+        {
+            "type": "img",
+            "src": "img/sg5.png"
+        },
+        {
+            "type": "text",
+            "content": "sg5"
+        }
+    ],
     "rows": 6,
     "type": 1,
     "stageScript": {

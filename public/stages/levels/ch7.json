@@ -1,9 +1,21 @@
 {
-    "comment": "1-8,deep mine water boss version,体验版",
-    "rows": 6,
+    "comment": "1-7,in mine boss version,体验版",
+    "nameKey": "level_sg7",
+    "descriptionKey": "sg7",
+    "levelIntro": [
+        {
+            "type": "img",
+            "src": "img/sg7.png"
+        },
+        {
+            "type": "text",
+            "content": "sg7"
+        }
+    ],
+    "rows": 5,
     "type": 1,
     "stageScript": {
-        "first_wave_id": 0,
+        "first_wave_id": 1,
         "total_waves": 36,
         "base_difficulty": 0,
         "difficulty_limit": 52,
@@ -11,55 +23,56 @@
         "phase2_end": 28,
         "dayOrNight": 2,
         "flagWaves": [ 10, 25, 35 ],
-        "waterWays": [ 2, 3 ],
+        "waterWays": [ 1, 2, 3 ],
         "AllowedMobs": [ 1, 2, 3, 8, 5, 7, 9, 11, 14, 15, 16 ],
         "globalRatio": [ [ 0, 1.0 ], [ 21, 2 ] ],
-        "bossInsert": [ [ 35, 13 ] ]
+        "bossInsert": [ [ 35, 12 ] ]
     },
     "onWin": {
-        "unLock": [ ],
+        "unLock": [ 8 ],
         "unLockPlant": [ 13 ]
     },
-    "energy": 100,
+    "energy": 50,
     "rewards": [
         {
             "progress": 75,
             "reward": {
                 "type": 1,
-                "count": 110
+                "count": 100
             }
         },
         {
             "progress": 90,
             "reward": {
                 "type": 2,
-                "count": 2
+                "count": 3
             }
         },
         {
             "progress": 90,
             "reward": {
                 "type": 3,
-                "count": 3
+                "count": 2
             }
         },
         {
             "progress": 100,
             "reward": {
                 "type": 1,
-                "count": 160
+                "count": 140
             }
         },
         {
             "progress": 100,
             "reward": {
-                "type": 5,
+                "type": 4,
                 "count": 2
             }
         }
     ],
     "load": {
-        "bgimg": [ "bg/bgDeepMineWater.png" ],
-        "bgm": [ "audio/OLJA-0021-08.ogg", "audio/ZCDS-0014-05.ogg" ]
+        "bgimg": [ "bg/bgInnerMine.png" ],
+        "bgm": [ "audio/ARCD-0036-09.ogg", "audio/ZCDS-0014-05.ogg" ],
+        "plants": [ 1, 2 ]
     }
 }

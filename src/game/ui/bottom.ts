@@ -9,7 +9,7 @@ import PlantsManager from "../managers/combat/PlantsManager";
 import ResourceManager from "../managers/combat/ResourceManager";
 import { PositionManager } from "../managers/view/PositionManager";
 import type { Game } from "../scenes/Game";
-import { StageDataRecords } from "../utils/loader";
+import { StageDataRecords } from "../managers/library/ChapterLibrary";
 import { UI_CHROME_DEPTH } from "./cardslots";
 
 const BAR_BG = 0x333333;

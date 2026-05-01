@@ -1,6 +1,6 @@
 import { Game } from "../scenes/Game";
 import { GameParams } from "../models/GameParams";
-import { StageData } from "../models/IRecord";
+import type { StageData } from "../../types/stage";
 import { PhaserEventBus, PhaserEvents } from "../EventBus";
 import { BaseManager } from "./BaseManager";
 import { EventBus } from "../../utils/eventBus";

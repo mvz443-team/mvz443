@@ -4,7 +4,7 @@ import {
   PhaserEventBus,
   PhaserEvents,
 } from "../../game/EventBus";
-import { StageDataRecords } from "../../game/utils/loader";
+import { StageDataRecords } from "../../game/managers/library/ChapterLibrary";
 import { publicUrl } from "../../utils/browser";
 import { useSaveManager } from "../../context/save_ctx";
 import BackendWS from "../../utils/net/sync";

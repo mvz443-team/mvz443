@@ -1,11 +1,14 @@
 // src/components/StageSelector.tsx
-import React from 'react';
-import { ChapterDataRecords, StageDataRecords } from '../../../game/utils/loader';
+import React, { useEffect } from 'react';
+import { ChapterDataRecords, StageDataRecords } from '../../../game/managers/library/ChapterLibrary';
 import { useSaveManager } from '../../../context/save_ctx';
 import { publicUrl } from '../../../utils/browser';
+import { useSettings } from '../../../context/settings_ctx';
 import { useLocaleMessages } from '../../../hooks/useLocaleMessages';
 import { stageKey } from '../../../i18n/keys';
 import { useSetState, useLocalStorageState, useMount, useMemoizedFn } from 'ahooks';
+import type { StageData } from '../../../types/stage';
+import type { LevelIntroItem } from '../../../types/drama';
 
 interface StageSelectorProps {
     chapterId: number;
@@ -17,6 +20,8 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
     const [state, setState] = useSetState({
         selectedStage: null as number | null,
         stagesIds: [] as number[],
+        levelIntro: [] as LevelIntroItem[],
+        isIntroLoading: false,
     });
 
     // 使用 useLocalStorageState 保存用户选择的关卡
@@ -28,6 +33,7 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
     });
 
     const saveManager = useSaveManager();
+    const settings = useSettings();
     const { translate } = useLocaleMessages();
 
     // 计算可用关卡
@@ -62,6 +68,52 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
             lastChapterId: chapterId 
         });
     });
+
+    useEffect(() => {
+        if (!state.selectedStage) {
+            setState({ levelIntro: [], isIntroLoading: false });
+            return;
+        }
+
+        let isCancelled = false;
+        const stageRecord = StageDataRecords[state.selectedStage];
+        if (!stageRecord) {
+            setState({ levelIntro: [], isIntroLoading: false });
+            return;
+        }
+
+        const loadIntro = async () => {
+            setState({ isIntroLoading: true });
+            try {
+                const response = await fetch(`${publicUrl}/${stageRecord.dataPath}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to load stage intro: ${stageRecord.dataPath}`);
+                }
+                const stageData = await response.json() as Pick<StageData, 'levelIntro'>;
+                if (isCancelled) {
+                    return;
+                }
+                setState({
+                    levelIntro: stageData.levelIntro ?? [{ type: 'text', content: stageRecord.descriptionKey }],
+                    isIntroLoading: false,
+                });
+            } catch (error) {
+                console.warn(error);
+                if (!isCancelled) {
+                    setState({
+                        levelIntro: [{ type: 'text', content: stageRecord.descriptionKey }],
+                        isIntroLoading: false,
+                    });
+                }
+            }
+        };
+
+        void loadIntro();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [state.selectedStage]);
 
     const handleNext = useMemoizedFn(() => {
         if (state.selectedStage) {
@@ -147,15 +199,33 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
                 background: 'rgba(30, 30, 30, 0.9)',
                 scrollbarColor: '#666 #333',
             }}>
-                {state.selectedStage ? <img
-                    src={`${publicUrl}/assets/dramas/${StageDataRecords[state.selectedStage].illustration}`}
-                    style={{
-                        width: '100%',
-                        height: 'auto',
-                        marginBottom: '20px',
-                    }}
-                /> : null}
-                {state.selectedStage ? translate(stageKey(StageDataRecords[state.selectedStage].descriptionKey)) : translate('menu.level_choose_level_tip')}
+                {state.selectedStage ? (
+                    state.isIntroLoading ? translate('common.loading') : state.levelIntro.map((item, index) => {
+                        if (item.type === 'img') {
+                            if (!settings.showLevelIntroImages) {
+                                return null;
+                            }
+                            return (
+                                <img
+                                    key={`${item.src}-${index}`}
+                                    src={`${publicUrl}/assets/dramas/${item.src}`}
+                                    style={{
+                                        width: '100%',
+                                        height: 'auto',
+                                        marginBottom: '20px',
+                                    }}
+                                    draggable="false"
+                                />
+                            );
+                        }
+
+                        return (
+                            <div key={`${item.content}-${index}`} style={{ marginBottom: '16px' }}>
+                                {translate(stageKey(item.content))}
+                            </div>
+                        );
+                    })
+                ) : translate('menu.level_choose_level_tip')}
                 {/* 下一步按钮 */}
                 <br />
                 <button

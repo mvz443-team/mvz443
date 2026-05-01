@@ -1,6 +1,6 @@
 
 import seedrandom from "seedrandom";
-import { Wave } from "../../models/IRecord";
+import type { Wave } from "../../../types/stage";
 import GridManager from "./GridManager";
 import { PositionManager } from "../view/PositionManager";
 import { CombatEntity } from "../../models/core/CombatEntity";

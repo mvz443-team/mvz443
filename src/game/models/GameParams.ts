@@ -1,6 +1,9 @@
 // src/types/gameParams.ts
 
-import { StageResult } from "./IRecord";
+import type { StageResult } from "../../types/stage";
+import type { ChapterDescription, StageDescription } from "../../types/drama";
+
+export type { ChapterDescription, StageDescription } from "../../types/drama";
 
 export type PlantSelection = {
   pid: number;
@@ -27,19 +30,4 @@ export interface GameSettings {
   isSoundAudio: boolean;
   bgmVolume?: number;
   soundAudioVolume?: number;
-}
-
-export interface ChapterDescription {
-  id: number;
-  nameKey: string;
-  descriptionKey: string;
-  stages: Array<number>;
-}
-
-export interface StageDescription {
-  id: number;
-  chapterID: number;
-  nameKey: string;
-  descriptionKey: string;
-  illustration: string;
 }

@@ -4,7 +4,7 @@ import { GameParams } from '../../game/models/GameParams';
 import ChapterSelector from './level/ChapterSelector';
 import StageSelector from './level/StageSelector';
 import ParamsSelector from './level/ParamsSelector';
-import { StageDataRecords } from '../../game/utils/loader';
+import { StageDataRecords } from '../../game/managers/library/ChapterLibrary';
 import BackendWS from '../../utils/net/sync';
 import { OnlineStateManager } from '../../store/OnlineStateManager';
 import { SendChooseMap, SendLeaveChooseMap } from '../../utils/net/room';

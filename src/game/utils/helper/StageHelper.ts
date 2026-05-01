@@ -1,85 +1,8 @@
 import seedrandom from "seedrandom";
-import { Wave, Monster } from "../../models/IRecord";
+import type { Monster, StageScript, Wave } from "../../../types/stage";
 import { MonsterLibrary } from "../../managers/library/MonsterLibrary";
 
 namespace StageHelper {
-
-  // 外部传入的关卡脚本类
-  export class StageScript {
-
-    /**
-     * 第一波的波数索引(不影响结果waveId), 影响后续难度
-     */
-    first_wave_id: number = 0;
-
-    /**
-     * 不考虑boss情况下,实际生成的总波数数量,即wave[].length
-     */
-    total_waves: number = 40;
-
-    /**
-     * 基础难度
-     * 
-     * 所有的难度计算的最终值都会无条件加上这个值
-     */
-    base_difficulty: number = 0;
-
-    /**
-     * 最终波数达到的难度上限
-     * 
-     * 请参考 `tools/spawner/difficulty.csv`
-     * 
-     * 一般来说,40波难度上限为40
-     */
-    difficulty_limit: number = 40;
-
-    /**
-     * 早期阶段结束的波数索引（波 0 到 phase1_end - 1）
-     */
-    phase1_end: number = 12;
-
-    /**
-     * 中期阶段结束的波数索引（波 phase1_end 到 phase2_end - 1）
-     */
-    phase2_end: number = 30;
-
-    /**
-     * 1: 白天, 2: 晚上
-     */
-    dayOrNight: number = 2;
-
-    /**
-     * 定义 flag wave，提前准备时间较充足
-     */
-    flagWaves: number[] = [10, 25, 35];
-
-    /**
-     * 水之道，前几波不刷怪的路
-     */
-    waterWays: number[] = [1, 2, 3];
-
-    /**
-     * 允许刷怪的怪物ID
-     */
-    AllowedMobs: number[] = [1, 2, 3, 4, 8, 7, 5, 9, 11];
-
-    /**
-     * 全局倍率
-     */
-    globalRatio: [number, number][] = [[0, 1.0], [30, 1.3]];
-
-    /**
-     * 按照first_wave_id影响之后的重新编排波数序号之后插入boss的 序号和 boss mid
-     * 
-     * 该数组的长度 > 1时,最后一个为Boss,之前的为elite
-     * 
-     * 但注意,boss波结束后,游戏直接结束; elite结束,游戏继续
-     * 
-     * 例如first_wave_id = 4, total_waves = 30, 则bossInsert = [[12, 30]]
-     * 依然会在第30波(从0开始)进行插入,而不是第25波之后
-     */
-    bossInsert: [number, number][] = [[12, 15]];
-  }
 
   // 生成 elite wave
   function generateEliteWave(mid: number): Wave {

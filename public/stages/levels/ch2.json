@@ -1,5 +1,17 @@
 {
     "comment": "1-2,entry of mine,体验版",
+    "nameKey": "level_sg2",
+    "descriptionKey": "sg2",
+    "levelIntro": [
+        {
+            "type": "img",
+            "src": "img/sg2.png"
+        },
+        {
+            "type": "text",
+            "content": "sg2"
+        }
+    ],
     "rows": 5,
     "type": 1,
     "stageScript": {

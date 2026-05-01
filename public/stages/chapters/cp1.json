@@ -1,0 +1,36 @@
+[
+    {
+        "nameKey": "chapter_cp1",
+        "descriptionKey": "cp1",
+        "stages": [
+            {
+                "dataPath": "stages/levels/ch1.json"
+            },
+            {
+                "dataPath": "stages/levels/ch2.json"
+            },
+            {
+                "dataPath": "stages/levels/ch3.json"
+            },
+            {
+                "dataPath": "stages/levels/ch4.json"
+            },
+            {
+                "dataPath": "stages/levels/ch5.json"
+            },
+            {
+                "dataPath": "stages/levels/ch6.json"
+            },
+            {
+                "dataPath": "stages/levels/ch7.json"
+            },
+            {
+                "dataPath": "stages/levels/ch8.json"
+            },
+            {
+                "dataPath": "stages/levels/ch9.json"
+            }
+        ]
+    }
+
+]

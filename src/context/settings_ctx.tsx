@@ -22,6 +22,7 @@ interface GameSettings {
     isDebug: boolean;
     isBgm: boolean;
     isSoundAudio: boolean;
+    showLevelIntroImages: boolean;
     bgmVolume: number;
     soundAudioVolume: number;
     linkOptions: {
@@ -35,6 +36,7 @@ interface GameSettings {
     setIsDebug: (isDebug: boolean) => void;
     setIsBgm: (isBgm: boolean) => void;
     setIsSoundAudio: (isSoundAudio: boolean) => void;
+    setShowLevelIntroImages: (showLevelIntroImages: boolean) => void;
     setBgmVolume: (volume: number) => void;
     setSoundAudioVolume: (volume: number) => void;
     setLinkOptions: (baseUrl: string, key: string) => void;
@@ -56,6 +58,7 @@ export function SettingsProvider(props: Props) {
     const [language, setLanguage] = useState<Locale>(loadCookie('language', 'zh_CN'));
     const [isBluePrint, setIsBluePrintStatus] = useState<boolean>(loadCookie('isBluePrint', false));
     const [isDebug, setIsDebugStatus] = useState<boolean>(loadCookie('isDebug', false));
+    const [showLevelIntroImages, setShowLevelIntroImagesStatus] = useState<boolean>(loadCookie('showLevelIntroImages', true));
     const [bgmVolume, setBgmVolumeStatus] = useState<number>(loadCookie('bgmVolume', loadCookie('isBgm', true) ? 1 : 0));
     const [soundAudioVolume, setSoundAudioVolumeStatus] = useState<number>(loadCookie('soundAudioVolume', loadCookie('isSoundAudio', true) ? 1 : 0));
     const [linkOptions, setLinkOptionsStatus] = useState<{ baseUrl: string; key: string }>(
@@ -73,6 +76,13 @@ export function SettingsProvider(props: Props) {
         debounce((newVal) => {
             setIsDebugStatus(newVal);
             storeCookie('isDebug', newVal);
+        }, 50)(value);
+    };
+
+    const setShowLevelIntroImages = (value: boolean) => {
+        debounce((newVal) => {
+            setShowLevelIntroImagesStatus(newVal);
+            storeCookie('showLevelIntroImages', newVal);
         }, 50)(value);
     };
 
@@ -152,10 +162,11 @@ export function SettingsProvider(props: Props) {
             width,
             language,
             isBluePrint,
+            showLevelIntroImages,
             bgmVolume,
             soundAudioVolume
         });
-    }, [isFullScreen, width, language, isBluePrint, bgmVolume, soundAudioVolume]);
+    }, [isFullScreen, width, language, isBluePrint, showLevelIntroImages, bgmVolume, soundAudioVolume]);
 
     const importFromJson = (jsonString: string) => {
         const data = JSON.parse(jsonString);
@@ -164,6 +175,10 @@ export function SettingsProvider(props: Props) {
         setLanguage(data.language);
         changeLocale(data.language);
         setIsBluePrintStatus(data.isBluePrint);
+        if (typeof data.showLevelIntroImages === 'boolean') {
+            setShowLevelIntroImagesStatus(data.showLevelIntroImages);
+            storeCookie('showLevelIntroImages', data.showLevelIntroImages);
+        }
         if (typeof data.bgmVolume === 'number') {
             setBgmVolumeStatus(clampVolume(data.bgmVolume));
         }
@@ -180,6 +195,7 @@ export function SettingsProvider(props: Props) {
         changeLocale(storedLanguage);
         setIsBluePrintStatus(loadCookie('isBluePrint', false));
         setIsDebugStatus(loadCookie('isDebug', false));
+        setShowLevelIntroImagesStatus(loadCookie('showLevelIntroImages', true));
         setBgmVolumeStatus(loadCookie('bgmVolume', loadCookie('isBgm', true) ? 1 : 0));
         setSoundAudioVolumeStatus(loadCookie('soundAudioVolume', loadCookie('isSoundAudio', true) ? 1 : 0));
         setLinkOptionsStatus(loadCookie('linkOptions', { baseUrl: '', key: '' }));
@@ -193,6 +209,7 @@ export function SettingsProvider(props: Props) {
         isDebug,
         isBgm: bgmVolume > 0,
         isSoundAudio: soundAudioVolume > 0,
+        showLevelIntroImages,
         bgmVolume,
         soundAudioVolume,
         linkOptions,
@@ -203,6 +220,7 @@ export function SettingsProvider(props: Props) {
         setIsDebug,
         setIsBgm,
         setIsSoundAudio,
+        setShowLevelIntroImages,
         setBgmVolume,
         setSoundAudioVolume,
         setLinkOptions,

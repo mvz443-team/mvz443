@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useCreation, useMount } from 'ahooks';
 import { useSaveManager } from '../../context/save_ctx';
-import { OnWin, ProgressReward } from '../../game/models/IRecord';
-import { ChapterDataRecords, StageDataRecords } from '../../game/utils/loader';
+import type { OnWin, ProgressReward } from '../../types/stage';
+import { ChapterDataRecords, StageDataRecords } from '../../game/managers/library/ChapterLibrary';
 import Stuff from '../../constants/stuffs';
 import { useLocaleMessages } from '../../hooks/useLocaleMessages';
 import { cardKey, commonKey, stageKey } from '../../i18n/keys';

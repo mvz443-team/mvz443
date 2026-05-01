@@ -8,7 +8,7 @@ import CursorManager from '../managers/combat/CursorManager';
 import PlantsManager from '../managers/combat/PlantsManager';
 import { GameParams, GameSettings } from '../models/GameParams';
 import CreateInnerMenu from '../utils/inner_menu';
-import { StageData } from '../models/IRecord';
+import type { StageData } from '../../types/stage';
 import BackendWS from '../../utils/net/sync';
 import { translate } from '../../i18n';
 import DepthUtils from '../../utils/depth';

@@ -2,7 +2,7 @@
 import React, { useEffect } from 'react';
 import { GameParams } from '../../../game/models/GameParams';
 import { useSaveManager } from '../../../context/save_ctx';
-import { StageDataRecords } from '../../../game/utils/loader';
+import { StageDataRecords } from '../../../game/managers/library/ChapterLibrary';
 import { publicUrl } from '../../../utils/browser';
 import { useSettings } from '../../../context/settings_ctx';
 import { useLocaleMessages } from '../../../hooks/useLocaleMessages';
@@ -16,7 +16,7 @@ import { PlantLibrary } from '../../../game/managers/library/PlantLibrary';
 import BackendWS from '../../../utils/net/sync';
 import { Request, RequestChooseMap, RequestReady } from '../../../pb/request';
 import { SendReady } from '../../../utils/net/room';
-import type { StageData } from '../../../game/models/IRecord';
+import type { StageData } from '../../../types/stage';
 
 interface ParamsSelectorProps {
   chapterId: number;
@@ -86,7 +86,11 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
 
   const loadStageRows = useMemoizedFn(async () => {
     try {
-      const response = await fetch(`${publicUrl}/stages/ch${stageId}.json`);
+      const stageRecord = StageDataRecords[stageId];
+      if (!stageRecord) {
+        return undefined;
+      }
+      const response = await fetch(`${publicUrl}/${stageRecord.dataPath}`);
       if (!response.ok) {
         return undefined;
       }

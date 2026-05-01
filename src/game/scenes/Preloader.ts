@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { GameParams } from '../models/GameParams';
-import { preloadData, StageData } from '../models/IRecord';
+import type { PreloadData, StageData } from '../../types/stage';
+import { StageDataRecords } from '../managers/library/ChapterLibrary';
 import { PlantLibrary } from '../managers/library/PlantLibrary';
 import {
   getLevelBadgeAssetPath,
@@ -218,9 +219,14 @@ export class Preloader extends Scene {
   // 加载指定关卡
   loadStage(params: GameParams) {
     const stageId = params.level;
+    const stageRecord = StageDataRecords[stageId];
     console.log(`Loading stage ${stageId}`);
+    if (!stageRecord) {
+      console.error(`[Preloader] Stage ${stageId} is not registered.`);
+      return;
+    }
     // 1. 加载关卡数据
-    this.load.json(`ch${stageId}`, `../stages/ch${stageId}.json`);
+    this.load.json(`ch${stageId}`, `../${stageRecord.dataPath}`);
     this.load.once(`filecomplete-json-ch${stageId}`, (key: string, type: any, data: StageData) => {
       // 关卡特定加载
       this.loadStageSpecified(data.load, params);
@@ -242,7 +248,7 @@ export class Preloader extends Scene {
     );
   }
 
-  loadStageSpecified(preloadData: preloadData, params: GameParams) {
+  loadStageSpecified(preloadData: PreloadData, params: GameParams) {
     // 加载关卡地图 & bgm
     this.load.image('bgimg', preloadData.bgimg[0]);
     this.load.audio('bgm', preloadData.bgm[0]);

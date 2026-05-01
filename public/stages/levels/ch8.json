@@ -1,24 +1,36 @@
 {
-    "comment": "1-9, final stage, Centipede boss",
+    "comment": "1-8,deep mine water boss version,体验版",
+    "nameKey": "level_sg8",
+    "descriptionKey": "sg8",
+    "levelIntro": [
+        {
+            "type": "img",
+            "src": "img/sg8.png"
+        },
+        {
+            "type": "text",
+            "content": "sg8"
+        }
+    ],
     "rows": 6,
     "type": 1,
     "stageScript": {
         "first_wave_id": 0,
         "total_waves": 36,
         "base_difficulty": 0,
-        "difficulty_limit": 56,
+        "difficulty_limit": 52,
         "phase1_end": 11,
         "phase2_end": 28,
         "dayOrNight": 2,
         "flagWaves": [ 10, 25, 35 ],
-        "waterWays": [ ],
+        "waterWays": [ 2, 3 ],
         "AllowedMobs": [ 1, 2, 3, 8, 5, 7, 9, 11, 14, 15, 16 ],
         "globalRatio": [ [ 0, 1.0 ], [ 21, 2 ] ],
-        "bossInsert": [ [ 20, 12 ], [ 25, 13 ], [ 35, 17 ] ]
+        "bossInsert": [ [ 35, 13 ] ]
     },
     "onWin": {
         "unLock": [ ],
-        "unLockPlant": [ ]
+        "unLockPlant": [ 13 ]
     },
     "energy": 100,
     "rewards": [
@@ -26,14 +38,14 @@
             "progress": 75,
             "reward": {
                 "type": 1,
-                "count": 120
+                "count": 110
             }
         },
         {
             "progress": 90,
             "reward": {
                 "type": 2,
-                "count": 3
+                "count": 2
             }
         },
         {
@@ -47,19 +59,19 @@
             "progress": 100,
             "reward": {
                 "type": 1,
-                "count": 200
+                "count": 160
             }
         },
         {
             "progress": 100,
             "reward": {
                 "type": 5,
-                "count": 3
+                "count": 2
             }
         }
     ],
     "load": {
-        "bgimg": [ "bg/bgDeepMine.png" ],
+        "bgimg": [ "bg/bgDeepMineWater.png" ],
         "bgm": [ "audio/OLJA-0021-08.ogg", "audio/ZCDS-0014-05.ogg" ]
     }
 }

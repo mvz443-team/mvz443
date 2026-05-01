@@ -258,6 +258,16 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
                         }
                     },
                     {
+                        titleKey: "menu.settings_gaming_level_intro_images",
+                        descriptionKey: "menu.settings_gaming_level_intro_images_t",
+                        controlType: "switcher",
+                        controlProps: {
+                            value: settingManager.showLevelIntroImages, onToggle: (val) => {
+                                debounce((newVal) => settingManager.setShowLevelIntroImages(newVal), 50)(val);
+                            }
+                        }
+                    },
+                    {
                         titleKey: "menu.settings_gaming_background_music",
                         descriptionKey: "menu.settings_gaming_background_music_t",
                         controlType: "slider",

@@ -5,7 +5,7 @@ import {
   PhaserEvents,
 } from './EventBus';
 import { GameParams } from './models/GameParams';
-import { StageResult } from './models/IRecord';
+import type { StageResult } from '../types/stage';
 import { LOGICAL_BATTLE_HEIGHT, LOGICAL_BATTLE_WIDTH } from '../constants/gameLayout';
 
 export interface IRefPhaserGame {

@@ -1,5 +1,17 @@
 {
     "comment": "1-6, Rainbow dragon Cave,体验版",
+    "nameKey": "level_sg6",
+    "descriptionKey": "sg6",
+    "levelIntro": [
+        {
+            "type": "img",
+            "src": "img/sg6.png"
+        },
+        {
+            "type": "text",
+            "content": "sg6"
+        }
+    ],
     "rows": 6,
     "type": 1,
     "stageScript": {
