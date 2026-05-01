@@ -33,6 +33,8 @@ import ConsoleCmd from '../utils/ConsoleCmd';
 import { SendLoaded } from '../../utils/net/room';
 import {
   BATTLE_GRID_CELL_HEIGHT,
+  BATTLE_GRID_CELL_WIDTH,
+  BATTLE_GRID_LEFT_CART_MARGIN_RATIO,
   BATTLE_GRID_COLS,
   LOGICAL_BATTLE_HEIGHT,
   LOGICAL_BATTLE_WIDTH,
@@ -497,11 +499,7 @@ export class Game extends Scene {
     const gridBounds = PositionManager.Instance.getGridBounds();
     const cameraView = deviceType === "mobile"
       ? this.getMobileBattleCameraView(viewport, gridBounds)
-      : {
-        zoom: 1,
-        scrollX: 0,
-        scrollY: 0,
-      };
+      : this.getDesktopBattleCameraView(viewport);
 
     this.battleCamera = this.cameras.main;
     this.battleCamera.setName("battle");
@@ -525,16 +523,59 @@ export class Game extends Scene {
   }
 
   private getMobileBattleCameraView(viewport: Phaser.Geom.Rectangle | { width: number; height: number }, gridBounds: { x: number; y: number; width: number; height: number }) {
-    const plantableLeft = gridBounds.x;
-    const bottomOverscan = BATTLE_GRID_CELL_HEIGHT * MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO;
-    const targetHeight = gridBounds.height + bottomOverscan;
-    const paddingX = 0;
-    const zoom = viewport.height / targetHeight;
+    const rowCount = PositionManager.Instance.getRowCount();
+    const rowTuning = this.getMobileCameraRowTuning(rowCount);
+    const leftCartMargin = BATTLE_GRID_CELL_WIDTH * BATTLE_GRID_LEFT_CART_MARGIN_RATIO;
+    const topCrop = BATTLE_GRID_CELL_HEIGHT * rowTuning.topCropRows;
+    const bottomOverscanRatio = Math.max(
+      MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO,
+      rowTuning.bottomOverscanRows,
+    );
+    const bottomOverscan = BATTLE_GRID_CELL_HEIGHT * bottomOverscanRatio;
+    const targetHeight = gridBounds.height - topCrop + bottomOverscan;
+    const zoom = viewport.height / targetHeight * rowTuning.zoomScale;
 
     return {
       zoom,
-      scrollX: plantableLeft - paddingX,
-      scrollY: gridBounds.y,
+      scrollX: gridBounds.x - leftCartMargin,
+      scrollY: gridBounds.y + topCrop,
+    };
+  }
+
+  /**
+  根据行数返回移动端摄像机的调优参数。
+  返回对象字段含义：
+  topCropRows: 从网格顶部裁剪的“行数”（可为小数）。实际顶部裁剪像素 = topCropRows * BATTLE_GRID_CELL_HEIGHT。
+  bottomOverscanRows: 底部的超出/外溢“行数”（可为小数）。函数内部会与常量 MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO 取最大值，再乘以 BATTLE_GRID_CELL_HEIGHT 得到底部像素超出量。
+  zoomScale: 额外的缩放系数，作用于基于视口与目标高度计算出的 zoom（>1 表示放大，<1 表示缩小，1 表示不变）。
+*/
+  private getMobileCameraRowTuning(rowCount: number): { topCropRows: number; bottomOverscanRows: number; zoomScale: number } {
+    if (rowCount >= 7) {
+      return { topCropRows: 1.14, bottomOverscanRows: 0.55, zoomScale: 0.90 };
+    }
+    if (rowCount >= 6) {
+      return { topCropRows: 0.58, bottomOverscanRows: 0.55, zoomScale: 0.95 };
+    }
+    if (rowCount >= 5) {
+      return { topCropRows: 0.1, bottomOverscanRows: 0.1, zoomScale: 0.97 };
+    }
+    return { topCropRows: -0.5, bottomOverscanRows: 0.5, zoomScale: 0.95 };
+
+    // return { topCropRows: 0, bottomOverscanRows: MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO, zoomScale: 1 };
+  }
+
+  private getDesktopBattleCameraView(viewport: Phaser.Geom.Rectangle | { width: number; height: number }) {
+    const zoom = Math.min(
+      viewport.width / LOGICAL_BATTLE_WIDTH,
+      viewport.height / LOGICAL_BATTLE_HEIGHT,
+    );
+    const visibleWidth = viewport.width / zoom;
+    const visibleHeight = viewport.height / zoom;
+
+    return {
+      zoom,
+      scrollX: (LOGICAL_BATTLE_WIDTH - visibleWidth) / 2,
+      scrollY: (LOGICAL_BATTLE_HEIGHT - visibleHeight) / 2,
     };
   }
 

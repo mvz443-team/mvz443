@@ -9,6 +9,7 @@ import {
   getGameSceneChromeLayout,
   LOGICAL_BATTLE_HEIGHT,
   LOGICAL_BATTLE_WIDTH,
+  LOGICAL_BATTLE_WORLD_WIDTH,
 } from "../../../constants/gameLayout";
 import type {
   GameDeviceType,
@@ -375,7 +376,7 @@ export class PositionManager extends BaseManager {
   public getWorldBounds(): { left: number; right: number; top: number; bottom: number } {
     return {
       left: -PositionManager.WORLD_HORIZONTAL_MARGIN,
-      right: LOGICAL_BATTLE_WIDTH + PositionManager.WORLD_HORIZONTAL_MARGIN,
+      right: LOGICAL_BATTLE_WORLD_WIDTH + PositionManager.WORLD_HORIZONTAL_MARGIN,
       top: -PositionManager.WORLD_VERTICAL_MARGIN,
       bottom: LOGICAL_BATTLE_HEIGHT + PositionManager.WORLD_VERTICAL_MARGIN,
     };

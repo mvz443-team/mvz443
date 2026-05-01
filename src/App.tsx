@@ -16,6 +16,9 @@ import { initializeGameLibraries } from './game/managers/library/initializeGameL
 import {
   GAME_ASPECT_RATIO,
   getGameToolLayoutMetrics,
+  LOGICAL_BATTLE_HEIGHT,
+  LOGICAL_BATTLE_WIDTH,
+  LOGICAL_BATTLE_WORLD_WIDTH,
 } from './constants/gameLayout';
 
 interface GameMainWindowProps {
@@ -239,6 +242,36 @@ function getMobileGameMainSize(
   };
 }
 
+function getPcGameMainSize(
+  preferredWorldWidth: number,
+  viewportSize: ViewportSize,
+  showGameTool: boolean,
+): ViewportSize {
+  const viewportPadding = 16;
+  const availableWidth = Math.max(240, viewportSize.width - viewportPadding * 2);
+  const availableHeight = Math.max(180, viewportSize.height - viewportPadding * 2);
+  const preferredScale = Math.max(0.1, preferredWorldWidth / LOGICAL_BATTLE_WORLD_WIDTH);
+  let low = 0.1;
+  let high = preferredScale;
+
+  for (let i = 0; i < 24; i += 1) {
+    const mid = (low + high) / 2;
+    const mainWidth = LOGICAL_BATTLE_WIDTH * mid;
+    const mainHeight = LOGICAL_BATTLE_HEIGHT * mid;
+    const metrics = getGameToolLayoutMetrics(mainWidth, mainHeight, 'pc', showGameTool);
+    if (metrics.totalWidth <= availableWidth && metrics.totalHeight <= availableHeight) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  return {
+    width: Math.floor(LOGICAL_BATTLE_WIDTH * low),
+    height: Math.floor(LOGICAL_BATTLE_HEIGHT * low),
+  };
+}
+
 function getFittedMainSize(
   preferredWidth: number,
   viewportSize: ViewportSize,
@@ -248,6 +281,10 @@ function getFittedMainSize(
 ): ViewportSize {
   if (deviceType === 'mobile' && showGameTool) {
     return getMobileGameMainSize(viewportSize, showGameTool, stageRows);
+  }
+
+  if (deviceType === 'pc' && showGameTool) {
+    return getPcGameMainSize(preferredWidth, viewportSize, showGameTool);
   }
 
   const fittedWidth = getFittedMainWidth(preferredWidth, viewportSize, deviceType, showGameTool);

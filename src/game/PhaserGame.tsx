@@ -6,7 +6,6 @@ import {
 } from './EventBus';
 import { GameParams } from './models/GameParams';
 import type { StageResult } from '../types/stage';
-import { LOGICAL_BATTLE_HEIGHT, LOGICAL_BATTLE_WIDTH } from '../constants/gameLayout';
 
 export interface IRefPhaserGame {
   game: Phaser.Game | null;
@@ -31,12 +30,8 @@ export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame
   if (gameParams) {
     gameParams.gameExit = gameExit;
     gameParams.deviceType = deviceType;
-    gameParams.mainViewportHeight = deviceType === 'mobile'
-      ? Math.max(1, mainViewportHeight)
-      : LOGICAL_BATTLE_HEIGHT;
-    gameParams.mainViewportWidth = deviceType === 'mobile'
-      ? Math.max(1, mainViewportWidth)
-      : LOGICAL_BATTLE_WIDTH;
+    gameParams.mainViewportHeight = Math.max(1, mainViewportHeight);
+    gameParams.mainViewportWidth = Math.max(1, mainViewportWidth);
   }
 
   const game = useRef<Phaser.Game | null>(null!);
