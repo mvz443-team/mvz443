@@ -251,6 +251,7 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
           isDebug: settings.isDebug,
           isBgm: settings.isBgm,
           isSoundAudio: settings.isSoundAudio,
+          showCardLevelInGame: settings.showCardLevelInGame,
           bgmVolume: settings.bgmVolume,
           soundAudioVolume: settings.soundAudioVolume,
         }
@@ -289,6 +290,7 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
         isDebug: settings.isDebug,
         isBgm: settings.isBgm,
         isSoundAudio: settings.isSoundAudio,
+        showCardLevelInGame: settings.showCardLevelInGame,
         bgmVolume: settings.bgmVolume,
         soundAudioVolume: settings.soundAudioVolume,
       }

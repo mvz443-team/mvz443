@@ -13,6 +13,7 @@ import { SfxCmd } from "../../utils/cmd/SfxCmd";
 import SoundCmd from "../../utils/cmd/SoundCmd";
 import { StarShardsBurstSfx } from "../../sfx/star/StarShardsBurstSfx";
 import { MonsterEntity } from "./MonsterEntity";
+import { getLevelBadgeTextureKey } from "../../ui/levelBadgeSvg";
 
 // entities/PlantEntity.ts
 export abstract class PlantEntity extends CombatEntity {
@@ -35,6 +36,7 @@ export abstract class PlantEntity extends CombatEntity {
   // 睡眠特效
   private sleepingText: Phaser.GameObjects.Text | null = null;
   private sleepingTween: Phaser.Tweens.Tween | null = null;
+  private levelBadge: Phaser.GameObjects.Image | null = null;
   private initialized = false;
 
   constructor(scene: Game, col: number, row: number, model: PlantModel, level: number) {
@@ -79,11 +81,33 @@ export abstract class PlantEntity extends CombatEntity {
   // 由具体子类覆盖，或者根据 Model 决定如何构建图像
   protected abstract buildView(): void;
 
+  private AttachBadgeView(): void {
+    if (this.scene.params?.gameSettings?.showCardLevelInGame === false) {
+      return;
+    }
+    const textureKey = getLevelBadgeTextureKey(this.level);
+    if (!this.scene.textures.exists(textureKey)) {
+      return;
+    }
+
+    const bodySize = PositionManager.Instance.getPlantBodySize();
+    const badgeSize = Math.min(20, bodySize.sizeX * 0.35);
+    const badgeX = this.x;
+    const badgeY = this.y - bodySize.sizeY * 0.25;
+
+    const badge = this.scene.add.image(badgeX, badgeY, textureKey);
+    badge.setDisplaySize(badgeSize, badgeSize);
+    badge.setDepth(this.baseDepth + 1);
+    this.viewGroup.add(badge);
+    this.levelBadge = badge;
+  }
+
   public initializeEntity(): this {
     if (this.initialized) return this;
     this.initialized = true;
 
     this.buildView();
+    this.AttachBadgeView();
     this.buildPhysics();
 
     PlantsManager.Instance.RegisterPlant(this);

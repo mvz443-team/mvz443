@@ -28,6 +28,7 @@ export interface GameSettings {
   isDebug: boolean;
   isBgm: boolean;
   isSoundAudio: boolean;
+  showCardLevelInGame: boolean;
   bgmVolume?: number;
   soundAudioVolume?: number;
 }

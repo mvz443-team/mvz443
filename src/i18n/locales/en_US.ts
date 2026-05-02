@@ -103,6 +103,8 @@ const enUS = {
     "settings_gaming_private_blueprints_t": "[Single-player only] When enabled, allows placing and removing devices while paused",
     "settings_gaming_level_intro_images": "Show Level Illustrations",
     "settings_gaming_level_intro_images_t": "When disabled, the level selection screen will not load intro illustrations",
+    "settings_gaming_show_card_levels": "Show Card Levels In Game",
+    "settings_gaming_show_card_levels_t": "When disabled, device level badges are hidden during battles",
     "settings_gaming_background_music": "Background Music",
     "settings_gaming_background_music_t": "Adjust background music volume. Music resources still load at 0%",
     "settings_gaming_sound_effects": "Sound Effects",

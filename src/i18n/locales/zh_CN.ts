@@ -117,6 +117,8 @@ const zhCN = {
     "settings_gaming_private_blueprints_t": "[仅单人]启用后可以在暂停状态中放置和移除器械",
     "settings_gaming_level_intro_images": "观看关卡插图",
     "settings_gaming_level_intro_images_t": "关闭后选关界面不会加载关卡介绍中的插图",
+    "settings_gaming_show_card_levels": "游戏中显示卡片等级",
+    "settings_gaming_show_card_levels_t": "关闭后不会在战斗中显示器械等级徽章",
     "settings_gaming_background_music": "背景音乐",
     "settings_gaming_background_music_t": "调整背景音乐音量, 0% 时仍会加载音乐资源",
     "settings_gaming_sound_effects": "音效",
