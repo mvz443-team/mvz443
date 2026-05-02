@@ -183,10 +183,11 @@ export class PlantCardView {
 
   private addPlantImage(plantModel: PlantModel) {
     const textureKey = getCardTextureKey(this.scene, plantModel);
-    const imageAreaHeight = this.orientation === "vertical" ? this.height * 0.74 : this.height;
-    const imageAreaWidth = this.orientation === "vertical" ? this.width : this.width * 0.68;
-    const imageX = this.orientation === "vertical" ? this.width / 2 : imageAreaWidth * 0.5;
-    const imageY = this.orientation === "vertical" ? imageAreaHeight * 0.48 : this.height / 2;
+    const isVertical = this.orientation === "vertical";
+    const imageAreaHeight = isVertical ? this.height * 0.74 : this.height * 0.9;
+    const imageAreaWidth = isVertical ? this.width : this.width * 0.72;
+    const imageX = isVertical ? this.width / 2 : imageAreaWidth * 0.5;
+    const imageY = isVertical ? imageAreaHeight * 0.48 : this.height * 0.5;
     const image = this.scene.add.image(imageX, imageY, textureKey);
     const maxW = imageAreaWidth * 0.9;
     const maxH = imageAreaHeight * 0.86;
@@ -198,8 +199,8 @@ export class PlantCardView {
   private addCostText() {
     const isVertical = this.orientation === "vertical";
     const text = this.scene.add.text(
-      isVertical ? this.width / 2 : this.width - Math.max(18, this.width * 0.18),
-      isVertical ? this.height * 0.88 : this.height / 2,
+      isVertical ? this.width / 2 : this.width * 0.82,
+      isVertical ? this.height * 0.88 : this.height * 0.7,
       String(this.cost),
       {
         fontFamily: "Arial, sans-serif",
@@ -220,11 +221,6 @@ export class PlantCardView {
       const divider = this.scene.add.graphics();
       divider.lineStyle(2, CARD_BORDER, 1);
       divider.lineBetween(0, this.height * 0.76, this.width, this.height * 0.76);
-      this.container.add(divider);
-    } else {
-      const divider = this.scene.add.graphics();
-      divider.lineStyle(2, CARD_BORDER, 1);
-      divider.lineBetween(this.width * 0.72, 0, this.width * 0.72, this.height);
       this.container.add(divider);
     }
   }
@@ -280,10 +276,12 @@ export class PlantCardView {
       this.overlay.fillStyle(0x404040, 0.68);
       if (this.orientation === "mobile") {
         const overlayWidth = this.width * this.leftPercent;
-        this.overlay.fillRoundedRect(this.width - overlayWidth, 0, overlayWidth, this.height, CARD_RADIUS);
+        const radius = Math.min(CARD_RADIUS, overlayWidth * 0.5, this.height * 0.5);
+        this.overlay.fillRoundedRect(this.width - overlayWidth, 0, overlayWidth, this.height, radius);
       } else {
         const overlayHeight = this.height * this.leftPercent;
-        this.overlay.fillRoundedRect(0, this.height - overlayHeight, this.width, overlayHeight, CARD_RADIUS);
+        const radius = Math.min(CARD_RADIUS, overlayHeight * 0.5, this.width * 0.5);
+        this.overlay.fillRoundedRect(0, this.height - overlayHeight, this.width, overlayHeight, radius);
       }
     }
   }
