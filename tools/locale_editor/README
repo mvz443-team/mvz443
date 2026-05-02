@@ -1,0 +1,6 @@
+# Locale Editor
+
+## Usage
+
+1. Ensure `utils.js` and `localstorage.js` both exist in the same folder with `index.html`.
+2. Open `index.html` with any browser.
