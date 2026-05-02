@@ -327,17 +327,16 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
       {/* Left side - Plant selection */}
       <div style={{
         width: '60%',
-        height: '100%',
+        // height: '100%',
         background: 'rgba(20, 20, 20, 0.85)',
         overflowY: 'auto',
-        padding: '60px 20px 20px 20px',
+        padding: '5px 0px 10px 10px',
+        display: 'flex',
+        flexFlow: 'column nowrap',
       }}>
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          position: 'absolute',
-          top: '10px',
-          left: '10px'
         }}>
           <button
             style={{
@@ -451,8 +450,10 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
       {/* Right side - Parameters and selected plants */}
       <div style={{
         width: '40%',
-        height: '100%',
+        height: '94%',
         padding: '20px',
+        paddingLeft: '5px',
+        paddingRight: '5px',
         color: '#ddd',
         background: 'rgba(30, 30, 30, 0.9)',
         display: 'flex',
@@ -462,9 +463,13 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: '10px'
         }}>
-          <h3>
+          <h3
+            style={{
+              marginTop: 0,
+              marginBottom: '0.2rem'
+            }}
+          >
             {`${translate('menu.level_chosen_plants')} `}
             <span style={{
               color: state.isOverLimit ? 'red' : '#ddd',
@@ -502,71 +507,103 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
         </div>
         <div style={{
           flex: 1,
-          overflowY: 'auto',
-          maxHeight: '80%',
+          overflowY: 'scroll',
+          minHeight: 0,
           scrollbarColor: '#888 #333',
+          scrollbarGutter: 'stable',
+          paddingRight: '6px',
         }}>
-          {state.selectedPlants.map(pid => {
-            const plant = state.availablePlants.find(p => p.pid === pid);
-            if (!plant) return null;
-            return (
-              <div
-                key={pid}
-                style={{
-                  display: 'flex',
-                  maxHeight: '10%',
-                  alignItems: 'center',
-                  padding: '10px',
-                  border: '1px solid #666',
-                  marginBottom: '10px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  transition: 'border 0.3s, background 0.3s',
-                  cursor: isSelectionLocked ? 'default' : 'pointer',
-                }}
-                onClick={() => handlePlantToggle(plant.pid)}
-                onMouseEnter={(e) => {
-                  if (isSelectionLocked) return;
-                  e.currentTarget.style.border = '1px solid red';
-                  e.currentTarget.style.background = 'rgba(255, 0, 0, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  if (isSelectionLocked) return;
-                  e.currentTarget.style.border = '1px solid #666';
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                }}
-              >
-                <div style={{ overflow: "hidden" }}>
-                  <img
-                    src={plant.imgUrl}
-                    alt={plant.name}
-                    style={{ display: "block", width: "90%", height: "80%" }}
-                    draggable="false"
-                  />
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: '10px',
+          }}>
+            {state.selectedPlants.map(pid => {
+              const plant = state.availablePlants.find(p => p.pid === pid);
+              if (!plant) return null;
+              return (
+                <div
+                  key={pid}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '4px 8px',
+                    height: '64px',
+                    border: '1px solid #666',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    transition: 'border 0.3s, background 0.3s',
+                    cursor: isSelectionLocked ? 'default' : 'pointer',
+                  }}
+                  onClick={() => handlePlantToggle(plant.pid)}
+                  onMouseEnter={(e) => {
+                    if (isSelectionLocked) return;
+                    e.currentTarget.style.border = '1px solid red';
+                    e.currentTarget.style.background = 'rgba(255, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (isSelectionLocked) return;
+                    e.currentTarget.style.border = '1px solid #666';
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  }}
+                >
+                  <div style={{
+                    width: '52px',
+                    height: '52px',
+                    overflow: 'hidden',
+                    flexShrink: 0
+                  }}>
+                    <img
+                      src={plant.imgUrl}
+                      alt={plant.name}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain'
+                      }}
+                      draggable="false"
+                    />
+                  </div>
+                  <span style={{
+                    marginLeft: '8px',
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>{translate(cardKey(plant.name))}</span>
                 </div>
-                <span style={{ marginLeft: '10px' }}>{translate(cardKey(plant.name))}</span>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
         <button
           style={isSelectionLocked || !canProceed ? {
             ...(buttonStyle || {}),
-            padding: '3% 40%',
+            padding: '12px 0',
+            width: '100%',
+            maxWidth: '320px',
             background: '#666',
             border: 'none',
             color: '#ccc',
             cursor: 'not-allowed',
             transition: 'all 0.3s ease',
-            alignSelf: 'center'
+            alignSelf: 'center',
+            marginTop: '12px',
+            flexShrink: 0,
           } : (buttonStyle || {
-            padding: '3% 40%',
+            padding: '12px 0',
+            width: '100%',
+            maxWidth: '320px',
             background: '#00ccff',
             border: 'none',
             color: '#fff',
             cursor: 'pointer',
             transition: 'all 0.3s ease',
-            alignSelf: 'center'
+            alignSelf: 'center',
+            marginTop: '12px',
+            flexShrink: 0,
           })}
           onClick={canStart ? handleStart : undefined}
           disabled={!canStart}

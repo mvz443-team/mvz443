@@ -100,7 +100,7 @@ const zhCN = {
     "settings_general_fullscreen": "全屏模式",
     "settings_general_fullscreen_t": "切换全屏模式",
     "settings_general_resolution": "切换分辨率",
-    "settings_general_resolution_t": "选择游戏分辨率,移动端推荐选择画面缩小50%并选用924x693. 联机模式下请确保所有玩家分辨率一致",
+    "settings_general_resolution_t": "暂时只影响菜单界面。选择游戏分辨率,移动端推荐选择画面缩小50%并选用924x693. 联机模式下请确保所有玩家分辨率一致",
     "settings_general_language": "Language 语言",
     "settings_general_language_t": "选择游戏显示语言",
     "settings_general_debug": "显示调试信息",
