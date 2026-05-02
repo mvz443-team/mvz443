@@ -191,7 +191,7 @@ export class Game extends Scene {
       const sceneBounds = PositionManager.Instance.getSceneBounds(deviceType);
       this.debugFrameText = this.add.text(
         8,
-        sceneBounds.height - 8,
+        sceneBounds.height - 64,
         'frameId: 0\nackFrameId: 0',
         {
           fontSize: '12px',
