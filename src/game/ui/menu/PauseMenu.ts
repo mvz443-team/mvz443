@@ -1,237 +1,166 @@
-﻿import { translate } from "../../../i18n";
+import { translate } from "../../../i18n";
 import DepthUtils from "../../../utils/depth";
 import BackendWS from "../../../utils/net/sync";
 import { PhaserEventBus, PhaserEvents } from "../../EventBus";
 import CombatManager from "../../managers/CombatManager";
 import SoundManager from "../../managers/SoundManager";
 import { Game } from "../../scenes/Game";
+import { Button, Menu, Slider, Switch } from "./Menu";
 
 type PauseMenuShowOptions = {
   bluePrintMode?: boolean;
-};
-
-type VolumeSlider = {
-  container: Phaser.GameObjects.Container;
-  setLabel: (label: string) => void;
-  setValue: (value: number) => void;
-  destroy: () => void;
-};
-
-type ToggleControl = {
-  container: Phaser.GameObjects.Container;
-  setLabel: (label: string) => void;
-  setChecked: (checked: boolean) => void;
-  destroy: () => void;
 };
 
 type PauseMenuLayout = {
   centerX: number;
   startY: number;
   menuWidth: number;
-  menuHeight: number;
-  titleY: number;
+  contentWidth: number;
+  paddingX: number;
+  paddingTop: number;
+  paddingBottom: number;
+  gap: number;
 };
-
-const clampVolume = (volume: number) => Math.max(0, Math.min(1, volume));
 
 const storeCookie = (key: string, value: number | boolean) => {
   document.cookie = `${key}=${JSON.stringify(value)}; path=/; max-age=31536000`;
 };
 
 export class PauseMenu {
-  private game: Game;
-  private pauseText: Phaser.GameObjects.Text;
-  private menuBackground: Phaser.GameObjects.Graphics;
-  private menuContainer: Phaser.GameObjects.Container;
+  private readonly game: Game;
+  private menu: Menu;
   private bluePrintPauseText: Phaser.GameObjects.Text;
   private bluePrintEyeIcon: Phaser.GameObjects.Container;
   private fullMenuEyeIcon: Phaser.GameObjects.Container;
-  private soundVolumeSlider: VolumeSlider;
-  private bgmVolumeSlider: VolumeSlider;
-  private speedSwitch: ToggleControl;
-  private isVisible: boolean = false;
-  private isBluePrintMode: boolean = false;
+  private soundVolumeSlider: Slider;
+  private bgmVolumeSlider: Slider;
+  private speedSwitch: Switch;
+  private continueButton: Button;
+  private exitButton: Button;
+  private isVisible = false;
+  private isBluePrintMode = false;
 
   constructor(game: Game) {
     this.game = game;
-    this.createMenu();
-    this.createBluePrintPauseText();
+    const layout = this.getMenuLayout();
+    this.createMenu(layout);
+    this.createBluePrintPauseText(layout);
   }
 
   private getMenuLayout(): PauseMenuLayout {
     const centerX = this.game.cameras.main.width / 2;
     const startY = this.game.cameras.main.height * 0.15;
     const isMobile = this.game.params.deviceType === "mobile";
-    const menuWidth = Math.min(this.game.scale.displaySize.width * 0.6, 400);
-    const menuHeightRatio = isMobile ? 0.8 : 0.6;
-    const maxMenuHeight = isMobile ? 480 : 360;
-    const bottomSafeArea = 16;
-    const availableMenuHeight = this.game.cameras.main.height - startY - bottomSafeArea;
-    const menuHeight = Math.min(
-      this.game.scale.displaySize.height * menuHeightRatio,
-      maxMenuHeight,
-      availableMenuHeight
-    );
+    const menuWidth = Math.min(this.game.scale.displaySize.width * (isMobile ? 0.78 : 0.6), isMobile ? 430 : 400);
+    const paddingX = Math.max(28, menuWidth * 0.12);
+    const paddingTop = isMobile ? 104 : 96;
+    const paddingBottom = isMobile ? 30 : 28;
+    const contentWidth = menuWidth - paddingX * 2;
+    const gap = isMobile ? 18 : 16;
 
     return {
       centerX,
       startY,
       menuWidth,
-      menuHeight,
-      titleY: startY + menuHeight * 0.2,
+      contentWidth,
+      paddingX,
+      paddingTop,
+      paddingBottom,
+      gap,
     };
   }
 
-  private createMenu() {
-    this.menuContainer = this.game.add.container(0, 0);
-    this.menuContainer.setDepth(DepthUtils.getPauseMenuDepth());
-    this.menuContainer.setVisible(false);
-
-    const overlay = this.game.add.graphics();
-    overlay.fillStyle(0x000000, 0.6);
-    overlay.fillRect(0, 0, this.game.cameras.main.width, this.game.cameras.main.height);
-    this.menuContainer.add(overlay);
-
-    const { centerX, startY, menuWidth, menuHeight, titleY } = this.getMenuLayout();
-
-    const buttonFontSize = Math.min(this.game.scale.displaySize.width / 25, 24);
-    const buttonPaddingY = 10;
-    const continueButtonHeightH = buttonFontSize + buttonPaddingY * 2;
-    const exitButtonHeightH = continueButtonHeightH;
-
-    const buttonBottomPadding = Math.max(18, menuHeight * 0.08);
-    const continueToExitButtonGap = Math.max(10, menuHeight * 0.05);
-    const exitButtonCenterY = startY + menuHeight - buttonBottomPadding - exitButtonHeightH / 2;
-    const continueButtonCenterY = exitButtonCenterY - exitButtonHeightH / 2 - continueToExitButtonGap - continueButtonHeightH / 2;
-
-    this.menuBackground = this.game.add.graphics();
-    this.menuBackground.fillStyle(0x2c3e50, 0.95);
-    this.menuBackground.fillRoundedRect(
-      centerX - menuWidth / 2,
-      startY,
-      menuWidth,
-      menuHeight,
-      20
-    );
-
-    this.menuBackground.lineStyle(4, 0xecf0f1, 1);
-    this.menuBackground.strokeRoundedRect(
-      centerX - menuWidth / 2,
-      startY,
-      menuWidth,
-      menuHeight,
-      20
-    );
-
-    this.menuBackground.fillGradientStyle(0xe74c3c, 0xc0392b, 0xe74c3c, 0xc0392b, 1);
-    this.menuBackground.fillRoundedRect(
-      centerX - menuWidth / 2 + 10,
-      startY + 10,
-      menuWidth - 20,
-      8,
-      4
-    );
-
-    this.menuContainer.add(this.menuBackground);
-
-    this.pauseText = this.game.add.text(
-      centerX,
-      titleY,
-      translate("game.paused"),
+  private createMenu(layout: PauseMenuLayout) {
+    this.menu = new Menu(
+      this.game,
       {
-        fontSize: `${Math.min(this.game.scale.displaySize.width / 18, 32)}px`,
-        color: "#ecf0f1",
-        fontFamily: "Arial, sans-serif",
-        fontStyle: "bold",
-        align: "center",
+        x: layout.centerX - layout.menuWidth / 2,
+        y: layout.startY,
+        width: layout.menuWidth,
+        title: translate("game.paused"),
+        depth: DepthUtils.getPauseMenuDepth(),
+      },
+      {
+        paddingX: layout.paddingX,
+        paddingTop: layout.paddingTop,
+        paddingBottom: layout.paddingBottom,
+        gap: layout.gap,
       }
-    ).setOrigin(0.5);
+    );
 
-    this.pauseText.setShadow(2, 2, "#2c3e50", 4);
-    this.menuContainer.add(this.pauseText);
-
+    const eyePosition = this.menu.getTitleIconPosition();
     this.fullMenuEyeIcon = this.createEyeIcon(
-      centerX + this.pauseText.width / 2 + 26,
-      titleY,
+      eyePosition.x,
+      eyePosition.y,
       true,
       () => this.showBluePrintCompact()
     );
     this.fullMenuEyeIcon.setVisible(false);
-    this.menuContainer.add(this.fullMenuEyeIcon);
+    this.menu.container.add(this.fullMenuEyeIcon);
 
-    const sliderWidth = Math.min(menuWidth * 0.72, 300);
-    this.soundVolumeSlider = this.createVolumeSlider(
-      centerX - sliderWidth / 2,
-      startY + menuHeight * 0.36,
-      sliderWidth,
-      translate("menu.settings_gaming_sound_effects"),
-      SoundManager.Instance.getSoundAudioVolume(),
-      (volume) => {
+    this.soundVolumeSlider = new Slider(this.game, layout.contentWidth, {
+      label: translate("menu.settings_gaming_sound_effects"),
+      value: SoundManager.Instance.getSoundAudioVolume(),
+      min: 0,
+      max: 1,
+      step: 0.01,
+      onChange: (volume) => {
         this.game.innerSettings.soundAudioVolume = volume;
         this.game.innerSettings.isSoundAudio = volume > 0;
         SoundManager.Instance.setSoundAudioVolume(volume);
         storeCookie("soundAudioVolume", volume);
         storeCookie("isSoundAudio", volume > 0);
-      }
-    );
-    this.menuContainer.add(this.soundVolumeSlider.container);
+      },
+    });
+    this.menu.add(this.soundVolumeSlider);
 
-    this.bgmVolumeSlider = this.createVolumeSlider(
-      centerX - sliderWidth / 2,
-      startY + menuHeight * 0.46,
-      sliderWidth,
-      translate("menu.settings_gaming_background_music"),
-      SoundManager.Instance.getBgmVolume(),
-      (volume) => {
+    this.bgmVolumeSlider = new Slider(this.game, layout.contentWidth, {
+      label: translate("menu.settings_gaming_background_music"),
+      value: SoundManager.Instance.getBgmVolume(),
+      min: 0,
+      max: 1,
+      step: 0.01,
+      onChange: (volume) => {
         this.game.innerSettings.bgmVolume = volume;
         this.game.innerSettings.isBgm = volume > 0;
         SoundManager.Instance.setBgmVolume(volume);
         storeCookie("bgmVolume", volume);
         storeCookie("isBgm", volume > 0);
-      }
-    );
-    this.menuContainer.add(this.bgmVolumeSlider.container);
+      },
+    });
+    this.menu.add(this.bgmVolumeSlider);
 
-    this.speedSwitch = this.createToggleControl(
-      centerX - sliderWidth / 2,
-      startY + menuHeight * 0.57,
-      sliderWidth,
-      translate("game.speedUp"),
-      this.game.time.timeScale > 1,
-      (checked) => {
+    this.speedSwitch = new Switch(this.game, layout.contentWidth, {
+      label: translate("game.speedUp"),
+      checked: this.game.time.timeScale > 1,
+      onChange: (checked) => {
         this.setGameSpeed(checked ? 2 : 1);
-      }
-    );
-    this.menuContainer.add(this.speedSwitch.container);
+      },
+    });
+    this.menu.add(this.speedSwitch);
 
-    this.createButton(
-      centerX,
-      continueButtonCenterY,
-      translate("game.continue"),
-      "#27ae60",
-      "#2ecc71",
-      buttonFontSize,
-      buttonPaddingY,
-      () => {
+    const buttonGap = Math.max(12, layout.contentWidth * 0.08);
+    const buttonWidth = (layout.contentWidth - buttonGap) / 2;
+    this.continueButton = new Button(this.game, buttonWidth, {
+      text: translate("game.continue"),
+      normalColor: 0x27ae60,
+      hoverColor: 0x2ecc71,
+      onClick: () => {
         CombatManager.Instance.isPaused = false;
-      }
-    );
-
-    this.createButton(
-      centerX,
-      exitButtonCenterY,
-      translate("game.exit"),
-      "#e74c3c",
-      "#c0392b",
-      buttonFontSize,
-      buttonPaddingY,
-      () => {
+      },
+    });
+    this.exitButton = new Button(this.game, buttonWidth, {
+      text: translate("game.exit"),
+      normalColor: 0xe74c3c,
+      hoverColor: 0xc0392b,
+      onClick: () => {
         CombatManager.Instance.EndGame(false);
         if (!BackendWS.isOnlineMode()) {
           PhaserEventBus.emit(PhaserEvents.RoomGameEnd, { isWin: false });
         }
-      }
-    );
+      },
+    });
+    this.menu.addRow([this.continueButton, this.exitButton], buttonGap);
   }
 
   private setGameSpeed(timeScale: 1 | 2) {
@@ -245,184 +174,10 @@ export class PauseMenu {
     PhaserEventBus.emit(PhaserEvents.TimespeedChanged, { timeScale });
   }
 
-  private createVolumeSlider(
-    x: number,
-    y: number,
-    width: number,
-    label: string,
-    initialVolume: number,
-    onChange: (volume: number) => void
-  ): VolumeSlider {
-    const height = 28;
-    const trackWidth = width * 0.52;
-    const trackHeight = 7;
-    const trackX = width - trackWidth - 42;
-    const trackY = height / 2;
-    let volume = clampVolume(initialVolume);
-    let dragging = false;
-
-    const container = this.game.add.container(x, y);
-    const labelText = this.game.add.text(0, trackY, label, {
-      fontSize: `${Math.min(this.game.scale.displaySize.width / 42, 15)}px`,
-      color: "#edf6ff",
-      fontFamily: "Arial, sans-serif",
-      fontStyle: "bold",
-    }).setOrigin(0, 0.5);
-
-    const valueText = this.game.add.text(width, trackY, "", {
-      fontSize: `${Math.min(this.game.scale.displaySize.width / 48, 13)}px`,
-      color: "#d7e8f7",
-      fontFamily: "Arial, sans-serif",
-    }).setOrigin(1, 0.5);
-
-    const track = this.game.add.rectangle(trackX, trackY, trackWidth, trackHeight, 0x52606d, 0.95)
-      .setOrigin(0, 0.5);
-    const fill = this.game.add.rectangle(trackX, trackY, trackWidth * volume, trackHeight, 0x00ccff, 1)
-      .setOrigin(0, 0.5);
-    const thumb = this.game.add.circle(trackX + trackWidth * volume, trackY, 8, 0xf8fbff, 1)
-      .setStrokeStyle(2, 0x1b2733, 1)
-      .setInteractive({ useHandCursor: true });
-    const hitArea = this.game.add.rectangle(trackX, trackY, trackWidth, height, 0xffffff, 0.001)
-      .setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true });
-
-    const render = () => {
-      fill.width = Math.max(1, trackWidth * volume);
-      thumb.x = trackX + trackWidth * volume;
-      valueText.setText(`${Math.round(volume * 100)}%`);
-    };
-
-    const setFromPointer = (pointer: Phaser.Input.Pointer) => {
-      const localX = pointer.x - x;
-      volume = clampVolume((localX - trackX) / trackWidth);
-      render();
-      onChange(volume);
-    };
-
-    hitArea.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      dragging = true;
-      setFromPointer(pointer);
-    });
-    thumb.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      dragging = true;
-      setFromPointer(pointer);
-    });
-
-    const handlePointerMove = (pointer: Phaser.Input.Pointer) => {
-      if (!dragging) return;
-      setFromPointer(pointer);
-    };
-    const handlePointerUp = () => {
-      dragging = false;
-    };
-    this.game.input.on("pointermove", handlePointerMove);
-    this.game.input.on("pointerup", handlePointerUp);
-
-    container.add([labelText, track, fill, hitArea, thumb, valueText]);
-    render();
-
-    return {
-      container,
-      setLabel(nextLabel: string) {
-        labelText.setText(nextLabel);
-      },
-      setValue(nextValue: number) {
-        volume = clampVolume(nextValue);
-        render();
-      },
-      destroy: () => {
-        this.game.input.off("pointermove", handlePointerMove);
-        this.game.input.off("pointerup", handlePointerUp);
-        container.destroy();
-      },
-    };
-  }
-
-  private createToggleControl(
-    x: number,
-    y: number,
-    width: number,
-    label: string,
-    initialChecked: boolean,
-    onChange: (checked: boolean) => void
-  ): ToggleControl {
-    const height = 34;
-    const switchWidth = 58;
-    const switchHeight = 26;
-    const switchX = width - switchWidth;
-    const switchY = height / 2;
-    let checked = initialChecked;
-
-    const container = this.game.add.container(x, y);
-    const labelText = this.game.add.text(0, switchY, label, {
-      fontSize: `${Math.min(this.game.scale.displaySize.width / 42, 15)}px`,
-      color: "#edf6ff",
-      fontFamily: "Arial, sans-serif",
-      fontStyle: "bold",
-    }).setOrigin(0, 0.5);
-    const valueText = this.game.add.text(switchX - 12, switchY, "", {
-      fontSize: `${Math.min(this.game.scale.displaySize.width / 48, 13)}px`,
-      color: "#d7e8f7",
-      fontFamily: "Arial, sans-serif",
-      fontStyle: "bold",
-    }).setOrigin(1, 0.5);
-    const track = this.game.add.graphics();
-    const thumb = this.game.add.circle(0, switchY, 10, 0xf8fbff, 1)
-      .setStrokeStyle(2, 0x1b2733, 1);
-    const hitArea = this.game.add.rectangle(switchX, switchY, switchWidth, height, 0xffffff, 0.001)
-      .setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true });
-
-    const render = () => {
-      track.clear();
-      track.fillStyle(checked ? 0x27ae60 : 0x52606d, 0.98);
-      track.fillRoundedRect(switchX, switchY - switchHeight / 2, switchWidth, switchHeight, switchHeight / 2);
-      track.lineStyle(2, checked ? 0x9af0bd : 0xaab7c4, 0.95);
-      track.strokeRoundedRect(switchX, switchY - switchHeight / 2, switchWidth, switchHeight, switchHeight / 2);
-      thumb.x = switchX + (checked ? switchWidth - 13 : 13);
-      valueText.setText(checked ? "2x" : "1x");
-    };
-
-    hitArea.on("pointerover", () => {
-      container.setScale(1.03);
-    });
-    hitArea.on("pointerout", () => {
-      container.setScale(1);
-    });
-    hitArea.on("pointerdown", () => {
-      container.setScale(0.98);
-    });
-    hitArea.on("pointerup", () => {
-      container.setScale(1.03);
-      checked = !checked;
-      render();
-      onChange(checked);
-    });
-
-    container.add([labelText, valueText, track, thumb, hitArea]);
-    render();
-
-    return {
-      container,
-      setLabel(nextLabel: string) {
-        labelText.setText(nextLabel);
-      },
-      setChecked(nextChecked: boolean) {
-        checked = nextChecked;
-        render();
-      },
-      destroy: () => {
-        container.destroy();
-      },
-    };
-  }
-
-  private createBluePrintPauseText() {
-    const { centerX, titleY } = this.getMenuLayout();
-
+  private createBluePrintPauseText(layout: PauseMenuLayout) {
     this.bluePrintPauseText = this.game.add.text(
-      centerX,
-      titleY,
+      layout.centerX,
+      this.menu.getTitleIconPosition().y,
       translate("game.paused"),
       {
         fontSize: `${Math.min(this.game.scale.displaySize.width / 18, 30)}px`,
@@ -439,9 +194,10 @@ export class PauseMenu {
       .setVisible(false)
       .setShadow(2, 2, "#1f2937", 6);
 
+    const eyePosition = this.menu.getTitleIconPosition();
     this.bluePrintEyeIcon = this.createEyeIcon(
-      centerX + this.bluePrintPauseText.width / 2 + 24,
-      titleY,
+      eyePosition.x,
+      eyePosition.y,
       false,
       () => this.showBluePrintFullMenu()
     );
@@ -497,7 +253,7 @@ export class PauseMenu {
 
   private showBluePrintCompact() {
     if (!this.isVisible || !this.isBluePrintMode) return;
-    this.menuContainer.setVisible(false);
+    this.menu.hide();
     this.fullMenuEyeIcon.setVisible(false);
     this.bluePrintPauseText.setVisible(true);
     this.bluePrintEyeIcon.setVisible(true);
@@ -507,103 +263,8 @@ export class PauseMenu {
     if (!this.isVisible || !this.isBluePrintMode) return;
     this.bluePrintPauseText.setVisible(false);
     this.bluePrintEyeIcon.setVisible(false);
-    this.menuContainer.setVisible(true);
-    this.menuContainer.setAlpha(1);
-    this.menuContainer.setScale(1);
+    this.menu.show();
     this.fullMenuEyeIcon.setVisible(true);
-  }
-
-  private createButton(
-    x: number,
-    y: number,
-    text: string,
-    normalColor: string,
-    hoverColor: string,
-    fontSize: number,
-    paddingY: number,
-    onClick: () => void
-  ): Phaser.GameObjects.Text {
-    const button = this.game.add.text(x, y, text, {
-      fontSize: `${fontSize}px`,
-      color: "#ffffff",
-      fontFamily: "Arial, sans-serif",
-      fontStyle: "bold",
-      align: "center",
-      backgroundColor: normalColor,
-      padding: { x: 20, y: paddingY },
-    }).setOrigin(0.5);
-
-    button.setShadow(2, 2, "#2c3e50", 3);
-    button.setInteractive({ useHandCursor: true });
-
-    button.on("pointerover", () => {
-      button.setStyle({ backgroundColor: hoverColor });
-      button.setScale(1.05);
-      this.game.tweens.add({
-        targets: button,
-        scaleX: 1.05,
-        scaleY: 1.05,
-        duration: 100,
-        ease: "Power2",
-      });
-    });
-
-    button.on("pointerout", () => {
-      button.setStyle({ backgroundColor: normalColor });
-      this.game.tweens.add({
-        targets: button,
-        scaleX: 1,
-        scaleY: 1,
-        duration: 100,
-        ease: "Power2",
-      });
-    });
-
-    button.on("pointerdown", () => {
-      button.setScale(0.95);
-    });
-
-    button.on("pointerup", () => {
-      button.setScale(1.05);
-      onClick();
-    });
-
-    this.menuContainer.add(button);
-    return button;
-  }
-
-  private addDecorativeElements(
-    centerX: number,
-    pauseIconTopY: number,
-    pauseIconWidth: number,
-    pauseIconHeight: number
-  ) {
-    const pauseIcon = this.game.add.graphics();
-    pauseIcon.fillStyle(0xecf0f1, 0.8);
-
-    pauseIcon.fillRect(
-      centerX - pauseIconWidth * 0.6,
-      pauseIconTopY,
-      pauseIconWidth * 0.3,
-      pauseIconHeight
-    );
-    pauseIcon.fillRect(
-      centerX + pauseIconWidth * 0.3,
-      pauseIconTopY,
-      pauseIconWidth * 0.3,
-      pauseIconHeight
-    );
-
-    this.menuContainer.add(pauseIcon);
-
-    this.game.tweens.add({
-      targets: pauseIcon,
-      alpha: 0.5,
-      duration: 1000,
-      yoyo: true,
-      repeat: -1,
-      ease: "Sine.easeInOut",
-    });
   }
 
   public show(options: PauseMenuShowOptions = {}) {
@@ -612,7 +273,7 @@ export class PauseMenu {
     this.isVisible = true;
     this.isBluePrintMode = bluePrintMode;
 
-    this.menuContainer.setDepth(DepthUtils.getPauseMenuDepth());
+    this.menu.setDepth(DepthUtils.getPauseMenuDepth());
     this.bluePrintPauseText.setDepth(DepthUtils.getPauseMenuDepth());
     this.refreshControls();
 
@@ -624,9 +285,7 @@ export class PauseMenu {
     this.bluePrintPauseText.setVisible(false);
     this.bluePrintEyeIcon.setVisible(false);
     this.fullMenuEyeIcon.setVisible(false);
-    this.menuContainer.setVisible(true);
-    this.menuContainer.setAlpha(1);
-    this.menuContainer.setScale(1);
+    this.menu.show();
   }
 
   public hide() {
@@ -640,35 +299,15 @@ export class PauseMenu {
 
     this.isVisible = false;
     this.isBluePrintMode = false;
-
-    if (!this.menuContainer.visible) {
-      return;
-    }
-
-    this.game.tweens.add({
-      targets: this.menuContainer,
-      alpha: 0,
-      scaleX: 0.8,
-      scaleY: 0.8,
-      duration: 200,
-      ease: "Back.easeIn",
-      onComplete: () => {
-        this.menuContainer.setVisible(false);
-        this.menuContainer.setAlpha(1);
-        this.menuContainer.setScale(1);
-      },
-    });
+    this.menu.hide();
   }
 
   public isBlockingInput(): boolean {
-    return this.isVisible && this.menuContainer.visible;
+    return this.isVisible && this.menu.container.visible;
   }
 
   public destroy() {
-    this.soundVolumeSlider?.destroy();
-    this.bgmVolumeSlider?.destroy();
-    this.speedSwitch?.destroy();
-    this.menuContainer?.destroy();
+    this.menu?.destroy();
     this.bluePrintPauseText?.destroy();
     this.bluePrintEyeIcon?.destroy();
   }
@@ -678,12 +317,22 @@ export class PauseMenu {
   }
 
   private refreshControls() {
+    this.menu?.setTitle(translate("game.paused"));
     this.soundVolumeSlider?.setLabel(translate("menu.settings_gaming_sound_effects"));
     this.bgmVolumeSlider?.setLabel(translate("menu.settings_gaming_background_music"));
     this.speedSwitch?.setLabel(translate("game.speedUp"));
+    this.continueButton?.setText(translate("game.continue"));
+    this.exitButton?.setText(translate("game.exit"));
     this.soundVolumeSlider?.setValue(SoundManager.Instance.getSoundAudioVolume());
     this.bgmVolumeSlider?.setValue(SoundManager.Instance.getBgmVolume());
     this.speedSwitch?.setChecked(this.game.time.timeScale > 1);
+    this.alignEyeIcons();
+  }
+
+  private alignEyeIcons() {
+    const eyePosition = this.menu.getTitleIconPosition();
+    this.fullMenuEyeIcon?.setPosition(eyePosition.x, eyePosition.y);
+    this.bluePrintEyeIcon?.setPosition(eyePosition.x, eyePosition.y);
+    this.bluePrintPauseText?.setPosition(this.getMenuLayout().centerX, eyePosition.y);
   }
 }
-
