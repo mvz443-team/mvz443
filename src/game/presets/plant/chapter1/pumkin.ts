@@ -25,7 +25,7 @@ export class PumpkinModel extends PlantModel {
   public override texturePath = 'plant/pumpkin';
 
   public maxHealth = new PlantStat(300);
-  public cost = new PlantStat(100).setIncRatio(0); // 9级以上返回 150
+  public cost = new PlantStat(100);
   public cooldown = new PlantStat(16000);
   public cooldownStartAtRatio = 1;
 
