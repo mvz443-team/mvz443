@@ -1,5 +1,5 @@
 import { Chalk } from "chalk";
-import { FrameInterval } from "../../../public/constants";
+import { LEGACY_BALANCE_FRAME_INTERVAL_MS } from "../../constants/physics";
 import BackendWS from "../../utils/net/sync";
 import { onlineStateManager } from "../../store/OnlineStateManager";
 import CardpileManager from "../managers/combat/CardpileManager";
@@ -230,9 +230,8 @@ namespace ConsoleCmd {
   }
 
   function msToFrame(ms: number) {
-    return Math.ceil(ms / FrameInterval);
+    return Math.ceil(ms / LEGACY_BALANCE_FRAME_INTERVAL_MS);
   }
 }
 
 export default ConsoleCmd;
-

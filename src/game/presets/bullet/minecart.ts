@@ -1,4 +1,5 @@
 import { SECKILL } from "../../../../public/constants";
+import { legacyRapierVelocityToUnitsPerSecond } from "../../../constants/physics";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BulletEntity } from "../../models/projectiles/BulletEntity";
 import { BulletConfig, BulletModel } from "../../models/projectiles/ProjectileModels";
@@ -38,7 +39,7 @@ export class MineCartEntity extends BulletEntity {
     if (this.rigidBody) {
       const currentVel = this.rigidBody.linvel();
       if (Math.abs(currentVel.x) < 1) {
-        const velX = 200;
+        const velX = legacyRapierVelocityToUnitsPerSecond(200);
         const direction = this.faction === Faction.PLANT ? 1 : -1;
         this.rigidBody.setLinvel({ x: velX * direction, y: currentVel.y }, true);
       }

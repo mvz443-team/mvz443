@@ -203,7 +203,7 @@ export default class CombatManager extends BaseManager {
     this.elapsedFrameTime += delta * timeScale;
 
     // Fixed-step physics update.
-    while (this.elapsedFrameTime >= SyncManager.Instance.FrameInterval) {
+    while (this.elapsedFrameTime >= SyncManager.Instance.frameIntervalMs) {
       this.isInFixedStep = true;
       // 在进入下一次 Rapier step 前再执行延迟创建/销毁，
       // 避免在 world.step / bodies.forEach 相关借用期间修改物理世界。
@@ -215,7 +215,7 @@ export default class CombatManager extends BaseManager {
         this.isInFixedStep = false;
         break;
       }
-      this.elapsedFrameTime -= SyncManager.Instance.FrameInterval;
+      this.elapsedFrameTime -= SyncManager.Instance.frameIntervalMs;
       // Tick-based systems.
       if (!this.isPaused) {
         TickerManager.Instance.Update();
@@ -253,7 +253,7 @@ export default class CombatManager extends BaseManager {
 
     if (!this.isPaused) {
       const interpolationAlpha = Math.min(
-        this.elapsedFrameTime / SyncManager.Instance.FrameInterval,
+        this.elapsedFrameTime / SyncManager.Instance.frameIntervalMs,
         1,
       );
       this.scene?.rapierWorld?.bodies.forEach(rigidBody => {

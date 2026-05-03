@@ -1,3 +1,4 @@
+import { legacyRapierVelocityToUnitsPerSecond } from "../../../constants/physics";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BulletEntity } from "../../models/projectiles/BulletEntity";
 import { BulletConfig, BulletModel } from "../../models/projectiles/ProjectileModels";
@@ -256,7 +257,7 @@ export class MutantYAxisArrowEntity extends ArrowEntity {
     this.lowerOrUpper = this.targetRow < row;
 
     // 设置 Y 方向速度
-    this.ySpeed = cfg.ySpeed ?? 200;
+    this.ySpeed = cfg.ySpeed ?? legacyRapierVelocityToUnitsPerSecond(200);
 
     // 设置初始 Y 速度
     if (this.rigidBody) {

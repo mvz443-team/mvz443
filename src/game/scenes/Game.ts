@@ -40,6 +40,7 @@ import {
   LOGICAL_BATTLE_WIDTH,
   MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO,
 } from '../../constants/gameLayout';
+import { getRapierTimestepSeconds } from '../../constants/physics';
 import { CardSlots } from '../ui/cardslots';
 import { MobileCardSlots } from '../ui/cardslots_mobile';
 import { BottomBar } from '../ui/bottom';
@@ -205,6 +206,7 @@ export class Game extends Scene {
     // 初始化物理世界
     await RAPIER.init();
     this.rapierWorld = new RAPIER.World({ x: 0, y: 0 }); // 无重力的物理世界
+    this.rapierWorld.timestep = getRapierTimestepSeconds();
     this.rapierEventQueue = new RAPIER.EventQueue(true);
 
 
@@ -697,4 +699,3 @@ export class Game extends Scene {
     });
   }
 }
-

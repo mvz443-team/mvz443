@@ -3,6 +3,7 @@
  */
 
 import ProjectileDamage from "../../../../constants/damage";
+import { legacyRapierVelocityToUnitsPerSecond } from "../../../../constants/physics";
 import { PlantStat } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
@@ -133,7 +134,7 @@ export class DoubleDispenserModel extends PlantModel {
   }
 
   private shootBackArrow(entity: DoubleDispenserEntity, damage: number): void {
-    const reverseSpeed = -500; // 反向速度
+    const reverseSpeed = -legacyRapierVelocityToUnitsPerSecond(500); // 反向速度
 
     // 后方箭矢1（反向）
     ProjectileCmd.Create<ArrowModel>(ArrowData, entity.scene, entity.x, entity.row, {
@@ -182,7 +183,7 @@ export class DoubleDispenserModel extends PlantModel {
 
   private shootBackFirework(entity: DoubleDispenserEntity): void {
     const damage = this.fireworkDamage.getValueAt(entity.level);
-    const reverseSpeed = -500; // 反向速度
+    const reverseSpeed = -legacyRapierVelocityToUnitsPerSecond(500); // 反向速度
 
     ProjectileCmd.Create<HFireWorkModel>(HFireWorkData, entity.scene, entity.x, entity.row, {
       damage: damage,

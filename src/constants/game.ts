@@ -1,3 +1,6 @@
+import { SECKILL } from "../../public/constants";
+import { legacyRapierVelocityToUnitsPerSecond } from "./physics";
+
 export type _Typedebuffs = 'slow' | 'frozen' | null;
 
 export type _TypeArrowEnhancement = 'none' | 'fire' | 'ice' | 'lightning';
@@ -13,23 +16,27 @@ export function EnhancementPriority(new_en: _TypeArrowEnhancement, old_en: _Type
   return priority[new_en] > priority[old_en];
 }
 
+export const DamageConstants = {
+  SECKILL: 99889988,
+}
+
 export const MonsterSpeed = {
-  VindicatorSolider: 25,
-  Mutant: 30,
-  TurtleZombie: 35,
-  Zombie: 35,
-  Skeleton: 35,
-  SkeletonBow: 35,
-  MinerZombie: 35,
-  MinerHelmetZombie: 35,
-  CapZombie: 35,
-  HelmetZombie: 35,
-  TurtleSkeletonBow: 35,
-  Evoker: 40,
+  VindicatorSolider: legacyRapierVelocityToUnitsPerSecond(25),
+  Mutant: legacyRapierVelocityToUnitsPerSecond(30),
+  TurtleZombie: legacyRapierVelocityToUnitsPerSecond(35),
+  Zombie: legacyRapierVelocityToUnitsPerSecond(35),
+  Skeleton: legacyRapierVelocityToUnitsPerSecond(35),
+  SkeletonBow: legacyRapierVelocityToUnitsPerSecond(35),
+  MinerZombie: legacyRapierVelocityToUnitsPerSecond(35),
+  MinerHelmetZombie: legacyRapierVelocityToUnitsPerSecond(35),
+  CapZombie: legacyRapierVelocityToUnitsPerSecond(35),
+  HelmetZombie: legacyRapierVelocityToUnitsPerSecond(35),
+  TurtleSkeletonBow: legacyRapierVelocityToUnitsPerSecond(35),
+  Evoker: legacyRapierVelocityToUnitsPerSecond(40),
   ObsidianGolem: 0,
   Warden: 0,
-  Vindicator: 55,
-  StickZombie: 60,
+  Vindicator: legacyRapierVelocityToUnitsPerSecond(55),
+  StickZombie: legacyRapierVelocityToUnitsPerSecond(60),
 } as const;
 
 export const ZombieAttackInterval = {

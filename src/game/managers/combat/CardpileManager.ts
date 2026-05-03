@@ -100,7 +100,7 @@ export default class CardpileManager extends BaseManager {
   }
 
   stepUpdate() {
-    const elasp = SyncManager.Instance.FrameInterval;
+    const elasp = SyncManager.Instance.frameIntervalMs;
     const newStatus = new Map<number, {
       hasReloaded: boolean;
       leftPercent: number;

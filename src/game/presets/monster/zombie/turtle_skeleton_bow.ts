@@ -6,6 +6,7 @@ import type { Game } from "../../../scenes/Game";
 import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import { BaseSkeletonBowEntity } from "../../../models/entities/BaseSkeletonBowEntity";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
+import { legacyRapierVelocityToUnitsPerSecond } from "../../../../constants/physics";
 import SoundCmd from "../../../utils/cmd/SoundCmd";
 
 export class TurtleSkeletonBowEntity extends BaseSkeletonBowEntity {
@@ -48,7 +49,7 @@ export class TurtleSkeletonBowEntity extends BaseSkeletonBowEntity {
             ProjectileCmd.Create(ArrowData, this.scene, this.x, this.row, {
               damage: this.arrowDamage,
               faction: Faction.ZOMBIE,
-              speed: 320,
+              speed: legacyRapierVelocityToUnitsPerSecond(320),
             });
           }
         });

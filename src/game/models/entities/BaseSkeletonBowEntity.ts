@@ -1,3 +1,4 @@
+import { legacyRapierVelocityToUnitsPerSecond } from "../../../constants/physics";
 import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
 import { ArrowData } from "../../presets/bullet/arrow";
 import { Faction } from "../Enum";
@@ -22,7 +23,7 @@ export class BaseSkeletonBowEntity extends BaseSkeletonEntity {
         ProjectileCmd.Create(ArrowData, this.scene, this.x, this.row, {
           damage: this.arrowDamage,
           faction: Faction.ZOMBIE,
-          speed: 320,
+          speed: legacyRapierVelocityToUnitsPerSecond(320),
         });
         this.scene.time.delayedCall(350, () => {
           if (this.currentHealth > 0 && !this.attacking) {

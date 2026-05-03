@@ -1,4 +1,5 @@
 import ProjectileDamage from "../../../../constants/damage";
+import { legacyRapierVelocityToUnitsPerSecond } from "../../../../constants/physics";
 import { PlantStat } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
@@ -68,7 +69,7 @@ export class DispenserModel extends PlantModel {
       ArrowData, scene, entity.x, entity.row, {
       damage: this.damage.getValueAt(entity.level),
       faction: entity.faction,
-      speed: 500,
+      speed: legacyRapierVelocityToUnitsPerSecond(500),
       bounceable: true,
       dealer: entity,
       penetratePower,

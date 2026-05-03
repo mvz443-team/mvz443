@@ -1,4 +1,5 @@
 import { _Typedebuffs } from "../../../constants/game";
+import { legacyRapierVelocityToUnitsPerSecond } from "../../../constants/physics";
 import { PositionManager } from "../../managers/view/PositionManager";
 import type { Game } from "../../scenes/Game";
 import { CombatEntity } from "../core/CombatEntity";
@@ -35,7 +36,7 @@ export interface ProjectileConfig {
 export interface BulletConfig extends ProjectileConfig {
   maxDistance?: number;
   bounceable?: boolean; // 是否可以被反弹
-  speed?: number; // 子弹速度
+  speed?: number; // 子弹速度，单位/秒
   penetratePower?: number; // 穿透能力
   penetratedPunish?: number; // 穿透后伤害衰减系数
   skipTiny?: boolean; // 是否跳过小型单位，默认为true
@@ -43,7 +44,7 @@ export interface BulletConfig extends ProjectileConfig {
 
 export class BulletModel<TConfig extends BulletConfig = BulletConfig, TEntity extends BulletEntity = BulletEntity> extends ProjectileModel<TConfig, TEntity> {
   public texture: string;
-  public speed: number = 500;
+  public speed: number = legacyRapierVelocityToUnitsPerSecond(500);
   // 穿透能力
   public penetratePower: number = 1;
   public penetratedPunish: number = 0.5; // 穿透后伤害系数

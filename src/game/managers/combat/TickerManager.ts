@@ -1,4 +1,5 @@
-import { FrameInterval } from "../../../../public/constants"; import { PhaserEventBus, PhaserEvents } from "../../EventBus";
+import { LEGACY_BALANCE_FRAME_INTERVAL_MS } from "../../../constants/physics";
+import { PhaserEventBus, PhaserEvents } from "../../EventBus";
 import { BaseManager } from "../BaseManager";
 export class FrameTimer {
   public id: number = 0;        // 定时器唯一ID
@@ -42,7 +43,7 @@ export class FrameTimer {
 
   // 计算剩余时间（毫秒）
   public GetLeftTimeByMs(): number {
-    return this.GetLeftTimeByFrame() * FrameInterval;
+    return this.GetLeftTimeByFrame() * LEGACY_BALANCE_FRAME_INTERVAL_MS;
   }
 
   public remove(): void {
@@ -72,7 +73,7 @@ export type AddEventConfigType = {
 export default class TickerManager extends BaseManager {
   private static _instance: TickerManager;
 
-  public frameInterval: number = FrameInterval;
+  public frameInterval: number = LEGACY_BALANCE_FRAME_INTERVAL_MS;
   public currentFrame: number = 0;
 
   private timers: Map<number, FrameTimer> = new Map();

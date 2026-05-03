@@ -1,3 +1,4 @@
+import { legacyRapierVelocityToUnitsPerSecond } from "../../../constants/physics";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BulletEntity } from "../../models/projectiles/BulletEntity";
 import { BulletConfig, BulletModel } from "../../models/projectiles/ProjectileModels";
@@ -13,7 +14,7 @@ export interface HFireWorkConfig extends BulletConfig {
 
 export class HFireWorkModel extends BulletModel<HFireWorkConfig, HFireWorkEntity> {
   texture = 'bullet/Hfirework';
-  public speed = 300;
+  public speed = legacyRapierVelocityToUnitsPerSecond(300);
 
   public createEntity(scene: Game, x: number, row: number, config: HFireWorkConfig): HFireWorkEntity {
     return new HFireWorkEntity(scene, x, row, this, config);

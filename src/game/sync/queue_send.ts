@@ -10,12 +10,12 @@ import {
 } from "../../pb/request";
 import BackendWS from "../../utils/net/sync";
 import ResourceManager from "../managers/combat/ResourceManager";
-import { FrameInterval } from "../../../public/constants";
+import { LEGACY_BALANCE_FRAME_INTERVAL_MS } from "../../constants/physics";
 
 export default class QueueSend {
   queues: Denque<Request>;
   private readonly commandBaseDeltaFrames: number = 2;
-  private readonly blankPollIntervalMs: number = FrameInterval;
+  private readonly blankPollIntervalMs: number = LEGACY_BALANCE_FRAME_INTERVAL_MS;
   private lastBlankAckFrameIdSent: number = -1;
   private lastBlankAckFrameIdQueued: number = -1;
   private lastBlankSentAt: number = 0;
@@ -90,7 +90,7 @@ export default class QueueSend {
   private getCommandDelayFrames(): number {
     const { sendLatencyMs, receiveLatencyMs } = BackendWS.getDebugLatencyConfig();
     const roundTripLatencyMs = sendLatencyMs + receiveLatencyMs;
-    const networkDelayFrames = Math.ceil(roundTripLatencyMs / FrameInterval);
+    const networkDelayFrames = Math.ceil(roundTripLatencyMs / LEGACY_BALANCE_FRAME_INTERVAL_MS);
 
     return networkDelayFrames + this.commandBaseDeltaFrames;
   }

@@ -1,4 +1,5 @@
 import ProjectileDamage from "../../../../constants/damage";
+import { legacyRapierVelocityToUnitsPerSecond } from "../../../../constants/physics";
 import { PlantStat } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
@@ -107,7 +108,8 @@ export class TripleDispenserModel extends PlantModel {
     const penetrate = 1;
     const topRow = -5;
     const bottomRow = 8;
-    const speeds = [volleyIndex % 15, (volleyIndex + 7) % 15].map((index) => index * 40);
+    const speeds = [volleyIndex % 15, (volleyIndex + 7) % 15]
+      .map((index) => legacyRapierVelocityToUnitsPerSecond(index * 40));
 
     speeds.forEach((speed) => {
       ProjectileCmd.Create<MutantYAxisArrowModel>(MutantYAxisArrowData, entity.scene, entity.x, entity.row, {

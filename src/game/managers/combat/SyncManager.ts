@@ -1,4 +1,4 @@
-import { FrameInterval } from "../../../../public/constants";
+import { LEGACY_BALANCE_FRAME_INTERVAL_MS } from "../../../constants/physics";
 import { onlineStateManager } from "../../../store/OnlineStateManager";
 import { EventBus } from "../../../utils/eventBus";
 import EnumGameStage from "../../../utils/net/game_state";
@@ -25,7 +25,7 @@ export default class SyncManager extends BaseManager {
   Eventbus: EventBus<SyncManagerEvent>;
   private queueBound: boolean = false;
 
-  public FrameInterval: number = FrameInterval;
+  public frameIntervalMs: number = LEGACY_BALANCE_FRAME_INTERVAL_MS;
 
   sendQueue!: QueueSend;
   recvQueue!: QueueReceive;
