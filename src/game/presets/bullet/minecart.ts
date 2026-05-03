@@ -1,4 +1,4 @@
-import { SECKILL } from "../../../../public/constants";
+import { DamageConstants } from "../../../constants/game";
 import { legacyRapierVelocityToUnitsPerSecond } from "../../../constants/physics";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BulletEntity } from "../../models/projectiles/BulletEntity";
@@ -25,7 +25,7 @@ export class MineCartEntity extends BulletEntity {
     super(scene, x, row, model, cfg);
 
     // 设置初始伤害
-    this.currentDamage = SECKILL;
+    this.currentDamage = DamageConstants.SECKILL;
 
     // 自定义大小
     const scaleFactor = PositionManager.Instance.scaleFactor;

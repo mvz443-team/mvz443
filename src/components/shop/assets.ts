@@ -1,4 +1,4 @@
-import { SECKILL } from "../../../public/constants";
+import { DamageConstants } from "../../constants/game";
 
 export const SHOP_ITEM_ICON_DIR = "/assets/card/items";
 
@@ -15,7 +15,7 @@ const itemIconMap = new Map<number, string>([
   [10, `${SHOP_ITEM_ICON_DIR}/nixxor_lens.svg`],
   [11, `${SHOP_ITEM_ICON_DIR}/miracle_omikuji.svg`],
   [4001, `${SHOP_ITEM_ICON_DIR}/paper.svg`],
-  [SECKILL, `${SHOP_ITEM_ICON_DIR}/scb.svg`],
+  [DamageConstants.SECKILL, `${SHOP_ITEM_ICON_DIR}/scb.svg`],
 ]);
 
 export function getItemIcon(type: number) {

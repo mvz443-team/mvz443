@@ -1,4 +1,4 @@
-import { SECKILL } from "../../../../../public/constants";
+import { DamageConstants } from "../../../../constants/game";
 import ObstacleManager from "../../../managers/combat/ObstacleManager";
 import PlantsManager from "../../../managers/combat/PlantsManager";
 import { PositionManager } from "../../../managers/view/PositionManager";
@@ -48,7 +48,7 @@ export function spawnObsidianObstacle(entity: BaseGolemEntity, col: number, row:
 
       const plants = PlantsManager.Instance.PlantsMap.get(`${col}-${row}`) ?? [];
       for (const plant of [...plants]) {
-        PlantCmd.DealDamage(plant, SECKILL / 2, entity);
+        PlantCmd.DealDamage(plant, DamageConstants.SECKILL / 2, entity);
       }
     },
   });

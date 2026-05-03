@@ -1,4 +1,3 @@
-import { SECKILL } from "../../public/constants";
 import { legacyRapierVelocityToUnitsPerSecond } from "./physics";
 
 export type _Typedebuffs = 'slow' | 'frozen' | null;

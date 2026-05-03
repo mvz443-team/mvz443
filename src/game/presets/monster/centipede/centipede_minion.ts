@@ -1,4 +1,4 @@
-import { SECKILL } from "../../../../../public/constants";
+import { DamageConstants } from "../../../../constants/game";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { BaseMonsterEntity, PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
@@ -27,7 +27,7 @@ export class CentipedeMinionEntity extends BaseMonsterEntity {
 
   public override startAttacking(target: CombatEntity): void {
     if (target instanceof PlantEntity) {
-      PlantCmd.DealDamage(target, SECKILL / 2, this);
+      PlantCmd.DealDamage(target, DamageConstants.SECKILL / 2, this);
       return;
     }
     super.startAttacking(target);

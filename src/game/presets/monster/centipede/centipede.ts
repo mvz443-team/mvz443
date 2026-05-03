@@ -1,4 +1,4 @@
-import { SECKILL } from "../../../../../public/constants";
+import { DamageConstants } from "../../../../constants/game";
 import { PhaserEventBus, PhaserEvents } from "../../../EventBus";
 import { LOGICAL_BATTLE_HEIGHT, LOGICAL_BATTLE_WIDTH } from "../../../../constants/gameLayout";
 import ObstacleManager from "../../../managers/combat/ObstacleManager";
@@ -228,7 +228,7 @@ export class CentipedeEntity extends BaseMonsterEntity {
         for (const r of [row, row + 1]) {
           const plants = PlantsManager.Instance.PlantsMap.get(`${col}-${r}`) ?? [];
           for (const plant of [...plants]) {
-            PlantCmd.DealDamage(plant, SECKILL / 2, this);
+            PlantCmd.DealDamage(plant, DamageConstants.SECKILL / 2, this);
           }
         }
 
@@ -301,7 +301,7 @@ export class CentipedeEntity extends BaseMonsterEntity {
         const maxCol = Math.max(startCol, targetCol);
         const cells: { col: number; row: number }[] = [];
         for (let c = minCol; c <= maxCol; c++) cells.push({ col: c, row: targetRow });
-        MobCmd.DamagePlantsInCells(cells, SECKILL / 2);
+        MobCmd.DamagePlantsInCells(cells, DamageConstants.SECKILL / 2);
 
         const sideRows = [targetRow - 1, targetRow + 1].filter((r) => r >= 0 && r < PositionManager.Instance.Row_Number);
         for (const sr of sideRows) {

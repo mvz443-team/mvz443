@@ -1,4 +1,4 @@
-import { SECKILL } from "../../public/constants";
+import { DamageConstants } from "./game";
 import { commonKey, stuffKey } from "../i18n/keys";
 
 
@@ -15,7 +15,7 @@ const idToName = new Map<number, string>(
   [10, "NIXXOR_Lens"],
   [11, "Miracle_Omikuji"],
   [4001, "alchemist_report"],
-  [SECKILL, 'scb'],
+  [DamageConstants.SECKILL, 'scb'],
   ]);
 
 
