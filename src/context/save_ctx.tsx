@@ -13,14 +13,20 @@ interface Zombie {
 }
 
 interface Item {
-    type: number;
+    id: number;
     count: number;
+    nameKey?: string;
+    iconKey?: string;
+    descriptionKey?: string;
 }
 
 interface SerializedItem {
     id: number;
     count: number;
     type?: number;
+    nameKey?: string;
+    iconKey?: string;
+    descriptionKey?: string;
 }
 
 export interface GameProgress {
@@ -41,7 +47,10 @@ function serializeGameProgress(gameProgress: GameProgress): any {
         zombies: gameProgress.zombies,
         items: Array.from(gameProgress.items.entries()).map(([key, value]) => ({
             id: key,
-            count: value.count
+            count: value.count,
+            nameKey: value.nameKey,
+            iconKey: value.iconKey,
+            descriptionKey: value.descriptionKey
         })),
         slotNum: gameProgress.slotNum,
         updatedAt: gameProgress.updatedAt
@@ -56,7 +65,13 @@ function deserializeGameProgress(data: any): GameProgress {
         plants: data.plants,
         zombies: data.zombies,
         items: new Map(data.items.map((item: SerializedItem) =>
-            [item.id, { type: item.type ?? item.id, count: item.count }]
+            [item.id, {
+                id: item.type ?? item.id,
+                count: item.count,
+                nameKey: item.nameKey,
+                iconKey: item.iconKey,
+                descriptionKey: item.descriptionKey
+            }]
         )),
         slotNum: data.slotNum,
         updatedAt: new Date(data.updatedAt)
@@ -279,10 +294,18 @@ export class GameManager {
     }
 
     // 更新物品数量
-    updateItemCount(type: number, count: number): void {
-        const oldItem = this._currentProgress.items.get(type) || { type, count: 0 };
-        this._currentProgress.items.set(type, {
-            type,
+    updateItemCount(itemOrId: number | Omit<Item, "count">, count: number): void {
+        const id = typeof itemOrId === "number" ? itemOrId : itemOrId.id;
+        const itemKeys = typeof itemOrId === "number" ? {} : {
+            nameKey: itemOrId.nameKey,
+            iconKey: itemOrId.iconKey,
+            descriptionKey: itemOrId.descriptionKey
+        };
+        const oldItem = this._currentProgress.items.get(id) || { id, count: 0 };
+        this._currentProgress.items.set(id, {
+            ...oldItem,
+            ...itemKeys,
+            id,
             count: oldItem.count + count
         });
     }

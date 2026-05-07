@@ -1,7 +1,7 @@
 // src/components/ShopSelector.tsx
 import React, { useRef } from 'react';
-import { item, IGoods } from './types';
-import { GameProgress, useSaveManager } from '../../context/save_ctx';
+import type { Goods, GoodsItem, GoodsSaveCtx } from '../../types/goods';
+import { useSaveManager } from '../../context/save_ctx';
 import NewGoodLists from './goods';
 import { useSetState, useMount, useMemoizedFn } from 'ahooks';
 import { ShopDetail, ShopList } from './shop_tab';
@@ -39,31 +39,21 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
         }
     });
 
-    const goodsList: IGoods[] = React.useMemo(() =>
-        NewGoodLists(purchasedIds.current, handlePurchaseCallback),
-        [state.forceUpdate]
-    );
+    const goodsList: Goods[] = React.useMemo(() => NewGoodLists(), []);
 
-    const getCurrentItems = useMemoizedFn((): item[] => {
+    const saveCtx: GoodsSaveCtx = React.useMemo(() => ({
+        gameProgress: gameManager.currentProgress,
+        gameManager,
+        purchasedIds: purchasedIds.current,
+    }), [gameManager, state.forceUpdate]);
+
+    const getCurrentItems = useMemoizedFn((): GoodsItem[] => {
         return Array.from(gameManager.currentProgress.items.values());
     });
 
     const getGoldAmount = useMemoizedFn((): number => {
         const goldItem = gameManager.currentProgress.items.get(1);
         return goldItem ? goldItem.count : 0;
-    });
-
-    const couldAfford = useMemoizedFn((good: IGoods): boolean => {
-        const priceStructure = good.getPriceStructure();
-        const currentItems = getCurrentItems();
-        return priceStructure.items.every(priceItem => {
-            const inventoryItem = currentItems.find(item => item.type === priceItem.type);
-            return inventoryItem && inventoryItem.count >= priceItem.count;
-        });
-    });
-
-    const canPurchase = useMemoizedFn((progress: GameProgress, good: IGoods): boolean => {
-        return good.canPurchase(progress);
     });
 
     const flashUnaffordablePrice = useMemoizedFn((goodId: number) => {
@@ -77,20 +67,19 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
         }, 1000);
     });
 
-    const handlePurchase = useMemoizedFn((good: IGoods) => {
-        if (good.hasBought(good.id, gameManager.currentProgress)) return;
-        if (!canPurchase(gameManager.currentProgress, good)) return;
-        if (!couldAfford(good)) {
+    const handlePurchase = useMemoizedFn((good: Goods) => {
+        if (!good.canPurchaseWithoutPrice(saveCtx)) return;
+        if (!good.canPurchase(saveCtx)) {
             flashUnaffordablePrice(good.id);
             return;
         }
 
-        const priceStructure = good.getPriceStructure();
+        const priceStructure = good.getPrice(saveCtx);
         priceStructure.items.forEach(priceItem => {
-            gameManager.updateItemCount(priceItem.type, -priceItem.count);
+            gameManager.updateItemCount(priceItem, -priceItem.count);
         });
 
-        good.afterBought(good.id, gameManager);
+        good.afterBought(saveCtx);
         handlePurchaseCallback(good.id);
     });
 
@@ -214,16 +203,16 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
                     {state.showInventory ? (
                         <BackpackList
                             myItems={currentItems}
-                            selectedType={backpackSelection.selectedType}
+                            selectedId={backpackSelection.selectedId}
                             selectedItem={backpackSelection.selectedItem}
-                            onSelectType={backpackSelection.setSelectedType}
+                            onSelectId={backpackSelection.setSelectedId}
                         />
                     ) : (
                         <ShopList
                             goodsList={goodsList}
                             selectedGoodId={state.selectedGoodId}
                             priceFlashGoodId={state.priceFlashGoodId}
-                            progress={gameManager.currentProgress}
+                            saveCtx={saveCtx}
                             onGoodSelect={handleGoodSelect}
                         />
                     )}
@@ -249,10 +238,8 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
                     <ShopDetail
                         goodsList={goodsList}
                         selectedGoodId={state.selectedGoodId}
-                        progress={gameManager.currentProgress}
+                        saveCtx={saveCtx}
                         myItems={currentItems}
-                        couldAfford={couldAfford}
-                        canPurchase={canPurchase}
                         onPurchase={handlePurchase}
                     />
                 )}

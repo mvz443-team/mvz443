@@ -22,42 +22,67 @@
         "phase1_end": 11,
         "phase2_end": 16,
         "dayOrNight": 1,
-        "flagWaves": [ 10, 20 ],
-        "waterWays": [ ],
-        "AllowedMobs": [ 1, 2, 3, 8, 4, 5, 7, 14 ],
-        "globalRatio": [ [ 0, 1.0 ] ],
-        "bossInsert": [ ]
+        "flagWaves": [
+            10,
+            20
+        ],
+        "waterWays": [],
+        "AllowedMobs": [
+            1,
+            2,
+            3,
+            8,
+            4,
+            5,
+            7,
+            14
+        ],
+        "globalRatio": [
+            [
+                0,
+                1
+            ]
+        ],
+        "bossInsert": []
     },
     "onWin": {
-        "unLock": [ 3 ],
-        "unLockPlant": [ 5 ]
+        "unLock": [
+            3
+        ],
+        "unLockPlant": [
+            5
+        ]
     },
     "energy": 50,
     "rewards": [
         {
             "progress": 45,
             "reward": {
-                "type": 1,
-                "count": 45
+                "id": 1,
+                "number": 45
             }
         },
         {
             "progress": 65,
             "reward": {
-                "type": 1,
-                "count": 70
+                "id": 1,
+                "number": 70
             }
         },
         {
             "progress": 95,
             "reward": {
-                "type": 3,
-                "count": 1
+                "id": 3,
+                "number": 1
             }
         }
     ],
     "load": {
-        "bgimg": [ "bg/bgOutterMine.png" ],
-        "bgm": [ "audio/QLCK-002-05.mp3" ]
+        "bgimg": [
+            "bg/bgOutterMine.png"
+        ],
+        "bgm": [
+            "audio/QLCK-002-05.mp3"
+        ]
     }
 }

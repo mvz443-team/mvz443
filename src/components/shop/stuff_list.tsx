@@ -1,21 +1,30 @@
-import Stuff from "../../constants/stuffs";
-import { getItemIcon } from "./assets";
-import { item } from "./types";
+import type React from "react";
+import {
+    goodsItemIconKey,
+    goodsItemName,
+    unknownGoodsItemIconKey,
+    type GoodsItem,
+} from "../../types/goods";
 
 type Props = {
-    items: item[]
-    currentItems: item[]
+    items: GoodsItem[]
+    currentItems: GoodsItem[]
     translate: (key: string, params?: Record<string, string>) => string
 }
 
 export default function StuffList({ items, currentItems, translate }: Props) {
     // Convert currentItems into a map for efficient lookup
-    const currentItemsMap = new Map(currentItems.map(item => [item.type, item.count]));
+    const currentItemsMap = new Map(currentItems.map(item => [item.id, item.count]));
 
+    const fallbackUnknownIcon = (event: React.SyntheticEvent<HTMLImageElement>) => {
+        event.currentTarget.src = unknownGoodsItemIconKey();
+    };
 
-    const stuffItem = (type: number, requiredCount: number) => {
-        const availableCount = currentItemsMap.get(type) || 0;
+    const stuffItem = (item: GoodsItem) => {
+        const requiredCount = item.count;
+        const availableCount = currentItemsMap.get(item.id) || 0;
         const isInsufficient = requiredCount > availableCount;
+        const name = goodsItemName(item, translate);
 
         return (
             <div style={{
@@ -27,12 +36,13 @@ export default function StuffList({ items, currentItems, translate }: Props) {
                 whiteSpace: 'nowrap'
             }}>
                 <img
-                    src={getItemIcon(type)}
-                    alt={Stuff(type, translate)}
+                    src={goodsItemIconKey(item)}
+                    alt={name}
+                    onError={fallbackUnknownIcon}
                     style={{ width: '24px', height: '24px', objectFit: 'contain' }}
                     draggable="false"
                 />
-                <span>{`${Stuff(type, translate)}: ${availableCount}/${requiredCount}`}</span>
+                <span>{`${name}: ${availableCount}/${requiredCount}`}</span>
             </div>
         );
     }
@@ -46,14 +56,17 @@ export default function StuffList({ items, currentItems, translate }: Props) {
         }}>
             {items.map((item, index) => (
                 <div key={index}>
-                    {stuffItem(item.type, item.count)}
+                    {stuffItem(item)}
                 </div>
             ))}
         </div>
     );
 }
 
-export function CurrentStuffs(items: item[], translate: (key: string, params?: Record<string, string>) => string) {
+export function CurrentStuffs(items: GoodsItem[], translate: (key: string, params?: Record<string, string>) => string) {
+    const fallbackUnknownIcon = (event: React.SyntheticEvent<HTMLImageElement>) => {
+        event.currentTarget.src = unknownGoodsItemIconKey();
+    };
 
     return (
         <div style={{
@@ -63,7 +76,7 @@ export function CurrentStuffs(items: item[], translate: (key: string, params?: R
             width: '100%'
         }}>
             {items.map((item, index) => (
-                <div key={index} title={Stuff(item.type, translate)} style={{
+                <div key={index} title={goodsItemName(item, translate)} style={{
                     position: 'relative',
                     height: '52px',
                     border: '1px solid #555',
@@ -74,8 +87,9 @@ export function CurrentStuffs(items: item[], translate: (key: string, params?: R
                     justifyContent: 'center'
                 }}>
                     <img
-                        src={getItemIcon(item.type)}
-                        alt={Stuff(item.type, translate)}
+                        src={goodsItemIconKey(item)}
+                        alt={goodsItemName(item, translate)}
+                        onError={fallbackUnknownIcon}
                         style={{ width: '34px', height: '34px', objectFit: 'contain' }}
                         draggable="false"
                     />

@@ -69,6 +69,24 @@
     "alchemist_report": "炼药师的报告",
     "alchemist_report.DESCRIPTION": "【机密档案】来自安心村庄首席炼药师的紧急汇报"
   },
+  "goods": {
+    "name_slot7": "第7卡槽",
+    "slot7_description": "七槽\n解锁chapter1-stage4",
+    "name_slot8": "第8卡槽",
+    "slot8_description": "8槽\n解锁chapter1-stage5",
+    "name_chapter1_kit": "第一章材料包",
+    "chapter1_kit_description": "Chapter 1 Kit\n随机获得第一章普通关卡的升级材料(leather or iron)3件\n解锁chapter1-3",
+    "name_scarletborder_crystal": "黯绯结晶",
+    "scarletborder_crystal_description": "体验版专属物品\n用于升级器械\n体验版限制了升级器械的等级上限，使用黯绯结晶可以解除这一限制\n注意:升级后的器械严重超出体验版设计的强度\n解锁stage1-5",
+    "name_pumpkin_wan": "广域南瓜派",
+    "pumpkin_wan_shop_description": "广域南瓜派(胖平文先生)\n光敏器械,对周围一圈造成高频激光伤害\n需要阴森南瓜头作为基座\n解锁chapter1-stage5,体验版提前开放该器械购买权.",
+    "name_at_dispenser": "反坦克炮台",
+    "at_dispenser_shop_description": "反坦克炮台\n呼叫一位HellVillager操纵威力强大的炮台为你进行单行绝对统治\n需要发射器作为基座\n解锁chapter1-stage7",
+    "name_slot9": "第9卡槽",
+    "slot9_description": "9槽\n解锁chapter1-stage7",
+    "name_chapter2_plants": "第二章前期器械包",
+    "chapter2_plants_description": "解锁第二章前期器械弹性布丁,双头发射器,萤石粉\n解锁chapter1-stage6"
+  },
   "menu": {
     "homepage": "主页",
     "choose_level": "选择关卡",

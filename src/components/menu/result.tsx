@@ -3,10 +3,10 @@ import { useCreation, useMount } from 'ahooks';
 import { useSaveManager } from '../../context/save_ctx';
 import type { OnWin, ProgressReward } from '../../types/stage';
 import { ChapterDataRecords, StageDataRecords } from '../../game/managers/library/ChapterLibrary';
-import Stuff from '../../constants/stuffs';
 import { useLocaleMessages } from '../../hooks/useLocaleMessages';
 import { cardKey, commonKey, stageKey } from '../../i18n/keys';
 import { PlantLibrary } from '../../game/managers/library/PlantLibrary';
+import { goodsItemName } from '../../types/goods';
 
 interface Props {
     width: number;
@@ -67,7 +67,7 @@ export default function GameResultView({ width, height, isWin, onWin, progressRe
 
                 progressRewards.forEach(reward => {
                     if (myProgress >= reward.progress) {
-                        saveManager.updateItemCount(reward.reward.type, reward.reward.count);
+                        saveManager.updateItemCount(reward.reward.id, reward.reward.number);
                     }
                 });
                 
@@ -177,7 +177,7 @@ export default function GameResultView({ width, height, isWin, onWin, progressRe
                         (myProgress >= reward.progress) &&
                         (<div key={index} style={{ marginBottom: "15px" }}>
                             <p>{translate('menu.endding_progress')}: {reward.progress}%</p>
-                            <p>{translate('menu.endding_reward')}: {Stuff(reward.reward.type, translate)}: {reward.reward.count}</p>
+                            <p>{translate('menu.endding_reward')}: {goodsItemName({ id: reward.reward.id, count: reward.reward.number }, translate)}: {reward.reward.number}</p>
                         </div>)
                     ))
                 ) : (

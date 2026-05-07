@@ -36,8 +36,8 @@ export interface Wave {
 }
 
 export interface Reward {
-  type: number;
-  count: number;
+  id: number;
+  number: number;
 }
 
 export interface ProgressReward {

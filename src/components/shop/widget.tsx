@@ -5,13 +5,20 @@
 import React from "react";
 import { useLocaleMessages } from "../../hooks/useLocaleMessages";
 import { useDeviceType } from "../../hooks/useDeviceType";
-import { getItemIcon } from "./assets";
+import { goodsKey } from "../../i18n/keys";
 import StuffList, { CurrentStuffs } from "./stuff_list";
-import { IGoods, item } from "./types";
+import {
+    goodsItemIconKey,
+    unknownGoodsItemIconKey,
+    type Goods,
+    type GoodsItem,
+    type GoodsSaveCtx,
+} from "../../types/goods";
 
 
 interface SidebarGoodsProps {
-    good: IGoods,
+    good: Goods,
+    saveCtx: GoodsSaveCtx,
     hasBought: boolean,
     priceFlash: boolean,
     isChosen: (key: number) => boolean,
@@ -21,10 +28,12 @@ interface SidebarGoodsProps {
 /**
  * 商品列表
  */
-export function SidebarGoods({ good, hasBought, priceFlash, isChosen, handleClick }: SidebarGoodsProps) {
-    const priceItems = good.getPriceStructure().items;
-    const goldPrice = priceItems.find(item => item.type === 1)?.count ?? 0;
-    const hasMaterialPrice = priceItems.some(item => item.type !== 1);
+export function SidebarGoods({ good, saveCtx, hasBought, priceFlash, isChosen, handleClick }: SidebarGoodsProps) {
+    const { translate } = useLocaleMessages();
+    const name = translate(goodsKey(good.nameKey));
+    const priceItems = good.getPrice(saveCtx).items;
+    const goldPrice = priceItems.find(item => item.id === 1)?.count ?? 0;
+    const hasMaterialPrice = priceItems.some(item => item.id !== 1);
     const priceColor = priceFlash ? "#ff4040" : hasMaterialPrice ? "#ffd84a" : "#f6f6f6";
 
     return (<div
@@ -47,11 +56,11 @@ export function SidebarGoods({ good, hasBought, priceFlash, isChosen, handleClic
         onClick={() => {
             handleClick(good.id);
         }}
-        title={good.name}
+        title={name}
     >
         <img
-            src={good.icon}
-            alt={good.name}
+            src={good.iconKey}
+            alt={name}
             style={{
                 width: "100%",
                 height: "70%",
@@ -91,22 +100,24 @@ export function SidebarGoods({ good, hasBought, priceFlash, isChosen, handleClic
 
 
 interface DetailGoodsProps {
-    good: IGoods,
+    good: Goods,
     canAfford: boolean,
-    canPurchase: boolean,
+    canPurchaseWithoutPrice: boolean,
     hasBought: boolean,
 
-    priceItems: item[],
-    myItems: item[],
+    priceItems: GoodsItem[],
+    myItems: GoodsItem[],
 
-    handlePurchase: (good: IGoods) => void,
+    handlePurchase: (good: Goods) => void,
 }
 
-export function DetailGoods({ good, canAfford, canPurchase, hasBought,
+export function DetailGoods({ good, canAfford, canPurchaseWithoutPrice, hasBought,
     priceItems, myItems, handlePurchase }: DetailGoodsProps) {
     const { translate } = useLocaleMessages();
     const deviceType = useDeviceType();
     const isMobile = deviceType === 'mobile';
+    const name = translate(goodsKey(good.nameKey));
+    const description = translate(goodsKey(good.descriptionKey));
 
     return (
         <div style={{ color: "#fff", paddingRight: "8px" }}>
@@ -122,21 +133,21 @@ export function DetailGoods({ good, canAfford, canPurchase, hasBought,
                 borderRadius: "6px"
             }}>
                 <button
-                    disabled={hasBought || !canPurchase}
+                    disabled={hasBought || !canPurchaseWithoutPrice}
                     onClick={() => handlePurchase(good)}
                     style={{
                         flex: "0 0 auto",
                         width: isMobile ? "100%" : "auto",
                         padding: "10px 18px",
-                        background: hasBought || !canPurchase ? "#666" : canAfford ? "#2178d6" : "#8b3a3a",
+                        background: hasBought || !canPurchaseWithoutPrice ? "#666" : canAfford ? "#2178d6" : "#8b3a3a",
                         border: "none",
                         color: "#fff",
-                        cursor: hasBought || !canPurchase ? "not-allowed" : "pointer",
+                        cursor: hasBought || !canPurchaseWithoutPrice ? "not-allowed" : "pointer",
                         borderRadius: "5px",
                         fontWeight: 700
                     }}
                 >
-                    {hasBought ? "Purchased" : !canAfford ? "Cannot Afford" : "Purchase"}
+                    {hasBought ? "Purchased" : !canPurchaseWithoutPrice ? "Locked" : !canAfford ? "Cannot Afford" : "Purchase"}
                 </button>
                 <div style={{ minWidth: 0, flex: 1, width: isMobile ? "100%" : undefined }}>
                     <StuffList
@@ -149,14 +160,14 @@ export function DetailGoods({ good, canAfford, canPurchase, hasBought,
 
             <div style={{ display: "flex", alignItems: "center", gap: "14px", marginBottom: "14px" }}>
                 <img
-                    src={good.icon}
-                    alt={good.name}
+                    src={good.iconKey}
+                    alt={name}
                     style={{ width: "76px", height: "76px", objectFit: "contain" }}
                     draggable="false"
                 />
                 <div>
-                    <h2 style={{ margin: "0 0 6px", fontSize: "24px" }}>{good.name}</h2>
-                    {!canPurchase && <span style={{
+                    <h2 style={{ margin: "0 0 6px", fontSize: "24px" }}>{name}</h2>
+                    {!canPurchaseWithoutPrice && <span style={{
                         color: "#ff6a6a",
                         fontSize: "15px",
                         fontWeight: "bold"
@@ -164,37 +175,48 @@ export function DetailGoods({ good, canAfford, canPurchase, hasBought,
                 </div>
             </div>
 
-            <p style={{ margin: 0, lineHeight: 1.6 }}>{good.description()}</p>
+            <p style={{ margin: 0, lineHeight: 1.6 }}>{description}</p>
         </div>
     );
 }
 
 
 
-export function PurchasedDetailGoods(good: IGoods) {
+interface PurchasedDetailGoodsProps {
+    good: Goods,
+}
+
+export function PurchasedDetailGoods({ good }: PurchasedDetailGoodsProps) {
+    const { translate } = useLocaleMessages();
+    const name = translate(goodsKey(good.nameKey));
+    const description = translate(goodsKey(good.descriptionKey));
+
     return (
         <div style={{ color: "#fff" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "14px", marginBottom: "14px" }}>
                 <img
-                    src={good.icon}
-                    alt={good.name}
+                    src={good.iconKey}
+                    alt={name}
                     style={{ width: "76px", height: "76px", objectFit: "contain", opacity: 0.75 }}
                     draggable="false"
                 />
-                <h2 style={{ margin: 0 }}>{good.name}</h2>
+                <h2 style={{ margin: 0 }}>{name}</h2>
             </div>
-            <p style={{ lineHeight: 1.6 }}>{good.description()}</p>
+            <p style={{ lineHeight: 1.6 }}>{description}</p>
         </div>
     );
 }
 
 interface initDetailProps {
-    myItems: item[],
+    myItems: GoodsItem[],
 }
 
 
 export function InitDetail({ myItems }: initDetailProps) {
     const { translate } = useLocaleMessages();
+    const fallbackUnknownIcon = (event: React.SyntheticEvent<HTMLImageElement>) => {
+        event.currentTarget.src = unknownGoodsItemIconKey();
+    };
 
     return (<div
         style={{
@@ -211,8 +233,9 @@ export function InitDetail({ myItems }: initDetailProps) {
             marginBottom: "14px"
         }}>
             <img
-                src={getItemIcon(1)}
+                src={goodsItemIconKey({ id: 1, count: 0, nameKey: "gold", iconKey: "gold" })}
                 alt="gold"
+                onError={fallbackUnknownIcon}
                 style={{ width: "38px", height: "38px", objectFit: "contain" }}
                 draggable="false"
             />

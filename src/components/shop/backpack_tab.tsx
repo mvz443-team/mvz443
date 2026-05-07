@@ -1,16 +1,20 @@
 import React, { useEffect, useState } from "react";
-import Stuff, { StuffResourceKey } from "../../constants/stuffs";
 import { useLocaleMessages } from "../../hooks/useLocaleMessages";
 import i18n from "../../i18n";
-import { getItemIcon } from "./assets";
-import { item } from "./types";
+import {
+  goodsItemIconKey,
+  goodsItemName,
+  goodsItemResourceKey,
+  unknownGoodsItemIconKey,
+  type GoodsItem,
+} from "../../types/goods";
 
 interface BackpackTabProps {
-  myItems: item[];
+  myItems: GoodsItem[];
 }
 
-function getCurrentLocaleStuffDescription(type: number) {
-  const itemKey = StuffResourceKey(type);
+function getCurrentLocaleStuffDescription(item: GoodsItem) {
+  const itemKey = goodsItemResourceKey(item);
   if (!itemKey) return "";
 
   const bundle = i18n.getResourceBundle(i18n.resolvedLanguage || i18n.language, "translation") as {
@@ -35,21 +39,25 @@ function getCurrentLocaleStuffDescription(type: number) {
   return "";
 }
 
+function fallbackUnknownIcon(event: React.SyntheticEvent<HTMLImageElement>) {
+  event.currentTarget.src = unknownGoodsItemIconKey();
+}
+
 export default function BackpackTab({ myItems }: BackpackTabProps) {
   const { translate } = useLocaleMessages();
-  const [selectedType, setSelectedType] = useState<number | null>(myItems[0]?.type ?? null);
-  const selectedItem = myItems.find(item => item.type === selectedType) ?? myItems[0] ?? null;
-  const selectedDescription = selectedItem ? getCurrentLocaleStuffDescription(selectedItem.type) : "";
+  const [selectedId, setSelectedId] = useState<number | null>(myItems[0]?.id ?? null);
+  const selectedItem = myItems.find(item => item.id === selectedId) ?? myItems[0] ?? null;
+  const selectedDescription = selectedItem ? getCurrentLocaleStuffDescription(selectedItem) : "";
 
   useEffect(() => {
     if (myItems.length === 0) {
-      setSelectedType(null);
+      setSelectedId(null);
       return;
     }
-    if (!myItems.some(item => item.type === selectedType)) {
-      setSelectedType(myItems[0].type);
+    if (!myItems.some(item => item.id === selectedId)) {
+      setSelectedId(myItems[0].id);
     }
-  }, [myItems, selectedType]);
+  }, [myItems, selectedId]);
 
   return (
     <div style={{
@@ -77,12 +85,12 @@ export default function BackpackTab({ myItems }: BackpackTabProps) {
         {myItems.length === 0 ? (
           <div style={{ color: "#999", padding: "16px" }}>背包为空</div>
         ) : myItems.map(item => {
-          const isSelected = selectedItem?.type === item.type;
-          const name = Stuff(item.type, translate);
+          const isSelected = selectedItem?.id === item.id;
+          const name = goodsItemName(item, translate);
           return (
             <button
-              key={item.type}
-              onClick={() => setSelectedType(item.type)}
+              key={item.id}
+              onClick={() => setSelectedId(item.id)}
               title={name}
               style={{
                 position: "relative",
@@ -98,8 +106,9 @@ export default function BackpackTab({ myItems }: BackpackTabProps) {
               }}
             >
               <img
-                src={getItemIcon(item.type)}
+                src={goodsItemIconKey(item)}
                 alt={name}
+                onError={fallbackUnknownIcon}
                 style={{ width: "38px", height: "38px", objectFit: "contain" }}
                 draggable="false"
               />
@@ -136,8 +145,9 @@ export default function BackpackTab({ myItems }: BackpackTabProps) {
               flex: "0 0 auto"
             }}>
               <img
-                src={getItemIcon(selectedItem.type)}
-                alt={Stuff(selectedItem.type, translate)}
+                src={goodsItemIconKey(selectedItem)}
+                alt={goodsItemName(selectedItem, translate)}
+                onError={fallbackUnknownIcon}
                 style={{
                   width: "72px",
                   height: "72px",
@@ -148,13 +158,13 @@ export default function BackpackTab({ myItems }: BackpackTabProps) {
               />
               <div style={{ minWidth: 0 }}>
                 <h2 style={{ margin: "0 0 8px", fontSize: "22px" }}>
-                  {Stuff(selectedItem.type, translate)}
+                  {goodsItemName(selectedItem, translate)}
                 </h2>
                 <div style={{ color: "#d6d6d6", fontSize: "15px" }}>
                   数量: {selectedItem.count}
                 </div>
                 <div style={{ color: "#9e9e9e", fontSize: "13px", marginTop: "4px" }}>
-                  Type ID: {selectedItem.type}
+                  Item ID: {selectedItem.id}
                 </div>
               </div>
             </div>
@@ -182,34 +192,34 @@ export default function BackpackTab({ myItems }: BackpackTabProps) {
 }
 
 interface BackpackListProps {
-  myItems: item[];
-  selectedType: number | null;
-  selectedItem: item | null;
-  onSelectType: (type: number) => void;
+  myItems: GoodsItem[];
+  selectedId: number | null;
+  selectedItem: GoodsItem | null;
+  onSelectId: (id: number) => void;
 }
 
 interface BackpackDetailProps {
-  selectedItem: item | null;
+  selectedItem: GoodsItem | null;
 }
 
-export function useBackpackSelection(myItems: item[]) {
-  const [selectedType, setSelectedType] = useState<number | null>(myItems[0]?.type ?? null);
-  const selectedItem = myItems.find(item => item.type === selectedType) ?? myItems[0] ?? null;
+export function useBackpackSelection(myItems: GoodsItem[]) {
+  const [selectedId, setSelectedId] = useState<number | null>(myItems[0]?.id ?? null);
+  const selectedItem = myItems.find(item => item.id === selectedId) ?? myItems[0] ?? null;
 
   useEffect(() => {
     if (myItems.length === 0) {
-      setSelectedType(null);
+      setSelectedId(null);
       return;
     }
-    if (!myItems.some(item => item.type === selectedType)) {
-      setSelectedType(myItems[0].type);
+    if (!myItems.some(item => item.id === selectedId)) {
+      setSelectedId(myItems[0].id);
     }
-  }, [myItems, selectedType]);
+  }, [myItems, selectedId]);
 
-  return { selectedType, selectedItem, setSelectedType };
+  return { selectedId, selectedItem, setSelectedId };
 }
 
-export function BackpackList({ myItems, selectedItem, onSelectType }: BackpackListProps) {
+export function BackpackList({ myItems, selectedItem, onSelectId }: BackpackListProps) {
   const { translate } = useLocaleMessages();
 
   return (
@@ -227,12 +237,12 @@ export function BackpackList({ myItems, selectedItem, onSelectType }: BackpackLi
       {myItems.length === 0 ? (
         <div style={{ color: "#999", padding: "16px" }}>背包为空</div>
       ) : myItems.map(item => {
-        const isSelected = selectedItem?.type === item.type;
-        const name = Stuff(item.type, translate);
+        const isSelected = selectedItem?.id === item.id;
+        const name = goodsItemName(item, translate);
         return (
           <button
-            key={item.type}
-            onClick={() => onSelectType(item.type)}
+            key={item.id}
+            onClick={() => onSelectId(item.id)}
             title={name}
             style={{
               position: "relative",
@@ -248,8 +258,9 @@ export function BackpackList({ myItems, selectedItem, onSelectType }: BackpackLi
             }}
           >
             <img
-              src={getItemIcon(item.type)}
+              src={goodsItemIconKey(item)}
               alt={name}
+              onError={fallbackUnknownIcon}
               style={{ width: "38px", height: "38px", objectFit: "contain" }}
               draggable="false"
             />
@@ -271,7 +282,7 @@ export function BackpackList({ myItems, selectedItem, onSelectType }: BackpackLi
 
 export function BackpackDetail({ selectedItem }: BackpackDetailProps) {
   const { translate } = useLocaleMessages();
-  const selectedDescription = selectedItem ? getCurrentLocaleStuffDescription(selectedItem.type) : "";
+  const selectedDescription = selectedItem ? getCurrentLocaleStuffDescription(selectedItem) : "";
 
   return (
     <div style={{
@@ -295,8 +306,9 @@ export function BackpackDetail({ selectedItem }: BackpackDetailProps) {
             flex: "0 0 auto",
           }}>
             <img
-              src={getItemIcon(selectedItem.type)}
-              alt={Stuff(selectedItem.type, translate)}
+              src={goodsItemIconKey(selectedItem)}
+              alt={goodsItemName(selectedItem, translate)}
+              onError={fallbackUnknownIcon}
               style={{
                 width: "84px",
                 height: "84px",
@@ -307,13 +319,13 @@ export function BackpackDetail({ selectedItem }: BackpackDetailProps) {
             />
             <div style={{ minWidth: 0 }}>
               <h2 style={{ margin: "0 0 8px", fontSize: "24px" }}>
-                {Stuff(selectedItem.type, translate)}
+                {goodsItemName(selectedItem, translate)}
               </h2>
               <div style={{ color: "#d6d6d6", fontSize: "15px" }}>
                 数量: {selectedItem.count}
               </div>
               <div style={{ color: "#9e9e9e", fontSize: "13px", marginTop: "4px" }}>
-                Type ID: {selectedItem.type}
+                Item ID: {selectedItem.id}
               </div>
             </div>
           </div>

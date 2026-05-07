@@ -63,6 +63,24 @@
     "scb": "Scarlet Crystal (Trailer Version Only)",
     "chapter_cp1": "Beneath the Village"
   },
+  "goods": {
+    "name_slot7": "7th Slot",
+    "slot7_description": "7th card slot\nUnlocked after Chapter 1 Stage 4",
+    "name_slot8": "8th Slot",
+    "slot8_description": "8th card slot\nUnlocked after Chapter 1 Stage 5",
+    "name_chapter1_kit": "Chapter 1 Kit",
+    "chapter1_kit_description": "Randomly grants 3 Chapter 1 upgrade materials (leather or iron)\nUnlocked after Chapter 1 Stage 3",
+    "name_scarletborder_crystal": "Scarlet Crystal",
+    "scarletborder_crystal_description": "Trailer-version exclusive item\nUsed to upgrade devices\nThe trailer version limits device upgrade levels; Scarlet Crystals lift that limit\nWarning: upgraded devices are far stronger than the trailer balance expects\nUnlocked after Stage 1-5",
+    "name_pumpkin_wan": "Wide-Area Pumpkin Pie",
+    "pumpkin_wan_shop_description": "Wide-Area Pumpkin Pie (Mr. Pumpkin Wan)\nPhotosensitive device that deals frequent laser damage around itself\nRequires Spooky Pumpkin Head as a base\nUnlocked after Chapter 1 Stage 5; available early in the trailer version.",
+    "name_at_dispenser": "Anti-Tank Turret",
+    "at_dispenser_shop_description": "Anti-Tank Turret\nCalls in a HellVillager to operate a powerful turret for single-lane dominance\nRequires Dispenser as a base\nUnlocked after Chapter 1 Stage 7",
+    "name_slot9": "9th Slot",
+    "slot9_description": "9th card slot\nUnlocked after Chapter 1 Stage 7",
+    "name_chapter2_plants": "Early Chapter 2 Device Pack",
+    "chapter2_plants_description": "Unlocks early Chapter 2 devices: Elastic Pudding, Dual Dispenser, and Glowstone Powder\nUnlocked after Chapter 1 Stage 6"
+  },
   "common": {
     "loading": "Loading...",
     "confirm": "Confirm",

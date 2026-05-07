@@ -18,56 +18,99 @@
         "phase1_end": 11,
         "phase2_end": 28,
         "dayOrNight": 2,
-        "flagWaves": [ 10, 25, 35 ],
-        "waterWays": [ ],
-        "AllowedMobs": [ 1, 2, 3, 8, 5, 7, 9, 11, 14, 15, 16 ],
-        "globalRatio": [ [ 0, 1.0 ], [ 21, 2 ] ],
-        "bossInsert": [ [ 20, 12 ], [ 25, 13 ], [ 35, 17 ] ]
+        "flagWaves": [
+            10,
+            25,
+            35
+        ],
+        "waterWays": [],
+        "AllowedMobs": [
+            1,
+            2,
+            3,
+            8,
+            5,
+            7,
+            9,
+            11,
+            14,
+            15,
+            16
+        ],
+        "globalRatio": [
+            [
+                0,
+                1
+            ],
+            [
+                21,
+                2
+            ]
+        ],
+        "bossInsert": [
+            [
+                20,
+                12
+            ],
+            [
+                25,
+                13
+            ],
+            [
+                35,
+                17
+            ]
+        ]
     },
     "onWin": {
-        "unLock": [ ],
-        "unLockPlant": [ ]
+        "unLock": [],
+        "unLockPlant": []
     },
     "energy": 100,
     "rewards": [
         {
             "progress": 75,
             "reward": {
-                "type": 1,
-                "count": 120
+                "id": 1,
+                "number": 120
             }
         },
         {
             "progress": 90,
             "reward": {
-                "type": 2,
-                "count": 3
+                "id": 2,
+                "number": 3
             }
         },
         {
             "progress": 90,
             "reward": {
-                "type": 3,
-                "count": 3
+                "id": 3,
+                "number": 3
             }
         },
         {
             "progress": 100,
             "reward": {
-                "type": 1,
-                "count": 200
+                "id": 1,
+                "number": 200
             }
         },
         {
             "progress": 100,
             "reward": {
-                "type": 5,
-                "count": 3
+                "id": 5,
+                "number": 3
             }
         }
     ],
     "load": {
-        "bgimg": [ "bg/bgDeepMine.png" ],
-        "bgm": [ "audio/OLJA-0021-08.ogg", "audio/ZCDS-0014-05.ogg" ]
+        "bgimg": [
+            "bg/bgDeepMine.png"
+        ],
+        "bgm": [
+            "audio/OLJA-0021-08.ogg",
+            "audio/ZCDS-0014-05.ogg"
+        ]
     }
 }

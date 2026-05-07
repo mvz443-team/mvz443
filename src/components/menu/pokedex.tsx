@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { useCreation, useMemoizedFn, useUpdateEffect, useSetState } from 'ahooks';
 import { useSaveManager } from '../../context/save_ctx';
 import { publicUrl } from '../../utils/browser';
-import { item } from '../shop/types';
+import type { GoodsItem } from '../../types/goods';
 import StuffList from '../shop/stuff_list';
 import { getUpgradeMaterials, MaterialRequirement } from '../../game/utils/sqlite/materials';
 import { useLocaleMessages } from '../../hooks/useLocaleMessages';
@@ -149,14 +149,14 @@ export default function Pokedex({ width, height, onBack }: Props) {
       .finally(() => setState({ loadingMaterials: false }));
   }, [state.selectedItem]);
 
-  const getCurrentItems = useMemoizedFn((): item[] => {
+  const getCurrentItems = useMemoizedFn((): GoodsItem[] => {
     return Array.from(saveManager.currentProgress.items.values());
   });
 
   const canUpgrade = useMemoizedFn((): boolean => {
     if (state.loadingMaterials || !state.selectedItem) return false;
     const currentItems = getCurrentItems();
-    const currentMap = new Map(currentItems.map(i => [i.type, i.count]));
+    const currentMap = new Map(currentItems.map(i => [i.id, i.count]));
     return state.upgradeMaterials.length > 0 && state.upgradeMaterials.every(mat => (currentMap.get(mat.type) || 0) >= mat.count);
   });
 
@@ -389,7 +389,7 @@ export default function Pokedex({ width, height, onBack }: Props) {
                   </h3>
                   {/* 材料列表 */}
                   <StuffList
-                    items={state.upgradeMaterials}
+                    items={state.upgradeMaterials.map(mat => ({ id: mat.type, count: mat.count }))}
                     currentItems={getCurrentItems()}
                     translate={translate}
                   />

@@ -1,31 +1,28 @@
 import React from "react";
-import { GameProgress } from "../../context/save_ctx";
 import { DetailGoods, InitDetail, PurchasedDetailGoods, SidebarGoods } from "./widget";
-import { IGoods, item } from "./types";
+import type { Goods, GoodsItem, GoodsSaveCtx } from "../../types/goods";
 
 interface ShopListProps {
-    goodsList: IGoods[];
+    goodsList: Goods[];
     selectedGoodId: number | null;
     priceFlashGoodId: number | null;
-    progress: GameProgress;
+    saveCtx: GoodsSaveCtx;
     onGoodSelect: (id: number) => void;
 }
 
 interface ShopDetailProps {
-    goodsList: IGoods[];
+    goodsList: Goods[];
     selectedGoodId: number | null;
-    progress: GameProgress;
-    myItems: item[];
-    couldAfford: (good: IGoods) => boolean;
-    canPurchase: (progress: GameProgress, good: IGoods) => boolean;
-    onPurchase: (good: IGoods) => void;
+    saveCtx: GoodsSaveCtx;
+    myItems: GoodsItem[];
+    onPurchase: (good: Goods) => void;
 }
 
 export function ShopList({
     goodsList,
     selectedGoodId,
     priceFlashGoodId,
-    progress,
+    saveCtx,
     onGoodSelect,
 }: ShopListProps) {
     return (
@@ -52,11 +49,12 @@ export function ShopList({
                 </div>
             ) : (
                 goodsList.map(good => {
-                    const hasBought = good.hasBought(good.id, progress);
+                    const hasBought = good.hasBought(saveCtx);
                     return (
                         <div key={good.id}>
                             <SidebarGoods
                                 good={good}
+                                saveCtx={saveCtx}
                                 hasBought={hasBought}
                                 priceFlash={priceFlashGoodId === good.id}
                                 isChosen={(key: number) => key === selectedGoodId}
@@ -73,10 +71,8 @@ export function ShopList({
 export function ShopDetail({
     goodsList,
     selectedGoodId,
-    progress,
+    saveCtx,
     myItems,
-    couldAfford,
-    canPurchase,
     onPurchase,
 }: ShopDetailProps) {
     const selectedGood = React.useMemo(() => {
@@ -96,15 +92,15 @@ export function ShopDetail({
             {selectedGoodId === null ? (
                 <InitDetail myItems={myItems} />
             ) : selectedGood ? (
-                selectedGood.hasBought(selectedGood.id, progress) ? (
-                    <PurchasedDetailGoods {...selectedGood} />
+                selectedGood.hasBought(saveCtx) ? (
+                    <PurchasedDetailGoods good={selectedGood} />
                 ) : (
                     <DetailGoods
                         good={selectedGood}
-                        canAfford={couldAfford(selectedGood)}
-                        canPurchase={canPurchase(progress, selectedGood)}
-                        hasBought={selectedGood.hasBought(selectedGood.id, progress)}
-                        priceItems={selectedGood.getPriceStructure().items}
+                        canAfford={selectedGood.canAfford(saveCtx)}
+                        canPurchaseWithoutPrice={selectedGood.canPurchaseWithoutPrice(saveCtx)}
+                        hasBought={selectedGood.hasBought(saveCtx)}
+                        priceItems={selectedGood.getPrice(saveCtx).items}
                         myItems={myItems}
                         handlePurchase={onPurchase}
                     />

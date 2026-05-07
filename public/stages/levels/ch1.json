@@ -22,43 +22,75 @@
         "phase1_end": 11,
         "phase2_end": 16,
         "dayOrNight": 1,
-        "flagWaves": [ 10, 20 ],
-        "waterWays": [ 1, 2, 3 ],
-        "AllowedMobs": [ 1, 2, 3, 8 ],
-        "globalRatio": [ [ 0, 1.0 ] ],
-        "bossInsert": [ ]
+        "flagWaves": [
+            10,
+            20
+        ],
+        "waterWays": [
+            1,
+            2,
+            3
+        ],
+        "AllowedMobs": [
+            1,
+            2,
+            3,
+            8
+        ],
+        "globalRatio": [
+            [
+                0,
+                1
+            ]
+        ],
+        "bossInsert": []
     },
     "onWin": {
-        "unLock": [ 2 ],
-        "unLockPlant": [ 1, 2, 3, 4, 7 ]
+        "unLock": [
+            2
+        ],
+        "unLockPlant": [
+            1,
+            2,
+            3,
+            4,
+            7
+        ]
     },
     "energy": 50,
     "rewards": [
         {
             "progress": 45,
             "reward": {
-                "type": 1,
-                "count": 45
+                "id": 1,
+                "number": 45
             }
         },
         {
             "progress": 85,
             "reward": {
-                "type": 1,
-                "count": 55
+                "id": 1,
+                "number": 55
             }
         },
         {
             "progress": 95,
             "reward": {
-                "type": 2,
-                "count": 1
+                "id": 2,
+                "number": 1
             }
         }
     ],
     "load": {
-        "bgimg": [ "bg/bgDay.png" ],
-        "bgm": [ "audio/QLCK-002-05.mp3" ],
-        "plants": [ 1, 2 ]
+        "bgimg": [
+            "bg/bgDay.png"
+        ],
+        "bgm": [
+            "audio/QLCK-002-05.mp3"
+        ],
+        "plants": [
+            1,
+            2
+        ]
     }
 }

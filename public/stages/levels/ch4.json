@@ -22,41 +22,69 @@
         "phase1_end": 10,
         "phase2_end": 16,
         "dayOrNight": 2,
-        "flagWaves": [ 10, 20 ],
-        "waterWays": [ ],
-        "AllowedMobs": [ 1, 2, 3, 8, 5, 9, 11, 14, 16 ],
-        "globalRatio": [ [ 0, 1.0 ] ],
-        "bossInsert": [ ]
+        "flagWaves": [
+            10,
+            20
+        ],
+        "waterWays": [],
+        "AllowedMobs": [
+            1,
+            2,
+            3,
+            8,
+            5,
+            9,
+            11,
+            14,
+            16
+        ],
+        "globalRatio": [
+            [
+                0,
+                1
+            ]
+        ],
+        "bossInsert": []
     },
     "onWin": {
-        "unLock": [ 5 ],
-        "unLockPlant": [ 6, 10 ]
+        "unLock": [
+            5
+        ],
+        "unLockPlant": [
+            6,
+            10
+        ]
     },
     "energy": 50,
     "rewards": [
         {
             "progress": 60,
             "reward": {
-                "type": 1,
-                "count": 40
+                "id": 1,
+                "number": 40
             }
-        }, {
+        },
+        {
             "progress": 75,
             "reward": {
-                "type": 3,
-                "count": 2
+                "id": 3,
+                "number": 2
             }
         },
         {
             "progress": 95,
             "reward": {
-                "type": 1,
-                "count": 110
+                "id": 1,
+                "number": 110
             }
         }
     ],
     "load": {
-        "bgimg": [ "bg/bgDeepMine.png" ],
-        "bgm": [ "audio/OLJA-0021-08.ogg" ]
+        "bgimg": [
+            "bg/bgDeepMine.png"
+        ],
+        "bgm": [
+            "audio/OLJA-0021-08.ogg"
+        ]
     }
 }
