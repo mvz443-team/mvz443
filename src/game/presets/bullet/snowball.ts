@@ -5,9 +5,13 @@ import SoundCmd from "../../utils/cmd/SoundCmd";
 import ProjectileDamage from "../../../constants/damage";
 import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
 import { PositionManager } from "../../managers/view/PositionManager";
+import { legacyRapierVelocityToUnitsPerSecond } from "../../../constants/physics";
 
 export class SnowBallModel extends BulletModel<BulletConfig, SnowBallEntity> {
   texture = 'bullet/snowball';
+  
+  public speed: number = legacyRapierVelocityToUnitsPerSecond(700);
+
   public createEntity(scene: Game, x: number, row: number, config: BulletConfig): SnowBallEntity {
     return new SnowBallEntity(scene, x, row, this, config);
   }

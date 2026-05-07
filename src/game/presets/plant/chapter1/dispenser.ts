@@ -69,7 +69,7 @@ export class DispenserModel extends PlantModel {
       ArrowData, scene, entity.x, entity.row, {
       damage: this.damage.getValueAt(entity.level),
       faction: entity.faction,
-      speed: legacyRapierVelocityToUnitsPerSecond(500),
+      speed: legacyRapierVelocityToUnitsPerSecond(800),
       bounceable: true,
       dealer: entity,
       penetratePower,

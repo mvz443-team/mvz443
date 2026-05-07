@@ -134,7 +134,7 @@ export class DoubleDispenserModel extends PlantModel {
   }
 
   private shootBackArrow(entity: DoubleDispenserEntity, damage: number): void {
-    const reverseSpeed = -legacyRapierVelocityToUnitsPerSecond(500); // 反向速度
+    const reverseSpeed = -legacyRapierVelocityToUnitsPerSecond(800); // 反向速度
 
     // 后方箭矢1（反向）
     ProjectileCmd.Create<ArrowModel>(ArrowData, entity.scene, entity.x, entity.row, {

@@ -14,7 +14,7 @@ export interface HFireWorkConfig extends BulletConfig {
 
 export class HFireWorkModel extends BulletModel<HFireWorkConfig, HFireWorkEntity> {
   texture = 'bullet/Hfirework';
-  public speed = legacyRapierVelocityToUnitsPerSecond(300);
+  public speed = legacyRapierVelocityToUnitsPerSecond(500);
 
   public createEntity(scene: Game, x: number, row: number, config: HFireWorkConfig): HFireWorkEntity {
     return new HFireWorkEntity(scene, x, row, this, config);
