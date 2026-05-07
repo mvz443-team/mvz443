@@ -1,4 +1,7 @@
-import { LEGACY_BALANCE_FRAME_INTERVAL_MS } from "../../../constants/physics";
+import {
+  LEGACY_BALANCE_FRAME_INTERVAL_MS,
+  normalizeGameUpdateIntervalMs
+} from "../../../constants/physics";
 import { PhaserEventBus, PhaserEvents } from "../../EventBus";
 import { BaseManager } from "../BaseManager";
 export class FrameTimer {
@@ -43,7 +46,7 @@ export class FrameTimer {
 
   // 计算剩余时间（毫秒）
   public GetLeftTimeByMs(): number {
-    return this.GetLeftTimeByFrame() * LEGACY_BALANCE_FRAME_INTERVAL_MS;
+    return this.GetLeftTimeByFrame() * this.ticker.frameInterval;
   }
 
   public remove(): void {
@@ -97,6 +100,10 @@ export default class TickerManager extends BaseManager {
 
   private handleRoomGameStart() {
     this.initStart();
+  }
+
+  public setFrameInterval(frameIntervalMs: number): void {
+    this.frameInterval = normalizeGameUpdateIntervalMs(frameIntervalMs);
   }
 
   /**
@@ -290,6 +297,7 @@ export default class TickerManager extends BaseManager {
     this.nextTimerId = 1;
     this.currentFrame = 0;
     this.startTime = 0;
+    this.frameInterval = LEGACY_BALANCE_FRAME_INTERVAL_MS;
   }
 }
 

@@ -15,14 +15,15 @@ import { LEGACY_BALANCE_FRAME_INTERVAL_MS } from "../../constants/physics";
 export default class QueueSend {
   queues: Denque<Request>;
   private readonly commandBaseDeltaFrames: number = 2;
-  private readonly blankPollIntervalMs: number = LEGACY_BALANCE_FRAME_INTERVAL_MS;
+  private readonly frameIntervalMsProvider: () => number;
   private lastBlankAckFrameIdSent: number = -1;
   private lastBlankAckFrameIdQueued: number = -1;
   private lastBlankSentAt: number = 0;
   private lastBlankQueuedAt: number = 0;
 
-  constructor() {
+  constructor(frameIntervalMsProvider: () => number = () => LEGACY_BALANCE_FRAME_INTERVAL_MS) {
     this.queues = new Denque();
+    this.frameIntervalMsProvider = frameIntervalMsProvider;
   }
 
   Reset() {
@@ -90,7 +91,7 @@ export default class QueueSend {
   private getCommandDelayFrames(): number {
     const { sendLatencyMs, receiveLatencyMs } = BackendWS.getDebugLatencyConfig();
     const roundTripLatencyMs = sendLatencyMs + receiveLatencyMs;
-    const networkDelayFrames = Math.ceil(roundTripLatencyMs / LEGACY_BALANCE_FRAME_INTERVAL_MS);
+    const networkDelayFrames = Math.ceil(roundTripLatencyMs / this.getFrameIntervalMs());
 
     return networkDelayFrames + this.commandBaseDeltaFrames;
   }
@@ -176,9 +177,9 @@ export default class QueueSend {
     const ackFrameId = BackendWS.AckFrameID;
     const hasQueuedSameAck = ackFrameId === this.lastBlankAckFrameIdQueued;
     const hasSentSameAckRecently = ackFrameId === this.lastBlankAckFrameIdSent
-      && now - this.lastBlankSentAt < this.blankPollIntervalMs;
+      && now - this.lastBlankSentAt < this.getFrameIntervalMs();
     const hasQueuedSameAckRecently = hasQueuedSameAck
-      && now - this.lastBlankQueuedAt < this.blankPollIntervalMs;
+      && now - this.lastBlankQueuedAt < this.getFrameIntervalMs();
 
     if (hasSentSameAckRecently || hasQueuedSameAckRecently) {
       console.log("[QueueSend] skip duplicate blank", {
@@ -222,5 +223,12 @@ export default class QueueSend {
         break;
     }
     return request;
+  }
+
+  private getFrameIntervalMs(): number {
+    const frameIntervalMs = this.frameIntervalMsProvider();
+    return Number.isFinite(frameIntervalMs) && frameIntervalMs > 0
+      ? frameIntervalMs
+      : LEGACY_BALANCE_FRAME_INTERVAL_MS;
   }
 }

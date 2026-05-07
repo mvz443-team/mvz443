@@ -123,6 +123,8 @@
     "settings_gaming_level_intro_images_t": "When disabled, the level selection screen will not load intro illustrations",
     "settings_gaming_show_card_levels": "Show Card Levels In Game",
     "settings_gaming_show_card_levels_t": "When disabled, device level badges are hidden during battles",
+    "settings_gaming_update_interval": "Game Update Interval (ms)",
+    "settings_gaming_update_interval_t": "[Single-player only] Adjusts the fixed logic frame interval; multiplayer stays locked at 50ms",
     "settings_gaming_background_music": "Background Music",
     "settings_gaming_background_music_t": "Adjust background music volume. Music resources still load at 0%",
     "settings_gaming_sound_effects": "Sound Effects",

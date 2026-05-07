@@ -2,6 +2,7 @@
 
 import type { StageResult } from "../../types/stage";
 import type { ChapterDescription, StageDescription } from "../../types/drama";
+import type { GameUpdateIntervalMs } from "../../constants/physics";
 
 export type { ChapterDescription, StageDescription } from "../../types/drama";
 
@@ -29,6 +30,7 @@ export interface GameSettings {
   isBgm: boolean;
   isSoundAudio: boolean;
   showCardLevelInGame: boolean;
+  gameUpdateIntervalMs: GameUpdateIntervalMs;
   bgmVolume?: number;
   soundAudioVolume?: number;
 }

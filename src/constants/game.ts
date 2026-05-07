@@ -1,4 +1,4 @@
-import { legacyRapierVelocityToUnitsPerSecond } from "./physics";
+import { getOneGridVelocityForSeconds, legacyRapierVelocityToUnitsPerSecond } from "./physics";
 
 export type _Typedebuffs = 'slow' | 'frozen' | null;
 
@@ -19,23 +19,25 @@ export const DamageConstants = {
   SECKILL: 99889988,
 }
 
+const NormalZombieSpeed = getOneGridVelocityForSeconds(5.0);
+
 export const MonsterSpeed = {
-  VindicatorSolider: legacyRapierVelocityToUnitsPerSecond(25),
-  Mutant: legacyRapierVelocityToUnitsPerSecond(30),
-  TurtleZombie: legacyRapierVelocityToUnitsPerSecond(35),
-  Zombie: legacyRapierVelocityToUnitsPerSecond(35),
-  Skeleton: legacyRapierVelocityToUnitsPerSecond(35),
-  SkeletonBow: legacyRapierVelocityToUnitsPerSecond(35),
-  MinerZombie: legacyRapierVelocityToUnitsPerSecond(35),
-  MinerHelmetZombie: legacyRapierVelocityToUnitsPerSecond(35),
-  CapZombie: legacyRapierVelocityToUnitsPerSecond(35),
-  HelmetZombie: legacyRapierVelocityToUnitsPerSecond(35),
-  TurtleSkeletonBow: legacyRapierVelocityToUnitsPerSecond(35),
-  Evoker: legacyRapierVelocityToUnitsPerSecond(40),
+  VindicatorSolider: getOneGridVelocityForSeconds(4.7),
+  Mutant: NormalZombieSpeed,
+  TurtleZombie: NormalZombieSpeed,
+  Zombie: NormalZombieSpeed,
+  Skeleton: NormalZombieSpeed,
+  SkeletonBow: NormalZombieSpeed,
+  MinerZombie: NormalZombieSpeed,
+  MinerHelmetZombie: NormalZombieSpeed,
+  CapZombie: NormalZombieSpeed,
+  HelmetZombie: NormalZombieSpeed,
+  TurtleSkeletonBow: NormalZombieSpeed,
+  Evoker: NormalZombieSpeed,
   ObsidianGolem: 0,
   Warden: 0,
-  Vindicator: legacyRapierVelocityToUnitsPerSecond(55),
-  StickZombie: legacyRapierVelocityToUnitsPerSecond(60),
+  Vindicator: getOneGridVelocityForSeconds(4.0),
+  StickZombie: getOneGridVelocityForSeconds(2.5),
 } as const;
 
 export const ZombieAttackInterval = {

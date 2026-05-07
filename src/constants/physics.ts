@@ -2,15 +2,31 @@ import { BATTLE_GRID_CELL_WIDTH } from "./gameLayout";
 
 export const RAPIER_DEFAULT_TIMESTEP_SECONDS = 1 / 60;
 export const LEGACY_BALANCE_FRAME_INTERVAL_MS = 50;
+export const GAME_UPDATE_INTERVAL_MS_OPTIONS = [10, 20, 50, 100] as const;
+const ONE_GRID_VELOCITY_CALIBRATION = 1.0;
+
+export type GameUpdateIntervalMs = typeof GAME_UPDATE_INTERVAL_MS_OPTIONS[number];
+
+export function normalizeGameUpdateIntervalMs(
+  value: unknown,
+  fallback: GameUpdateIntervalMs = LEGACY_BALANCE_FRAME_INTERVAL_MS
+): GameUpdateIntervalMs {
+  const interval = Number(value);
+  return GAME_UPDATE_INTERVAL_MS_OPTIONS.includes(interval as GameUpdateIntervalMs)
+    ? interval as GameUpdateIntervalMs
+    : fallback;
+}
 
 export function getRapierTimestepSeconds(frameIntervalMs = LEGACY_BALANCE_FRAME_INTERVAL_MS): number {
   return frameIntervalMs / 1000;
 }
 
+// 一秒走完一格需要的速度
 export function getOneGridPerSecondVelocity(): number {
   return getOneGridVelocityForSeconds(1);
 }
 
+// x秒走完一格需要的速度
 export function getOneGridVelocityForSeconds(seconds: number): number {
   if (!Number.isFinite(seconds) || seconds <= 0) {
     throw new Error("seconds must be a positive finite number");
@@ -21,7 +37,7 @@ export function getOneGridVelocityForSeconds(seconds: number): number {
     throw new Error("seconds is too small to convert to a deterministic millisecond duration");
   }
 
-  return Math.round((BATTLE_GRID_CELL_WIDTH * 1000) / durationMs);
+  return Math.round(((BATTLE_GRID_CELL_WIDTH * 1000) / durationMs) * ONE_GRID_VELOCITY_CALIBRATION);
 }
 
 // Existing gameplay speeds were tuned while Rapier stepped at its default

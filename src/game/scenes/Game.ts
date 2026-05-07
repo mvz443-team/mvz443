@@ -40,7 +40,11 @@ import {
   LOGICAL_BATTLE_WIDTH,
   MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO,
 } from '../../constants/gameLayout';
-import { getRapierTimestepSeconds } from '../../constants/physics';
+import {
+  LEGACY_BALANCE_FRAME_INTERVAL_MS,
+  getRapierTimestepSeconds,
+  normalizeGameUpdateIntervalMs
+} from '../../constants/physics';
 import { CardSlots } from '../ui/cardslots';
 import { MobileCardSlots } from '../ui/cardslots_mobile';
 import { BottomBar } from '../ui/bottom';
@@ -130,6 +134,8 @@ export class Game extends Scene {
     // read external data
     // TODO : 根据type具体判断放置那张背景图
     this.params = this.game.registry.get('gameParams') as GameParams;
+    this.innerSettings = this.params.gameSettings;
+    const frameIntervalMs = this.applyFrameIntervalSettings();
     const deviceType = this.params.deviceType ?? 'pc';
     this.scaleFactor = 1;
     PositionManager.Instance.setSceneViewportSize(
@@ -206,7 +212,7 @@ export class Game extends Scene {
     // 初始化物理世界
     await RAPIER.init();
     this.rapierWorld = new RAPIER.World({ x: 0, y: 0 }); // 无重力的物理世界
-    this.rapierWorld.timestep = getRapierTimestepSeconds();
+    this.rapierWorld.timestep = getRapierTimestepSeconds(frameIntervalMs);
     this.rapierEventQueue = new RAPIER.EventQueue(true);
 
 
@@ -233,6 +239,17 @@ export class Game extends Scene {
         console.error("[Game] media assets are not ready; loaded signal was not sent.", error);
       }
     }
+  }
+
+  private applyFrameIntervalSettings(): number {
+    const frameIntervalMs = BackendWS.isOnlineMode()
+      ? LEGACY_BALANCE_FRAME_INTERVAL_MS
+      : normalizeGameUpdateIntervalMs(this.params.gameSettings.gameUpdateIntervalMs);
+
+    this.innerSettings.gameUpdateIntervalMs = frameIntervalMs;
+    SyncManager.Instance.setFrameIntervalMs(frameIntervalMs);
+    TickerManager.Instance.setFrameInterval(frameIntervalMs);
+    return frameIntervalMs;
   }
 
   private async waitForMediaReady(): Promise<void> {

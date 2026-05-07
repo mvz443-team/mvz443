@@ -1,4 +1,7 @@
-import { LEGACY_BALANCE_FRAME_INTERVAL_MS } from "../../../constants/physics";
+import {
+  LEGACY_BALANCE_FRAME_INTERVAL_MS,
+  normalizeGameUpdateIntervalMs
+} from "../../../constants/physics";
 import { onlineStateManager } from "../../../store/OnlineStateManager";
 import { EventBus } from "../../../utils/eventBus";
 import EnumGameStage from "../../../utils/net/game_state";
@@ -44,9 +47,13 @@ export default class SyncManager extends BaseManager {
 
   public Load(): void {
     this.recvQueue = new QueueReceive();
-    this.sendQueue = new QueueSend();
+    this.sendQueue = new QueueSend(() => this.frameIntervalMs);
     BackendWS.setQueue(this.recvQueue, this.sendQueue);
     this.bindQueueAndPlantEvents();
+  }
+
+  public setFrameIntervalMs(frameIntervalMs: number) {
+    this.frameIntervalMs = normalizeGameUpdateIntervalMs(frameIntervalMs);
   }
 
   private bindQueueAndPlantEvents() {
@@ -139,5 +146,6 @@ export default class SyncManager extends BaseManager {
       this.sendQueue.Reset();
     }
     BackendWS.disconnectQueues();
+    this.frameIntervalMs = LEGACY_BALANCE_FRAME_INTERVAL_MS;
   }
 }
