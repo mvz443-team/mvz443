@@ -13,6 +13,7 @@ export interface StageDramaConfig {
 }
 
 export interface ChapterDramaConfig {
+  chapterId: number;
   nameKey: string;
   descriptionKey: string;
   stages: StageDramaConfig[];
@@ -27,7 +28,8 @@ export interface ChapterDescription {
 
 export interface StageDescription {
   id: number;
-  chapterID: number;
+  levelId: number;
+  chapterId: number;
   nameKey: string;
   descriptionKey: string;
   dataPath: string;

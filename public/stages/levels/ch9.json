@@ -1,5 +1,7 @@
 {
     "comment": "1-9, final stage, Centipede boss",
+    "chapterId": 1,
+    "levelId": 9,
     "nameKey": "level_sg9",
     "descriptionKey": "sg9",
     "levelIntro": [

@@ -1,5 +1,7 @@
 {
     "comment": "1-2,entry of mine,体验版",
+    "chapterId": 1,
+    "levelId": 2,
     "nameKey": "level_sg2",
     "descriptionKey": "sg2",
     "levelIntro": [
@@ -47,7 +49,10 @@
     },
     "onWin": {
         "unLock": [
-            3
+            {
+                "chapterId": 1,
+                "levelId": 3
+            }
         ],
         "unLockPlant": [
             5

@@ -45,13 +45,20 @@ export interface ProgressReward {
   reward: Reward;
 }
 
+export interface LevelRef {
+  chapterId: number;
+  levelId: number;
+}
+
 export interface OnWin {
-  unLock: number[];
+  unLock: LevelRef[];
   unLockPlant: number[];
 }
 
 export interface StageResult {
   isWin: boolean;
+  chapterId: number;
+  stageId: number;
   onWin: OnWin;
   rewards: ProgressReward[];
   progress: number;
@@ -64,6 +71,8 @@ export interface PreloadData {
 }
 
 export interface StageData {
+  chapterId: number;
+  levelId: number;
   nameKey: string;
   descriptionKey: string;
   levelIntro?: LevelIntroItem[];

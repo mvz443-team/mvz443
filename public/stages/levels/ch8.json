@@ -1,5 +1,7 @@
 {
     "comment": "1-8,deep mine water boss version,体验版",
+    "chapterId": 1,
+    "levelId": 8,
     "nameKey": "level_sg8",
     "descriptionKey": "sg8",
     "levelIntro": [

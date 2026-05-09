@@ -12,13 +12,15 @@ interface Props {
     width: number;
     height: number;
     isWin: boolean;
+    chapterId?: number;
+    stageId?: number;
     onWin?: OnWin; // 游戏胜利时的奖励数据
     progressRewards: ProgressReward[] | undefined;
     myProgress: number;
     onBack: () => void;
 }
 
-export default function GameResultView({ width, height, isWin, onWin, progressRewards, myProgress, onBack }: Props) {
+export default function GameResultView({ width, height, isWin, chapterId, stageId, onWin, progressRewards, myProgress, onBack }: Props) {
     // console.log(onWin)
     const saveManager = useSaveManager();
     const hasSavedRef = useRef(false);
@@ -30,9 +32,12 @@ export default function GameResultView({ width, height, isWin, onWin, progressRe
         if (!onWin) return "无";
         if (!onWin.unLock || onWin.unLock.length === 0) return "无";
         
-        const computedLevels = onWin.unLock.map((cpid) => {
-            const stage = StageDataRecords[cpid];
-            const chapter = ChapterDataRecords[stage.chapterID];
+        const computedLevels = onWin.unLock.map((levelRef) => {
+            const stage = StageDataRecords[levelRef.levelId];
+            const chapter = ChapterDataRecords[levelRef.chapterId];
+            if (!stage || !chapter) {
+                return "";
+            }
             return `${translate(stageKey(chapter.nameKey))} - ${translate(stageKey(stage.nameKey))}`;
         }).filter(item => item !== "");
         return computedLevels.length > 0 ? computedLevels.join(" ") : "无";
@@ -57,11 +62,15 @@ export default function GameResultView({ width, height, isWin, onWin, progressRe
 
             const saveGameProgress = async () => {
                 if (isWin) {
+                    const completedChapterId = chapterId ?? (stageId !== undefined ? StageDataRecords[stageId]?.chapterId : undefined);
+                    if (stageId !== undefined && completedChapterId !== undefined) {
+                        saveManager.setCompletedLevel({ chapterId: completedChapterId, levelId: stageId });
+                    }
                     onWin?.unLockPlant.forEach(plant => {
                         saveManager.recordPlantEncounter(plant);
                     });
-                    onWin?.unLock.forEach(level => {
-                        saveManager.setCurrentLevel(level);
+                    onWin?.unLock.forEach(levelRef => {
+                        saveManager.setCurrentLevel(levelRef);
                     });
                 }
 
@@ -80,7 +89,7 @@ export default function GameResultView({ width, height, isWin, onWin, progressRe
 
             saveGameProgress();
         }
-    }, [progressRewards, onWin, isWin]);
+    }, [progressRewards, onWin, isWin, chapterId, stageId, saveManager]);
 
     // 移除这个 useEffect，因为我们已经使用 useCreation 来处理了
 

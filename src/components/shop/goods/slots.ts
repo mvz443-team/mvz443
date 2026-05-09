@@ -21,7 +21,7 @@ export class SeventhSlot extends Goods {
   }
 
   protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameProgress.level.has(4) && saveCtx.gameProgress.slotNum === 6;
+    return saveCtx.gameManager.isLevelUnlocked(4) && saveCtx.gameProgress.slotNum === 6;
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {
@@ -46,7 +46,7 @@ export class EighthSlot extends Goods {
   }
 
   protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameProgress.level.has(5) && saveCtx.gameProgress.slotNum === 7;
+    return saveCtx.gameManager.isLevelUnlocked(5) && saveCtx.gameProgress.slotNum === 7;
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {
@@ -71,7 +71,7 @@ export class NinthSlot extends Goods {
   }
 
   protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameProgress.level.has(7) && saveCtx.gameProgress.slotNum === 8;
+    return saveCtx.gameManager.isLevelUnlocked(7) && saveCtx.gameProgress.slotNum === 8;
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {

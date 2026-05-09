@@ -1,5 +1,7 @@
 {
     "comment": "1-5,water deep mine,体验版",
+    "chapterId": 1,
+    "levelId": 5,
     "nameKey": "level_sg5",
     "descriptionKey": "sg5",
     "levelIntro": [
@@ -53,7 +55,10 @@
     },
     "onWin": {
         "unLock": [
-            6
+            {
+                "chapterId": 1,
+                "levelId": 6
+            }
         ],
         "unLockPlant": [
             12

@@ -123,6 +123,8 @@ function GameMainWindow({
         <GameResultView
           isWin={gameResult?.isWin ? gameResult.isWin : false}
           onWin={gameResult?.onWin}
+          chapterId={gameResult?.chapterId}
+          stageId={gameResult?.stageId}
           progressRewards={gameResult?.rewards}
           myProgress={gameResult?.progress ? gameResult.progress : 0}
           onBack={exitResultView}

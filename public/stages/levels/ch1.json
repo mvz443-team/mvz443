@@ -1,5 +1,7 @@
 {
     "comment": "1-1,安心村庄,体验版",
+    "chapterId": 1,
+    "levelId": 1,
     "nameKey": "level_sg1",
     "descriptionKey": "sg1",
     "levelIntro": [
@@ -47,7 +49,10 @@
     },
     "onWin": {
         "unLock": [
-            2
+            {
+                "chapterId": 1,
+                "levelId": 2
+            }
         ],
         "unLockPlant": [
             1,

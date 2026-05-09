@@ -57,7 +57,7 @@ export class PresetEventManager extends BaseManager {
     // 实现游戏开始时的预设事件处理逻辑
     GridManager.Instance.initGridProperties();
     const stageId = this.scene.params.level || 0;
-    const chapterId = StageDataRecords[stageId].chapterID;
+    const chapterId = StageDataRecords[stageId].chapterId;
     this.setInitialEnergy(this.scene.stageData.energy);
     // dispatch stage or chapter
     if (chapterId === 1) {

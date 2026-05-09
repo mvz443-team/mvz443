@@ -24,7 +24,7 @@ export class Cp1Kit extends Goods {
   }
 
   protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameProgress.level.has(3);
+    return saveCtx.gameManager.isLevelUnlocked(3);
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {
@@ -59,7 +59,7 @@ export class ScarletborderCrystal extends Goods {
   }
 
   protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameProgress.level.has(5);
+    return saveCtx.gameManager.isLevelUnlocked(5);
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {

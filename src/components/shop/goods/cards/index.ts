@@ -23,7 +23,7 @@ export class PumpkinWan extends Goods {
   }
 
   protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameProgress.level.has(5);
+    return saveCtx.gameManager.isLevelUnlocked(5);
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {
@@ -51,7 +51,7 @@ export class ATDispenser extends Goods {
   }
 
   protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameProgress.level.has(7);
+    return saveCtx.gameManager.isLevelUnlocked(7);
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {
@@ -78,7 +78,7 @@ export class Chapter2Plants extends Goods {
   }
 
   protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameProgress.level.has(6);
+    return saveCtx.gameManager.isLevelUnlocked(6);
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {

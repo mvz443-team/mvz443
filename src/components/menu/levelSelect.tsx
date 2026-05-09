@@ -192,8 +192,7 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
 
     // 联机模式下房主发送选图消息
     if (isOnlineMode && islord) {
-      console.log("鎴夸富鍙戦€侀€夊浘娑堟伅: stageId =", stageId);
-      const chapterId = StageDataRecords[stageId]?.chapterID || 1;
+      const chapterId = StageDataRecords[stageId]?.chapterId || 1;
       SendChooseMap(chapterId, stageId);
     }
   };
@@ -224,16 +223,16 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
   // 获取按钮显示文本
   const getButtonText = () => {
     if (state.isLoading) {
-      return translate(commonKey('loading')) || '鍔犺浇涓?..';
+      return translate(commonKey('loading')) || 'Now Loading...';
     }
 
     if (isOnlineMode && state.gameStage === EnumGameStage.Preparing) {
       if (state.currentStep === 'params') {
-        return islord ? (translate(commonKey('confirm')) || '纭') : (translate(commonKey('ready')) || '鍑嗗');
+        return islord ? (translate(commonKey('confirm')) || 'Confirm') : (translate(commonKey('ready')) || 'Ready');
       }
     }
 
-    return translate(commonKey('next')) || '涓嬩竴姝?';
+    return translate(commonKey('next')) || 'Next';
   };
 
   // 获取按钮状态样式
@@ -268,7 +267,7 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
   // 初始化时清除 localStorage（除非是 skipToParams）
   useMount(() => {
     if (skipToParams && chosenStage) {
-      const chapterId = StageDataRecords[chosenStage].chapterID;
+      const chapterId = StageDataRecords[chosenStage].chapterId;
       setState({
         selectedChapterId: chapterId,
         selectedStageId: chosenStage,

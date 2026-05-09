@@ -1,5 +1,7 @@
 {
     "comment": "1-6, Rainbow dragon Cave,体验版",
+    "chapterId": 1,
+    "levelId": 6,
     "nameKey": "level_sg6",
     "descriptionKey": "sg6",
     "levelIntro": [
@@ -55,7 +57,10 @@
     },
     "onWin": {
         "unLock": [
-            7
+            {
+                "chapterId": 1,
+                "levelId": 7
+            }
         ],
         "unLockPlant": [
             13

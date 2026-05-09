@@ -676,6 +676,8 @@ export class Game extends Scene {
     this.scene.start('GameOver');
     this.params.gameExit({
       isWin,
+      chapterId: this.stageData.chapterId,
+      stageId: this.params.level,
       onWin: this.stageData.onWin,
       rewards: this.stageData.rewards,
       progress: isWin ? 100 : MobManager.Instance.progress,

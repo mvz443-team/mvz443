@@ -30,9 +30,26 @@ interface SerializedItem {
     descriptionKey?: string;
 }
 
+export type LevelStatus = "locked" | "unlocked" | "pass";
+
+export interface LevelProgress {
+    levelId: number;
+    chapterId: number;
+    status: LevelStatus;
+}
+
+type SerializedLevelProgress = number | Partial<LevelProgress>;
+type LevelProgressRef = Pick<LevelProgress, "levelId" | "chapterId">;
+
+const LEVEL_STATUS_RANK: Record<LevelStatus, number> = {
+    locked: 0,
+    unlocked: 1,
+    pass: 2,
+};
+
 export interface GameProgress {
     id?: number; // Dexie 会自动管理主键
-    level: Set<number>;
+    level: LevelProgress[];
     plants: Plant[];
     zombies: Zombie[];
     items: Map<number, Item>;
@@ -40,10 +57,79 @@ export interface GameProgress {
     updatedAt: Date;
 }
 
+function isLevelStatus(value: unknown): value is LevelStatus {
+    return value === "locked" || value === "unlocked" || value === "pass";
+}
+
+function levelProgressKey(chapterId: number, levelId: number): string {
+    return `${chapterId}:${levelId}`;
+}
+
+function parseSerializedLevelProgress(item: SerializedLevelProgress): LevelProgress | null {
+    if (typeof item === "number") {
+        return {
+            levelId: item,
+            chapterId: 1,
+            status: "unlocked",
+        };
+    }
+
+    const levelId = Number(item.levelId);
+    const chapterId = Number(item.chapterId ?? 1);
+    if (!Number.isInteger(levelId) || !Number.isInteger(chapterId)) {
+        return null;
+    }
+
+    return {
+        levelId,
+        chapterId,
+        status: isLevelStatus(item.status) ? item.status : "unlocked",
+    };
+}
+
+function mergeLevelProgress(progressMap: Map<string, LevelProgress>, nextProgress: LevelProgress): void {
+    const key = levelProgressKey(nextProgress.chapterId, nextProgress.levelId);
+    const currentProgress = progressMap.get(key);
+    if (!currentProgress || LEVEL_STATUS_RANK[nextProgress.status] > LEVEL_STATUS_RANK[currentProgress.status]) {
+        progressMap.set(key, nextProgress);
+    }
+}
+
+function normalizeLevelProgress(levelData: unknown, completedLevelData?: unknown): LevelProgress[] {
+    const progressMap = new Map<string, LevelProgress>();
+
+    if (Array.isArray(levelData)) {
+        for (const item of levelData as SerializedLevelProgress[]) {
+            const progress = parseSerializedLevelProgress(item);
+            if (progress) {
+                mergeLevelProgress(progressMap, progress);
+            }
+        }
+    }
+
+    if (Array.isArray(completedLevelData)) {
+        for (const item of completedLevelData as SerializedLevelProgress[]) {
+            const progress = parseSerializedLevelProgress(item);
+            if (progress) {
+                mergeLevelProgress(progressMap, {
+                    ...progress,
+                    status: "pass",
+                });
+            }
+        }
+    }
+
+    return Array.from(progressMap.values()).sort((a, b) => a.chapterId - b.chapterId || a.levelId - b.levelId);
+}
+
 // 序列化 GameProgress 为可存储的格式
 function serializeGameProgress(gameProgress: GameProgress): any {
     return {
-        level: Array.from(gameProgress.level),
+        level: gameProgress.level.map(({ chapterId, levelId, status }) => ({
+            chapterId,
+            levelId,
+            status,
+        })),
         plants: gameProgress.plants,
         zombies: gameProgress.zombies,
         items: Array.from(gameProgress.items.entries()).map(([key, value]) => ({
@@ -59,7 +145,7 @@ function serializeGameProgress(gameProgress: GameProgress): any {
 function deserializeGameProgress(data: any): GameProgress {
     return {
         id: data.id,
-        level: new Set(data.level),
+        level: normalizeLevelProgress(data.level, data.completedLevel),
         plants: data.plants,
         zombies: data.zombies,
         items: new Map(data.items.map((item: SerializedItem) => {
@@ -213,7 +299,13 @@ export class GameManager {
     // 获取默认进度
     private getDefaultProgress(): GameProgress {
         return {
-            level: new Set([1]),
+            level: [
+                {
+                    chapterId: 1,
+                    levelId: 1,
+                    status: "unlocked",
+                }
+            ],
             plants: [
                 { pid: 1, level: 1 }, 
                 { pid: 2, level: 1 }, 
@@ -268,6 +360,19 @@ export class GameManager {
         return this._currentProgress;
     }
 
+    getUnlockedLevels(): LevelProgress[] {
+        return this._currentProgress.level.filter((level) => level.status !== "locked");
+    }
+
+    isLevelUnlocked(levelId: number, chapterId: number = 1): boolean {
+        const progress = this.getLevelProgress(levelId, chapterId);
+        return !!progress && progress.status !== "locked";
+    }
+
+    isLevelPassed(levelId: number, chapterId: number = 1): boolean {
+        return this.getLevelProgress(levelId, chapterId)?.status === "pass";
+    }
+
     // 记录遇到的植物
     recordPlantEncounter(pid: number): void {
         const existingPlant = this._currentProgress.plants.find((p) => p.pid === pid);
@@ -309,9 +414,42 @@ export class GameManager {
         }));
     }
 
+    private getLevelProgress(levelId: number, chapterId: number): LevelProgress | undefined {
+        return this._currentProgress.level.find((level) => level.levelId === levelId && level.chapterId === chapterId);
+    }
+
+    private toLevelProgressRef(level: number | LevelProgressRef, chapterId: number = 1): LevelProgressRef {
+        if (typeof level === "number") {
+            return { chapterId, levelId: level };
+        }
+        return level;
+    }
+
+    private setLevelStatus(level: number | LevelProgressRef, status: LevelStatus, chapterId: number = 1): void {
+        const levelRef = this.toLevelProgressRef(level, chapterId);
+        const currentProgress = this.getLevelProgress(levelRef.levelId, levelRef.chapterId);
+        if (currentProgress) {
+            if (LEVEL_STATUS_RANK[status] > LEVEL_STATUS_RANK[currentProgress.status]) {
+                currentProgress.status = status;
+            }
+            return;
+        }
+
+        this._currentProgress.level.push({
+            ...levelRef,
+            status,
+        });
+        this._currentProgress.level.sort((a, b) => a.chapterId - b.chapterId || a.levelId - b.levelId);
+    }
+
     // 设置当前关卡进度
-    setCurrentLevel(level: number): void {
-        this._currentProgress.level.add(level);
+    setCurrentLevel(level: number | LevelProgressRef, chapterId: number = 1): void {
+        this.setLevelStatus(level, "unlocked", chapterId);
+    }
+
+    // 设置关卡通关进度
+    setCompletedLevel(level: number | LevelProgressRef, chapterId: number = 1): void {
+        this.setLevelStatus(level, "pass", chapterId);
     }
 
     // 更新卡槽数量

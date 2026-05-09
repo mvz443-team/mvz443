@@ -9,7 +9,7 @@ import { publicUrl } from "../../../utils/browser";
 const CHAPTER_INDEX_PATH = "stages/chapters/index.json";
 
 type ChapterIndex = string[];
-type StageMetadata = Pick<StageData, "nameKey" | "descriptionKey">;
+type StageMetadata = Pick<StageData, "chapterId" | "levelId" | "nameKey" | "descriptionKey">;
 
 export class ChapterLibrary {
   public static readonly ChapterDataRecords: Record<number, ChapterDescription> = {};
@@ -27,11 +27,12 @@ export class ChapterLibrary {
   private static async LoadChapters() {
     const chapterFiles = await this.FetchJson<ChapterIndex>(CHAPTER_INDEX_PATH);
     for (const chapterFile of chapterFiles) {
-      const chapterId = this.ParseId(chapterFile, "cp");
+      const fallbackChapterId = this.ParseId(chapterFile, "cp");
       const chapterData = await this.FetchJson<ChapterDramaConfig[]>(
         `stages/chapters/${chapterFile}`,
       );
       for (const chapter of chapterData) {
+        const chapterId = chapter.chapterId ?? fallbackChapterId;
         await this.RegisterChapter(chapterId, chapter);
       }
     }
@@ -57,16 +58,22 @@ export class ChapterLibrary {
   }
 
   private static async RegisterStage(chapterId: number, stage: ChapterDramaConfig["stages"][number]) {
-    const stageId = this.ParseId(stage.dataPath, "ch");
+    const stageMetadata = await this.FetchJson<StageMetadata>(stage.dataPath);
+    const stageId = stageMetadata.levelId ?? this.ParseId(stage.dataPath, "ch");
+    const stageChapterId = stageMetadata.chapterId ?? chapterId;
+    if (stageChapterId !== chapterId) {
+      console.warn(`[ChapterLibrary] Stage ${stageId} chapterId ${stageChapterId} does not match chapter ${chapterId}.`);
+    }
+
     if (this.StageDataRecords[stageId]) {
       console.warn(`[ChapterLibrary] Stage ID ${stageId} is already registered!`);
       return;
     }
 
-    const stageMetadata = await this.FetchJson<StageMetadata>(stage.dataPath);
     this.StageDataRecords[stageId] = {
       id: stageId,
-      chapterID: chapterId,
+      levelId: stageId,
+      chapterId,
       nameKey: stageMetadata.nameKey,
       descriptionKey: stageMetadata.descriptionKey,
       dataPath: stage.dataPath,

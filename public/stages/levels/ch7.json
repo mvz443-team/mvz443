@@ -1,5 +1,7 @@
 {
     "comment": "1-7,in mine boss version,体验版",
+    "chapterId": 1,
+    "levelId": 7,
     "nameKey": "level_sg7",
     "descriptionKey": "sg7",
     "levelIntro": [
@@ -64,7 +66,10 @@
     },
     "onWin": {
         "unLock": [
-            8
+            {
+                "chapterId": 1,
+                "levelId": 8
+            }
         ],
         "unLockPlant": [
             13
