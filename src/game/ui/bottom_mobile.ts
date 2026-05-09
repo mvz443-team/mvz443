@@ -29,6 +29,22 @@ function fitText(text: Phaser.GameObjects.Text, maxWidth: number, preferred: num
   }
 }
 
+function fillProgressRect(
+  graphics: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  color: number,
+) {
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+
+  graphics.fillStyle(color, 1);
+  graphics.fillRoundedRect(x, y, width, height, Math.min(height / 2, width / 2));
+}
+
 export class MobileBottomBar {
   private readonly scene: Game;
   private readonly container: Phaser.GameObjects.Container;
@@ -275,8 +291,7 @@ export class MobileBottomBar {
 
     if (this.progressState.mode === ProgressMode.Boss) {
       const percent = Math.max(0, Math.min(1, this.progressState.bossHealthPercent || 0));
-      this.progressFill.fillStyle(BOSS_FILL, 1);
-      this.progressFill.fillRoundedRect(x, y, width * percent, height, height / 2);
+      fillProgressRect(this.progressFill, x, y, width * percent, height, BOSS_FILL);
       return;
     }
 
@@ -295,8 +310,7 @@ export class MobileBottomBar {
     }
 
     const fillWidth = width * Math.max(0, Math.min(1, percent));
-    this.progressFill.fillStyle(PROGRESS_FILL, 1);
-    this.progressFill.fillRoundedRect(x, y, fillWidth, height, height / 2);
+    fillProgressRect(this.progressFill, x, y, fillWidth, height, PROGRESS_FILL);
 
     this.flagGraphics.lineStyle(2, 0xffffff, 1);
     if (maxWaveIndex > 0) {
