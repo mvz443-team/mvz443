@@ -55,12 +55,22 @@
     "level_sg9": "Rainbow Dragon Cave (BOSS)"
   },
   "stuff": {
+    "dragon_ball": "Dragon Ball",
     "echo_shard": "Echo Shard",
     "gold": "Gold Coin",
+    "gold.DESCRIPTION": "Common village currency used to buy slots, material kits, and device unlocks.",
     "iron": "Iron Ingot",
     "leather": "Leather",
+    "leather.DESCRIPTION": "Common upgrade material used for early device upgrades and shop purchases.",
+    "mechanical_gear": "Mechanical Gear",
+    "miracle_omikuji": "Miracle Omikuji",
+    "nixxor_lens": "NIXXOR Lens",
     "obsidian_medal": "Obsidian Debris",
+    "optical_lens": "Optical Lens",
     "scb": "Scarlet Crystal (Trailer Version Only)",
+    "tengu_fluff": "Tengu Fluff",
+    "alchemist_report": "Alchemist's Report",
+    "alchemist_report.DESCRIPTION": "Confidential file: an urgent report from Peaceful Village's chief alchemist.",
     "chapter_cp1": "Beneath the Village"
   },
   "goods": {

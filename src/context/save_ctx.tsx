@@ -1,6 +1,7 @@
 import React, { createContext, useContext, ReactNode } from "react";
 import { useCreation } from "ahooks";
 import Dexie, { Table } from "dexie";
+import { hydrateGoodsItem } from "../types/goods";
 
 // 定义数据模型
 interface Plant {
@@ -47,10 +48,7 @@ function serializeGameProgress(gameProgress: GameProgress): any {
         zombies: gameProgress.zombies,
         items: Array.from(gameProgress.items.entries()).map(([key, value]) => ({
             id: key,
-            count: value.count,
-            nameKey: value.nameKey,
-            iconKey: value.iconKey,
-            descriptionKey: value.descriptionKey
+            count: value.count
         })),
         slotNum: gameProgress.slotNum,
         updatedAt: gameProgress.updatedAt
@@ -64,15 +62,16 @@ function deserializeGameProgress(data: any): GameProgress {
         level: new Set(data.level),
         plants: data.plants,
         zombies: data.zombies,
-        items: new Map(data.items.map((item: SerializedItem) =>
-            [item.id, {
-                id: item.type ?? item.id,
+        items: new Map(data.items.map((item: SerializedItem) => {
+            const id = item.type ?? item.id;
+            return [id, hydrateGoodsItem({
+                id,
                 count: item.count,
                 nameKey: item.nameKey,
                 iconKey: item.iconKey,
                 descriptionKey: item.descriptionKey
-            }]
-        )),
+            })] as const;
+        })),
         slotNum: data.slotNum,
         updatedAt: new Date(data.updatedAt)
     };
@@ -302,12 +301,12 @@ export class GameManager {
             descriptionKey: itemOrId.descriptionKey
         };
         const oldItem = this._currentProgress.items.get(id) || { id, count: 0 };
-        this._currentProgress.items.set(id, {
+        this._currentProgress.items.set(id, hydrateGoodsItem({
             ...oldItem,
             ...itemKeys,
             id,
             count: oldItem.count + count
-        });
+        }));
     }
 
     // 设置当前关卡进度

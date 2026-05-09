@@ -1,4 +1,5 @@
 import type { GameManager, GameProgress } from "../context/save_ctx";
+import { ItemsLibrary } from "../game/managers/library/ItemsLibrary";
 import { commonKey, stuffKey } from "../i18n/keys";
 
 export interface GoodsItem {
@@ -12,24 +13,38 @@ export interface GoodsItem {
 const GOODS_ITEM_ICON_DIR = "/assets/card/items";
 const UNKNOWN_GOODS_ITEM_ICON_KEY = `${GOODS_ITEM_ICON_DIR}/unknown.svg`;
 
+export function hydrateGoodsItem(item: GoodsItem): GoodsItem {
+  const libraryItem = ItemsLibrary.GetItem(item.id);
+  if (!libraryItem) return item;
+  return {
+    ...libraryItem,
+    ...item,
+    nameKey: item.nameKey ?? libraryItem.nameKey,
+    iconKey: item.iconKey ?? libraryItem.iconKey,
+    descriptionKey: item.descriptionKey ?? libraryItem.descriptionKey,
+  };
+}
+
 export function goodsItemResourceKey(item: GoodsItem): string | undefined {
-  return item.descriptionKey ?? item.nameKey;
+  const hydratedItem = hydrateGoodsItem(item);
+  return hydratedItem.descriptionKey ?? hydratedItem.nameKey;
 }
 
 export function goodsItemName(
   item: GoodsItem,
   translate: (key: string, params?: Record<string, string>) => string,
 ): string {
-  const resourceKey = item.nameKey;
+  const resourceKey = hydrateGoodsItem(item).nameKey;
   return translate(resourceKey ? stuffKey(resourceKey) : commonKey("unknown"));
 }
 
 export function goodsItemIconKey(item: GoodsItem): string {
-  if (!item.iconKey) return UNKNOWN_GOODS_ITEM_ICON_KEY;
-  if (item.iconKey.startsWith("/") || item.iconKey.includes(".")) {
-    return item.iconKey;
+  const iconKey = hydrateGoodsItem(item).iconKey;
+  if (!iconKey) return UNKNOWN_GOODS_ITEM_ICON_KEY;
+  if (iconKey.startsWith("/") || iconKey.includes(".")) {
+    return iconKey;
   }
-  return `${GOODS_ITEM_ICON_DIR}/${item.iconKey}.svg`;
+  return `${GOODS_ITEM_ICON_DIR}/${iconKey}.svg`;
 }
 
 export function unknownGoodsItemIconKey(): string {

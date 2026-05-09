@@ -1,4 +1,5 @@
 import { ChapterLibrary } from "./ChapterLibrary";
+import { ItemsLibrary } from "./ItemsLibrary";
 import { MonsterLibrary } from "./MonsterLibrary";
 import { ObstacleLibrary } from "./ObstacleLibrary";
 import { PlantLibrary } from "./PlantLibrary";
@@ -21,6 +22,7 @@ export async function initializeGameLibraries() {
 
   window.__mvz443LibrariesInitializing__ = (async () => {
     await ChapterLibrary.Initialize();
+    ItemsLibrary.Initialize();
     PlantLibrary.Initialize();
     MonsterLibrary.Initialize();
     ObstacleLibrary.Initialize();
