@@ -1,5 +1,5 @@
 import RAPIER from "@dimforge/rapier2d-deterministic-compat";
-import DepthUtils from "../../../utils/depth";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import { defaultRandom } from "../../../utils/random";
 import { FrameTimer } from "../../managers/combat/TickerManager";
 import type { Game } from "../../scenes/Game";
@@ -69,7 +69,7 @@ export abstract class MonsterEntity extends CombatEntity {
 
     this.offsetX = defaultRandom() * PositionManager.Instance.GRID_SIZEX / 5;
     this.offsetY = defaultRandom() * PositionManager.Instance.GRID_SIZEY / 10;
-    this.baseDepth = DepthUtils.getZombieBasicDepth(row, this.offsetY);
+    this.baseDepth = DepthHelper.Mob.base(row, this.offsetY);
 
     this.health = model.maxHealth;
     this.originalSpeed = model.baseSpeed;
@@ -282,11 +282,11 @@ export abstract class MonsterEntity extends CombatEntity {
       const boat1 = this.scene.add.sprite(this.x, boatY, "attach/boat1")
         .setScale(PositionManager.Instance.scaleFactor * 1.4)
         .setOrigin(0.5, 1)
-        .setDepth(this.baseDepth - 2);
+        .setDepth(DepthHelper.Mob.boatBack(this.baseDepth));
       const boat2 = this.scene.add.sprite(this.x, boatY, "attach/boat2")
         .setScale(PositionManager.Instance.scaleFactor * 1.4)
         .setOrigin(0.5, 1)
-        .setDepth(this.baseDepth + 10);
+        .setDepth(DepthHelper.Mob.boatFront(this.baseDepth));
       this.attachSprites.set("boat1", boat1);
       this.attachSprites.set("boat2", boat2);
       this.viewGroup.addMultiple([boat1, boat2]);
@@ -303,7 +303,7 @@ export abstract class MonsterEntity extends CombatEntity {
       scene: this.scene,
       x: this.x,
       y: this.y,
-      depth: this.baseDepth + 15,
+      depth: DepthHelper.Mob.deathSmoke(this.baseDepth),
     });
   }
 
@@ -492,7 +492,7 @@ export abstract class BaseMonsterEntity extends MonsterEntity {
           scene: this.scene,
           x: this.x,
           y: this.y,
-          depth: this.baseDepth + 15,
+          depth: DepthHelper.Mob.deathSmoke(this.baseDepth),
         });
       },
     });
@@ -565,7 +565,7 @@ export abstract class ArmorMonsterEntity extends StagedBodyMonsterEntity {
     );
     sprite.setScale((config.scale ?? 1.4) * PositionManager.Instance.scaleFactor);
     sprite.setOrigin(config.originX ?? 0.5, config.originY ?? 0.5);
-    sprite.setFrame(0).setDepth(this.baseDepth + (config.depth ?? 13));
+    sprite.setFrame(0).setDepth(DepthHelper.Mob.customAttachment(this.baseDepth, config.depth ?? 13));
     this.attachSprites.set(config.key, sprite);
   }
 
@@ -621,7 +621,7 @@ export function addHandAttachment(entity: BaseMonsterEntity, key: string, scale 
     entity.y - PositionManager.Instance.GRID_SIZEY * 0.7 + entity.offsetY,
     key,
   );
-  sprite.setScale(scale * PositionManager.Instance.scaleFactor).setOrigin(0.5, 1).setDepth(entity.baseDepth + depth);
+  sprite.setScale(scale * PositionManager.Instance.scaleFactor).setOrigin(0.5, 1).setDepth(DepthHelper.Mob.customAttachment(entity.baseDepth, depth));
   entity.attachSprites.set(key, sprite);
   return sprite;
 }

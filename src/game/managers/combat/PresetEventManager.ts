@@ -1,4 +1,5 @@
 import { setCentipedeHooks } from "../../presets/monster/centipede/centipede";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import { DispenserData } from "../../presets/plant/chapter1/dispenser";
 import { FurnaceData } from "../../presets/plant/chapter1/furnace";
 import type { Game } from "../../scenes/Game";
@@ -140,17 +141,17 @@ export class PresetEventManager extends BaseManager {
       // [0][7] = water
       CombatManager.Instance.combatStatus.dayOrNight = false;
       GridManager.Instance.setSingleGridProperty(7, 0, { type: 'water' });
-      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.3).setDepth(2);
+      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.3).setDepth(DepthHelper.Scene.presetOverlay());
     }
 
     if (stageId === 4) {
       CombatManager.Instance.combatStatus.dayOrNight = false;
-      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(2);
+      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
     }
 
     if (stageId === 5 || stageId === 8) {
       CombatManager.Instance.combatStatus.dayOrNight = false;
-      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(2);
+      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
       // row:2, 3  = water
       for (let col = 0; col < PositionManager.Instance.Col_Number; col++) {
         GridManager.Instance.setSingleGridProperty(col, 2, { type: 'water' });
@@ -160,12 +161,12 @@ export class PresetEventManager extends BaseManager {
 
     if (stageId === 6) {
       CombatManager.Instance.combatStatus.dayOrNight = false;
-      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(2);
+      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
     }
 
     if (stageId === 9) {
       CombatManager.Instance.combatStatus.dayOrNight = false;
-      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(2);
+      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
 
       // 关卡开局即自动产能；boss 出场时停产，到达 50% 血量时再恢复
       this.setAutoGenerateEnergy(10000, 20000, 25);
@@ -192,7 +193,7 @@ export class PresetEventManager extends BaseManager {
           const { x, y } = PositionManager.Instance.getGridTopLeft(col, row);
           const rect = game.add.rectangle(x, y, PositionManager.Instance.GRID_SIZEX,
             PositionManager.Instance.GRID_SIZEY, 0x000000, 0.12)
-            .setOrigin(0, 0).setDepth(3);
+            .setOrigin(0, 0).setDepth(DepthHelper.Scene.presetImage());
           rect.setStrokeStyle(1, 0xffffff, 0.1);
         }
       }

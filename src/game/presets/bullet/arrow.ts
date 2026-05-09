@@ -1,3 +1,4 @@
+import DepthHelper from "../../utils/helper/DepthHelper";
 import { legacyRapierVelocityToUnitsPerSecond } from "../../../constants/physics";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BulletEntity } from "../../models/projectiles/BulletEntity";
@@ -95,7 +96,7 @@ export class ArrowEntity extends BulletEntity {
     }
 
     this.enhancement = newEnhancement;
-    const trailDepth = this.baseDepth + 1;
+    const trailDepth = DepthHelper.Projectile.trail(this.baseDepth);
     const fadeDur = 100;
 
     // 4. 新 trail 淡入

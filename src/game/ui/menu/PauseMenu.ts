@@ -1,5 +1,5 @@
 import { translate } from "../../../i18n";
-import DepthUtils from "../../../utils/depth";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import BackendWS from "../../../utils/net/sync";
 import { PhaserEventBus, PhaserEvents } from "../../EventBus";
 import CombatManager from "../../managers/CombatManager";
@@ -78,7 +78,7 @@ export class PauseMenu {
         y: layout.startY,
         width: layout.menuWidth,
         title: translate("game.paused"),
-        depth: DepthUtils.getPauseMenuDepth(),
+        depth: DepthHelper.UI.pauseMenu(),
       },
       {
         paddingX: layout.paddingX,
@@ -189,7 +189,7 @@ export class PauseMenu {
     ).setOrigin(0.5);
 
     this.bluePrintPauseText
-      .setDepth(DepthUtils.getPauseMenuDepth())
+      .setDepth(DepthHelper.UI.pauseMenu())
       .setAlpha(0.45)
       .setVisible(false)
       .setShadow(2, 2, "#1f2937", 6);
@@ -202,7 +202,7 @@ export class PauseMenu {
       () => this.showBluePrintFullMenu()
     );
     this.bluePrintEyeIcon
-      .setDepth(DepthUtils.getPauseMenuDepth())
+      .setDepth(DepthHelper.UI.pauseMenu())
       .setAlpha(0.7)
       .setVisible(false);
   }
@@ -273,8 +273,8 @@ export class PauseMenu {
     this.isVisible = true;
     this.isBluePrintMode = bluePrintMode;
 
-    this.menu.setDepth(DepthUtils.getPauseMenuDepth());
-    this.bluePrintPauseText.setDepth(DepthUtils.getPauseMenuDepth());
+    this.menu.setDepth(DepthHelper.UI.pauseMenu());
+    this.bluePrintPauseText.setDepth(DepthHelper.UI.pauseMenu());
     this.refreshControls();
 
     if (bluePrintMode) {

@@ -1,3 +1,4 @@
+import DepthHelper from "../../../utils/helper/DepthHelper";
 import { PlantStat } from "../../../../utils/numbervalue";
 import PlantsManager from "../../../managers/combat/PlantsManager";
 import GridManager from "../../../managers/combat/GridManager";
@@ -84,7 +85,7 @@ export class LilyEntity extends PlantEntity {
     const sprite = this.scene.add.sprite(this.x, this.y, this.model.texturePath, 0)
       .setOrigin(0.5, 1)
       .setDisplaySize(size.sizeX, size.sizeY)
-      .setDepth(this.baseDepth - 2); // Lily的深度比其他植物低2层
+      .setDepth(DepthHelper.Plant.lilyBody(this.baseDepth)); // Lily的深度比其他植物低2层
 
     this.viewGroup.add(sprite);
   }

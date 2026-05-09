@@ -1,4 +1,5 @@
 import { DamageConstants } from "../../../../constants/game";
+import DepthHelper from "../../../utils/helper/DepthHelper";
 import { PhaserEventBus, PhaserEvents } from "../../../EventBus";
 import { LOGICAL_BATTLE_HEIGHT, LOGICAL_BATTLE_WIDTH } from "../../../../constants/gameLayout";
 import ObstacleManager from "../../../managers/combat/ObstacleManager";
@@ -108,7 +109,7 @@ export class CentipedeEntity extends BaseMonsterEntity {
     const width = LOGICAL_BATTLE_WIDTH;
     const height = LOGICAL_BATTLE_HEIGHT;
     const flash = this.scene.add.rectangle(width / 2, height / 2, width, height, 0xffffff, 1)
-      .setDepth(900000)
+      .setDepth(DepthHelper.Mob.sceneFlash())
       .setAlpha(0);
     this.scene.tweens.add({
       targets: flash,

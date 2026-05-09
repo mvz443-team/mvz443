@@ -1,3 +1,4 @@
+import DepthHelper from "../../../utils/helper/DepthHelper";
 import ProjectileDamage from "../../../../constants/damage";
 import { legacyRapierVelocityToUnitsPerSecond } from "../../../../constants/physics";
 import { PlantStat } from "../../../../utils/numbervalue";
@@ -117,7 +118,7 @@ export class DispenserEntity extends PlantEntity {
     const size = PositionManager.Instance.getPlantDisplaySize();
 
     const base = this.scene.add.sprite(this.x, this.y, this.model.texturePath, 1)
-      .setOrigin(0.5, 1).setDisplaySize(size.sizeX, size.sizeY).setDepth(this.baseDepth - 1);
+      .setOrigin(0.5, 1).setDisplaySize(size.sizeX, size.sizeY).setDepth(DepthHelper.Plant.dispenserBase(this.baseDepth));
 
     const head = this.scene.add.sprite(this.x, this.y, this.model.texturePath, 2)
       .setOrigin(0.5, 1).setDisplaySize(size.sizeX, size.sizeY).setDepth(this.baseDepth);
@@ -140,7 +141,7 @@ export class DispenserEntity extends PlantEntity {
       moveDistance,
       () => {
         if (this.currentHealth <= 0) return;
-        createShootBurstAnim(this.scene, head.x + head.displayWidth * 4 / 9, head.y - head.displayHeight * 2 / 3, 24, this.baseDepth + 2);
+        createShootBurstAnim(this.scene, head.x + head.displayWidth * 4 / 9, head.y - head.displayHeight * 2 / 3, 24, DepthHelper.Plant.shootBurst(this.baseDepth));
       }
     );
   }

@@ -1,3 +1,4 @@
+import DepthHelper from "../utils/helper/DepthHelper";
 import i18n, { translate } from "../../i18n";
 import BackendWS from "../../utils/net/sync";
 import { PhaserEventBus, PhaserEvents } from "../EventBus";
@@ -56,7 +57,7 @@ export class MobileBottomBar {
     this.scene = scene;
     const bounds = this.layout.bounds;
 
-    this.container = this.scene.add.container(bounds.x, bounds.y).setDepth(UI_CHROME_DEPTH + 1);
+    this.container = this.scene.add.container(bounds.x, bounds.y).setDepth(DepthHelper.UI.chromeContainer());
     this.bg = this.scene.add.graphics();
     this.container.add(this.bg);
     this.drawBackground();

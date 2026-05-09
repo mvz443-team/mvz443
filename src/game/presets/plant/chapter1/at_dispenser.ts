@@ -1,3 +1,4 @@
+import DepthHelper from "../../../utils/helper/DepthHelper";
 import ProjectileDamage from "../../../../constants/damage";
 import { PlantStat } from "../../../../utils/numbervalue";
 import { DeferredManager } from "../../../managers/DeferredManager";
@@ -154,7 +155,7 @@ export class ATDispenserEntity extends PlantEntity {
     const base = this.scene.add.sprite(this.x, this.y, this.model.texturePath, 1)
       .setOrigin(0.5, 1)
       .setDisplaySize(size.sizeX * 1.5, size.sizeY * 1.5)
-      .setDepth(this.baseDepth - 1);
+      .setDepth(DepthHelper.Plant.dispenserBase(this.baseDepth));
 
     // 头部：frame 2
     const head = this.scene.add.sprite(this.x, this.y, this.model.texturePath, 2)
@@ -181,9 +182,9 @@ export class ATDispenserEntity extends PlantEntity {
       () => {
         if (this.currentHealth <= 0) return;
 
-        createShootBurstAnim(this.scene, head.x + head.displayWidth * 2 / 9, head.y - head.displayHeight * 2 / 3, 24, this.baseDepth + 2);
-        createShootBurstAnim(this.scene, head.x + head.displayWidth * 3 / 9, head.y - head.displayHeight * 2 / 3, 24, this.baseDepth + 2);
-        createShootBurstAnim(this.scene, head.x + head.displayWidth * 2 / 9, head.y - head.displayHeight * 1 / 3, 24, this.baseDepth + 2);
+        createShootBurstAnim(this.scene, head.x + head.displayWidth * 2 / 9, head.y - head.displayHeight * 2 / 3, 24, DepthHelper.Plant.shootBurst(this.baseDepth));
+        createShootBurstAnim(this.scene, head.x + head.displayWidth * 3 / 9, head.y - head.displayHeight * 2 / 3, 24, DepthHelper.Plant.shootBurst(this.baseDepth));
+        createShootBurstAnim(this.scene, head.x + head.displayWidth * 2 / 9, head.y - head.displayHeight * 1 / 3, 24, DepthHelper.Plant.shootBurst(this.baseDepth));
       }
     );
   }

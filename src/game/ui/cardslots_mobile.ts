@@ -1,3 +1,4 @@
+import DepthHelper from "../utils/helper/DepthHelper";
 import type { Game } from "../scenes/Game";
 import ResourceManager from "../managers/combat/ResourceManager";
 import CardpileManager from "../managers/combat/CardpileManager";
@@ -67,7 +68,7 @@ export class MobileCardSlots {
     const sectionTop = bounds.y + cardSection.y + pad;
     const sectionBottom = bounds.y + cardSection.y + cardSection.height - pad;
 
-    const laneGraphics = this.scene.add.graphics().setDepth(UI_CHROME_DEPTH + 1);
+    const laneGraphics = this.scene.add.graphics().setDepth(DepthHelper.UI.chromeLane());
     laneGraphics.lineStyle(1, 0x111111, 0.55);
     laneGraphics.lineBetween(lanes[1] - gap / 2, bounds.y + cardSection.y + 4, lanes[1] - gap / 2, bounds.y + cardSection.y + cardSection.height - 4);
     laneGraphics.lineBetween(lanes[2] - gap / 2, bounds.y + cardSection.y + 4, lanes[2] - gap / 2, bounds.y + cardSection.y + cardSection.height - 4);

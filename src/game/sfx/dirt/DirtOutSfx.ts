@@ -1,4 +1,4 @@
-import DepthUtils from "../../../utils/depth";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
 
@@ -26,7 +26,7 @@ export class DirtOutSfx extends BaseSfx<DirtOutSfxArgs> {
     const { x, y } = PositionManager.Instance.getPlantBottomCenter(this.args.col, this.args.row);
 
     const dirt = scene.add.sprite(x, y, 'anime/dirt_out', 0)
-      .setDepth(DepthUtils.getPlantBasicDepth(this.args.row));
+      .setDepth(DepthHelper.Sfx.dirtOut(this.args.row));
     dirt.setDisplaySize(size.sizeX, size.sizeY);
     dirt.setOrigin(0.5, 1).setVisible(true);
     dirt.anims.play('anime/dirt_out');

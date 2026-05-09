@@ -1,5 +1,5 @@
 import type { Game } from "../../scenes/Game";
-import DepthUtils from "../../../utils/depth";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import { PositionManager } from "../view/PositionManager";
 import { BaseManager } from "../BaseManager";
 import CardpileManager from "./CardpileManager";
@@ -59,12 +59,12 @@ export default class CursorManager extends BaseManager {
 
     this.pickaxeSprite = scene.add.sprite(0, 0, 'pickaxe');
     this.pickaxeSprite.setDisplaySize(52 * PositionManager.Instance.scaleFactor, 52 * PositionManager.Instance.scaleFactor)
-      .setDepth(DepthUtils.getInGameUIElementDepth(50));
+      .setDepth(DepthHelper.UI.cursorTool());
     this.pickaxeSprite.setVisible(false);
 
     this.starSprite = scene.add.sprite(0, 0, 'starshards');
     this.starSprite.setDisplaySize(52 * PositionManager.Instance.scaleFactor, 52 * PositionManager.Instance.scaleFactor)
-      .setDepth(DepthUtils.getInGameUIElementDepth(50));
+      .setDepth(DepthHelper.UI.cursorTool());
     this.starSprite.setVisible(false);
   }
 
@@ -261,7 +261,7 @@ export default class CursorManager extends BaseManager {
     this.highlightSprite.setOrigin(0.5, 1);
     this.highlightSprite.setTint(0xffffff);
     this.highlightSprite.setAlpha(0.8);
-    this.highlightSprite.setDepth(DepthUtils.getInGameUIElementDepth(-5));
+    this.highlightSprite.setDepth(DepthHelper.UI.plantingPreview());
 
     this.highlightTween = this.scene.tweens.add({
       targets: this.highlightSprite,

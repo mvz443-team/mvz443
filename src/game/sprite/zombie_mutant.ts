@@ -1,5 +1,6 @@
 import { PositionManager } from "../managers/view/PositionManager";
 import { Game } from "../scenes/Game";
+import DepthHelper from "../utils/helper/DepthHelper";
 
 export interface MutantAnimProps {
   Species: string, // 物种,如普通突变等
@@ -108,7 +109,7 @@ export default class IMutantAnim {
 
     this.handObject.setVisible(true);
 
-    this.handObject.setDepth(this.baseDepth + 10);
+    this.handObject.setDepth(DepthHelper.Mob.legacyPart(this.baseDepth, "hand"));
   }
 
   setBackObject(key: string) { }
@@ -216,18 +217,18 @@ export default class IMutantAnim {
   setDepth(base: number) {
     this.baseDepth = base;
     // 设置各部件深度
-    this.upperArmLeft.setDepth(base + 9);
-    this.upperArmRight.setDepth(base - 1);
-    this.lowerArmLeft.setDepth(base + 11);
-    this.lowerArmRight.setDepth(base + 0);
+    this.upperArmLeft.setDepth(DepthHelper.Mob.legacyPart(base, "leftArm"));
+    this.upperArmRight.setDepth(DepthHelper.Mob.legacyPart(base, "backUpperArm"));
+    this.lowerArmLeft.setDepth(DepthHelper.Mob.legacyPart(base, "frontLowerArm"));
+    this.lowerArmRight.setDepth(DepthHelper.Mob.legacyPart(base, "backLowerArm"));
 
-    this.head.setDepth(base + 8);
-    this.body.setDepth(base + 7);
+    this.head.setDepth(DepthHelper.Mob.legacyPart(base, "head"));
+    this.body.setDepth(DepthHelper.Mob.legacyPart(base, "body"));
 
-    this.upperLegLeft.setDepth(base + 2);
-    this.upperLegRight.setDepth(base + 1);
-    this.lowerLegLeft.setDepth(base + 2);
-    this.lowerLegRight.setDepth(base + 1);
+    this.upperLegLeft.setDepth(DepthHelper.Mob.legacyPart(base, "leftLeg"));
+    this.upperLegRight.setDepth(DepthHelper.Mob.legacyPart(base, "rightLeg"));
+    this.lowerLegLeft.setDepth(DepthHelper.Mob.legacyPart(base, "leftLeg"));
+    this.lowerLegRight.setDepth(DepthHelper.Mob.legacyPart(base, "rightLeg"));
   }
 
 
@@ -745,7 +746,7 @@ export default class IMutantAnim {
       delay: 1000,  // Emit every second
       loop: true,
       callback: () => {
-        const depth = this.body.depth + 1;
+        const depth = DepthHelper.Mob.bodyText(this.body.depth);
         const centerX = this.x;
         const centerY = this.y - PositionManager.Instance.GRID_SIZEY / 2;
         const rangeWidth = PositionManager.Instance.GRID_SIZEX;
@@ -872,7 +873,7 @@ export default class IMutantAnim {
 
   highlight() {
     // 计算绘制效果所需参数
-    const depth = this.body.depth + 1;  // 根据实际情况调整深度
+    const depth = DepthHelper.Mob.bodyText(this.body.depth);
     const centerX = this.x;
     // 因为僵尸的 body 原点为 (0.5, 1)，这里将中心点向上偏移一半的 GRID_SIZEY
     const centerY = this.y - PositionManager.Instance.GRID_SIZEY / 2;

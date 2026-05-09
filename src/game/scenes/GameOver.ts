@@ -4,6 +4,7 @@
 } from '../EventBus';
 import { Scene } from 'phaser';
 import { translate } from '../../i18n';
+import DepthHelper from "../utils/helper/DepthHelper";
 
 export class GameOver extends Scene {
   camera: Phaser.Cameras.Scene2D.Camera;
@@ -25,7 +26,7 @@ export class GameOver extends Scene {
       fontFamily: 'Arial Black', fontSize: 64, color: '#ffffff',
       stroke: '#000000', strokeThickness: 8,
       align: 'center'
-    }).setOrigin(0.5).setDepth(100);
+    }).setOrigin(0.5).setDepth(DepthHelper.Scene.gameOverText());
 
     PhaserEventBus.emit(PhaserEvents.CurrentSceneReady, this);
   }
@@ -34,4 +35,3 @@ export class GameOver extends Scene {
     this.scene.start('MainMenu');
   }
 }
-

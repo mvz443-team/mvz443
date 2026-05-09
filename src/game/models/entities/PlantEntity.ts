@@ -5,7 +5,7 @@ import type { Game } from "../../scenes/Game";
 import { CombatEntity } from "../core/CombatEntity";
 import { Faction } from "../Enum";
 import { PlantModel } from "../PlantModel";
-import DepthUtils from "../../../utils/depth";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import CombatManager from "../../managers/CombatManager";
 import { CollisionContext } from "../../types";
 import { BaseEntity } from "../core/BaseEntity";
@@ -46,7 +46,7 @@ export abstract class PlantEntity extends CombatEntity {
     const hp = model.maxHealth.getValueAt(level);
     super(scene, x, y, hp, Faction.PLANT);
     this.model = model;
-    this.baseDepth = DepthUtils.getPlantBasicDepth(row);
+    this.baseDepth = DepthHelper.Plant.base(row);
 
     this.col = col;
     this.row = row;
@@ -97,7 +97,7 @@ export abstract class PlantEntity extends CombatEntity {
 
     const badge = this.scene.add.image(badgeX, badgeY, textureKey);
     badge.setDisplaySize(badgeSize, badgeSize);
-    badge.setDepth(this.baseDepth + 1);
+    badge.setDepth(DepthHelper.Plant.badge(this.baseDepth));
     this.viewGroup.add(badge);
     this.levelBadge = badge;
   }

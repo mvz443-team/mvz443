@@ -1,3 +1,4 @@
+import DepthHelper from "../../utils/helper/DepthHelper";
 import TickerManager, { FrameTimer } from "../../managers/combat/TickerManager";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
@@ -25,7 +26,7 @@ export class StarShardsOrbitSfx extends BaseSfx<StarShardsOrbitSfxArgs> {
         .setScale(0.28 * scale)
         .setOrigin(0.5)
         .setAlpha(0.95)
-        .setDepth(this.args.baseDepth + 20);
+        .setDepth(DepthHelper.Mob.starOrbitInitial(this.args.baseDepth));
       this.args.viewGroup?.add(star);
       star.setData("orbitOffset", index * Phaser.Math.PI2 / orbitCount);
       return star;
@@ -58,7 +59,7 @@ export class StarShardsOrbitSfx extends BaseSfx<StarShardsOrbitSfxArgs> {
         .setScale((0.22 + depthRatio * 0.12) * scale)
         .setAlpha(0.55 + depthRatio * 0.4)
         .setAngle(Phaser.Math.RadToDeg(a))
-        .setDepth(this.args.baseDepth + 18 + Math.round(depthRatio * 4));
+        .setDepth(DepthHelper.Mob.starOrbitFrame(this.args.baseDepth, depthRatio));
     });
   }
 

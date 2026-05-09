@@ -1,3 +1,4 @@
+import DepthHelper from "../../../utils/helper/DepthHelper";
 /**
  * 双头发射器 - 同时射出前方箭和后方烟花
  */
@@ -219,7 +220,7 @@ export class DoubleDispenserEntity extends PlantEntity {
     this.base = this.scene.add.sprite(this.x, this.y, this.model.texturePath, 1)
       .setOrigin(0.5, 1)
       .setDisplaySize(scaledSize.sizeX, scaledSize.sizeY)
-      .setDepth(this.baseDepth - 1);
+      .setDepth(DepthHelper.Plant.dispenserBase(this.baseDepth));
 
     // 头部：frame 2
     this.head = this.scene.add.sprite(this.x, this.y, this.model.texturePath, 2)
@@ -249,7 +250,7 @@ export class DoubleDispenserEntity extends PlantEntity {
           this.head.x + this.head.displayWidth * 4 / 9,
           this.head.y - this.head.displayHeight * 2 / 3,
           24,
-          this.baseDepth + 2
+          DepthHelper.Plant.shootBurst(this.baseDepth)
         );
       }
     );

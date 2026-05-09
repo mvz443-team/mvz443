@@ -1,5 +1,6 @@
 import { PositionManager } from "../managers/view/PositionManager";
 import { Game } from "../scenes/Game";
+import DepthHelper from "../utils/helper/DepthHelper";
 
 export interface ZombieAnimProps {
     Species: string, // 物种,如僵尸,骷髅等
@@ -105,12 +106,12 @@ export default class IZombieAnim {
 
     setDepth(base: number) {
         // 部件不在本地管
-        this.armLeft.setDepth(base + 9);
-        this.head.setDepth(base + 8);
-        this.armRight.setDepth(base + 6);
-        this.body.setDepth(base + 7);
-        this.legLeft.setDepth(base + 2);
-        this.legRight.setDepth(base + 1);
+        this.armLeft.setDepth(DepthHelper.Mob.legacyPart(base, "leftArm"));
+        this.head.setDepth(DepthHelper.Mob.legacyPart(base, "head"));
+        this.armRight.setDepth(DepthHelper.Mob.legacyPart(base, "rightArm"));
+        this.body.setDepth(DepthHelper.Mob.legacyPart(base, "body"));
+        this.legLeft.setDepth(DepthHelper.Mob.legacyPart(base, "leftLeg"));
+        this.legRight.setDepth(DepthHelper.Mob.legacyPart(base, "rightLeg"));
     }
 
     startLegSwing() {
@@ -237,7 +238,7 @@ export default class IZombieAnim {
 
     highlight() {
         // 计算绘制效果所需参数
-        const depth = this.body.depth + 1;  // 根据实际情况调整深度
+        const depth = DepthHelper.Mob.bodyText(this.body.depth);
         const centerX = this.x;
         // 因为僵尸的 body 原点为 (0.5, 1)，这里将中心点向上偏移一半的 GRID_SIZEY
         const centerY = this.y - PositionManager.Instance.GRID_SIZEY / 2;
@@ -281,7 +282,7 @@ export default class IZombieAnim {
             delay: 800,  // Emit every second
             loop: true,
             callback: () => {
-                const depth = this.body.depth + 1;
+                const depth = DepthHelper.Mob.bodyText(this.body.depth);
                 const centerX = this.x;
                 const centerY = this.y - PositionManager.Instance.GRID_SIZEY / 2;
                 const rangeWidth = PositionManager.Instance.GRID_SIZEX;

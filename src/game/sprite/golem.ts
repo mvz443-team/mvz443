@@ -1,5 +1,6 @@
 import { PositionManager } from "../managers/view/PositionManager";
 import { Game } from "../scenes/Game";
+import DepthHelper from "../utils/helper/DepthHelper";
 
 export interface GolemAnimProps {
   Species: string, // 物种,如铁傀儡,黑曜石傀儡,监守者等
@@ -108,12 +109,12 @@ export default class GolemAnim {
   setDepth(base: number) {
     this.baseDepth = base;
     // 部件不在本地管
-    this.armLeft.setDepth(base + 9);
-    this.head.setDepth(base + 8);
-    this.armRight.setDepth(base + 6);
-    this.body.setDepth(base + 7);
-    this.legLeft.setDepth(base + 2);
-    this.legRight.setDepth(base + 1);
+    this.armLeft.setDepth(DepthHelper.Mob.legacyPart(base, "leftArm"));
+    this.head.setDepth(DepthHelper.Mob.legacyPart(base, "head"));
+    this.armRight.setDepth(DepthHelper.Mob.legacyPart(base, "rightArm"));
+    this.body.setDepth(DepthHelper.Mob.legacyPart(base, "body"));
+    this.legLeft.setDepth(DepthHelper.Mob.legacyPart(base, "leftLeg"));
+    this.legRight.setDepth(DepthHelper.Mob.legacyPart(base, "rightLeg"));
   }
 
 
@@ -187,7 +188,7 @@ export default class GolemAnim {
   }
   highlight() {
     // 计算绘制效果所需参数
-    const depth = this.body.depth + 1;  // 根据实际情况调整深度
+    const depth = DepthHelper.Mob.bodyText(this.body.depth);
     const centerX = this.x;
     // 因为僵尸的 body 原点为 (0.5, 1)，这里将中心点向上偏移一半的 GRID_SIZEY
     const centerY = this.y - PositionManager.Instance.GRID_SIZEY / 2;
@@ -452,7 +453,7 @@ export default class GolemAnim {
     this.clearDirt();
     this.dirt = this.scene.add.sprite(this.x, this.y, 'anime/dirt')
       .setOrigin(0.5, 0.5).setScale(this.scaleFactor)
-      .setDepth(this.baseDepth + 14);
+      .setDepth(DepthHelper.Mob.attachment(this.baseDepth, "golemEffect"));
   }
 
 
@@ -514,7 +515,7 @@ export default class GolemAnim {
     this.clearDirt();
     this.dirt = this.scene.add.sprite(this.x, this.y, 'anime/dirt')
       .setOrigin(0.5, 0.5).setScale(this.scaleFactor)
-      .setDepth(this.baseDepth + 14);
+      .setDepth(DepthHelper.Mob.attachment(this.baseDepth, "golemEffect"));
 
     const dirt = this.dirt;
     this.scene.time.delayedCall(900, () => {

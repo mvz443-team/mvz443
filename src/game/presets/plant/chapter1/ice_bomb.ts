@@ -1,3 +1,4 @@
+import DepthHelper from "../../../utils/helper/DepthHelper";
 import { PlantStat } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
@@ -147,7 +148,7 @@ export class IceBombEntity extends PlantEntity {
       scene: this.scene,
       x: this.x,
       y: this.y,
-      depth: this.baseDepth + 1,
+      depth: DepthHelper.Plant.sfx(this.baseDepth),
       color: 0x0265b6,
       count: 20,
       rangeWidth: posManager.GRID_SIZEX * 1.5,

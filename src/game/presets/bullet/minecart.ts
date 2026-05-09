@@ -1,6 +1,6 @@
 import { DamageConstants } from "../../../constants/game";
 import { legacyRapierVelocityToUnitsPerSecond } from "../../../constants/physics";
-import DepthUtils from "../../../utils/depth";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import RAPIER from "@dimforge/rapier2d-deterministic-compat";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BaseEntity } from "../../models/core/BaseEntity";
@@ -43,7 +43,7 @@ export class MineCartStandEntity extends BaseEntity {
     super(scene, x, PositionManager.Instance.getRowCenterY(row));
     this.row = row;
     this.onLost = cfg.onLost;
-    this.baseDepth = DepthUtils.getProjectileDepth("bullet", PositionManager.Instance.getColByX(x));
+    this.baseDepth = DepthHelper.Projectile.bulletColumn(PositionManager.Instance.getColByX(x));
 
     this.buildView();
     this.buildPhysics();

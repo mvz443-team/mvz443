@@ -1,7 +1,7 @@
-﻿import { translate } from "../../../i18n";
+import { translate } from "../../../i18n";
 import type { Game } from "../../scenes/Game";
 import { DEBUG_TOGGLE_KEY } from "../../../constants/game";
-import DepthUtils from "../../../utils/depth";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import { BaseManager } from "../BaseManager";
 
 export default class DebugManager extends BaseManager {
@@ -17,8 +17,8 @@ export default class DebugManager extends BaseManager {
   }
 
   public Load(): void {
-    const debugWorldDepth = DepthUtils.getInGameUIElementDepth(-10);
-    const debugUiDepth = DepthUtils.getMenuDepth() - 10;
+    const debugWorldDepth = DepthHelper.UI.debugWorld();
+    const debugUiDepth = DepthHelper.UI.debugHint();
     if (!this.scene?.innerSettings.isDebug) {
       return;
     }
@@ -31,7 +31,7 @@ export default class DebugManager extends BaseManager {
       color: '#00ff00',
       backgroundColor: 'rgba(0, 0, 0, 0.45)',
       padding: { x: 8, y: 6 },
-    }).setDepth(debugUiDepth + 1);
+    }).setDepth(debugUiDepth);
 
     this.debugKey = this.scene.input.keyboard?.addKey(DEBUG_TOGGLE_KEY) ?? null;
     this.debugKey?.on('down', this.toggleDebug, this);

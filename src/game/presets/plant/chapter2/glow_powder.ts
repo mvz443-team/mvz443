@@ -1,3 +1,4 @@
+import DepthHelper from "../../../utils/helper/DepthHelper";
 /**
  * 发光粉 - 即时效果植物，唤醒同格器械并创建视觉效果
  */
@@ -74,7 +75,7 @@ export class GlowPowderEntity extends PlantEntity {
       scene: this.scene,
       x: this.x,
       y: this.y,
-      depth: this.baseDepth + 1,
+      depth: DepthHelper.Plant.sfx(this.baseDepth),
       color: 0xFFFF5A,
       count: 15,
     });

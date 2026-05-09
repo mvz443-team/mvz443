@@ -1,3 +1,4 @@
+import DepthHelper from "../../../utils/helper/DepthHelper";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import type { Game } from "../../../scenes/Game";
 import type { IMonsterAnimController } from "../../../models/monster/anims/IMonsterAnimController";
@@ -36,8 +37,8 @@ export class CentipedeAnimController implements IMonsterAnimController {
 
   public setDepth(depth: number): void {
     this.container.setDepth(depth);
-    this.aura.setDepth(depth + 1);
-    this.character.setDepth(depth + 2);
+    this.aura.setDepth(DepthHelper.Mob.centipedePart(depth, "aura"));
+    this.character.setDepth(DepthHelper.Mob.centipedePart(depth, "character"));
   }
 
   public highlight(): void {
@@ -202,8 +203,8 @@ export class CentipedeMinionAnimController implements IMonsterAnimController {
 
   public setDepth(depth: number): void {
     this.container.setDepth(depth);
-    this.body.setDepth(depth + 1);
-    this.orb.setDepth(depth + 2);
+    this.body.setDepth(DepthHelper.Mob.centipedePart(depth, "body"));
+    this.orb.setDepth(DepthHelper.Mob.centipedePart(depth, "orb"));
   }
 
   public highlight(): void {

@@ -1,5 +1,5 @@
 import { _Typedebuffs } from "../../../constants/game";
-import DepthUtils from "../../../utils/depth";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import { PositionManager } from "../../managers/view/PositionManager";
 import type { Game } from "../../scenes/Game";
 import { CollisionContext } from "../../types";
@@ -57,7 +57,7 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
 
     // Visuals
     const col = PositionManager.Instance.getColByX(x);
-    this.baseDepth = DepthUtils.getProjectileDepth("bullet", col);
+    this.baseDepth = DepthHelper.Projectile.bulletColumn(col);
     this.sprite = scene.add.sprite(this.x, this.y, model.texture);
     const size = PositionManager.Instance.getBulletDisplaySize();
     this.sprite.setDisplaySize(size.sizeX, size.sizeY);

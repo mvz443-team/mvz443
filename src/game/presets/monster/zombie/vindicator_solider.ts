@@ -1,5 +1,6 @@
 import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import { BaseEntity } from "../../../models/core/BaseEntity";
+import DepthHelper from "../../../utils/helper/DepthHelper";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import type { Game } from "../../../scenes/Game";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
@@ -22,7 +23,7 @@ export class ShieldVindicatorEntity extends BaseVindicatorEntity {
       this.y - PositionManager.Instance.GRID_SIZEY * 0.7 + this.offsetY,
       "attach/hd_shield",
     );
-    shield.setScale(PositionManager.Instance.scaleFactor * 2.2).setOrigin(0.5, 0.35).setFrame(0).setDepth(this.baseDepth + 14);
+    shield.setScale(PositionManager.Instance.scaleFactor * 2.2).setOrigin(0.5, 0.35).setFrame(0).setDepth(DepthHelper.Mob.attachment(this.baseDepth, "shield"));
     this.attachSprites.set("shield", shield);
   }
 

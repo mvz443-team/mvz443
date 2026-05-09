@@ -1,4 +1,4 @@
-import DepthUtils from "../../../utils/depth";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import { defaultRandom } from "../../../utils/random";
 import SoundCmd from "../../utils/cmd/SoundCmd";
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
@@ -46,7 +46,7 @@ export class ExplosionSfx extends BaseSfx<ExplosionSfxArgs> {
 
           const anime = scene.add.sprite(finalX, finalY, 'anime/explosion')
             .setDisplaySize(spriteBaseSize * scale, spriteBaseSize * scale)
-            .setDepth(DepthUtils.getInGameUIElementDepth(-100))
+            .setDepth(DepthHelper.Sfx.explosion())
             .setRotation(defaultRandom() * Math.PI * 2);
 
           viewGroup?.add(anime);

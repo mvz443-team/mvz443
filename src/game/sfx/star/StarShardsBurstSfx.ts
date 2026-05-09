@@ -1,3 +1,4 @@
+import DepthHelper from "../../utils/helper/DepthHelper";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
 
@@ -30,7 +31,7 @@ export class StarShardsBurstSfx extends BaseSfx<StarShardsBurstSfxArgs> {
         .setScale(Phaser.Math.FloatBetween(0.18, 0.28) * scale)
         .setAlpha(0)
         .setAngle(Phaser.Math.Between(0, 360))
-        .setDepth(baseDepth + 40);
+        .setDepth(DepthHelper.Sfx.starBurstParticle(baseDepth));
       const curve = new Phaser.Curves.QuadraticBezier(
         new Phaser.Math.Vector2(startX, startY),
         new Phaser.Math.Vector2(controlX, controlY),
@@ -56,7 +57,7 @@ export class StarShardsBurstSfx extends BaseSfx<StarShardsBurstSfxArgs> {
     }
 
     const glow = scene.add.circle(startX, startY, 8 * scale, 0xfff2a6, 0.62)
-      .setDepth(baseDepth + 39);
+      .setDepth(DepthHelper.Sfx.starBurstGlow(baseDepth));
     scene.tweens.add({
       targets: glow,
       y: startY - 22 * scale,

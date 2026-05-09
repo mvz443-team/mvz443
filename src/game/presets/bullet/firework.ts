@@ -1,3 +1,4 @@
+import DepthHelper from "../../utils/helper/DepthHelper";
 import { legacyRapierVelocityToUnitsPerSecond } from "../../../constants/physics";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BulletEntity } from "../../models/projectiles/BulletEntity";
@@ -55,7 +56,7 @@ export class HFireWorkEntity extends BulletEntity {
         x: this.x + offsetX,
         y: this.y + offsetY,
         size: this.sprite.displayHeight * 2,
-        depth: this.baseDepth + 1,
+        depth: DepthHelper.Projectile.trail(this.baseDepth),
       });
     }
   }

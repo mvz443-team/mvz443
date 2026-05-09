@@ -1,4 +1,4 @@
-import DepthUtils from "../../../utils/depth";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
 
@@ -26,7 +26,7 @@ export class ArcSfx extends BaseSfx<ArcSfxArgs> {
 
     const curve = new Phaser.Curves.QuadraticBezier(start, controlPoint, end);
     const tempImage = this.scene.add.image(x1, y1, texture)
-      .setDepth(DepthUtils.getProjectileDepth('projectile', 0));
+      .setDepth(DepthHelper.Projectile.arc());
 
     const path = { t: 0, vec: new Phaser.Math.Vector2() };
 

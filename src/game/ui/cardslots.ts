@@ -1,5 +1,5 @@
 import type { Game } from "../scenes/Game";
-import DepthUtils from "../../utils/depth";
+import DepthHelper from "../utils/helper/DepthHelper";
 import { PositionManager } from "../managers/view/PositionManager";
 import CardpileManager from "../managers/combat/CardpileManager";
 import ResourceManager from "../managers/combat/ResourceManager";
@@ -8,7 +8,7 @@ import { PlantLibrary } from "../managers/library/PlantLibrary";
 import type { PlantModel } from "../models/PlantModel";
 import { getLevelBadgeTextureKey } from "./levelBadgeSvg";
 
-export const UI_CHROME_DEPTH = DepthUtils.getInGameUIElementDepth(80);
+export const UI_CHROME_DEPTH = DepthHelper.UI.chrome();
 
 type CardOrientation = "vertical" | "mobile";
 
@@ -120,7 +120,7 @@ export class PlantCardView {
     this.level = options.level;
     this.cost = options.plantModel.cost.getValueAt(options.level);
 
-    this.container = this.scene.add.container(options.x, options.y).setDepth(UI_CHROME_DEPTH + 2);
+    this.container = this.scene.add.container(options.x, options.y).setDepth(DepthHelper.UI.chromeControl());
     this.bg = this.scene.add.graphics();
     this.overlay = this.scene.add.graphics();
     this.container.add(this.bg);
@@ -302,7 +302,7 @@ export class EnergyPanelView {
     this.width = width;
     this.height = height;
     this.compact = compact;
-    this.container = this.scene.add.container(x, y).setDepth(UI_CHROME_DEPTH + 2);
+    this.container = this.scene.add.container(x, y).setDepth(DepthHelper.UI.chromeControl());
     this.bg = this.scene.add.graphics();
     redrawRoundedPanel(this.bg, width, height, 0xf0f0f0, CARD_BORDER, 2);
     this.container.add(this.bg);
@@ -370,7 +370,7 @@ export class ToolButtonView {
     this.scene = scene;
     this.width = width;
     this.height = height;
-    this.container = this.scene.add.container(x, y).setDepth(UI_CHROME_DEPTH + 2);
+    this.container = this.scene.add.container(x, y).setDepth(DepthHelper.UI.chromeControl());
     this.bg = this.scene.add.graphics();
     this.container.add(this.bg);
 

@@ -1,4 +1,4 @@
-﻿import {
+import {
   PhaserEventBus,
   PhaserEvents,
 } from '../EventBus';
@@ -11,7 +11,7 @@ import CreateInnerMenu from '../ui/menu/inner_menu';
 import type { StageData } from '../../types/stage';
 import BackendWS from '../../utils/net/sync';
 import { translate } from '../../i18n';
-import DepthUtils from '../../utils/depth';
+import DepthHelper from '../utils/helper/DepthHelper';
 import SoundManager from '../managers/SoundManager';
 import SoundCmd from '../utils/cmd/SoundCmd';
 import RAPIER from '@dimforge/rapier2d-deterministic-compat';
@@ -58,7 +58,7 @@ export class Game extends Scene {
   private battleCamera: Phaser.Cameras.Scene2D.Camera | null = null;
   private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
   private readonly cameraLayerState = new WeakMap<Phaser.GameObjects.GameObject, "battle" | "ui">();
-  private readonly uiDepthThreshold = DepthUtils.getInGameUIElementDepth(0);
+  private readonly uiDepthThreshold = DepthHelper.UI.threshold();
 
   public innerSettings: GameSettings;
 
@@ -170,7 +170,7 @@ export class Game extends Scene {
     // Battle objects stay in battle-local coordinates. The battle camera projects them into the viewport.
     this.background
       .setOrigin(0, 0)
-      .setDepth(2)
+      .setDepth(DepthHelper.Scene.background())
       .setDisplaySize(LOGICAL_BATTLE_WIDTH, LOGICAL_BATTLE_HEIGHT);
 
     if (deviceType === 'mobile') {
@@ -194,7 +194,7 @@ export class Game extends Scene {
         backgroundColor: 'rgba(0, 0, 0, 0.35)',
         padding: { x: 8, y: 3 },
       }
-    ).setOrigin(0.5, 0).setDepth(DepthUtils.getInGameUIElementDepth(60)).setVisible(false).setAlpha(0);
+    ).setOrigin(0.5, 0).setDepth(DepthHelper.UI.waitingText()).setVisible(false).setAlpha(0);
 
     if (this.innerSettings.isDebug) {
       const sceneBounds = PositionManager.Instance.getSceneBounds(deviceType);
@@ -208,7 +208,7 @@ export class Game extends Scene {
           backgroundColor: 'rgba(0, 0, 0, 0.45)',
           padding: { x: 6, y: 4 },
         }
-      ).setOrigin(0, 1).setDepth(DepthUtils.getInGameUIElementDepth(61));
+      ).setOrigin(0, 1).setDepth(DepthHelper.UI.debugFrameText());
     }
 
     // 初始化物理世界
@@ -442,7 +442,7 @@ export class Game extends Scene {
         backgroundColor: 'rgba(0, 0, 0, 0.35)',
         padding: { x: 10, y: 5 },
       }
-    ).setOrigin(0.5).setDepth(DepthUtils.getMenuDepth());
+    ).setOrigin(0.5).setDepth(DepthHelper.UI.broadcast());
 
     // 4秒后更换文本内容为“来袭!!”
     this.time.addEvent({

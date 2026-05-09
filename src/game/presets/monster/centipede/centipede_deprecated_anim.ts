@@ -1,3 +1,4 @@
+import DepthHelper from "../../../utils/helper/DepthHelper";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import type { IMonsterAnimController } from "../../../models/monster/anims/IMonsterAnimController";
 import type { Game } from "../../../scenes/Game";
@@ -58,7 +59,7 @@ export class CentipedeDeprecatedAnimController implements IMonsterAnimController
 
   private addSegment(x: number, y: number, depth: number): void {
     const segment = this.addImage("sprCentipedeDeprecatedSegment", x, y, depth);
-    const joint = this.addImage("sprCentipedeDeprecatedJoint", x - 23, y + 3, depth + 0.1);
+    const joint = this.addImage("sprCentipedeDeprecatedJoint", x - 23, y + 3, DepthHelper.Mob.deprecatedCentipedeJoint(depth));
     joint.setScale(0.85);
     if (x > 80) segment.setAngle(4);
     if (x < 20) segment.setAngle(-4);
@@ -73,7 +74,7 @@ export class CentipedeDeprecatedAnimController implements IMonsterAnimController
     for (const child of this.container.list) {
       const gameObject = child as Phaser.GameObjects.GameObject & Partial<Phaser.GameObjects.Components.Depth>;
       const localDepth = gameObject.getData?.("localDepth") ?? 0;
-      gameObject.setDepth?.(depth + localDepth);
+      gameObject.setDepth?.(DepthHelper.Mob.deprecatedCentipedeChild(depth, localDepth));
     }
   }
 

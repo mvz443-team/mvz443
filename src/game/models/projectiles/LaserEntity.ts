@@ -1,5 +1,5 @@
 
-import DepthUtils from "../../../utils/depth";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import { PositionManager } from "../../managers/view/PositionManager";
 import type { Game } from "../../scenes/Game";
 import { CombatEntity } from "../core/CombatEntity";
@@ -27,7 +27,7 @@ export class LaserEntity extends ProjectileEntity<LaserModel> {
     // 创建旋转的矩形视觉对象
     const rect = scene.add.rectangle(centerX, centerY, distance, height, model.color, cfg.alphaFrom);
     rect.setRotation(angle);
-    this.baseDepth = DepthUtils.getProjectileDepth('laser', row);
+    this.baseDepth = DepthHelper.Projectile.laser(row);
     rect.setDepth(this.baseDepth);
     this.viewGroup.add(rect);
 

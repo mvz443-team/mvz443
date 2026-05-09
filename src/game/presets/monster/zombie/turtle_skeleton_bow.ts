@@ -1,5 +1,6 @@
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { ArrowData } from "../../bullet/arrow";
+import DepthHelper from "../../../utils/helper/DepthHelper";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { Faction } from "../../../models/Enum";
 import type { Game } from "../../../scenes/Game";
@@ -20,7 +21,7 @@ export class TurtleSkeletonBowEntity extends BaseSkeletonBowEntity {
       this.y - PositionManager.Instance.GRID_SIZEY * 1.15 + this.offsetY,
       "attach/turtle",
     );
-    shell.setScale(PositionManager.Instance.scaleFactor * 1.4).setFrame(0).setDepth(this.baseDepth + 13);
+    shell.setScale(PositionManager.Instance.scaleFactor * 1.4).setFrame(0).setDepth(DepthHelper.Mob.attachment(this.baseDepth, "shell"));
     this.attachSprites.set("turtle_shell", shell);
     this.arrowDamage = 50;
     this.arrowInterval = 2000;

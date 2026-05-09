@@ -1,5 +1,5 @@
 import RAPIER, { Vector } from "@dimforge/rapier2d-deterministic-compat";
-import DepthUtils from "../../../utils/depth";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import ObstacleManager from "../../managers/combat/ObstacleManager";
 import { PositionManager } from "../../managers/view/PositionManager";
 import type { Game } from "../../scenes/Game";
@@ -34,7 +34,7 @@ export abstract class ObstacleEntity extends CombatEntity {
     this.model = model;
     this.col = col;
     this.row = row;
-    this.baseDepth = DepthUtils.getPlantBasicDepth(row);
+    this.baseDepth = DepthHelper.Plant.base(row);
 
     this.summoner = config.summoner;
     this.health = config.hp;

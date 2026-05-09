@@ -1,4 +1,4 @@
-import DepthUtils from "../../../utils/depth";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
 
@@ -23,7 +23,7 @@ export class CentipedeSkillSfx extends BaseSfx<CentipedeSkillSfxArgs> {
   play(): void {
     const { x, y, kind, width, height } = this.args;
     const texture = TEXTURE_BY_KIND[kind];
-    const depth = DepthUtils.getProjectileDepth("projectile", 0) + 30;
+    const depth = DepthHelper.Projectile.centipedeSkill();
     const scaleFactor = PositionManager.Instance.scaleFactor;
 
     if (kind === "charge") {

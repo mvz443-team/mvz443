@@ -1,3 +1,4 @@
+import DepthHelper from "../../../utils/helper/DepthHelper";
 import ProjectileDamage from "../../../../constants/damage";
 import { PlantStat } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
@@ -116,7 +117,7 @@ export class SmallDispenserEntity extends PlantEntity {
       this.x + width * (1 / 3),
       this.y - height / 7,
       16,
-      this.baseDepth + 1
+      DepthHelper.Plant.sfx(this.baseDepth)
     );
   }
 }

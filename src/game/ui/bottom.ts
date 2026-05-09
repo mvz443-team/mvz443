@@ -1,6 +1,6 @@
 import i18n, { translate } from "../../i18n";
 import { commonKey, stageKey } from "../../i18n/keys";
-import DepthUtils from "../../utils/depth";
+import DepthHelper from "../utils/helper/DepthHelper";
 import BackendWS from "../../utils/net/sync";
 import { PhaserEventBus, PhaserEvents } from "../EventBus";
 import CardpileManager from "../managers/combat/CardpileManager";
@@ -59,7 +59,7 @@ export class BottomBar {
     this.scene = scene;
     const layout = PositionManager.Instance.getSceneChromeLayout(this.scene.params.deviceType ?? "pc");
     this.bounds = layout.bottomToolbar;
-    this.container = this.scene.add.container(this.bounds.x, this.bounds.y).setDepth(UI_CHROME_DEPTH + 1);
+    this.container = this.scene.add.container(this.bounds.x, this.bounds.y).setDepth(DepthHelper.UI.chromeContainer());
     this.bg = this.scene.add.graphics();
     this.container.add(this.bg);
     this.bg.fillStyle(BAR_BG, 1);

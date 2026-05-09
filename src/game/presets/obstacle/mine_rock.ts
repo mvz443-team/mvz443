@@ -1,3 +1,4 @@
+import DepthHelper from "../../utils/helper/DepthHelper";
 import RAPIER from "@dimforge/rapier2d-deterministic-compat";
 import { PositionManager } from "../../managers/view/PositionManager";
 import ObstacleManager from "../../managers/combat/ObstacleManager";
@@ -31,7 +32,7 @@ export class MineRockObstacleEntity extends ObstacleEntity {
     this.rectangle = this.scene.add.rectangle(this.x, this.y, size.sizeX, totalHeight, 0x4d4658)
       .setOrigin(0.5, 1)
       .setStrokeStyle(2, 0x9c8aa3)
-      .setDepth(this.baseDepth + 1);
+      .setDepth(DepthHelper.Plant.sfx(this.baseDepth));
 
     this.viewGroup.add(this.rectangle);
   }

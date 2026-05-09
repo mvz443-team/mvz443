@@ -1,5 +1,5 @@
 import { translate } from "../../i18n";
-import DepthUtils from "../../utils/depth";
+import DepthHelper from "./helper/DepthHelper";
 import type { Game } from "../scenes/Game";
 
 const ANNOUNCE_KEY = "__bossSkillAnnounce";
@@ -28,7 +28,7 @@ function getOrCreateAnnounceState(scene: Game): AnnounceState {
       strokeThickness: 2,
       padding: { x: 12, y: 6 },
     }
-  ).setOrigin(1, 0).setDepth(DepthUtils.getMenuDepth() - 1).setVisible(false).setAlpha(0);
+  ).setOrigin(1, 0).setDepth(DepthHelper.UI.bossSkillAnnounce()).setVisible(false).setAlpha(0);
   text.setShadow(2, 2, "#1a0a14", 6);
 
   const state: AnnounceState = { text, hideTimer: null };
