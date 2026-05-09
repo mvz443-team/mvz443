@@ -21,4 +21,12 @@ export const SfxDepth = {
   starBurstGlow(baseDepth: number): number {
     return baseDepth + 39;
   },
+
+  energyGainBattle(): number {
+    return UIDepth.inGame(-1);
+  },
+
+  energyGain(): number {
+    return UIDepth.chromeControl() + 8;
+  },
 };

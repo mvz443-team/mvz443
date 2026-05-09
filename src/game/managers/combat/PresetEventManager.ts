@@ -3,7 +3,9 @@ import DepthHelper from "../../utils/helper/DepthHelper";
 import { DispenserData } from "../../presets/plant/chapter1/dispenser";
 import { FurnaceData } from "../../presets/plant/chapter1/furnace";
 import type { Game } from "../../scenes/Game";
+import { GainEnergySfx } from "../../sfx/energy/GainEnergySfx";
 import { PlantCmd } from "../../utils/cmd/PlantCmd";
+import { SfxCmd } from "../../utils/cmd/SfxCmd";
 import { StageDataRecords } from "../library/ChapterLibrary";
 import { BaseManager } from "../BaseManager";
 import CombatManager from "../CombatManager";
@@ -95,6 +97,7 @@ export class PresetEventManager extends BaseManager {
       loop: true,
       startAt: startAtMs,
       callback: () => {
+        this.playAutoGenerateEnergySfx();
         ResourceManager.Instance.UpdateEnergy(+delta, 'all');
       }
     });
@@ -108,6 +111,26 @@ export class PresetEventManager extends BaseManager {
   // 初始能量
   private setInitialEnergy(initialEnergy: number) {
     ResourceManager.Instance.UpdateEnergy(+initialEnergy, 'all');
+  }
+
+  private playAutoGenerateEnergySfx() {
+    if (!this.scene) {
+      return;
+    }
+
+    const pos = PositionManager.Instance;
+    const gridBounds = pos.getGridBounds();
+    const centerX = gridBounds.x + pos.GRID_SIZEX * 0.5
+      + Math.random() * Math.max(0, gridBounds.width - pos.GRID_SIZEX);
+    const centerY = gridBounds.y + pos.GRID_SIZEY * 0.35
+      + Math.random() * Math.max(0, gridBounds.height - pos.GRID_SIZEY * 0.7);
+
+    SfxCmd.Create(GainEnergySfx, {
+      scene: this.scene,
+      x: centerX,
+      y: centerY,
+      size: "medium",
+    });
   }
 
   // 生成一排推车

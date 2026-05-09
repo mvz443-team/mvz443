@@ -3,7 +3,9 @@ import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
+import { GainEnergySfx, GainEnergySfxSize } from "../../../sfx/energy/GainEnergySfx";
 import ResourceCmd from "../../../utils/cmd/ResourceCmd";
+import { SfxCmd } from "../../../utils/cmd/SfxCmd";
 
 
 export class FurnaceModel extends PlantModel {
@@ -35,6 +37,7 @@ export class FurnaceModel extends PlantModel {
         if (entity.isSleeping) return;
         if (entity.currentHealth > 0 && entity.scene && entity.scene.time) {
           entity.playGenerateAnimation();
+          this.playGainEnergySfx(entity, "medium", true);
           const energyToAdd = this.generateEnergyAmount.getValueAt(entity.level);
           ResourceCmd.AddEnergyToAll(energyToAdd);
         }
@@ -43,12 +46,43 @@ export class FurnaceModel extends PlantModel {
   }
 
   onStarShards(entity: FurnaceEntity): void {
+    this.playGainEnergyBurstSfx(entity);
     // 一次性加能量
     ResourceCmd.AddEnergyToAll(450);
   }
 
   public createEntity(scene: Game, col: number, row: number, level: number) {
     return this.initializeEntity(new FurnaceEntity(scene, col, row, level));
+  }
+
+  private playGainEnergyBurstSfx(entity: FurnaceEntity): void {
+    for (let i = 0; i < 5; i += 1) {
+      entity.scene.time.delayedCall(i * 160, () => {
+        if (entity.currentHealth <= 0) {
+          return;
+        }
+        this.playGainEnergySfx(entity, "large", false);
+      });
+    }
+  }
+
+  private playGainEnergySfx(entity: FurnaceEntity, size: GainEnergySfxSize, exactCenter: boolean): void {
+    const center = this.getEnergySfxCenter(entity);
+
+    SfxCmd.Create(GainEnergySfx, {
+      scene: entity.scene,
+      x: center.x,
+      y: center.y,
+      size,
+      exactCenter,
+    });
+  }
+
+  private getEnergySfxCenter(entity: FurnaceEntity): { x: number; y: number } {
+    return {
+      x: entity.x,
+      y: entity.y - PositionManager.Instance.GRID_SIZEY * 0.55,
+    };
   }
 }
 
