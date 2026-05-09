@@ -1,3 +1,7 @@
+/*
+ * Visual: Base class for visual-only SFX. This file does not render anything by itself.
+ * Example usage: All SFX classes (e.g., ArcSfx, ExplosionSfx) extend this and are spawned via SfxCmd.Create in src/game/utils/cmd/SfxCmd.ts.
+ */
 import type { Game } from "../scenes/Game";
 
 export interface BaseSfxArgs {

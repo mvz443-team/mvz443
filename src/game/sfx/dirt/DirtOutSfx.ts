@@ -1,3 +1,7 @@
+/*
+ * Visual: Dirt burst animation that pops from a grid cell.
+ * Example usage: Mine/tnt and centipede summons in src/game/presets/plant/chapter1/tnt_mines.ts and src/game/presets/monster/centipede/centipede.ts.
+ */
 import DepthHelper from "../../utils/helper/DepthHelper";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";

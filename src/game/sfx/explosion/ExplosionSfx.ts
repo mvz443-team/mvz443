@@ -1,3 +1,7 @@
+/*
+ * Visual: Scattered explosion sprites across an area, with randomized offsets and timing.
+ * Example usage: ExplosionEntity detonation in src/game/models/projectiles/ExplosionEntity.ts; centipede blast in src/game/presets/monster/centipede/centipede.ts.
+ */
 import DepthHelper from "../../utils/helper/DepthHelper";
 import { defaultRandom } from "../../../utils/random";
 import SoundCmd from "../../utils/cmd/SoundCmd";

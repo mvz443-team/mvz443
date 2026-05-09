@@ -1,3 +1,7 @@
+/*
+ * Visual: Three star shards orbit an anchor point, adjusting depth and scale over time.
+ * Example usage: Star orbit on monsters in src/game/models/entities/MonsterEntity.ts and mine rock in src/game/presets/obstacle/mine_rock.ts.
+ */
 import DepthHelper from "../../utils/helper/DepthHelper";
 import TickerManager, { FrameTimer } from "../../managers/combat/TickerManager";
 import { PositionManager } from "../../managers/view/PositionManager";

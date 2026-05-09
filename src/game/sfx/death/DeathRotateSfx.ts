@@ -1,3 +1,7 @@
+/*
+ * Visual: Rotates the target game object toward 90 degrees as a quick death flip.
+ * Example usage: Monster death rotation in src/game/models/entities/MonsterEntity.ts.
+ */
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
 
 export interface DeathRotateSfxArgs extends BaseSfxArgs {

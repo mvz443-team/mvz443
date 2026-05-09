@@ -1,3 +1,7 @@
+/*
+ * Visual: Quick frame toggles to show a shield activation pulse on a sprite.
+ * Example usage: Obsidian shield activation in src/game/presets/plant/chapter1/obsidian.ts.
+ */
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
 
 export interface ShieldActivateSfxArgs extends BaseSfxArgs {

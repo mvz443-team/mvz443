@@ -1,3 +1,7 @@
+/*
+ * Visual: Centipede skill effects (ring, dust, slash) that fade and scale based on the skill kind.
+ * Example usage: Centipede skill visuals in src/game/presets/monster/centipede/centipede.ts.
+ */
 import DepthHelper from "../../utils/helper/DepthHelper";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";

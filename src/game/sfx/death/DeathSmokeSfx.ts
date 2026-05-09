@@ -1,3 +1,7 @@
+/*
+ * Visual: Plays the death smoke animation at a position and triggers a zombie death sound.
+ * Example usage: Monster death smoke in src/game/models/entities/MonsterEntity.ts.
+ */
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
 import SoundCmd from "../../utils/cmd/SoundCmd";
 

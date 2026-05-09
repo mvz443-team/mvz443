@@ -1,3 +1,7 @@
+/*
+ * Visual: Star shards burst outward with arcing motion and a brief glow.
+ * Example usage: Star shard activation in src/game/models/entities/PlantEntity.ts.
+ */
 import DepthHelper from "../../utils/helper/DepthHelper";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";

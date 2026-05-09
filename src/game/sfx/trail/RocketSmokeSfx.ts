@@ -1,3 +1,7 @@
+/*
+ * Visual: A smoke puff animation that fades in and out to trail a rocket.
+ * Example usage: Firework projectile trail in src/game/presets/bullet/firework.ts.
+ */
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
 
 export interface RocketSmokeSfxArgs extends BaseSfxArgs {

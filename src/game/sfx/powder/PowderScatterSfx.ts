@@ -1,3 +1,7 @@
+/*
+ * Visual: Colored powder particles scatter in a small rectangle and fade out.
+ * Example usage: Powder skills in src/game/presets/plant/chapter1/magic_powder.ts, ice_bomb.ts, and chapter2/glow_powder.ts.
+ */
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
 

@@ -1,3 +1,7 @@
+/*
+ * Visual: A sprite travels along a quadratic arc between two points, forming a projectile trail.
+ * Example usage: Obsidian golem throws an arc in src/game/presets/monster/golem/golem_obsidian.ts; TNT mines arc in src/game/presets/plant/chapter1/tnt_mines.ts.
+ */
 import DepthHelper from "../../utils/helper/DepthHelper";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";

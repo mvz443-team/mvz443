@@ -1,3 +1,7 @@
+/*
+ * Visual: Alpha blinking tween for a brief flashing highlight.
+ * Example usage: TNT arming blink in src/game/presets/plant/chapter1/tnt.ts.
+ */
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
 
 export interface AlphaBlinkSfxArgs extends BaseSfxArgs {
