@@ -1,12 +1,16 @@
 import SoundManager from "../../managers/SoundManager";
 
 export namespace SoundCmd {
+  const plantMarkerAliases: Record<string, string> = {
+    RemovePlant: 'plantRemove',
+  };
+
   export function Play(marker: string, config?: Phaser.Types.Sound.SoundConfig) {
     SoundManager.Instance.playUnlimit(marker, config);
   }
 
   export function PlayPlant(marker: string, config?: Phaser.Types.Sound.SoundConfig) {
-    SoundManager.Instance.playPlant(marker, config);
+    SoundManager.Instance.playPlant(plantMarkerAliases[marker] ?? marker, config);
   }
 
   export function PlayZombieSpawn(index: number) {

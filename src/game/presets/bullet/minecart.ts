@@ -1,27 +1,121 @@
 import { DamageConstants } from "../../../constants/game";
 import { legacyRapierVelocityToUnitsPerSecond } from "../../../constants/physics";
+import DepthUtils from "../../../utils/depth";
+import RAPIER from "@dimforge/rapier2d-deterministic-compat";
 import { PositionManager } from "../../managers/view/PositionManager";
+import { BaseEntity } from "../../models/core/BaseEntity";
 import { BulletEntity } from "../../models/projectiles/BulletEntity";
 import { BulletConfig, BulletModel } from "../../models/projectiles/ProjectileModels";
 import type { Game } from "../../scenes/Game";
 import { CombatEntity } from "../../models/core/CombatEntity";
 import { Faction } from "../../models/Enum";
+import { CollisionContext } from "../../types";
+import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
 
-export class MineCartModel extends BulletModel<BulletConfig, MineCartEntity> {
+export interface MineCartStandConfig {
+  onLost?: (row: number) => void;
+}
+
+export type MineCartConfig = BulletConfig;
+
+export class MineCartModel extends BulletModel<MineCartConfig, MineCartEntity> {
   texture = 'bullet/minecart';
-  public speed = 0; // 初始速度为 0
+  public speed = legacyRapierVelocityToUnitsPerSecond(600);
   public penetratePower = 999; // 无限穿透
   public penetratedPunish = 1.0; // 伤害不衰减
 
-  public createEntity(scene: Game, x: number, row: number, config: BulletConfig): MineCartEntity {
+  public createEntity(scene: Game, x: number, row: number, config: MineCartConfig): MineCartEntity {
     return new MineCartEntity(scene, x, row, this, config);
   }
 }
 
 export const MineCartData = new MineCartModel();
 
+export class MineCartStandEntity extends BaseEntity {
+  public baseDepth: number;
+
+  private readonly row: number;
+  private readonly onLost?: (row: number) => void;
+  private sprite!: Phaser.GameObjects.Sprite;
+  private hasTriggered = false;
+
+  constructor(scene: Game, x: number, row: number, cfg: MineCartStandConfig = {}) {
+    super(scene, x, PositionManager.Instance.getRowCenterY(row));
+    this.row = row;
+    this.onLost = cfg.onLost;
+    this.baseDepth = DepthUtils.getProjectileDepth("bullet", PositionManager.Instance.getColByX(x));
+
+    this.buildView();
+    this.buildPhysics();
+    this.playSpawnSlide();
+  }
+
+  protected buildView(): void {
+    const scaleFactor = PositionManager.Instance.scaleFactor;
+    this.sprite = this.scene.add.sprite(this.x, this.y, MineCartData.texture);
+    this.sprite.setDisplaySize(64 * scaleFactor, 64 * scaleFactor);
+    this.sprite.setDepth(this.baseDepth);
+    this.viewGroup.add(this.sprite);
+  }
+
+  public onCollision(ctx: CollisionContext): void {
+    if (this.hasTriggered) {
+      return;
+    }
+    if (!(ctx.targetEntity instanceof CombatEntity)) {
+      return;
+    }
+    if (ctx.targetEntity.faction === Faction.PLANT) {
+      return;
+    }
+
+    this.hasTriggered = true;
+    this.launchMinecart();
+    this.onLost?.(this.row);
+    this.destroy();
+  }
+
+  private buildPhysics(): void {
+    const bodySize = PositionManager.Instance.getBulletBodySize();
+    const rigidBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(this.x, this.y);
+    rigidBodyDesc.setUserData(this);
+
+    this.rigidBody = this.scene.rapierWorld.createRigidBody(rigidBodyDesc);
+
+    const colliderDesc = RAPIER.ColliderDesc.cuboid(bodySize.sizeX / 2, bodySize.sizeY / 2);
+    colliderDesc.setSensor(true);
+    colliderDesc.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
+    colliderDesc.setActiveCollisionTypes(
+      RAPIER.ActiveCollisionTypes.DEFAULT |
+      RAPIER.ActiveCollisionTypes.KINEMATIC_FIXED
+    );
+    this.scene.rapierWorld.createCollider(colliderDesc, this.rigidBody);
+  }
+
+  private launchMinecart(): void {
+    ProjectileCmd.Create(MineCartData, this.scene, this.x, this.row, {
+      damage: DamageConstants.SECKILL,
+      faction: Faction.PLANT,
+      maxDistance: PositionManager.Instance.Col_Number + 4,
+      bounceable: false,
+      skipTiny: false,
+    });
+  }
+
+  private playSpawnSlide(): void {
+    const startX = this.x - PositionManager.Instance.GRID_SIZEX * 0.75;
+    this.sprite.setPosition(startX, this.y);
+    this.scene.tweens.add({
+      targets: this.sprite,
+      x: this.x,
+      duration: 260,
+      ease: 'Cubic.easeOut',
+    });
+  }
+}
+
 export class MineCartEntity extends BulletEntity {
-  constructor(scene: Game, x: number, row: number, model: MineCartModel, cfg: BulletConfig) {
+  constructor(scene: Game, x: number, row: number, model: MineCartModel, cfg: MineCartConfig) {
     super(scene, x, row, model, cfg);
 
     // 设置初始伤害
@@ -34,16 +128,6 @@ export class MineCartEntity extends BulletEntity {
 
   protected applyEffect(t: CombatEntity): void {
     super.applyEffect(t);
-
-    // 如果还没有速度，说明是第一次碰撞，赋予速度 200
-    if (this.rigidBody) {
-      const currentVel = this.rigidBody.linvel();
-      if (Math.abs(currentVel.x) < 1) {
-        const velX = legacyRapierVelocityToUnitsPerSecond(200);
-        const direction = this.faction === Faction.PLANT ? 1 : -1;
-        this.rigidBody.setLinvel({ x: velX * direction, y: currentVel.y }, true);
-      }
-    }
   }
 
   stepUpdate() {

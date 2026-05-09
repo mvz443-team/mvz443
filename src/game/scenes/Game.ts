@@ -29,6 +29,7 @@ import DebugManager from '../managers/view/DebugManager';
 import { BaseEntity } from '../models/core/BaseEntity';
 import { DeferredManager } from '../managers/DeferredManager';
 import { PresetEventManager } from '../managers/combat/PresetEventManager';
+import TileItemManager from '../managers/combat/TileItemManager';
 import ConsoleCmd from '../utils/ConsoleCmd';
 import { SendLoaded } from '../../utils/net/room';
 import {
@@ -113,6 +114,7 @@ export class Game extends Scene {
       KeybindManager.Instance,
       MobManager.Instance,
       ObstacleManager.Instance,
+      TileItemManager.Instance,
       PlantsManager.Instance,
       ResourceManager.Instance,
       SoundManager.Instance,

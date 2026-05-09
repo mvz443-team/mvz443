@@ -152,6 +152,7 @@ export default class PlantsManager extends BaseManager {
             const plantObj = list[index];
             plantObj.destroy();
             list.splice(index, 1);
+            SoundCmd.PlayPlant('RemovePlant');
           }
           if (list.length === 0) {
             this.PlantsMap.delete(key);

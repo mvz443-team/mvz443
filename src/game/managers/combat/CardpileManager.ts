@@ -7,6 +7,7 @@ import { PlantLibrary } from "../library/PlantLibrary";
 import PlantsManager from "./PlantsManager";
 import ResourceManager from "./ResourceManager";
 import SyncManager from "./SyncManager";
+import SoundCmd from "../../utils/cmd/SoundCmd";
 
 type CardpileManagerEvent = {
   onChosenCard: (pid: number, level: number) => void;
@@ -246,6 +247,7 @@ export default class CardpileManager extends BaseManager {
     this.useStarShards = false;
     this.usePickaxe = false;
     this.usePickaxe = true;
+    SoundCmd.PlayPlant('RemovePlant');
     this.EventBus.emit('onChosenPickaxe');
   }
 

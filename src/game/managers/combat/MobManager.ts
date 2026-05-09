@@ -8,7 +8,6 @@ import {
   PhaserEventBus,
   PhaserEvents,
 } from "../../EventBus";
-import { GroundOnlyZombie, SkyOnlyZombie, WaterOnlyZombie } from "../../utils/helper/PlantHelper";
 import { BaseManager } from "../BaseManager";
 import type { Game } from "../../scenes/Game";
 import TickerManager, { FrameTimer } from "./TickerManager";
@@ -19,6 +18,8 @@ import { DeferredManager } from "../DeferredManager";
 import { MonsterEntity } from "../../models/entities/MonsterEntity";
 import { onlineStateManager } from "../../../store/OnlineStateManager";
 import StageHelper from "../../utils/helper/StageHelper";
+import MobHelper from "../../utils/helper/MobHelper";
+import TileItemManager from "./TileItemManager";
 
 type Mob = CombatEntity;
 
@@ -265,25 +266,12 @@ export default class MobManager extends BaseManager {
   }
 
 
-  shuffleArray<T>(array: T[]): T[] {
-    const rng = this.SeedRandom(); // 创建一个基于种子的随机数生成器
-    const shuffledArray = [...array]; // 创建原数组的副本
-
-    for (let i = shuffledArray.length - 1; i > 0; i--) {
-      const j = Math.floor(rng * (i + 1)); // 使用伪随机数生成器
-      [shuffledArray[i], shuffledArray[j]] = [shuffledArray[j], shuffledArray[i]]; // 交换元素
-    }
-
-    return shuffledArray;
-  }
-
   spawnMonster() {
     if (this.scene == null) {
       console.error('Scene is not set in MobManager');
       return;
     }
     const wave = this.currentWave();
-    const starNumber = wave.starShards;
 
     if (wave.duration === 0) {
       return; // 准备波,不生成怪物
@@ -292,78 +280,46 @@ export default class MobManager extends BaseManager {
     // Acquire current wave's monster number
     const currentMonsters = wave.monsters.reduce((acc, m) => acc + m.count, 0);
     this.total_count += currentMonsters; // 当前波id以及之前的所有(非召唤物)僵尸数量
+    if (currentMonsters <= 0) {
+      return;
+    }
 
-    let totalMonsters: { mid: number }[] = [];
     const colMax = PositionManager.Instance.Col_Number; // 出生在可种植植物列的右边
-    const rowMax = PositionManager.Instance.Row_Number - 1;
-
-    // 收集所有怪物
-    wave.monsters.forEach(monster => {
-      for (let i = 0; i < monster.count; i++) {
-        totalMonsters.push({ mid: monster.mid });
-      }
+    const spawnPlan = MobHelper.createSpawnPlan({
+      wave,
+      stageScript: this.scene.stageData.stageScript,
+      rowCount: PositionManager.Instance.Row_Number,
+      rng: this.SeedRandom,
+      canCarryStarShards: (mid) => MonsterLibrary.GetModel(mid)?.couldCarryStarShards ?? false,
     });
-
-    // 1. 确定哪些怪物携带starShards
-    totalMonsters = this.shuffleArray(totalMonsters);
-    const carryingMonsters = new Set<number>();  // 存储携带starShards的怪物索引
-    const starShardCandidateIndexes = totalMonsters
-      .map((monster, index) => ({ monster, index }))
-      .filter(({ monster }) => MonsterLibrary.GetModel(monster.mid)?.couldCarryStarShards)
-      .map(({ index }) => index);
-    const maxStars = Math.min(starNumber, starShardCandidateIndexes.length);  // 确保不超过可携带怪物总数
-
-    // 随机选择starNumber数量的怪物
-    while (carryingMonsters.size < maxStars) {
-      const randomIdx = Math.floor(this.SeedRandom() * starShardCandidateIndexes.length);
-      carryingMonsters.add(starShardCandidateIndexes[randomIdx]);
-    }
-
-    const duration = wave.duration * 1000;
-    const interval = duration / totalMonsters.length;
-    console.log('interval', interval, 'duration', duration);
-
-    // 行权重初始化
-    let rowWeights: number[];
-    let activeRows: number[] = [];
-
-    if (wave.arrangement === 0x02) {
-      const minLines = Math.min(wave.minLine, rowMax + 1);
-      const activeRowCount = minLines + Math.floor(this.SeedRandom() * (rowMax + 1 - minLines));
-      activeRows = Array.from({ length: rowMax + 1 }, (_, i) => i);
-      activeRows = this.shuffleArray(activeRows);
-      activeRows = activeRows.slice(0, activeRowCount);
-      rowWeights = Array(rowMax + 1).fill(0);
-      // 只允许 activeRows 刷怪
-      activeRows.forEach(row => rowWeights[row] = 1);
-    } else {
-      rowWeights = Array(rowMax + 1).fill(1);
-    }
-
-    // 新机制：排除指定行 (wave.exceptLine)
-    if (wave.exceptLine && wave.exceptLine.length > 0) {
-      // 当模式为0x02时，将不允许刷怪的行从 activeRows 中剔除
-      if (wave.arrangement === 0x02) {
-        activeRows = activeRows.filter(row => !wave.exceptLine.includes(row));
-      }
-      // 将排除的行的权重设置为0
-      wave.exceptLine.forEach(exceptRow => {
-        if (exceptRow >= 0 && exceptRow < rowWeights.length) {
-          rowWeights[exceptRow] = 0;
-        }
-      });
-    }
+    let rowWeights = spawnPlan.rowWeights;
+    const activeRows = spawnPlan.activeRows;
+    const totalMonsters = spawnPlan.totalMonsters;
+    const carryingMonsters = spawnPlan.carryingMonsterIndexes;
+    console.log('interval', spawnPlan.interval, 'duration', wave.duration * 1000);
 
     let monsterIndex = 0;
     if (this.SpawnTimer) this.SpawnTimer.remove();
 
     this.SpawnTimer = TickerManager.Instance.addEvent({
-      delay: interval,
+      delay: spawnPlan.interval,
       repeat: totalMonsters.length - 1,
       callback: () => {
         if (this.scene == null) return;
         const monsterData = totalMonsters[monsterIndex];
-        const row = this.weightedRandomRow(rowWeights, monsterData.mid);
+        const rowResult = MobHelper.selectSpawnRow({
+          wave,
+          stageScript: this.scene.stageData.stageScript,
+          rowWeights,
+          activeRows,
+          currentWaveId: wave.waveId,
+          minecartLostWaveByRow: TileItemManager.Instance.getMinecartLostWaveByRow(),
+          mid: monsterData.mid,
+          rowCount: PositionManager.Instance.Row_Number,
+          rng: this.SeedRandom,
+          rowPropertyRatio: (row, type) => GridManager.Instance.RowPropertyRatio(row, type),
+        });
+        const row = rowResult.row;
 
         // 换成新版本的新建怪物函数
         const model = MonsterLibrary.GetModel(monsterData.mid);
@@ -372,107 +328,22 @@ export default class MobManager extends BaseManager {
           return;
         }
 
+        const currentMonsterIndex = monsterIndex;
         DeferredManager.Instance.defer(() => {
           if (!this.scene) return;
           const zomb = model.createEntity(this.scene, colMax, row, wave.waveId);
           this.attachLifecycle(zomb);
 
           // 2. 如果当前怪物索引在carryingMonsters中，则设置携带starShards
-          if (zomb && carryingMonsters.has(monsterIndex) && model.couldCarryStarShards) {
+          if (zomb && carryingMonsters.has(currentMonsterIndex) && model.couldCarryStarShards) {
             zomb.addStarShards();
           }
         });
 
         monsterIndex++;
-
-        // 更新行权重
-        // 如果选择的行在允许刷怪的 activeRows 中，减少其权重
-        if (wave.arrangement === 0x02 && activeRows.includes(row)) {
-          rowWeights[row] = Math.max(0.1, rowWeights[row] - 0.3);
-        } else if (wave.arrangement === 0x01) {
-          rowWeights[row] = Math.max(0.1, rowWeights[row] - 0.3);
-        }
-
-        this.rebalanceRowWeights(rowWeights, wave.arrangement === 0x02 ? activeRows : null);
-
-        // 确保排除行的权重始终为0（对于默认模式下，可能会在重平衡时恢复）
-        if (wave.exceptLine && wave.exceptLine.length > 0) {
-          wave.exceptLine.forEach(exceptRow => {
-            if (exceptRow >= 0 && exceptRow < rowWeights.length) {
-              rowWeights[exceptRow] = 0;
-            }
-          });
-        }
+        rowWeights = rowResult.rowWeights;
       }
     });
-  }
-
-
-  // 权重再平衡函数 (逐渐恢复未选行的权重),支持活跃行
-  rebalanceRowWeights(weights: number[], activeRows: number[] | null) {
-    const recoveryRate = 0.1;
-    if (activeRows) {
-      // 只对活跃行恢复权重
-      activeRows.forEach(row => {
-        weights[row] = Math.min(1, weights[row] + recoveryRate);
-      });
-    } else {
-      // 默认模式，所有行恢复权重
-      for (let i = 0; i < weights.length; i++) {
-        weights[i] = Math.min(1, weights[i] + recoveryRate);
-      }
-    }
-  }
-
-
-  // 权重随机选择函数
-  weightedRandomRow(weights: number[], mid: number): number {
-    const couldSpawnMonster = (row: number, mid: number): boolean => {
-      const gridClan = GridManager.Instance;;
-      // Example additional rules
-      if ((GroundOnlyZombie.includes(mid))
-        && gridClan.RowPropertyRatio(row, 'ground') > 0.6) return false;  // Ground only
-      if ((WaterOnlyZombie.includes(mid))
-        && gridClan.RowPropertyRatio(row, 'water') > 0.6) return false;   // No water for specific monster
-      if ((SkyOnlyZombie.includes(mid))
-        && gridClan.RowPropertyRatio(row, 'void') > 0.6) return false;       // No sky for specific monster
-      return true;
-    };
-
-    // Create a copy of weights to modify
-    const weightsCopy = [...weights];
-
-    // Adjust weights based on spawn possibility
-    for (let i = 0; i < weightsCopy.length; i++) {
-      if (!couldSpawnMonster(i, mid)) {
-        weightsCopy[i] = 0;
-      }
-    }
-
-    const totalWeight = weightsCopy.reduce((acc, w) => acc + w, 0);
-
-    // If all valid weights are zero, fallback to original weights with spawn check
-    if (totalWeight === 0) {
-      const validRows = weights
-        .map((_, index) => index)
-        .filter(row => couldSpawnMonster(row, mid));
-
-      if (validRows.length === 0) {
-        console.error('No valid rows to spawn monster!');
-        // Fallback to fake random row
-        return Math.floor(this.SeedRandom() * PositionManager.Instance.Row_Number);
-      }
-      return validRows[Math.floor(this.SeedRandom() * validRows.length)];
-    }
-
-    let randomNum = this.SeedRandom() * totalWeight;
-    for (let i = 0; i < weightsCopy.length; i++) {
-      if (randomNum < weightsCopy[i]) {
-        return i;
-      }
-      randomNum -= weightsCopy[i];
-    }
-    return weightsCopy.length - 1;
   }
 
   // 怪物生成注册
