@@ -22,6 +22,7 @@ export class LilyModel extends PlantModel {
   public damage = new PlantStat(0); // Lily没有伤害
 
   isNightPlant = false;
+  public isTiny: boolean = true;
 
   onStarShards(entity: LilyEntity): void {
     if (entity.currentHealth <= 0) return;
@@ -81,8 +82,9 @@ export class LilyEntity extends PlantEntity {
 
   protected buildView() {
     const size = PositionManager.Instance.getPlantDisplaySize();
+    const spriteYOffset = PositionManager.Instance.GRID_SIZEY * 0.12;
 
-    const sprite = this.scene.add.sprite(this.x, this.y, this.model.texturePath, 0)
+    const sprite = this.scene.add.sprite(this.x, this.y + spriteYOffset, this.model.texturePath, 0)
       .setOrigin(0.5, 1)
       .setDisplaySize(size.sizeX, size.sizeY)
       .setDepth(DepthHelper.Plant.lilyBody(this.baseDepth)); // Lily的深度比其他植物低2层
