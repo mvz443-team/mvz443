@@ -1,129 +1,129 @@
 {
-    "comment": "1-7,in mine boss version,体验版",
-    "chapterId": 1,
-    "levelId": 7,
-    "nameKey": "level_sg7",
-    "descriptionKey": "sg7",
-    "levelIntro": [
-        {
-            "type": "img",
-            "src": "img/sg7.png"
-        },
-        {
-            "type": "text",
-            "content": "sg7"
-        }
-    ],
-    "rows": 5,
-    "type": 1,
-    "stageScript": {
-        "first_wave_id": 1,
-        "total_waves": 36,
-        "base_difficulty": 0,
-        "difficulty_limit": 52,
-        "phase1_end": 11,
-        "phase2_end": 28,
-        "dayOrNight": 2,
-        "flagWaves": [
-            10,
-            25,
-            35
-        ],
-        "waterWays": [
-            1,
-            2,
-            3
-        ],
-        "AllowedMobs": [
-            1,
-            2,
-            3,
-            8,
-            5,
-            7,
-            9,
-            11,
-            14,
-            15,
-            16
-        ],
-        "globalRatio": [
-            [
-                0,
-                1
-            ],
-            [
-                21,
-                2
-            ]
-        ],
-        "bossInsert": [
-            [
-                35,
-                12
-            ]
-        ]
+  "comment": "1-7,in mine boss version,体验版",
+  "chapterId": 1,
+  "levelId": 7,
+  "nameKey": "level_sg7",
+  "descriptionKey": "sg7",
+  "levelIntro": [
+    {
+      "type": "img",
+      "src": "img/sg7.png"
     },
-    "onWin": {
-        "unLock": [
-            {
-                "chapterId": 1,
-                "levelId": 8
-            }
-        ],
-        "unLockPlant": [
-            13
-        ]
-    },
-    "energy": 50,
-    "rewards": [
-        {
-            "progress": 75,
-            "reward": {
-                "id": 1,
-                "number": 100
-            }
-        },
-        {
-            "progress": 90,
-            "reward": {
-                "id": 2,
-                "number": 3
-            }
-        },
-        {
-            "progress": 90,
-            "reward": {
-                "id": 3,
-                "number": 2
-            }
-        },
-        {
-            "progress": 100,
-            "reward": {
-                "id": 1,
-                "number": 140
-            }
-        },
-        {
-            "progress": 100,
-            "reward": {
-                "id": 4,
-                "number": 2
-            }
-        }
-    ],
-    "load": {
-        "bgimg": [
-            "bg/bgInnerMine.png"
-        ],
-        "bgm": [
-            "audio/ARCD-0036-09.ogg",
-            "audio/ZCDS-0014-05.ogg"
-        ],
-        "plants": [
-            1,
-            2
-        ]
+    {
+      "type": "text",
+      "content": "sg7"
     }
+  ],
+  "rows": 4,
+  "type": 1,
+  "stageScript": {
+    "first_wave_id": 1,
+    "total_waves": 36,
+    "base_difficulty": 0,
+    "difficulty_limit": 52,
+    "phase1_end": 11,
+    "phase2_end": 28,
+    "dayOrNight": 2,
+    "flagWaves": [
+      10,
+      25,
+      35
+    ],
+    "waterWays": [
+      1,
+      2,
+      3
+    ],
+    "AllowedMobs": [
+      1,
+      2,
+      3,
+      8,
+      5,
+      7,
+      9,
+      11,
+      14,
+      15,
+      16
+    ],
+    "globalRatio": [
+      [
+        0,
+        1
+      ],
+      [
+        21,
+        2
+      ]
+    ],
+    "bossInsert": [
+      [
+        35,
+        12
+      ]
+    ]
+  },
+  "onWin": {
+    "unLock": [
+      {
+        "chapterId": 1,
+        "levelId": 8
+      }
+    ],
+    "unLockPlant": [
+      13
+    ]
+  },
+  "energy": 50,
+  "rewards": [
+    {
+      "progress": 75,
+      "reward": {
+        "id": 1,
+        "number": 100
+      }
+    },
+    {
+      "progress": 90,
+      "reward": {
+        "id": 2,
+        "number": 3
+      }
+    },
+    {
+      "progress": 90,
+      "reward": {
+        "id": 3,
+        "number": 2
+      }
+    },
+    {
+      "progress": 100,
+      "reward": {
+        "id": 1,
+        "number": 140
+      }
+    },
+    {
+      "progress": 100,
+      "reward": {
+        "id": 4,
+        "number": 2
+      }
+    }
+  ],
+  "load": {
+    "bgimg": [
+      "bg/bgInnerMine.png"
+    ],
+    "bgm": [
+      "audio/ARCD-0036-09.ogg",
+      "audio/ZCDS-0014-05.ogg"
+    ],
+    "plants": [
+      1,
+      2
+    ]
+  }
 }
