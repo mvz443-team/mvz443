@@ -188,10 +188,26 @@
     "bigWave": "A huge wave of monsters is approaching",
     "debugHint": "Press {{key}} to toggle Rapier debug",
     "boss_skill": {
-      "skill_mine_rock": "Mine Wreckage",
-      "skill_charge": "Tunnel Borer",
-      "skill_summon": "Centipede Swarm",
-      "skill_blast": "Mine Blast"
+      "centipede": {
+        "skill": {
+          "mine_rock": "Mine Wreckage",
+          "charge": "Tunnel Borer",
+          "summon": "Centipede Swarm",
+          "blast": "Mine Blast"
+        }
+      },
+      "obsidian_golem": {
+        "skill": {
+          "obsidian_barrage": "Obsidian Barrage",
+          "obsidian_guard": "Obsidian Guard"
+        }
+      },
+      "warden": {
+        "skill": {
+          "sonic_burst": "Sonic Burst",
+          "burrow_ambush": "Burrow Ambush"
+        }
+      }
     }
   }
 }

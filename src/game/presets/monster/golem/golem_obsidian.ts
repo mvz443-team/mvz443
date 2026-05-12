@@ -78,6 +78,7 @@ export class ObsidianGolemEntity extends BaseGolemEntity {
   }
 
   protected skill1(): void {
+    MobCmd.AnnounceBossSkill(this.scene, "obsidian_golem", "obsidian_barrage");
     // 根据row总数的不同生成不同数量的岩柱，间隔1格
     const obsidianOn = [];
     if (PositionManager.Instance.Row_Number % 2 === 0) {
@@ -99,6 +100,7 @@ export class ObsidianGolemEntity extends BaseGolemEntity {
   }
 
   protected skill2(): void {
+    MobCmd.AnnounceBossSkill(this.scene, "obsidian_golem", "obsidian_guard");
     const rows = [...new Set([this.row, Math.max(0, this.row - 1), Math.min(PositionManager.Instance.Row_Number - 1, this.row + 1)])];
     for (const row of rows) {
       spawnObsidianObstacle(this, 6, row, 500, 250);

@@ -47,10 +47,12 @@ export class WardenEntity extends BaseGolemEntity {
   }
 
   protected skill1(): void {
+    MobCmd.AnnounceBossSkill(this.scene, "warden", "sonic_burst");
     createWardenLaser(this);
   }
 
   protected skill2(): void {
+    MobCmd.AnnounceBossSkill(this.scene, "warden", "burrow_ambush");
     this.getLegacyController()?.raw.highJump?.();
     this.tickmanager.delayedCall({
       delay: 1000,

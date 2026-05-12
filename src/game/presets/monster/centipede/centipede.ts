@@ -17,7 +17,6 @@ import ObstacleCmd from "../../../utils/cmd/ObstacleCmd";
 import { PlantCmd } from "../../../utils/cmd/PlantCmd";
 import SoundCmd from "../../../utils/cmd/SoundCmd";
 import { SfxCmd } from "../../../utils/cmd/SfxCmd";
-import { announceBossSkill } from "../../../utils/skill_announce";
 import { MineRockObstacleData } from "../../obstacle";
 import { CentipedeAnimController } from "./centipede_anim";
 import { CENTIPEDE_MINION_WIDTH_CELLS, CentipedeMinionData } from "./centipede_minion";
@@ -196,7 +195,7 @@ export class CentipedeEntity extends BaseMonsterEntity {
   }
 
   private castSkill0(): void {
-    announceBossSkill(this.scene, "skill_mine_rock");
+    MobCmd.AnnounceBossSkill(this.scene, "centipede", "mine_rock");
     this.playSkillSfx("mine");
     const colNum = PositionManager.Instance.Col_Number;
     const rowNum = PositionManager.Instance.Row_Number;
@@ -243,7 +242,7 @@ export class CentipedeEntity extends BaseMonsterEntity {
   }
 
   private castSkill1(): void {
-    announceBossSkill(this.scene, "skill_charge");
+    MobCmd.AnnounceBossSkill(this.scene, "centipede", "charge");
     this.playSkillSfx("charge");
     const startCol = this.col;
     const targetCol = Math.max(2, startCol - 5);
@@ -315,7 +314,7 @@ export class CentipedeEntity extends BaseMonsterEntity {
   }
 
   private castSkill2(): void {
-    announceBossSkill(this.scene, "skill_summon");
+    MobCmd.AnnounceBossSkill(this.scene, "centipede", "summon");
     this.playSkillSfx("summon");
     const rowNum = PositionManager.Instance.Row_Number;
     const spawnCol = PositionManager.Instance.Col_Number - 1;
@@ -362,7 +361,7 @@ export class CentipedeEntity extends BaseMonsterEntity {
   }
 
   private castSkill3(): void {
-    announceBossSkill(this.scene, "skill_blast");
+    MobCmd.AnnounceBossSkill(this.scene, "centipede", "blast");
     this.playSkillSfx("blast");
     const usableCols: number[] = [];
     for (let c = 3; c <= 5; c++) usableCols.push(c);
