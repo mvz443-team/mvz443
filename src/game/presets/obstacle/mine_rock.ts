@@ -54,6 +54,7 @@ export class MineRockObstacleEntity extends ObstacleEntity {
       } else {
         map.get(fakeKey)?.push(this);
       }
+      ObstacleManager.Instance.RegisterObstacleLaneAlias(this, this.extraRow);
     }
 
     this.starOrbit = SfxCmd.Create(StarShardsOrbitSfx, {
@@ -101,6 +102,7 @@ export class MineRockObstacleEntity extends ObstacleEntity {
         if (idx >= 0) list.splice(idx, 1);
         if (list.length === 0) map.delete(key);
       }
+      ObstacleManager.Instance.UnregisterObstacleLaneAlias(this, this.extraRow);
     }
 
     super.destroy();

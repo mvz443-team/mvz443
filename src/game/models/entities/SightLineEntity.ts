@@ -1,5 +1,6 @@
 import RAPIER from "@dimforge/rapier2d-deterministic-compat";
 import MobManager from "../../managers/combat/MobManager";
+import ObstacleManager from "../../managers/combat/ObstacleManager";
 import PlantsManager from "../../managers/combat/PlantsManager";
 import { PositionManager } from "../../managers/view/PositionManager";
 import type { Game } from "../../scenes/Game";
@@ -34,13 +35,14 @@ export type SightLineGroupOptions = Omit<SightLineOptions, "row" | "direction"> 
   rowOffsets?: number[];
   direction?: SightLineDirection;
   directions?: SightLineDirection[];
+  skipOutOfBoundsRows?: boolean;
 };
 
 export class SightLineGroup {
   private readonly lines: SightLineEntity[];
 
   constructor(scene: Game, options: SightLineGroupOptions) {
-    const { row, rows, rowOffsets, direction, directions, ...lineOptions } = options;
+    const { row, rows, rowOffsets, direction, directions, skipOutOfBoundsRows = true, ...lineOptions } = options;
     const baseRow = row ?? (() => options.owner.GetRow());
     const lineRows = rows ?? (rowOffsets ?? [0]).map(offset => {
       if (typeof baseRow === "function") {
@@ -52,6 +54,12 @@ export class SightLineGroup {
 
     this.lines = [];
     for (const lineRow of lineRows) {
+      if (skipOutOfBoundsRows) {
+        if (typeof lineRow !== "function" && !SightLineEntity.isValidRow(lineRow)) {
+          continue;
+        }
+      }
+
       for (const lineDirection of lineDirections) {
         this.lines.push(new SightLineEntity(scene, {
           ...lineOptions,
@@ -98,13 +106,15 @@ export class SightLineEntity extends BaseEntity {
   private readonly ignoreBounce: boolean;
   private readonly candidates: Set<CombatEntity> = new Set();
   private lineLength = 1;
+  private lastRequestedX = Number.NaN;
+  private lastRequestedY = Number.NaN;
 
   constructor(scene: Game, options: SightLineOptions) {
     const row = typeof options.row === "function" ? options.row() : options.row;
     const originX = typeof options.originX === "function" ? options.originX() : options.originX ?? options.owner.x;
     const maxDistance = options.maxDistance ?? PositionManager.Instance.GRID_SIZEX * 32;
     const direction = options.direction ?? 1;
-    const center = SightLineEntity.calcLineSegment(originX, row, direction, maxDistance, options.ignoreBounce ?? options.owner.faction === Faction.ZOMBIE);
+    const center = SightLineEntity.calcLineSegment(originX, row, direction, maxDistance);
 
     super(scene, center.x, center.y);
 
@@ -123,10 +133,7 @@ export class SightLineEntity extends BaseEntity {
     this.buildPhysics();
   }
 
-  protected buildView(): void {
-    const zone = this.scene.add.zone(this.x, this.y, this.lineLength, 1).setOrigin(0.5, 0.5);
-    this.viewGroup.add(zone);
-  }
+  protected buildView(): void { }
 
   private buildPhysics(): void {
     const segment = this.getLineSegment();
@@ -151,25 +158,82 @@ export class SightLineEntity extends BaseEntity {
 
     this.scene.rapierWorld.createCollider(colliderDesc, this.rigidBody);
     this.rigidBody.setNextKinematicTranslation({ x: this.x, y: this.y });
+    this.lastRequestedX = this.x;
+    this.lastRequestedY = this.y;
   }
 
   public hasTarget(): boolean {
-    return this.getTargets().length > 0;
-  }
+    const row = this.getRow();
+    if (!SightLineEntity.isValidRow(row)) return false;
 
-  public getTargets(): CombatEntity[] {
-    this.pruneCandidates();
-    const found = new Set<CombatEntity>();
+    const originX = this.getOriginX();
+    const reflectors = this.ignoreBounce
+      ? undefined
+      : PlantsManager.Instance.GetSightLineReflectorsByLane(row) as SightLineReflector[];
 
-    for (const target of this.candidates) {
-      if (this.canSee(target)) {
-        found.add(target);
+    const mobs = MobManager.Instance.MobsByLane.get(row);
+    if (mobs) {
+      for (const mob of mobs) {
+        if (this.canSee(mob, row, originX, reflectors)) {
+          return true;
+        }
       }
     }
 
-    for (const target of this.collectRowEntities()) {
-      if (this.canSee(target)) {
-        found.add(target);
+    const plants = PlantsManager.Instance.GetPlantsByLane(row);
+    if (plants) {
+      for (const plant of plants) {
+        if (this.canSee(plant, row, originX, reflectors)) {
+          return true;
+        }
+      }
+    }
+
+    const obstacles = ObstacleManager.Instance.GetObstaclesByLane(row);
+    if (obstacles) {
+      for (const obstacle of obstacles) {
+        if (this.canSee(obstacle, row, originX, reflectors)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  public getTargets(): CombatEntity[] {
+    const found = new Set<CombatEntity>();
+    const row = this.getRow();
+    if (!SightLineEntity.isValidRow(row)) return [];
+    const originX = this.getOriginX();
+    const reflectors = this.ignoreBounce
+      ? undefined
+      : PlantsManager.Instance.GetSightLineReflectorsByLane(row) as SightLineReflector[];
+
+    const mobs = MobManager.Instance.MobsByLane.get(row);
+    if (mobs) {
+      for (const mob of mobs) {
+        if (this.canSee(mob, row, originX, reflectors)) {
+          found.add(mob);
+        }
+      }
+    }
+
+    const plants = PlantsManager.Instance.GetPlantsByLane(row);
+    if (plants) {
+      for (const plant of plants) {
+        if (this.canSee(plant, row, originX, reflectors)) {
+          found.add(plant);
+        }
+      }
+    }
+
+    const obstacles = ObstacleManager.Instance.GetObstaclesByLane(row);
+    if (obstacles) {
+      for (const obstacle of obstacles) {
+        if (this.canSee(obstacle, row, originX, reflectors)) {
+          found.add(obstacle);
+        }
       }
     }
 
@@ -183,21 +247,10 @@ export class SightLineEntity extends BaseEntity {
     }
 
     const sensor = this.getLineSegment();
-    if (this.rigidBody) {
+    if (this.rigidBody && (sensor.x !== this.lastRequestedX || sensor.y !== this.lastRequestedY)) {
       this.rigidBody.setNextKinematicTranslation({ x: sensor.x, y: sensor.y });
-    }
-  }
-
-  public override updateView(vec: { x: number; y: number }): void {
-    const dx = vec.x - this.x;
-    const dy = vec.y - this.y;
-    this.x = vec.x;
-    this.y = vec.y;
-
-    for (const child of this.viewGroup.getChildren() as Phaser.GameObjects.Zone[]) {
-      child.x += dx;
-      child.y += dy;
-      child.setSize(this.lineLength, 1);
+      this.lastRequestedX = sensor.x;
+      this.lastRequestedY = sensor.y;
     }
   }
 
@@ -207,10 +260,15 @@ export class SightLineEntity extends BaseEntity {
     }
   }
 
+  public getCollisionCandidates(): CombatEntity[] {
+    this.pruneCandidates();
+    return [...this.candidates];
+  }
+
   private getLineSegment(): { x: number; y: number; length: number } {
     const row = this.getRow();
     const originX = this.getOriginX();
-    const sensor = SightLineEntity.calcLineSegment(originX, row, this.direction, this.maxDistance, this.ignoreBounce);
+    const sensor = SightLineEntity.calcLineSegment(originX, row, this.direction, this.maxDistance);
     this.lineLength = sensor.length;
     return sensor;
   }
@@ -220,16 +278,10 @@ export class SightLineEntity extends BaseEntity {
     row: number,
     direction: SightLineDirection,
     maxDistance: number,
-    ignoreBounce: boolean,
   ): { x: number; y: number; length: number } {
-    const bounds = PositionManager.Instance.getWorldBounds();
     const y = PositionManager.Instance.getRowCenterY(row);
-    const startX = ignoreBounce
-      ? originX
-      : direction > 0 ? bounds.left : bounds.right;
-    const endX = ignoreBounce
-      ? originX + direction * maxDistance
-      : originX + direction * maxDistance;
+    const startX = originX;
+    const endX = originX + direction * maxDistance;
     const minX = Math.min(startX, endX);
     const maxX = Math.max(startX, endX);
 
@@ -240,33 +292,20 @@ export class SightLineEntity extends BaseEntity {
     };
   }
 
-  private collectRowEntities(): CombatEntity[] {
-    const row = this.getRow();
-    const result: CombatEntity[] = [];
-
-    const mobs = MobManager.Instance.MobsByLane.get(row) ?? [];
-    result.push(...mobs);
-
-    for (const plants of PlantsManager.Instance.PlantsMap.values()) {
-      for (const plant of plants) {
-        if (plant.row === row) {
-          result.push(plant);
-        }
-      }
-    }
-
-    return result;
-  }
-
-  private canSee(target: CombatEntity): boolean {
+  private canSee(
+    target: CombatEntity,
+    row: number,
+    originX: number,
+    reflectors?: SightLineReflector[],
+  ): boolean {
     if (target === this.owner) return false;
     if (target.currentHealth <= 0) return false;
     if (!this.matchFaction(target.faction)) return false;
     if (!this.includeTiny && target.isTiny) return false;
     if (!this.includeFlying && target instanceof MonsterEntity && target.isFlying) return false;
-    if (target.GetRow() !== this.getRow()) return false;
+    if (target.GetRow() !== row) return false;
 
-    return this.isInBaseRay(target.x) || this.isInBounceRay(target);
+    return this.isInBaseRay(target.x, originX) || this.isInBounceRay(target, originX, reflectors);
   }
 
   private matchFaction(faction: Faction): boolean {
@@ -275,16 +314,17 @@ export class SightLineEntity extends BaseEntity {
     return true;
   }
 
-  private isInBaseRay(x: number): boolean {
-    const distance = (x - this.getOriginX()) * this.direction;
+  private isInBaseRay(x: number, originX: number): boolean {
+    const distance = (x - originX) * this.direction;
     return distance >= 0 && distance <= this.maxDistance;
   }
 
-  private isInBounceRay(target: CombatEntity): boolean {
-    if (this.ignoreBounce) return false;
+  private isInBounceRay(target: CombatEntity, originX: number, reflectors?: SightLineReflector[]): boolean {
+    if (!reflectors || reflectors.length === 0) return false;
 
-    const originX = this.getOriginX();
-    for (const reflector of this.collectReflectors()) {
+    for (const reflector of reflectors) {
+      if (!reflector.canExtendSightLineFor?.(this.owner.faction)) continue;
+
       const toReflector = (reflector.x - originX) * this.direction;
       if (toReflector < 0 || toReflector > this.maxDistance) continue;
 
@@ -298,28 +338,15 @@ export class SightLineEntity extends BaseEntity {
     return false;
   }
 
-  private collectReflectors(): SightLineReflector[] {
-    const row = this.getRow();
-    const reflectors: SightLineReflector[] = [];
-
-    for (const plants of PlantsManager.Instance.PlantsMap.values()) {
-      for (const plant of plants) {
-        if (plant.row !== row) continue;
-        const reflector = plant as SightLineReflector;
-        if (reflector.canExtendSightLineFor?.(this.owner.faction)) {
-          reflectors.push(reflector);
-        }
-      }
-    }
-
-    return reflectors;
-  }
-
   private pruneCandidates(): void {
     for (const target of this.candidates) {
       if (target.currentHealth <= 0) {
         this.candidates.delete(target);
       }
     }
+  }
+
+  public static isValidRow(row: number): boolean {
+    return row >= 0 && row < PositionManager.Instance.getRowCount();
   }
 }

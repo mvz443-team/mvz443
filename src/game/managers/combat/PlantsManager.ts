@@ -1,4 +1,5 @@
 import { EventBus } from "../../../utils/eventBus";
+import { Faction } from "../../models/Enum";
 import { PlantEntity } from "../../models/entities/PlantEntity";
 import PlantHelper from "../../utils/helper/PlantHelper";
 import { BaseManager } from "../BaseManager";
@@ -22,17 +23,25 @@ type PlantsManagerEvent = {
   onStarshardsInsufficient: () => void;
 }
 
+type SightLineReflectorPlant = PlantEntity & {
+  canExtendSightLineFor?: (faction: Faction) => boolean;
+};
+
 export default class PlantsManager extends BaseManager {
   private static _instance: PlantsManager;
 
   public EventBus: EventBus<PlantsManagerEvent>;
 
   PlantsMap: Map<string, Array<PlantEntity>> = new Map();
+  PlantsByLane: Map<number, Array<PlantEntity>> = new Map();
+  SightLineReflectorsByLane: Map<number, Array<SightLineReflectorPlant>> = new Map();
 
   constructor() {
     super();
 
     this.PlantsMap = new Map();
+    this.PlantsByLane = new Map();
+    this.SightLineReflectorsByLane = new Map();
     this.EventBus = new EventBus<PlantsManagerEvent>();
   }
 
@@ -54,6 +63,8 @@ export default class PlantsManager extends BaseManager {
     SyncManager.Instance.Eventbus.off('onRequestUseStarShards', this.LaunchStarShards);
     SyncManager.Instance.Eventbus.off('onRequestRemovePlant', this.UprootPlant);
     this.PlantsMap.clear();
+    this.PlantsByLane.clear();
+    this.SightLineReflectorsByLane.clear();
     this.EventBus.removeAllListeners();
     this.scene = null;
   }
@@ -73,6 +84,22 @@ export default class PlantsManager extends BaseManager {
     } else {
       this.PlantsMap.get(key)?.push(plant);
     }
+
+    const lane = plant.row;
+    if (!this.PlantsByLane.has(lane)) {
+      this.PlantsByLane.set(lane, [plant]);
+    } else {
+      this.PlantsByLane.get(lane)?.push(plant);
+    }
+
+    const reflector = plant as SightLineReflectorPlant;
+    if (reflector.canExtendSightLineFor) {
+      if (!this.SightLineReflectorsByLane.has(lane)) {
+        this.SightLineReflectorsByLane.set(lane, [reflector]);
+      } else {
+        this.SightLineReflectorsByLane.get(lane)?.push(reflector);
+      }
+    }
   }
 
   // 从管理器注销植物
@@ -90,6 +117,36 @@ export default class PlantsManager extends BaseManager {
         }
       }
     }
+
+    const lanePlants = this.PlantsByLane.get(plant.row);
+    if (lanePlants) {
+      const index = lanePlants.indexOf(plant);
+      if (index >= 0) {
+        lanePlants.splice(index, 1);
+      }
+      if (lanePlants.length === 0) {
+        this.PlantsByLane.delete(plant.row);
+      }
+    }
+
+    const laneReflectors = this.SightLineReflectorsByLane.get(plant.row);
+    if (laneReflectors) {
+      const index = laneReflectors.indexOf(plant as SightLineReflectorPlant);
+      if (index >= 0) {
+        laneReflectors.splice(index, 1);
+      }
+      if (laneReflectors.length === 0) {
+        this.SightLineReflectorsByLane.delete(plant.row);
+      }
+    }
+  }
+
+  public GetPlantsByLane(row: number): Array<PlantEntity> | undefined {
+    return this.PlantsByLane.get(row);
+  }
+
+  public GetSightLineReflectorsByLane(row: number): Array<SightLineReflectorPlant> | undefined {
+    return this.SightLineReflectorsByLane.get(row);
   }
 
   // 种植植物
@@ -151,11 +208,7 @@ export default class PlantsManager extends BaseManager {
           if (index >= 0) {
             const plantObj = list[index];
             plantObj.destroy();
-            list.splice(index, 1);
             SoundCmd.PlayPlant('RemovePlant');
-          }
-          if (list.length === 0) {
-            this.PlantsMap.delete(key);
           }
         }
       }
