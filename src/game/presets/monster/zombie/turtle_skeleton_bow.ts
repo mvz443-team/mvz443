@@ -50,7 +50,7 @@ export class TurtleSkeletonBowEntity extends BaseSkeletonBowEntity {
             ProjectileCmd.Create(ArrowData, this.scene, this.x, this.row, {
               damage: this.arrowDamage,
               faction: Faction.ZOMBIE,
-              speed: legacyRapierVelocityToUnitsPerSecond(320),
+              speed: -legacyRapierVelocityToUnitsPerSecond(320),
             });
           }
         });

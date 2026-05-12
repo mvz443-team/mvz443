@@ -8,10 +8,10 @@ import type { Game } from "../../../scenes/Game";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { Faction } from "../../../models/Enum";
 import { PumpkinData } from "./pumkin";
-import CombatHelper from "../../../utils/helper/CombatHelper";
 import ShootHeadAnimationHelper from "../../../utils/helper/ShootHeadAnimationHelper";
 import { ExplosionConfig, LaserConfig } from "../../../models/projectiles/ProjectileModels";
 import { PlantCmd } from "../../../utils/cmd/PlantCmd";
+import { SightLineGroup } from "../../../models/entities/SightLineEntity";
 
 /**
  * 南瓜头·晚上 - 夜间激光植物的升级版
@@ -57,6 +57,19 @@ export class PumpkinWanModel extends PlantModel {
 
     // 启动周期性激光发射
     const attackInterval = this.baseAttackInterval.getValueAt(entity.level);
+    const canAttackFlying = entity.level >= this.LevelThresholds1;
+    const sightLine = new SightLineGroup(entity.scene, {
+      owner: entity,
+      row: () => entity.row,
+      rowOffsets: [-1, 0, 1],
+      originX: () => entity.x - this.startOffset.getValueAt(entity.level) * PositionManager.Instance.GRID_SIZEX,
+      direction: 1,
+      maxDistance: this.attackDistance.getValueAt(entity.level) * PositionManager.Instance.GRID_SIZEX,
+      excludeFactions: [entity.faction],
+      includeTiny: true,
+      includeFlying: canAttackFlying,
+      ignoreBounce: true,
+    });
 
     entity.tickmanager.addEvent({
       startAt: attackInterval / 2, // 第一次攻击延迟
@@ -65,33 +78,8 @@ export class PumpkinWanModel extends PlantModel {
       callback: () => {
         if (entity.isSleeping) return;
 
-        // 根据等级调整范围
-        const startOffset = this.startOffset.getValueAt(entity.level);
-
         // 检查三行任意有敌人
-        if (
-          CombatHelper.HasEnemyFactionOnRowInDistance(
-            entity.faction,
-            entity.row - 1,
-            entity.x,
-            startOffset,
-            startOffset
-          ) ||
-          CombatHelper.HasEnemyFactionOnRowInDistance(
-            entity.faction,
-            entity.row,
-            entity.x,
-            startOffset,
-            startOffset
-          ) ||
-          CombatHelper.HasEnemyFactionOnRowInDistance(
-            entity.faction,
-            entity.row + 1,
-            entity.x,
-            startOffset,
-            startOffset
-          )
-        ) {
+        if (sightLine.hasTarget()) {
           entity.playAttackAnimation();
           entity.tickmanager.delayedCall({
             delay: 100, // 动画播放中途发射

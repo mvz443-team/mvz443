@@ -8,9 +8,9 @@ import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import createShootBurstAnim from "../../../sprite/shoot_anim";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
-import CombatHelper from "../../../utils/helper/CombatHelper";
 import ShootHeadAnimationHelper from "../../../utils/helper/ShootHeadAnimationHelper";
 import { ArrowData, ArrowModel, MutantYAxisArrowData, MutantYAxisArrowModel } from "../../bullet/arrow";
+import { SightLineGroup } from "../../../models/entities/SightLineEntity";
 
 export class TripleDispenserModel extends PlantModel {
   public override pid = 13;
@@ -35,6 +35,17 @@ export class TripleDispenserModel extends PlantModel {
   }
 
   public override onCreate(entity: TripleDispenserEntity): void {
+    const sightLine = new SightLineGroup(entity.scene, {
+      owner: entity,
+      row: () => entity.GetRow(),
+      rowOffsets: [-1, 0, 1],
+      direction: 1,
+      maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
+      excludeFactions: [entity.faction],
+      includeTiny: false,
+      includeFlying: false,
+    });
+
     entity.tickmanager.addEvent({
       startAt: 600,
       delay: 1200,
@@ -43,12 +54,7 @@ export class TripleDispenserModel extends PlantModel {
         if (entity.isSleeping || entity.currentHealth <= 0) return;
         if (entity.inBruteShoot) return;
 
-        const scene = entity.scene;
-        const hasEnemyInRange =
-          CombatHelper.HasEnemyFactionOnRow(entity.faction, entity.GetRow() - 1) ||
-          CombatHelper.HasEnemyFactionOnRow(entity.faction, entity.GetRow()) ||
-          CombatHelper.HasEnemyFactionOnRow(entity.faction, entity.GetRow() + 1) ||
-          CombatHelper.HasEnemyFactionOnRow(entity.faction, entity.GetRow());
+        const hasEnemyInRange = sightLine.hasTarget();
 
         if (hasEnemyInRange) {
           entity.playShootAnimation();

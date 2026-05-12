@@ -9,6 +9,7 @@ import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import { CollisionContext } from "../../../types";
 import { ArrowEntity } from "../../bullet/arrow";
+import { Faction } from "../../../models/Enum";
 
 export class ElasticPutinModel extends PlantModel {
   public override pid = 15;
@@ -99,6 +100,10 @@ export class ElasticPutinEntity extends PlantEntity {
         // TODO: 移除动画效果
       }
     });
+  }
+
+  public canExtendSightLineFor(faction: Faction): boolean {
+    return this.currentHealth > 0 && !this.isSleeping && this.faction === faction;
   }
 
   public override destroy(): void {

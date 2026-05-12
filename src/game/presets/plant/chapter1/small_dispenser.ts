@@ -8,7 +8,7 @@ import type { Game } from "../../../scenes/Game";
 import createShootBurstAnim from "../../../sprite/shoot_anim";
 import { PlantCmd } from "../../../utils/cmd/PlantCmd";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
-import CombatHelper from "../../../utils/helper/CombatHelper";
+import { SightLineEntity } from "../../../models/entities/SightLineEntity";
 import { SnowBallData, SnowBallModel, BombSnowBallModel } from "../../bullet/snowball";
 
 export class FireBallModel extends BombSnowBallModel {
@@ -50,6 +50,15 @@ export class SmallDispenserModel extends PlantModel {
     if (entity.level >= this.LevelThresholds1) {
       maxDistanceGrid = 5.6;
     }
+    const sightLine = new SightLineEntity(entity.scene, {
+      owner: entity,
+      row: () => entity.GetRow(),
+      direction: 1,
+      maxDistance: maxDistanceGrid * PositionManager.Instance.GRID_SIZEX,
+      excludeFactions: [entity.faction],
+      includeTiny: false,
+      includeFlying: false,
+    });
 
     entity.tickmanager.addEvent({
       startAt: 500,
@@ -58,7 +67,7 @@ export class SmallDispenserModel extends PlantModel {
       callback: () => {
         if (entity.isSleeping || entity.currentHealth <= 0) return;
 
-        if (CombatHelper.HasEnemyFactionOnRowInDistance(entity.faction, entity.GetRow(), entity.x, 0, maxDistanceGrid)) {
+        if (sightLine.hasTarget()) {
           entity.playShootAnimation();
 
           ProjectileCmd.Create<SnowBallModel>(SnowBallData, entity.scene, entity.x, entity.row, {

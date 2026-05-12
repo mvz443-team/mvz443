@@ -6,8 +6,8 @@ import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { Faction } from "../../../models/Enum";
-import CombatHelper from "../../../utils/helper/CombatHelper";
 import { LaserConfig } from "../../../models/projectiles/ProjectileModels";
+import { SightLineEntity } from "../../../models/entities/SightLineEntity";
 
 /**
  * 南瓜头 - 夜间激光植物
@@ -51,6 +51,16 @@ export class PumpkinModel extends PlantModel {
 
     // 启动周期性激光发射
     const attackInterval = this.baseAttackInterval.getValueAt(entity.level);
+    const sightLine = new SightLineEntity(entity.scene, {
+      owner: entity,
+      row: () => entity.row,
+      direction: 1,
+      maxDistance: this.attackDistance * PositionManager.Instance.GRID_SIZEX,
+      excludeFactions: [entity.faction],
+      includeTiny: true,
+      includeFlying: false,
+      ignoreBounce: true,
+    });
 
     entity.tickmanager.addEvent({
       startAt: attackInterval * 0.75, // 第一次攻击延迟
@@ -59,15 +69,7 @@ export class PumpkinModel extends PlantModel {
       callback: () => {
         if (entity.isSleeping) return;
 
-        if (
-          CombatHelper.HasEnemyFactionOnRowInDistance(
-            entity.faction,
-            entity.row,
-            entity.x,
-            0,
-            this.attackDistance
-          )
-        ) {
+        if (sightLine.hasTarget()) {
           entity.playAttackAnimation();
           entity.tickmanager.delayedCall({
             delay: 100, // 动画播放中途发射

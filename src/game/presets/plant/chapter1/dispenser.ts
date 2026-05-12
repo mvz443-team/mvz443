@@ -8,9 +8,9 @@ import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import createShootBurstAnim from "../../../sprite/shoot_anim";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
-import CombatHelper from "../../../utils/helper/CombatHelper";
 import ShootHeadAnimationHelper from "../../../utils/helper/ShootHeadAnimationHelper";
 import { ArrowData, ArrowModel } from "../../bullet/arrow";
+import { SightLineEntity } from "../../../models/entities/SightLineEntity";
 
 
 export class DispenserModel extends PlantModel {
@@ -31,6 +31,16 @@ export class DispenserModel extends PlantModel {
   isNightPlant = false;
 
   onCreate(entity: DispenserEntity): void {
+    const sightLine = new SightLineEntity(entity.scene, {
+      owner: entity,
+      row: () => entity.GetRow(),
+      direction: 1,
+      maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
+      excludeFactions: [entity.faction],
+      includeTiny: false,
+      includeFlying: false,
+    });
+
     // 启动普通发射定时器
     entity.tickmanager.addEvent({
       startAt: 800,
@@ -39,7 +49,7 @@ export class DispenserModel extends PlantModel {
       callback: () => {
         if (entity.isSleeping) return;
         if (entity.inBruteShoot) return; // 暴力发射中不执行普通发射逻辑
-        if (CombatHelper.HasEnemyFactionOnRow(entity.faction, entity.GetRow())) {
+        if (sightLine.hasTarget()) {
           entity.playShootAnimation();
           entity.tickmanager.delayedCall({
             delay: 200,

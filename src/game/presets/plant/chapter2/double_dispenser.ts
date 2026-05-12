@@ -12,10 +12,10 @@ import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import createShootBurstAnim from "../../../sprite/shoot_anim";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
-import CombatHelper from "../../../utils/helper/CombatHelper";
 import ShootHeadAnimationHelper from "../../../utils/helper/ShootHeadAnimationHelper";
 import { ArrowData, ArrowModel } from "../../bullet/arrow";
 import { HFireWorkData, HFireWorkModel } from "../../bullet/firework";
+import { SightLineGroup } from "../../../models/entities/SightLineEntity";
 
 export class DoubleDispenserModel extends PlantModel {
   public override pid = 16;
@@ -38,6 +38,16 @@ export class DoubleDispenserModel extends PlantModel {
   }
 
   public override onCreate(entity: DoubleDispenserEntity): void {
+    const sightLine = new SightLineGroup(entity.scene, {
+      owner: entity,
+      row: () => entity.GetRow(),
+      directions: [-1, 1],
+      maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
+      excludeFactions: [entity.faction],
+      includeTiny: false,
+      includeFlying: false,
+    });
+
     entity.tickmanager.addEvent({
       startAt: 600,
       delay: 900,
@@ -45,7 +55,7 @@ export class DoubleDispenserModel extends PlantModel {
       callback: () => {
         if (entity.isSleeping || entity.currentHealth <= 0) return;
 
-        if (CombatHelper.HasEnemyFactionOnRow(entity.faction, entity.GetRow())) {
+        if (sightLine.hasTarget()) {
           entity.playShootAnimation();
 
           entity.tickmanager.delayedCall({

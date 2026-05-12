@@ -9,8 +9,8 @@ import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import createShootBurstAnim from "../../../sprite/shoot_anim";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
-import CombatHelper from "../../../utils/helper/CombatHelper";
 import ShootHeadAnimationHelper from "../../../utils/helper/ShootHeadAnimationHelper";
+import { SightLineEntity } from "../../../models/entities/SightLineEntity";
 import { HFireWorkConfig, HFireWorkData, HFireWorkEntity, HFireWorkModel } from "../../bullet/firework";
 import { DispenserData } from "./dispenser";
 
@@ -94,6 +94,16 @@ export class ATDispenserModel extends PlantModel {
   }
 
   public override onCreate(entity: ATDispenserEntity): void {
+    const sightLine = new SightLineEntity(entity.scene, {
+      owner: entity,
+      row: () => entity.GetRow(),
+      direction: 1,
+      maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
+      excludeFactions: [entity.faction],
+      includeTiny: false,
+      includeFlying: false,
+    });
+
     entity.tickmanager.addEvent({
       startAt: 2500,
       delay: 3550,
@@ -101,7 +111,7 @@ export class ATDispenserModel extends PlantModel {
       callback: () => {
         if (entity.isSleeping) return;
 
-        if (CombatHelper.HasEnemyFactionOnRow(entity.faction, entity.GetRow())) {
+        if (sightLine.hasTarget()) {
           entity.playShootAnimation();
           entity.tickmanager.delayedCall({
             delay: 200,
