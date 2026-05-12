@@ -18,7 +18,7 @@ export class LilyModel extends PlantModel {
   public maxHealth = new PlantStat(300).setIncRatio(2);
   public cost = new PlantStat(25).setThreshold(5, 0); // 5级以上无需能量
   public cooldown = new PlantStat(4000);
-  public cooldownStartAtRatio = 0.7;
+  public cooldownStartAtRatio = 0;
   public damage = new PlantStat(0); // Lily没有伤害
 
   isNightPlant = false;

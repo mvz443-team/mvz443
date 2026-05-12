@@ -22,7 +22,7 @@ export class TripleDispenserModel extends PlantModel {
   public cost = new PlantStat(325);
 
   public cooldown = new PlantStat(10000);
-  public cooldownStartAtRatio = 1;
+  public cooldownStartAtRatio = 0;
 
   public damage = new PlantStat(ProjectileDamage.bullet.arrow).setIncRatio(1.35);
   public isNightPlant = false;

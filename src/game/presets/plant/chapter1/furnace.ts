@@ -17,7 +17,7 @@ export class FurnaceModel extends PlantModel {
   public maxHealth = new PlantStat(300);
   public cost = new PlantStat(50).setThreshold(5, 35);
   public cooldown = new PlantStat(6000);
-  public cooldownStartAtRatio = 0.7; // startAt: cooldownTime * 0.7
+  public cooldownStartAtRatio = 0;
 
   generateEnergyCooldown = new PlantStat(25000).setDecValue(0.85); // 生成能量的冷却时间，随等级增加而递减
   generateEnergyAmount = new PlantStat(25).setThreshold(9, 40); // 生成能量的数量，9级时提升

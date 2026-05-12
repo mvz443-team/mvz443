@@ -71,8 +71,8 @@ export class ATDispenserModel extends PlantModel {
   public maxHealth = new PlantStat(450).setIncRatio(2);
   public cost = new PlantStat(450).setThreshold(5, 425);
 
-  public cooldown = new PlantStat(60000).setThreshold(9, 48000);
-  public cooldownStartAtRatio = 0.5;
+  public cooldown = new PlantStat(50000).setThreshold(9, 44000);
+  public cooldownStartAtRatio = 1;
 
   public damage = new PlantStat(ProjectileDamage.bullet.firework).setIncRatio(1.4);
   public isNightPlant: boolean = false;

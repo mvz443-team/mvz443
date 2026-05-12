@@ -26,7 +26,7 @@ export class TntMinesModel extends PlantModel {
   public cost = new PlantStat(25);
 
   public cooldown = new PlantStat(30000).setThreshold(5, 25000);
-  public cooldownStartAtRatio = 1;
+  public cooldownStartAtRatio = 0.5;
 
   public damage = new PlantStat(1500);
   public isNightPlant = false;

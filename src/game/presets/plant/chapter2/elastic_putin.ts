@@ -8,7 +8,6 @@ import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import { CollisionContext } from "../../../types";
-import { BulletEntity } from "../../../models/projectiles/BulletEntity";
 import { ArrowEntity } from "../../bullet/arrow";
 
 export class ElasticPutinModel extends PlantModel {
@@ -19,7 +18,7 @@ export class ElasticPutinModel extends PlantModel {
 
   public maxHealth = new PlantStat(300);
   public cost = new PlantStat(100).setThreshold(3, 75);
-  public cooldown = new PlantStat(8000);
+  public cooldown = new PlantStat(7500);
   public cooldownStartAtRatio = 0;
   public damage = new PlantStat(0);
   public isNightPlant = true;

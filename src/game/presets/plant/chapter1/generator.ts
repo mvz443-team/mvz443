@@ -18,7 +18,7 @@ export class GeneratorModel extends PlantModel {
   public maxHealth = new PlantStat(800).setIncRatio(1.2);
   public cost = new PlantStat(50);
   public cooldown = new PlantStat(32000); // 32秒
-  public cooldownStartAtRatio = 0.7;
+  public cooldownStartAtRatio = 0;
   public damage = new PlantStat(0); // 生成器没有伤害
 
   LevelThresholds1 = 3;

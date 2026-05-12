@@ -27,7 +27,7 @@ export class SmallDispenserModel extends PlantModel {
   public cost = new PlantStat(0);
 
   public cooldown = new PlantStat(10000);
-  public cooldownStartAtRatio = 1;
+  public cooldownStartAtRatio = 0;
 
   public damage = new PlantStat(ProjectileDamage.bullet.snowBall).setIncRatio(1.3);
   public isNightPlant = true;

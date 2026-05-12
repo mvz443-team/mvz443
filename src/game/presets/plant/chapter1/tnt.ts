@@ -19,7 +19,7 @@ export class TntModel extends PlantModel {
   public cost = new PlantStat(150);
 
   public cooldown = new PlantStat(50000).setIncRatio(0.85);
-  public cooldownStartAtRatio = 1;
+  public cooldownStartAtRatio = 0.5;
 
   public damage = new PlantStat(1400).setIncRatio(1.35);
   public isNightPlant = false;

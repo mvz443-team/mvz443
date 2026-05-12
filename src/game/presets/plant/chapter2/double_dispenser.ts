@@ -26,8 +26,8 @@ export class DoubleDispenserModel extends PlantModel {
   public maxHealth = new PlantStat(300);
   public cost = new PlantStat(125);
 
-  public cooldown = new PlantStat(10000);
-  public cooldownStartAtRatio = 1;
+  public cooldown = new PlantStat(8000);
+  public cooldownStartAtRatio = 0;
 
   public damage = new PlantStat(ProjectileDamage.bullet.arrow).setIncRatio(1.3);
   public fireworkDamage = new PlantStat(150).setIncRatio(1.2);

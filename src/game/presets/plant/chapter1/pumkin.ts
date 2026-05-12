@@ -26,8 +26,8 @@ export class PumpkinModel extends PlantModel {
 
   public maxHealth = new PlantStat(300);
   public cost = new PlantStat(100);
-  public cooldown = new PlantStat(16000);
-  public cooldownStartAtRatio = 1;
+  public cooldown = new PlantStat(12000);
+  public cooldownStartAtRatio = 0;
 
   public damage = new PlantStat(42).setIncRatio(1.35); // 伤害在激光中定义
   public SparkDamage = new PlantStat(290).setIncRatio(1.3); // 大招伤害
