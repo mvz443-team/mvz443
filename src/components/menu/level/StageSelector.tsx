@@ -12,6 +12,27 @@ import type { LevelIntroItem } from '../../../types/drama';
 
 type StageSelectorStageData = Pick<StageData, 'levelIntro' | 'rows' | 'stageScript' | 'onWin'>;
 
+const infoPanelThemes = {
+  default: {
+    border: 'rgba(0, 204, 255, 0.45)',
+    background: 'rgba(15, 25, 30, 0.85)',
+    accent: '#00ccff',
+    glow: 'rgba(0, 204, 255, 0.16)',
+  },
+  completed: {
+    border: 'rgba(34, 197, 94, 0.58)',
+    background: 'rgba(13, 44, 28, 0.9)',
+    accent: '#22c55e',
+    glow: 'rgba(34, 197, 94, 0.2)',
+  },
+  locked: {
+    border: 'rgba(239, 68, 68, 0.58)',
+    background: 'rgba(55, 18, 18, 0.9)',
+    accent: '#ef4444',
+    glow: 'rgba(239, 68, 68, 0.2)',
+  },
+} as const;
+
 interface StageSelectorProps {
   chapterId: number;
   onSelect: (stageId: number) => void;
@@ -128,7 +149,13 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
 
   const selectedStageRecord = state.selectedStage !== null ? StageDataRecords[state.selectedStage] : null;
   const selectedStageName = selectedStageRecord ? translate(stageKey(selectedStageRecord.nameKey)) : '';
+  const selectedStageUnlocked = state.selectedStage !== null && saveManager.isLevelUnlocked(state.selectedStage, chapterId);
   const selectedStageCompleted = state.selectedStage !== null && saveManager.isLevelPassed(state.selectedStage, chapterId);
+  const infoPanelTheme = selectedStageCompleted
+    ? infoPanelThemes.completed
+    : selectedStageRecord && !selectedStageUnlocked
+      ? infoPanelThemes.locked
+      : infoPanelThemes.default;
   const stageLightText = state.selectedStageData
     ? translate(state.selectedStageData.stageScript.dayOrNight === 1 ? 'menu.level_light_strong' : 'menu.level_light_none')
     : translate('common.loading');
@@ -242,9 +269,9 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
             gap: '20px',
             marginBottom: '20px',
             padding: '16px 18px',
-            border: '1px solid rgba(0, 204, 255, 0.45)',
-            background: 'rgba(15, 25, 30, 0.85)',
-            boxShadow: 'inset 0 0 0 1px rgba(255, 255, 255, 0.04)',
+            border: `1px solid ${infoPanelTheme.border}`,
+            background: infoPanelTheme.background,
+            boxShadow: `inset 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 18px ${infoPanelTheme.glow}`,
           }}>
             <div style={{
               display: 'flex',
@@ -300,7 +327,7 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
               <button
                 style={{
                   padding: '10px 20px',
-                  background: '#00ccff',
+                  background: infoPanelTheme.accent,
                   border: 'none',
                   color: '#fff',
                   cursor: 'pointer',
@@ -320,7 +347,9 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
                 <div style={{
                   width: `${stageSummaryPercent}%`,
                   height: '100%',
-                  background: stageBossInsertCount > 0 ? '#f97316' : '#22c55e',
+                  background: selectedStageCompleted || !selectedStageUnlocked
+                    ? infoPanelTheme.accent
+                    : stageBossInsertCount > 0 ? '#f97316' : '#22c55e',
                   transition: 'width 0.3s ease',
                 }} />
                 <div style={{

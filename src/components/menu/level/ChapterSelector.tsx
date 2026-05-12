@@ -6,6 +6,27 @@ import { useLocaleMessages } from '../../../hooks/useLocaleMessages';
 import { stageKey } from '../../../i18n/keys';
 import { useSetState, useLocalStorageState, useMount, useMemoizedFn } from 'ahooks';
 
+const infoPanelThemes = {
+  default: {
+    border: 'rgba(0, 204, 255, 0.45)',
+    background: 'rgba(15, 25, 30, 0.85)',
+    accent: '#00ccff',
+    glow: 'rgba(0, 204, 255, 0.16)',
+  },
+  completed: {
+    border: 'rgba(34, 197, 94, 0.58)',
+    background: 'rgba(13, 44, 28, 0.9)',
+    accent: '#22c55e',
+    glow: 'rgba(34, 197, 94, 0.2)',
+  },
+  locked: {
+    border: 'rgba(239, 68, 68, 0.58)',
+    background: 'rgba(55, 18, 18, 0.9)',
+    accent: '#ef4444',
+    glow: 'rgba(239, 68, 68, 0.2)',
+  },
+} as const;
+
 interface ChapterSelectorProps {
   onSelect: (chapterId: number) => void;
   onBack: () => void;
@@ -68,6 +89,15 @@ const ChapterSelector: React.FC<ChapterSelectorProps> = ({ onSelect, onBack }) =
     : 0;
   const totalStageCount = selectedChapterStages.length;
   const selectedChapterName = selectedChapterData ? translate(stageKey(selectedChapterData.nameKey)) : '-';
+  const selectedChapterUnlocked = selectedChapterData
+    ? selectedChapterStages.some((stageId) => saveManager.isLevelUnlocked(stageId, selectedChapterData.id))
+    : false;
+  const selectedChapterCompleted = totalStageCount > 0 && completedStageCount === totalStageCount;
+  const infoPanelTheme = selectedChapterCompleted
+    ? infoPanelThemes.completed
+    : selectedChapterData && !selectedChapterUnlocked
+      ? infoPanelThemes.locked
+      : infoPanelThemes.default;
 
   return (
     <div style={{
@@ -148,9 +178,9 @@ const ChapterSelector: React.FC<ChapterSelectorProps> = ({ onSelect, onBack }) =
             gap: '20px',
             marginBottom: '20px',
             padding: '16px 18px',
-            border: '1px solid rgba(0, 204, 255, 0.45)',
-            background: 'rgba(15, 25, 30, 0.85)',
-            boxShadow: 'inset 0 0 0 1px rgba(255, 255, 255, 0.04)',
+            border: `1px solid ${infoPanelTheme.border}`,
+            background: infoPanelTheme.background,
+            boxShadow: `inset 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 18px ${infoPanelTheme.glow}`,
           }}>
             <div style={{
               display: 'flex',
@@ -181,7 +211,7 @@ const ChapterSelector: React.FC<ChapterSelectorProps> = ({ onSelect, onBack }) =
               style={{
                 flex: '0 0 auto',
                 padding: '10px 20px',
-                background: '#00ccff',
+                background: infoPanelTheme.accent,
                 border: 'none',
                 color: '#fff',
                 cursor: 'pointer',
