@@ -16,6 +16,9 @@ import PlantsManager from "./PlantsManager";
 import ResourceManager from "./ResourceManager";
 import TickerManager, { FrameTimer } from "./TickerManager";
 import { LOGICAL_BATTLE_HEIGHT, LOGICAL_BATTLE_WIDTH } from "../../../constants/gameLayout";
+import { SmallDispenserData } from "../../presets/plant/chapter1/small_dispenser";
+import { GeneratorData } from "../../presets/plant/chapter1/generator";
+import { LilyData } from "../../presets/plant/chapter1/lily";
 
 /**
  * 预设事件管理器
@@ -60,7 +63,15 @@ export class PresetEventManager extends BaseManager {
     GridManager.Instance.initGridProperties();
     const stageId = this.scene.params.level || 0;
     const chapterId = StageDataRecords[stageId].chapterId;
+
     this.setInitialEnergy(this.scene.stageData.energy);
+    // dayOrNight 触发自动产能
+    CombatManager.Instance.combatStatus.dayOrNight = this.scene.stageData.stageScript.dayOrNight === 2 ?
+      false : true;
+    if (CombatManager.Instance.combatStatus.dayOrNight) {
+      this.startAutoGenerateEnergy(17000, 25000, 25);
+    }
+
     // dispatch stage or chapter
     if (chapterId === 1) {
       this.Chapter1Dispatch(this.scene, stageId);
@@ -90,7 +101,7 @@ export class PresetEventManager extends BaseManager {
   }
 
   // 自动产能设置
-  private setAutoGenerateEnergy(startAtMs: number, intervalMs: number, delta: number) {
+  private startAutoGenerateEnergy(startAtMs: number, intervalMs: number, delta: number) {
     this.stopAutoGenerateEnergy();
     this.autoEnergyTimer = TickerManager.Instance.addEvent({
       delay: intervalMs,
@@ -133,73 +144,76 @@ export class PresetEventManager extends BaseManager {
     });
   }
 
-  // 生成一排推车
-  private spawnRowOfCarts() {
-    const rows = PositionManager.Instance.Row_Number;
-  }
-
   Chapter1Dispatch(game: Game, stageId: number) {
     // 第一章的
     const width = LOGICAL_BATTLE_WIDTH;
     const height = LOGICAL_BATTLE_HEIGHT;
-    // 白天
-    if (stageId === 1 || stageId === 2) {
-      // 白天关卡，能量增加逻辑现在由React组件处理
-      CombatManager.Instance.combatStatus.dayOrNight = true;
-      this.setAutoGenerateEnergy(17000, 25000, 25);
-    }
+
 
     if (stageId === 1) {
-      PlantsManager.Instance.PlantCard(9961, DispenserData.pid, 1, 1, 0);
-      PlantsManager.Instance.PlantCard(9961, DispenserData.pid, 1, 1, 4);
-    }
-
-    if (stageId === 7 || stageId === 3) {
+      PlantsManager.Instance.PlantCard(9961, DispenserData.pid, 1, 0, 0);
+      PlantsManager.Instance.PlantCard(9961, DispenserData.pid, 1, 0, 4);
       PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 1);
       PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 2);
       PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 3);
     }
 
-    if (stageId === 3 || stageId === 7) {
-      // [0][7] = water
-      CombatManager.Instance.combatStatus.dayOrNight = false;
-      GridManager.Instance.setSingleGridProperty(7, 0, { type: 'water' });
+    if (stageId === 2) {
+      PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 1);
+      PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 2);
+      PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 3);
+    }
+
+    if (stageId === 3) {
+      //darker
       game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.3).setDepth(DepthHelper.Scene.presetOverlay());
+
+      PlantsManager.Instance.PlantCard(9961, SmallDispenserData.pid, 1, 4, 1);
+      PlantsManager.Instance.PlantCard(9961, SmallDispenserData.pid, 1, 4, 2);
     }
 
     if (stageId === 4) {
-      CombatManager.Instance.combatStatus.dayOrNight = false;
       game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
+      PlantsManager.Instance.PlantCard(9961, GeneratorData.pid, 1, 5, 1);
+      PlantsManager.Instance.PlantCard(9961, GeneratorData.pid, 1, 5, 4);
     }
 
     if (stageId === 5 || stageId === 8) {
-      CombatManager.Instance.combatStatus.dayOrNight = false;
       game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
       // row:2, 3  = water
       for (let col = 0; col < PositionManager.Instance.Col_Number; col++) {
         GridManager.Instance.setSingleGridProperty(col, 2, { type: 'water' });
         GridManager.Instance.setSingleGridProperty(col, 3, { type: 'water' });
       }
+      PlantsManager.Instance.PlantCard(9961, LilyData.pid, 1, 0, 2);
+      PlantsManager.Instance.PlantCard(9961, LilyData.pid, 1, 0, 3);
+      PlantsManager.Instance.PlantCard(9961, LilyData.pid, 1, 1, 2);
+      PlantsManager.Instance.PlantCard(9961, LilyData.pid, 1, 1, 3);
     }
 
     if (stageId === 6) {
-      CombatManager.Instance.combatStatus.dayOrNight = false;
       game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
     }
 
-    if (stageId === 9) {
-      CombatManager.Instance.combatStatus.dayOrNight = false;
+    if (stageId === 7) {
       game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
 
-      // 关卡开局即自动产能；boss 出场时停产，到达 50% 血量时再恢复
-      this.setAutoGenerateEnergy(10000, 20000, 25);
+      PlantsManager.Instance.PlantCard(9961, SmallDispenserData.pid, 1, 4, 1);
+      PlantsManager.Instance.PlantCard(9961, SmallDispenserData.pid, 1, 4, 2);
+      PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 1);
+      PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 2);
+    }
 
+    if (stageId === 9) {
       setCentipedeHooks({
         onSpawn: () => {
+          // 关卡开局即自动产能；boss 出场时停产
           this.stopAutoGenerateEnergy();
+          game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
         },
         onHalfHealth: () => {
-          this.setAutoGenerateEnergy(0, 20000, 25);
+          // 到达 50% 血量时再恢复
+          // this.startAutoGenerateEnergy(0, 20000, 25);
         }
       });
     }
@@ -207,20 +221,20 @@ export class PresetEventManager extends BaseManager {
 
 
 
-    // 绘制阴影表格
-    // stage1 黑色
-    if (game.params.level === 1) {
-      for (let row = 0; row < PositionManager.Instance.Row_Number; row++) {
-        // game.grid[row] = [];
-        for (let col = 0; col < PositionManager.Instance.Col_Number; col++) {
-          const { x, y } = PositionManager.Instance.getGridTopLeft(col, row);
-          const rect = game.add.rectangle(x, y, PositionManager.Instance.GRID_SIZEX,
-            PositionManager.Instance.GRID_SIZEY, 0x000000, 0.12)
-            .setOrigin(0, 0).setDepth(DepthHelper.Scene.presetImage());
-          rect.setStrokeStyle(1, 0xffffff, 0.1);
-        }
-      }
-    }
+    // // 绘制阴影表格
+    // // stage1 黑色
+    // if (game.params.level === 1) {
+    //   for (let row = 0; row < PositionManager.Instance.Row_Number; row++) {
+    //     // game.grid[row] = [];
+    //     for (let col = 0; col < PositionManager.Instance.Col_Number; col++) {
+    //       const { x, y } = PositionManager.Instance.getGridTopLeft(col, row);
+    //       const rect = game.add.rectangle(x, y, PositionManager.Instance.GRID_SIZEX,
+    //         PositionManager.Instance.GRID_SIZEY, 0x000000, 0.12)
+    //         .setOrigin(0, 0).setDepth(DepthHelper.Scene.presetImage());
+    //       rect.setStrokeStyle(1, 0xffffff, 0.1);
+    //     }
+    //   }
+    // }
 
     // stage 4,5 手动暗淡
   }

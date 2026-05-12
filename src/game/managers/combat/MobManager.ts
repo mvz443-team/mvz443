@@ -293,6 +293,7 @@ export default class MobManager extends BaseManager {
       canCarryStarShards: (mid) => MonsterLibrary.GetModel(mid)?.couldCarryStarShards ?? false,
     });
     let rowWeights = spawnPlan.rowWeights;
+    let rowPickSmoothingState = spawnPlan.rowPickSmoothingState;
     const activeRows = spawnPlan.activeRows;
     const totalMonsters = spawnPlan.totalMonsters;
     const carryingMonsters = spawnPlan.carryingMonsterIndexes;
@@ -312,6 +313,7 @@ export default class MobManager extends BaseManager {
           stageScript: this.scene.stageData.stageScript,
           rowWeights,
           activeRows,
+          rowPickSmoothingState,
           currentWaveId: wave.waveId,
           minecartLostWaveByRow: TileItemManager.Instance.getMinecartLostWaveByRow(),
           mid: monsterData.mid,
@@ -342,6 +344,7 @@ export default class MobManager extends BaseManager {
 
         monsterIndex++;
         rowWeights = rowResult.rowWeights;
+        rowPickSmoothingState = rowResult.rowPickSmoothingState;
       }
     });
   }

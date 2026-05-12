@@ -18,16 +18,16 @@
   "type": 1,
   "stageScript": {
     "first_wave_id": 0,
-    "total_waves": 32,
+    "total_waves": 27,
     "base_difficulty": 0,
-    "difficulty_limit": 39,
-    "phase1_end": 11,
-    "phase2_end": 22,
+    "difficulty_limit": 50,
+    "phase1_end": 9,
+    "phase2_end": 17,
     "dayOrNight": 1,
     "flagWaves": [
       10,
-      20,
-      30
+      18,
+      25
     ],
     "waterWays": [ ],
     "AllowedMobs": [

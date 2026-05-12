@@ -1,6 +1,7 @@
 import type seedrandom from "seedrandom";
 import type { StageScript, Wave } from "../../../types/stage";
 import { GroundOnlyZombie, SkyOnlyZombie, WaterOnlyZombie } from "./PlantHelper";
+import StageHelper from "./StageHelper";
 
 export type SpawnMonsterEntry = {
   mid: number;
@@ -14,6 +15,7 @@ export type MobSpawnPlan = {
   carryingMonsterIndexes: Set<number>;
   rowWeights: number[];
   activeRows: number[];
+  rowPickSmoothingState: StageHelper.RowPickSmoothingState;
   interval: number;
 };
 
@@ -22,6 +24,7 @@ export type SelectSpawnRowContext = {
   stageScript: StageScript;
   rowWeights: number[];
   activeRows: number[];
+  rowPickSmoothingState: StageHelper.RowPickSmoothingState;
   currentWaveId: number;
   minecartLostWaveByRow: ReadonlyMap<number, number>;
   mid: number;
@@ -33,11 +36,9 @@ export type SelectSpawnRowContext = {
 export type SelectSpawnRowResult = {
   row: number;
   rowWeights: number[];
+  rowPickSmoothingState: StageHelper.RowPickSmoothingState;
 };
 
-const ROW_WEIGHT_RECOVERY_RATE = 0.1;
-const ROW_WEIGHT_HIT_PUNISH = 0.3;
-const MIN_ROW_WEIGHT = 0.1;
 const MINECART_PROTECTION_FADE_WAVES = 10;
 const MINECART_MIN_PROTECTION_REDUCTION = 0.3;
 
@@ -68,6 +69,7 @@ namespace MobHelper {
       carryingMonsterIndexes,
       rowWeights,
       activeRows,
+      rowPickSmoothingState: StageHelper.createRowPickSmoothingState(ctx.rowCount),
       interval: calculateSpawnInterval(ctx.wave, totalMonsters.length),
     };
   }
@@ -82,22 +84,18 @@ namespace MobHelper {
         })
         : ctx.rowWeights;
 
-    const row = weightedRandomRow({
+    const rowResult = StageHelper.selectSmoothSpawnRow({
       weights: protectedRowWeights,
-      mid: ctx.mid,
-      rowCount: ctx.rowCount,
       rng: ctx.rng,
-      rowPropertyRatio: ctx.rowPropertyRatio,
+      smoothingState: ctx.rowPickSmoothingState,
+      canSpawnOnRow: row => couldSpawnMonster(row, ctx.mid, ctx.rowPropertyRatio),
     });
 
-    const rowWeights = updateRowWeightsAfterSpawn({
+    return {
+      row: rowResult.row,
       rowWeights: ctx.rowWeights,
-      wave: ctx.wave,
-      activeRows: ctx.activeRows,
-      selectedRow: row,
-    });
-
-    return { row, rowWeights };
+      rowPickSmoothingState: rowResult.smoothingState,
+    };
   }
 
   export function collectWaveMonsters(wave: Wave): SpawnMonsterEntry[] {
@@ -234,83 +232,6 @@ namespace MobHelper {
     return adjustedWeights;
   }
 
-  export function weightedRandomRow(ctx: {
-    weights: number[];
-    mid: number;
-    rowCount: number;
-    rng: seedrandom.PRNG;
-    rowPropertyRatio: RowPropertyRatioGetter;
-  }): number {
-    const weightsCopy = [...ctx.weights];
-
-    for (let i = 0; i < weightsCopy.length; i++) {
-      if (!couldSpawnMonster(i, ctx.mid, ctx.rowPropertyRatio)) {
-        weightsCopy[i] = 0;
-      }
-    }
-
-    const totalWeight = weightsCopy.reduce((acc, w) => acc + w, 0);
-
-    if (totalWeight === 0) {
-      const validRows = ctx.weights
-        .map((_, index) => index)
-        .filter(row => couldSpawnMonster(row, ctx.mid, ctx.rowPropertyRatio));
-
-      if (validRows.length === 0) {
-        console.error('No valid rows to spawn monster!');
-        return Math.floor(ctx.rng() * ctx.rowCount);
-      }
-      return validRows[Math.floor(ctx.rng() * validRows.length)];
-    }
-
-    let randomNum = ctx.rng() * totalWeight;
-    for (let i = 0; i < weightsCopy.length; i++) {
-      if (randomNum < weightsCopy[i]) {
-        return i;
-      }
-      randomNum -= weightsCopy[i];
-    }
-    return weightsCopy.length - 1;
-  }
-
-  export function updateRowWeightsAfterSpawn(ctx: {
-    rowWeights: number[];
-    wave: Wave;
-    activeRows: number[];
-    selectedRow: number;
-  }): number[] {
-    const rowWeights = [...ctx.rowWeights];
-    const activeRows = ctx.wave.arrangement === 0x02 ? ctx.activeRows : null;
-
-    if (ctx.wave.arrangement === 0x02 && ctx.activeRows.includes(ctx.selectedRow)) {
-      rowWeights[ctx.selectedRow] = Math.max(MIN_ROW_WEIGHT, rowWeights[ctx.selectedRow] - ROW_WEIGHT_HIT_PUNISH);
-    } else if (ctx.wave.arrangement === 0x01) {
-      rowWeights[ctx.selectedRow] = Math.max(MIN_ROW_WEIGHT, rowWeights[ctx.selectedRow] - ROW_WEIGHT_HIT_PUNISH);
-    }
-
-    const rebalanced = rebalanceRowWeights(rowWeights, activeRows);
-    return applyExceptLine({
-      rowWeights: rebalanced,
-      activeRows: ctx.activeRows,
-      exceptLine: ctx.wave.exceptLine,
-      arrangement: ctx.wave.arrangement,
-    }).rowWeights;
-  }
-
-  export function rebalanceRowWeights(weights: number[], activeRows: number[] | null): number[] {
-    const nextWeights = [...weights];
-    if (activeRows) {
-      activeRows.forEach(row => {
-        nextWeights[row] = Math.min(1, nextWeights[row] + ROW_WEIGHT_RECOVERY_RATE);
-      });
-    } else {
-      for (let i = 0; i < nextWeights.length; i++) {
-        nextWeights[i] = Math.min(1, nextWeights[i] + ROW_WEIGHT_RECOVERY_RATE);
-      }
-    }
-    return nextWeights;
-  }
-
   export function applyExceptLine(ctx: {
     rowWeights: number[];
     activeRows: number[];
@@ -330,6 +251,19 @@ namespace MobHelper {
           rowWeights[exceptRow] = 0;
         }
       });
+    }
+
+    if (rowWeights.every(weight => weight <= 0)) {
+      const fallbackRows = rowWeights
+        .map((_, row) => row)
+        .filter(row => !exceptLine.includes(row));
+
+      if (fallbackRows.length > 0) {
+        activeRows = ctx.arrangement === 0x02 ? fallbackRows : activeRows;
+        fallbackRows.forEach(row => {
+          rowWeights[row] = 1;
+        });
+      }
     }
 
     return { rowWeights, activeRows };

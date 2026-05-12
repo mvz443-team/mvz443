@@ -3,6 +3,117 @@ import type { Monster, StageScript, Wave } from "../../../types/stage";
 import { MonsterLibrary } from "../../managers/library/MonsterLibrary";
 
 namespace StageHelper {
+  export type RowPickSmoothingState = {
+    lastPicked: number[];
+    secondLastPicked: number[];
+  };
+
+  export type SelectSmoothRowResult = {
+    row: number;
+    smoothingState: RowPickSmoothingState;
+  };
+
+  const SMOOTH_ROW_COUNT = 6;
+  const MIN_SMOOTH_FACTOR = 0.01;
+  const MAX_SMOOTH_FACTOR = 100;
+  const MIN_POSITIVE_WEIGHT = 1e-6;
+  const EARLY_WATERWAY_SAFE_WAVES = 3;
+
+  export function createRowPickSmoothingState(rowCount: number): RowPickSmoothingState {
+    return {
+      lastPicked: Array(rowCount).fill(0),
+      secondLastPicked: Array(rowCount).fill(0),
+    };
+  }
+
+  export function selectSmoothSpawnRow(ctx: {
+    weights: number[];
+    smoothingState: RowPickSmoothingState;
+    rng: seedrandom.PRNG;
+    canSpawnOnRow?: (row: number) => boolean;
+  }): SelectSmoothRowResult {
+    const selectableWeights = ctx.weights.map((weight, row) => {
+      if (weight <= 0) return 0;
+      if (ctx.canSpawnOnRow && !ctx.canSpawnOnRow(row)) return 0;
+      return weight;
+    });
+    const smoothWeights = calculateSmoothRowWeights(selectableWeights, ctx.smoothingState);
+    const row = weightedRandomRow(smoothWeights, ctx.rng);
+
+    return {
+      row,
+      smoothingState: insertRowPickEvent(ctx.smoothingState, selectableWeights, row),
+    };
+  }
+
+  export function calculateSmoothRowWeights(weights: number[], smoothingState: RowPickSmoothingState): number[] {
+    const totalWeight = weights.reduce((acc, weight) => acc + Math.max(0, weight), 0);
+    if (totalWeight <= 0) {
+      return weights.map(() => 0);
+    }
+
+    return weights.map((weight, row) => {
+      const normalizedWeight = Math.max(0, weight);
+      const weightP = normalizedWeight / totalWeight;
+      if (weightP < MIN_POSITIVE_WEIGHT) {
+        return 0;
+      }
+
+      const lastPicked = smoothingState.lastPicked[row] ?? 0;
+      const secondLastPicked = smoothingState.secondLastPicked[row] ?? 0;
+      const pLast = (SMOOTH_ROW_COUNT * lastPicked * weightP + SMOOTH_ROW_COUNT * weightP - 3) / 4;
+      const pSecondLast = (secondLastPicked * weightP + weightP - 1) / 4;
+      const smoothFactor = clamp(pLast + pSecondLast, MIN_SMOOTH_FACTOR, MAX_SMOOTH_FACTOR);
+      return weightP * smoothFactor;
+    });
+  }
+
+  export function insertRowPickEvent(
+    smoothingState: RowPickSmoothingState,
+    weights: number[],
+    selectedRow: number,
+  ): RowPickSmoothingState {
+    const lastPicked = [...smoothingState.lastPicked];
+    const secondLastPicked = [...smoothingState.secondLastPicked];
+
+    for (let row = 0; row < weights.length; row++) {
+      if (weights[row] > 0) {
+        lastPicked[row] = (lastPicked[row] ?? 0) + 1;
+        secondLastPicked[row] = (secondLastPicked[row] ?? 0) + 1;
+      }
+    }
+
+    if (weights[selectedRow] > 0) {
+      secondLastPicked[selectedRow] = lastPicked[selectedRow];
+      lastPicked[selectedRow] = 0;
+    }
+
+    return { lastPicked, secondLastPicked };
+  }
+
+  export function getEarlyWaterwayExceptLine(stage: StageScript, waveId: number): number[] {
+    return waveId <= EARLY_WATERWAY_SAFE_WAVES && stage.waterWays.length > 0 ? [...stage.waterWays] : [];
+  }
+
+  function weightedRandomRow(weights: number[], rng: seedrandom.PRNG): number {
+    const totalWeight = weights.reduce((acc, weight) => acc + Math.max(0, weight), 0);
+    if (totalWeight <= 0) {
+      return weights.length - 1;
+    }
+
+    let randomNum = rng() * totalWeight;
+    for (let row = 0; row < weights.length; row++) {
+      randomNum -= Math.max(0, weights[row]);
+      if (randomNum < 0) {
+        return row;
+      }
+    }
+    return weights.length - 1;
+  }
+
+  function clamp(value: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, value));
+  }
 
   // 生成 elite wave
   function generateEliteWave(mid: number): Wave {
@@ -107,7 +218,6 @@ namespace StageHelper {
     const phase2_end = stage.phase2_end;
     const dayOrNight = stage.dayOrNight;
     const flagWaves = stage.flagWaves;
-    const waterWays = stage.waterWays;
     const AllowedMobs = new Set(stage.AllowedMobs);
     const globalRatio = stage.globalRatio;
 
@@ -304,7 +414,7 @@ namespace StageHelper {
       const { duration, minDelay, maxDelay } = getAllTimes(waveId);
 
       // 早期阶段不刷水道；若 waterWays 存在则设置 exceptLine，否则为空数组
-      const exceptLine = waveId <= 3 && waterWays.length > 0 ? waterWays : [];
+      const exceptLine = getEarlyWaterwayExceptLine(stage, waveId);
 
       // 生成怪物列表
       const mobDict = generateMobs(levelSum, waveId);
@@ -374,6 +484,7 @@ namespace StageHelper {
       ret[i].waveId = i;
       // 重新计算 progress, 最后一波为 100%
       ret[i].progress = Math.ceil((i / (total - 1)) * 100);
+      ret[i].exceptLine = ret[i].flag === "normal" ? getEarlyWaterwayExceptLine(stage, i) : [];
     }
     ret[0].monsters = []; // 第一波不刷怪
     ret[0].maxDelay = dayOrNight === 1 ? 20 : 26;
