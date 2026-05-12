@@ -85,12 +85,13 @@ export class ArrowEntity extends BulletEntity {
 
     // 3. 旧 trail 淡出并销毁
     if (this.trail) {
+      const oldTrail = this.trail;
       scene.tweens.add({
-        targets: this.trail,
+        targets: oldTrail,
         alpha: 0,
         duration: 800,
         ease: 'Linear',
-        onComplete: () => this.trail?.destroy(),
+        onComplete: () => oldTrail.destroy(),
       });
       this.trail = null;
     }
@@ -164,6 +165,27 @@ export class ArrowEntity extends BulletEntity {
         break;
       }
     }
+  }
+
+  private syncTrailPosition(): void {
+    if (!this.trail) return;
+
+    const velocityX = this.rigidBody?.linvel().x ?? 0;
+    const facingLeft = Math.abs(velocityX) > 0.01 ? velocityX < 0 : this.sprite.flipX;
+    const headOffsetX = this.sprite.displayWidth * 0.42 * (facingLeft ? -1 : 1);
+
+    this.trail.setPosition(this.sprite.x + headOffsetX, this.sprite.y);
+    this.trail.setFlipX(facingLeft);
+  }
+
+  public override updateView(vec: { x: number; y: number }, rotation?: number): void {
+    super.updateView(vec, rotation);
+    this.syncTrailPosition();
+  }
+
+  public override stepMove(alpha: number): void {
+    super.stepMove(alpha);
+    this.syncTrailPosition();
   }
 
   // 重载 applyEffect 方法，生效 arrow 特殊附魔的逻辑
