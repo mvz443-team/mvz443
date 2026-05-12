@@ -3,19 +3,26 @@ import { PositionManager } from "../../../managers/view/PositionManager";
 import { PresetMonsterModel, addHandAttachment } from "../../../models/entities/MonsterEntity";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
 import { BaseZombieEntity } from "./zombie";
+import { CollisionContext } from "../../../types";
+import { PlantEntity } from "../../../models/entities/PlantEntity";
 
 
 export class StickZombieEntity extends BaseZombieEntity {
   private hasStick = true;
   private vaultTargetX = 0;
+  private vaultCollisionTarget: PlantEntity | null = null;
 
   public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
     super(scene, col, row, model, waveID);
     addHandAttachment(this, "attach/hd_stick");
   }
 
+  public canVaultOverPlant(target: PlantEntity): boolean {
+    return this.hasStick && target && typeof target.col === "number";
+  }
+
   public override startAttacking(target: any) {
-    if (this.hasStick && target && typeof target.col === "number") {
+    if (target instanceof PlantEntity && this.canVaultOverPlant(target)) {
       this.hasStick = false;
       this.isFlying = true;
       this.vaultTargetX = PositionManager.Instance.getGridTopLeft(target.col, this.row).x - PositionManager.Instance.GRID_SIZEX * 0.25;
@@ -24,6 +31,15 @@ export class StickZombieEntity extends BaseZombieEntity {
     }
     if (this.isFlying) return;
     super.startAttacking(target);
+  }
+
+  public override onCollision(ctx: CollisionContext): void {
+    if (this.isFlying && ctx.targetEntity instanceof PlantEntity) {
+      this.vaultCollisionTarget = ctx.targetEntity;
+      return;
+    }
+
+    super.onCollision(ctx);
   }
 
   public override stepUpdate(): void {
@@ -43,6 +59,14 @@ export class StickZombieEntity extends BaseZombieEntity {
     this.isFlying = false;
     this.speed = this.originalSpeed * 0.5;
     this.attachSprites.get("attach/hd_stick")?.setVisible(false);
+
+    const target = this.vaultCollisionTarget;
+    this.vaultCollisionTarget = null;
+    if (target && target.currentHealth > 0) {
+      super.startAttacking(target);
+      return;
+    }
+
     this.startMove();
   }
 }

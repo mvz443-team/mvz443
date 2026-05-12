@@ -16,6 +16,10 @@ import { DeferredManager } from "../../../managers/DeferredManager";
 import { CombatEntity } from "../../../models/core/CombatEntity";
 import { MonsterEntity } from "../../../models/entities/MonsterEntity";
 
+type VaultingMonster = MonsterEntity & {
+  canVaultOverPlant?: (target: PlantEntity) => boolean;
+};
+
 export class TntMinesModel extends PlantModel {
   public override pid = 4;
   public override nameKey = 'name_tnt_mines';
@@ -203,6 +207,7 @@ export class TntMinesEntity extends PlantEntity {
 
     if (ctx.targetEntity instanceof MonsterEntity) {
       if (ctx.targetEntity.isInVoid) return;
+      if (canVaultOverMine(ctx.targetEntity, this)) return;
       if (ctx.targetEntity.isFlying) {
         this.pendingFlyingMonsters.add(ctx.targetEntity);
         return;
@@ -248,6 +253,10 @@ export class TntMinesEntity extends PlantEntity {
 
     this.destroy();
   }
+}
+
+function canVaultOverMine(monster: MonsterEntity, mine: PlantEntity): boolean {
+  return (monster as VaultingMonster).canVaultOverPlant?.(mine) === true;
 }
 
 export default TntMinesData;
