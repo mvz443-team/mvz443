@@ -29,5 +29,6 @@ tools/resources/*
 .claude/*
 
 # Generated protocol contracts
+contracts/
 proto-repo-temp/
 src/pb/

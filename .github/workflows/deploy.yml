@@ -26,6 +26,13 @@ jobs:
           # rev-list --count HEAD 需要完整 git 历史
           fetch-depth: 0
 
+      - name: Checkout protobuf contracts
+        uses: actions/checkout@v4
+        with:
+          repository: mvz443-team/protos
+          path: contracts
+          token: ${{ secrets.PROTO_REPO_TOKEN || github.token }}
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -39,6 +46,14 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Setup protobuf compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Generate protobuf contracts
+        run: node scripts/prepare-protos.mjs --repo-dir "${GITHUB_WORKSPACE}/contracts" --skip-pull
 
       - name: Resolve build metadata
         id: meta
