@@ -1,6 +1,8 @@
 import React from "react";
 import { DetailGoods, InitDetail, PurchasedDetailGoods, SidebarGoods } from "./widget";
 import type { Goods, GoodsItem, GoodsSaveCtx } from "../../types/goods";
+import { useLocaleMessages } from "../../hooks/useLocaleMessages";
+import { shopKey } from "../../i18n/keys";
 
 interface ShopListProps {
     goodsList: Goods[];
@@ -25,6 +27,8 @@ export function ShopList({
     saveCtx,
     onGoodSelect,
 }: ShopListProps) {
+    const { translate } = useLocaleMessages();
+
     return (
         <div style={{
             height: "100%",
@@ -45,7 +49,7 @@ export function ShopList({
                     color: "#888",
                     fontSize: "14px"
                 }}>
-                    道具列表为空
+                    {translate(shopKey("empty_goods"))}
                 </div>
             ) : (
                 goodsList.map(good => {

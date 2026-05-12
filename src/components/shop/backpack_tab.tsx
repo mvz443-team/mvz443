@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useLocaleMessages } from "../../hooks/useLocaleMessages";
 import i18n from "../../i18n";
+import { shopKey } from "../../i18n/keys";
 import {
   goodsItemIconKey,
   goodsItemName,
@@ -83,7 +84,7 @@ export default function BackpackTab({ myItems }: BackpackTabProps) {
         scrollbarColor: "#888 #333"
       }}>
         {myItems.length === 0 ? (
-          <div style={{ color: "#999", padding: "16px" }}>背包为空</div>
+          <div style={{ color: "#999", padding: "16px" }}>{translate(shopKey("empty_backpack"))}</div>
         ) : myItems.map(item => {
           const isSelected = selectedItem?.id === item.id;
           const name = goodsItemName(item, translate);
@@ -161,10 +162,10 @@ export default function BackpackTab({ myItems }: BackpackTabProps) {
                   {goodsItemName(selectedItem, translate)}
                 </h2>
                 <div style={{ color: "#d6d6d6", fontSize: "15px" }}>
-                  数量: {selectedItem.count}
+                  {translate(shopKey("quantity"), { count: selectedItem.count })}
                 </div>
                 <div style={{ color: "#9e9e9e", fontSize: "13px", marginTop: "4px" }}>
-                  Item ID: {selectedItem.id}
+                  {translate(shopKey("item_id"), { id: selectedItem.id })}
                 </div>
               </div>
             </div>
@@ -180,11 +181,11 @@ export default function BackpackTab({ myItems }: BackpackTabProps) {
               scrollbarWidth: "thin",
               scrollbarColor: "#888 #333"
             }}>
-              {selectedDescription || "暂无描述"}
+              {selectedDescription || translate(shopKey("no_description"))}
             </div>
           </>
         ) : (
-          <div style={{ color: "#999" }}>没有可显示的物品</div>
+          <div style={{ color: "#999" }}>{translate(shopKey("no_item"))}</div>
         )}
       </div>
     </div>
@@ -235,7 +236,7 @@ export function BackpackList({ myItems, selectedItem, onSelectId }: BackpackList
       scrollbarColor: "#888 #333"
     }}>
       {myItems.length === 0 ? (
-        <div style={{ color: "#999", padding: "16px" }}>背包为空</div>
+        <div style={{ color: "#999", padding: "16px" }}>{translate(shopKey("empty_backpack"))}</div>
       ) : myItems.map(item => {
         const isSelected = selectedItem?.id === item.id;
         const name = goodsItemName(item, translate);
@@ -322,10 +323,10 @@ export function BackpackDetail({ selectedItem }: BackpackDetailProps) {
                 {goodsItemName(selectedItem, translate)}
               </h2>
               <div style={{ color: "#d6d6d6", fontSize: "15px" }}>
-                数量: {selectedItem.count}
+                {translate(shopKey("quantity"), { count: selectedItem.count })}
               </div>
               <div style={{ color: "#9e9e9e", fontSize: "13px", marginTop: "4px" }}>
-                Item ID: {selectedItem.id}
+                {translate(shopKey("item_id"), { id: selectedItem.id })}
               </div>
             </div>
           </div>
@@ -338,11 +339,11 @@ export function BackpackDetail({ selectedItem }: BackpackDetailProps) {
             minHeight: 0,
             flex: "1 1 auto",
           }}>
-            {selectedDescription || "暂无描述"}
+            {selectedDescription || translate(shopKey("no_description"))}
           </div>
         </>
       ) : (
-        <div style={{ color: "#999" }}>没有可显示的物品</div>
+        <div style={{ color: "#999" }}>{translate(shopKey("no_item"))}</div>
       )
       }
     </div >

@@ -6,6 +6,8 @@ import NewGoodLists from './goods';
 import { useSetState, useMount, useMemoizedFn } from 'ahooks';
 import { ShopDetail, ShopList } from './shop_tab';
 import { BackpackDetail, BackpackList, useBackpackSelection } from './backpack_tab';
+import { useLocaleMessages } from '../../hooks/useLocaleMessages';
+import { shopKey } from '../../i18n/keys';
 
 interface ShopSelectorProps {
     width: number;
@@ -28,6 +30,7 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
     const purchasedIds = useRef<Set<number>>(new Set());
     const priceFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const gameManager = useSaveManager();
+    const { translate } = useLocaleMessages();
 
     const handlePurchaseCallback = useMemoizedFn(async (id: number) => {
         console.log(`Item ${id} purchased`);
@@ -143,7 +146,7 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
                             flex: "0 0 auto"
                         }}
                     >
-                        Back
+                        {translate(shopKey("back"))}
                     </button>
 
                     <button
@@ -164,7 +167,7 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
                             flex: "0 0 auto"
                         }}
                     >
-                        {state.showInventory ? "回到商店" : "显示背包"}
+                        {state.showInventory ? translate(shopKey("return_to_shop")) : translate(shopKey("show_backpack"))}
                     </button>
 
                     <div

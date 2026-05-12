@@ -5,7 +5,7 @@
 import React from "react";
 import { useLocaleMessages } from "../../hooks/useLocaleMessages";
 import { useDeviceType } from "../../hooks/useDeviceType";
-import { goodsKey } from "../../i18n/keys";
+import { goodsKey, shopKey, stuffKey } from "../../i18n/keys";
 import StuffList, { CurrentStuffs } from "./stuff_list";
 import {
     goodsItemIconKey,
@@ -118,6 +118,13 @@ export function DetailGoods({ good, canAfford, canPurchaseWithoutPrice, hasBough
     const isMobile = deviceType === 'mobile';
     const name = translate(goodsKey(good.nameKey));
     const description = translate(goodsKey(good.descriptionKey));
+    const purchaseText = hasBought
+        ? translate(shopKey("purchased"))
+        : !canPurchaseWithoutPrice
+            ? translate(shopKey("locked"))
+            : !canAfford
+                ? translate(shopKey("cannot_afford"))
+                : translate(shopKey("purchase"));
 
     return (
         <div style={{ color: "#fff", paddingRight: "8px" }}>
@@ -147,7 +154,7 @@ export function DetailGoods({ good, canAfford, canPurchaseWithoutPrice, hasBough
                         fontWeight: 700
                     }}
                 >
-                    {hasBought ? "Purchased" : !canPurchaseWithoutPrice ? "Locked" : !canAfford ? "Cannot Afford" : "Purchase"}
+                    {purchaseText}
                 </button>
                 <div style={{ minWidth: 0, flex: 1, width: isMobile ? "100%" : undefined }}>
                     <StuffList
@@ -171,7 +178,7 @@ export function DetailGoods({ good, canAfford, canPurchaseWithoutPrice, hasBough
                         color: "#ff6a6a",
                         fontSize: "15px",
                         fontWeight: "bold"
-                    }}>未解锁</span>}
+                    }}>{translate(shopKey("locked_badge"))}</span>}
                 </div>
             </div>
 
@@ -234,12 +241,12 @@ export function InitDetail({ myItems }: initDetailProps) {
         }}>
             <img
                 src={goodsItemIconKey({ id: 1, count: 0, nameKey: "gold", iconKey: "gold" })}
-                alt="gold"
+                alt={translate(stuffKey("gold"))}
                 onError={fallbackUnknownIcon}
                 style={{ width: "38px", height: "38px", objectFit: "contain" }}
                 draggable="false"
             />
-            <h2 style={{ margin: 0, fontSize: "22px" }}>材料背包</h2>
+            <h2 style={{ margin: 0, fontSize: "22px" }}>{translate(shopKey("material_backpack"))}</h2>
         </div>
         {CurrentStuffs(myItems, translate)}
     </div>)
