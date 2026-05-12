@@ -14,3 +14,10 @@ const getPublicUrl = (base: string): string => {
 
 export const baseUrl = getBaseUrl();
 export const publicUrl = getPublicUrl(baseUrl);
+
+export const publicAssetUrl = (path: string): string => {
+    if (/^(?:[a-z][a-z\d+\-.]*:|\/\/)/i.test(path)) return path;
+    if (publicUrl && (path === publicUrl || path.startsWith(`${publicUrl}/`))) return path;
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    return `${publicUrl}${normalizedPath}`;
+};

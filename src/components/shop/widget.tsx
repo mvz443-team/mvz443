@@ -6,6 +6,7 @@ import React from "react";
 import { useLocaleMessages } from "../../hooks/useLocaleMessages";
 import { useDeviceType } from "../../hooks/useDeviceType";
 import { goodsKey, shopKey, stuffKey } from "../../i18n/keys";
+import { publicAssetUrl } from "../../utils/browser";
 import StuffList, { CurrentStuffs } from "./stuff_list";
 import {
     goodsItemIconKey,
@@ -31,6 +32,7 @@ interface SidebarGoodsProps {
 export function SidebarGoods({ good, saveCtx, hasBought, priceFlash, isChosen, handleClick }: SidebarGoodsProps) {
     const { translate } = useLocaleMessages();
     const name = translate(goodsKey(good.nameKey));
+    const iconUrl = publicAssetUrl(good.iconKey);
     const priceItems = good.getPrice(saveCtx).items;
     const goldPrice = priceItems.find(item => item.id === 1)?.count ?? 0;
     const hasMaterialPrice = priceItems.some(item => item.id !== 1);
@@ -59,7 +61,7 @@ export function SidebarGoods({ good, saveCtx, hasBought, priceFlash, isChosen, h
         title={name}
     >
         <img
-            src={good.iconKey}
+            src={iconUrl}
             alt={name}
             style={{
                 width: "100%",
@@ -118,6 +120,7 @@ export function DetailGoods({ good, canAfford, canPurchaseWithoutPrice, hasBough
     const isMobile = deviceType === 'mobile';
     const name = translate(goodsKey(good.nameKey));
     const description = translate(goodsKey(good.descriptionKey));
+    const iconUrl = publicAssetUrl(good.iconKey);
     const purchaseText = hasBought
         ? translate(shopKey("purchased"))
         : !canPurchaseWithoutPrice
@@ -167,7 +170,7 @@ export function DetailGoods({ good, canAfford, canPurchaseWithoutPrice, hasBough
 
             <div style={{ display: "flex", alignItems: "center", gap: "14px", marginBottom: "14px" }}>
                 <img
-                    src={good.iconKey}
+                    src={iconUrl}
                     alt={name}
                     style={{ width: "76px", height: "76px", objectFit: "contain" }}
                     draggable="false"
@@ -197,12 +200,13 @@ export function PurchasedDetailGoods({ good }: PurchasedDetailGoodsProps) {
     const { translate } = useLocaleMessages();
     const name = translate(goodsKey(good.nameKey));
     const description = translate(goodsKey(good.descriptionKey));
+    const iconUrl = publicAssetUrl(good.iconKey);
 
     return (
         <div style={{ color: "#fff" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "14px", marginBottom: "14px" }}>
                 <img
-                    src={good.iconKey}
+                    src={iconUrl}
                     alt={name}
                     style={{ width: "76px", height: "76px", objectFit: "contain", opacity: 0.75 }}
                     draggable="false"

@@ -1,6 +1,7 @@
 import type { GameManager, GameProgress } from "../context/save_ctx";
 import { ItemsLibrary } from "../game/managers/library/ItemsLibrary";
 import { commonKey, stuffKey } from "../i18n/keys";
+import { publicAssetUrl } from "../utils/browser";
 
 export interface GoodsItem {
   id: number;
@@ -40,15 +41,15 @@ export function goodsItemName(
 
 export function goodsItemIconKey(item: GoodsItem): string {
   const iconKey = hydrateGoodsItem(item).iconKey;
-  if (!iconKey) return UNKNOWN_GOODS_ITEM_ICON_KEY;
-  if (iconKey.startsWith("/") || iconKey.includes(".")) {
-    return iconKey;
-  }
-  return `${GOODS_ITEM_ICON_DIR}/${iconKey}.svg`;
+  if (!iconKey) return publicAssetUrl(UNKNOWN_GOODS_ITEM_ICON_KEY);
+  const assetPath = iconKey.startsWith("/") || iconKey.includes("/")
+    ? iconKey
+    : `${GOODS_ITEM_ICON_DIR}/${iconKey}${iconKey.includes(".") ? "" : ".svg"}`;
+  return publicAssetUrl(assetPath);
 }
 
 export function unknownGoodsItemIconKey(): string {
-  return UNKNOWN_GOODS_ITEM_ICON_KEY;
+  return publicAssetUrl(UNKNOWN_GOODS_ITEM_ICON_KEY);
 }
 
 export interface GoodsPrice {
