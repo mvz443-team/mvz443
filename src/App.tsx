@@ -336,9 +336,16 @@ function App() {
   const phaserRef = useRef<IRefPhaserGame | null>(null);
 
   const { width } = useSettings();
+  const gamePreferredWidth = LOGICAL_BATTLE_WORLD_WIDTH;
   const layoutSize = useMemo(() => (
-    getFittedMainSize(width, viewportSize, deviceType, showGameTool, gameParams?.stageRows)
-  ), [width, viewportSize, deviceType, showGameTool, gameParams?.stageRows]);
+    getFittedMainSize(
+      showGameTool ? gamePreferredWidth : width,
+      viewportSize,
+      deviceType,
+      showGameTool,
+      gameParams?.stageRows,
+    )
+  ), [gamePreferredWidth, width, viewportSize, deviceType, showGameTool, gameParams?.stageRows]);
   const layoutWidth = layoutSize.width;
   const layoutHeight = layoutSize.height;
   const nonGameLayout = useMemo(() => (

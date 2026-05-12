@@ -181,7 +181,7 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
             descriptionKey: "menu.settings_general_resolution_t",
             controlType: "selections",
             controlProps: {
-              options: ["800x600", "924x693", "1024x768", "1200x900"], selected: `${width}x${width / 4 * 3}`, onSelect: (val) => {
+              options: ["800x600", "924x693", "1024x768", "1200x900"], selected: `${settingManager.width}x${settingManager.width / 4 * 3}`, onSelect: (val) => {
                 let twidth = parseInt(val);
                 settingManager.setWidth(twidth);
               }
