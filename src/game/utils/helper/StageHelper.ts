@@ -128,8 +128,6 @@ namespace StageHelper {
       duration: 5,
       maxDelay: 60, // elite/boss波不定时,这里只作占位
       minDelay: 60,
-      arrangement: 0x01,
-      minLine: 1,
       exceptLine: [],
       starShards: 0,
       isFlag: false
@@ -149,8 +147,6 @@ namespace StageHelper {
       duration: 5,
       maxDelay: 60,
       minDelay: 60,
-      arrangement: 0x01,
-      minLine: 1,
       exceptLine: [],
       starShards: 0,
       isFlag: false
@@ -193,8 +189,6 @@ namespace StageHelper {
       duration: 2,
       maxDelay: 20,
       minDelay: 20,
-      arrangement: 0x01,
-      minLine: 1,
       exceptLine: [],
       starShards: 0
     }]
@@ -387,8 +381,6 @@ namespace StageHelper {
           duration: 0,
           maxDelay: dayOrNight === 1 ? 20 : 26,
           minDelay: 18,
-          arrangement: 0x01,
-          minLine: 1,
           exceptLine: [],
           starShards: 0,
           isFlag: false
@@ -396,14 +388,6 @@ namespace StageHelper {
       }
 
       const progress = Math.ceil((waveId / _total_waves) * 100);
-      // 默认 arrangement 为 0x01 (均匀)
-      let arrangement: 0x01 | 0x02 = 0x01;
-      let minLine = 1;
-      // 30% 概率调整为 0x02 (集中) 并随机指定 minLine
-      if (random() < 0.3) {
-        arrangement = 0x02;
-        minLine = randomInt(2, 3);
-      }
 
       // 星屑：每 5 波额外增加 1
       let starShards = waveId % 5 === 0 ? 1 : 0;
@@ -435,8 +419,6 @@ namespace StageHelper {
         duration,
         maxDelay,
         minDelay,
-        arrangement,
-        minLine,
         exceptLine,
         starShards,
         isFlag: _flagWaves.includes(waveId)

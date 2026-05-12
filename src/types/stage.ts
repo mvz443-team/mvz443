@@ -29,8 +29,6 @@ export interface Wave {
   duration: number;
   maxDelay: number;
   minDelay: number;
-  arrangement: 0x01 | 0x02;
-  minLine: number;
   exceptLine: number[];
   starShards: number;
 }

@@ -14,7 +14,6 @@ export type MobSpawnPlan = {
   totalMonsters: SpawnMonsterEntry[];
   carryingMonsterIndexes: Set<number>;
   rowWeights: number[];
-  activeRows: number[];
   rowPickSmoothingState: StageHelper.RowPickSmoothingState;
   interval: number;
 };
@@ -23,7 +22,6 @@ export type SelectSpawnRowContext = {
   wave: Wave;
   stageScript: StageScript;
   rowWeights: number[];
-  activeRows: number[];
   rowPickSmoothingState: StageHelper.RowPickSmoothingState;
   currentWaveId: number;
   minecartLostWaveByRow: ReadonlyMap<number, number>;
@@ -57,7 +55,7 @@ namespace MobHelper {
       canCarryStarShards: ctx.canCarryStarShards,
       rng: ctx.rng,
     });
-    const { rowWeights, activeRows } = createInitialRowWeights({
+    const rowWeights = createInitialRowWeights({
       wave: ctx.wave,
       stageScript: ctx.stageScript,
       rowCount: ctx.rowCount,
@@ -68,14 +66,13 @@ namespace MobHelper {
       totalMonsters,
       carryingMonsterIndexes,
       rowWeights,
-      activeRows,
       rowPickSmoothingState: StageHelper.createRowPickSmoothingState(ctx.rowCount),
       interval: calculateSpawnInterval(ctx.wave, totalMonsters.length),
     };
   }
 
   export function selectSpawnRow(ctx: SelectSpawnRowContext): SelectSpawnRowResult {
-    const protectedRowWeights =
+    const selectableRowWeights =
       shouldUseMinecartProtection(ctx.wave)
         ? applyMinecartLossProtection({
           rowWeights: ctx.rowWeights,
@@ -85,7 +82,7 @@ namespace MobHelper {
         : ctx.rowWeights;
 
     const rowResult = StageHelper.selectSmoothSpawnRow({
-      weights: protectedRowWeights,
+      weights: selectableRowWeights,
       rng: ctx.rng,
       smoothingState: ctx.rowPickSmoothingState,
       canSpawnOnRow: row => couldSpawnMonster(row, ctx.mid, ctx.rowPropertyRatio),
@@ -145,29 +142,15 @@ namespace MobHelper {
     stageScript: StageScript;
     rowCount: number;
     rng: seedrandom.PRNG;
-  }): { rowWeights: number[]; activeRows: number[] } {
+  }): number[] {
     void ctx.stageScript;
 
-    let rowWeights: number[];
-    let activeRows: number[] = [];
     const rowMax = ctx.rowCount - 1;
-
-    if (ctx.wave.arrangement === 0x02) {
-      const minLines = Math.min(ctx.wave.minLine, ctx.rowCount);
-      const activeRowCount = minLines + Math.floor(ctx.rng() * (ctx.rowCount - minLines));
-      activeRows = Array.from({ length: ctx.rowCount }, (_, i) => i);
-      activeRows = shuffleArray(activeRows, ctx.rng).slice(0, activeRowCount);
-      rowWeights = Array(rowMax + 1).fill(0);
-      activeRows.forEach(row => rowWeights[row] = 1);
-    } else {
-      rowWeights = Array(rowMax + 1).fill(1);
-    }
+    const rowWeights = Array(rowMax + 1).fill(1);
 
     return applyExceptLine({
       rowWeights,
-      activeRows,
       exceptLine: ctx.wave.exceptLine,
-      arrangement: ctx.wave.arrangement,
     });
   }
 
@@ -234,18 +217,12 @@ namespace MobHelper {
 
   export function applyExceptLine(ctx: {
     rowWeights: number[];
-    activeRows: number[];
     exceptLine?: number[];
-    arrangement: Wave["arrangement"];
-  }): { rowWeights: number[]; activeRows: number[] } {
+  }): number[] {
     const exceptLine = ctx.exceptLine ?? [];
     const rowWeights = [...ctx.rowWeights];
-    let activeRows = [...ctx.activeRows];
 
     if (exceptLine.length > 0) {
-      if (ctx.arrangement === 0x02) {
-        activeRows = activeRows.filter(row => !exceptLine.includes(row));
-      }
       exceptLine.forEach(exceptRow => {
         if (exceptRow >= 0 && exceptRow < rowWeights.length) {
           rowWeights[exceptRow] = 0;
@@ -259,14 +236,13 @@ namespace MobHelper {
         .filter(row => !exceptLine.includes(row));
 
       if (fallbackRows.length > 0) {
-        activeRows = ctx.arrangement === 0x02 ? fallbackRows : activeRows;
         fallbackRows.forEach(row => {
           rowWeights[row] = 1;
         });
       }
     }
 
-    return { rowWeights, activeRows };
+    return rowWeights;
   }
 
   export function calculateSpawnInterval(wave: Wave, monsterCount: number): number {

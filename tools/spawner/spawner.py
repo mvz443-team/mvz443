@@ -308,8 +308,6 @@ def oneObject(waveId:int):
             "duration": 0,
             "maxDelay": 20 if dayOrNight == 1 else 26,
             "minDelay": 18,
-            "arrangement": 1,
-            "minLine": 1,
             "starShards": 0,
             "exceptLine": None
         }
@@ -319,11 +317,6 @@ def oneObject(waveId:int):
     obj['waveId'] = waveId
     obj['flag'] = 'normal'
     obj['progress'] = math.ceil((waveId / _total_waves) * 100)
-    obj['arrangement']  = 1
-    
-    if random.randint(0, 100) < 30:
-        obj['arrangement'] = 2
-        obj['minLine'] = random.randint(2, 3)
 
     obj['starShards'] = 0
     if waveId % 7 == 0:

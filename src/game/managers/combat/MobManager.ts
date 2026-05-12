@@ -294,7 +294,6 @@ export default class MobManager extends BaseManager {
     });
     let rowWeights = spawnPlan.rowWeights;
     let rowPickSmoothingState = spawnPlan.rowPickSmoothingState;
-    const activeRows = spawnPlan.activeRows;
     const totalMonsters = spawnPlan.totalMonsters;
     const carryingMonsters = spawnPlan.carryingMonsterIndexes;
     console.log('interval', spawnPlan.interval, 'duration', wave.duration * 1000);
@@ -312,7 +311,6 @@ export default class MobManager extends BaseManager {
           wave,
           stageScript: this.scene.stageData.stageScript,
           rowWeights,
-          activeRows,
           rowPickSmoothingState,
           currentWaveId: wave.waveId,
           minecartLostWaveByRow: TileItemManager.Instance.getMinecartLostWaveByRow(),
