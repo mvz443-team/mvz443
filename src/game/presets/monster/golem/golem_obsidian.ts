@@ -55,6 +55,8 @@ export function spawnObsidianObstacle(entity: BaseGolemEntity, col: number, row:
 }
 
 export class ObsidianGolemEntity extends BaseGolemEntity {
+  private skill1LastRow = -1;
+
   public constructor(scene: Phaser.Scene & any, col: number, row: number, model: PresetMonsterModel, waveID: number) {
     super(scene, col, row, model, waveID, 7);
   }
@@ -76,7 +78,24 @@ export class ObsidianGolemEntity extends BaseGolemEntity {
   }
 
   protected skill1(): void {
-    createObsidianColumnBurst(this, [7, 5, 3]);
+    // 根据row总数的不同生成不同数量的岩柱，间隔1格
+    const obsidianOn = [];
+    if (PositionManager.Instance.Row_Number % 2 === 0) {
+      if (this.skill1LastRow === -1 || this.skill1LastRow === 1) {
+        this.skill1LastRow = 0;
+
+      } else {
+        this.skill1LastRow = 1;
+      }
+      for (let r = this.skill1LastRow; r < PositionManager.Instance.Row_Number; r += 2) {
+        obsidianOn.push(r);
+      }
+    } else {
+      for (let r = 0; r < PositionManager.Instance.Row_Number; r += 2) {
+        obsidianOn.push(r);
+      }
+    }
+    createObsidianColumnBurst(this, obsidianOn);
   }
 
   protected skill2(): void {
