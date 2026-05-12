@@ -19,13 +19,16 @@ export class TripleDispenserModel extends PlantModel {
   public override texturePath = 'plant/triple_dispenser';
 
   public maxHealth = new PlantStat(300);
-  public cost = new PlantStat(325).setThreshold(9, 350);
+  public cost = new PlantStat(325);
 
   public cooldown = new PlantStat(10000);
   public cooldownStartAtRatio = 1;
 
   public damage = new PlantStat(ProjectileDamage.bullet.arrow).setIncRatio(1.35);
   public isNightPlant = false;
+
+  protected LevelThresholds1 = 3;
+  protected LevelThresholds2 = 7;
 
   public override createEntity(scene: Game, col: number, row: number, level: number): TripleDispenserEntity {
     return this.initializeEntity(new TripleDispenserEntity(scene, col, row, level));
@@ -154,7 +157,7 @@ export class TripleDispenserModel extends PlantModel {
     });
 
     // 精英3+：中路多一发
-    if (entity.level >= 3) {
+    if (entity.level >= this.LevelThresholds1) {
       ProjectileCmd.Create<ArrowModel>(ArrowData, entity.scene, entity.x, entity.row, {
         damage: damage,
         maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
@@ -176,7 +179,7 @@ export class TripleDispenserModel extends PlantModel {
       });
 
       // 精英9+：上路多一发
-      if (entity.level >= 9) {
+      if (entity.level >= this.LevelThresholds2) {
         ProjectileCmd.Create<MutantYAxisArrowModel>(MutantYAxisArrowData, entity.scene, entity.x, entity.row, {
           damage: damage,
           maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
@@ -200,7 +203,7 @@ export class TripleDispenserModel extends PlantModel {
       });
 
       // 精英9+：下路多一发
-      if (entity.level >= 9) {
+      if (entity.level >= this.LevelThresholds2) {
         ProjectileCmd.Create<MutantYAxisArrowModel>(MutantYAxisArrowData, entity.scene, entity.x, entity.row, {
           damage: damage,
           maxDistance: PositionManager.Instance.GRID_SIZEX * 32,

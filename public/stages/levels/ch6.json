@@ -23,7 +23,7 @@
     "difficulty_limit": 39,
     "phase1_end": 11,
     "phase2_end": 22,
-    "dayOrNight": 2,
+    "dayOrNight": 1,
     "flagWaves": [
       10,
       20,

@@ -54,7 +54,7 @@ export class TntMinesModel extends PlantModel {
       entity.wakeup();
 
       const scene = entity.game;
-      let leftCount = entity.level >= 7 ? 3 : 2;
+      let leftCount = 2;
 
       // 记录目标位置
       const targetPositions: { x: number; y: number; col: number; row: number }[] = [];

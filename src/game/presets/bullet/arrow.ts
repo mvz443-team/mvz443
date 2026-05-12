@@ -196,6 +196,22 @@ export class ArrowEntity extends BulletEntity {
       this.currentDamage = Math.floor(this.currentDamage * 1.5);
     }
 
+    // 如果附魔Lightning，在命中第一个敌人的时候爆炸
+    if (this.scene && this.enhancement === 'lightning') {
+      const currentRow = PositionManager.Instance.getRowByY(this.y);
+
+      ProjectileCmd.CreateExplosion(this.scene, this.x, currentRow, {
+        damage: Math.ceil(this.currentDamage / 4),
+        rightGrid: 1,
+        leftGrid: 1,
+        upGrid: 1,
+        faction: this.faction,
+        dealer: this.dealer,
+      })
+      // 移除闪电附魔，防止多次触发
+      this.catchEnhancement('none');
+    }
+
     // 调用父类逻辑处理基本伤害和穿透
     super.applyEffect(t);
 
@@ -212,22 +228,6 @@ export class ArrowEntity extends BulletEntity {
 
   // 销毁时清理尾迹和处理 lightning 爆炸
   destroy(): void {
-    const scene = this.scene;
-
-    // 如果被附魔了 lightning，销毁时会爆炸
-    if (scene && this.enhancement === 'lightning') {
-      const currentRow = PositionManager.Instance.getRowByY(this.y);
-
-      ProjectileCmd.CreateExplosion(scene, this.x, currentRow, {
-        damage: Math.ceil(this.currentDamage / 4),
-        rightGrid: 1,
-        leftGrid: 1,
-        upGrid: 1,
-        faction: this.faction,
-        dealer: this.dealer,
-      })
-    }
-
     // 清理尾迹（viewGroup 会在 super.destroy() 中统一销毁）
     this.trail = null;
 

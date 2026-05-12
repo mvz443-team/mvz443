@@ -116,8 +116,8 @@ export class DoubleDispenserModel extends PlantModel {
       penetratePower: 1
     });
 
-    // Lv5+：100ms后再发一发
-    if (entity.level >= 5) {
+    // Lv7+：100ms后再发一发
+    if (entity.level >= 7) {
       entity.tickmanager.delayedCall({
         delay: 100,
         callback: () => {
@@ -147,24 +147,26 @@ export class DoubleDispenserModel extends PlantModel {
       speed: reverseSpeed
     });
 
-    // 100ms后再发一发反向箭
-    entity.tickmanager.delayedCall({
-      delay: 100,
-      callback: () => {
-        if (entity.currentHealth <= 0) return;
-        ProjectileCmd.Create<ArrowModel>(ArrowData, entity.scene, entity.x, entity.row, {
-          damage: damage,
-          maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
-          faction: entity.faction,
-          dealer: entity,
-          penetratePower: 1,
-          speed: reverseSpeed
-        });
-      }
-    });
+    // Lv3+：100ms后再发一发反向箭
+    if (entity.level >= 3) {
+      entity.tickmanager.delayedCall({
+        delay: 100,
+        callback: () => {
+          if (entity.currentHealth <= 0) return;
+          ProjectileCmd.Create<ArrowModel>(ArrowData, entity.scene, entity.x, entity.row, {
+            damage: damage,
+            maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
+            faction: entity.faction,
+            dealer: entity,
+            penetratePower: 1,
+            speed: reverseSpeed
+          });
+        }
+      });
+    }
 
-    // Lv9+：150ms后再发一发反向箭
-    if (entity.level >= 9) {
+    // Lv7+：150ms后再发一发反向箭
+    if (entity.level >= 7) {
       entity.tickmanager.delayedCall({
         delay: 150,
         callback: () => {

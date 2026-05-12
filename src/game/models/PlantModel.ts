@@ -20,6 +20,9 @@ export abstract class PlantModel {
   public abstract isNightPlant: boolean;
   public isTiny: boolean = false; // 是否为小型植物（会被skipTinyPlant忽略）
 
+  protected readonly LevelThresholds1 : number; 
+  protected readonly LevelThresholds2 : number;
+
   // 行为接口：当植物准备就绪
   // 注意：传入的是 entity (实体对象)，Model本身不保存任何状态！
   public onCreate(_entity: PlantEntity) {

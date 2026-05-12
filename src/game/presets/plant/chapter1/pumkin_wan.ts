@@ -29,18 +29,22 @@ export class PumpkinWanModel extends PlantModel {
   public override descriptionKey = 'pumpkin_wan_description';
   public override texturePath = 'plant/pumpkin_wan';
 
-  public maxHealth = new PlantStat(400).setIncRatio(1);
-  public cost = new PlantStat(325).setThreshold(5, 275).setThreshold(7, 300);
-  public cooldown = new PlantStat(52000).setThreshold(9, 58000);
+  public maxHealth = new PlantStat(425);
+  public cost = new PlantStat(300);
+  public cooldown = new PlantStat(52000);
   public cooldownStartAtRatio = 0; // 不需要初始冷却
 
   public damage = new PlantStat(ProjectileDamage.laser.heavy_laser).setIncRatio(1.35);
   public isNightPlant = true;
 
+  LevelThresholds1 = 5; // 激光能攻击飞行单位的等级阈值
+  LevelThresholds2 = 9; // 激光范围增加的等级阈值
+
   // 攻击参数
-  private readonly attackDistance = new PlantStat(3).setThreshold(9, 5); // 格子数（比基础版短）
-  private readonly startOffset = new PlantStat(1.5).setThreshold(9, 2.5); // 格子数
+  private readonly attackDistance = new PlantStat(3).setThreshold(this.LevelThresholds2, 5); // 格子数（比基础版短）
+  private readonly startOffset = new PlantStat(1.5).setThreshold(this.LevelThresholds2, 2.5); // 格子数
   private readonly baseAttackInterval = new PlantStat(1550); // 毫秒（比基础版短）
+
 
   // 激光参数
   private readonly laserDuration = 550; // 激光持续时间
@@ -121,7 +125,7 @@ export class PumpkinWanModel extends PlantModel {
     // 根据等级调整激光起始位置和距离
     const startOffset = this.startOffset.getValueAt(level);
     const laserDistance = this.attackDistance.getValueAt(level);
-    const canAttackFlying = level >= 7;
+    const canAttackFlying = level >= this.LevelThresholds1;
 
     const startX = entity.x - startOffset * PositionManager.Instance.GRID_SIZEX;
 

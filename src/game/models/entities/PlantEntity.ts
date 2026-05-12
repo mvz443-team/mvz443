@@ -102,6 +102,55 @@ export abstract class PlantEntity extends CombatEntity {
     this.levelBadge = badge;
   }
 
+  private showSleepingSfx(): void {
+    if (this.sleepingText) {
+      this.sleepingText.setVisible(true);
+      return;
+    }
+
+    const bodySize = PositionManager.Instance.getPlantBodySize();
+    const text = this.scene.add.text(
+      this.x + bodySize.sizeX * 0.15,
+      this.y - bodySize.sizeY * 0.95,
+      "ZZZ",
+      {
+        fontSize: `${Math.max(14, Math.round(bodySize.sizeY * 0.22))}px`,
+        color: "#d8f4ff",
+        stroke: "#24506b",
+        strokeThickness: 3,
+        fontStyle: "bold",
+      },
+    )
+      .setOrigin(0.5, 0.5)
+      .setDepth(DepthHelper.Plant.sfx(this.baseDepth));
+
+    this.viewGroup.add(text);
+    this.sleepingText = text;
+    this.sleepingTween = this.scene.tweens.add({
+      targets: text,
+      x: text.x + bodySize.sizeX * 0.18,
+      y: text.y - bodySize.sizeY * 0.12,
+      alpha: 0.55,
+      duration: 900,
+      ease: "Sine.easeInOut",
+      yoyo: true,
+      repeat: -1,
+    });
+  }
+
+  private hideSleepingSfx(): void {
+    if (this.sleepingTween) {
+      this.sleepingTween.stop();
+      this.sleepingTween.remove();
+      this.sleepingTween = null;
+    }
+
+    if (this.sleepingText) {
+      this.viewGroup.remove(this.sleepingText, true, true);
+      this.sleepingText = null;
+    }
+  }
+
   public initializeEntity(): this {
     if (this.initialized) return this;
     this.initialized = true;
@@ -173,17 +222,12 @@ export abstract class PlantEntity extends CombatEntity {
       part.y += dy;
     }
 
-    // 同步睡眠文本特效的坐标
-    if (this.sleepingText) {
-      this.sleepingText.x += dx;
-      this.sleepingText.y += dy;
-    }
-
     // 如果你需要支持植物倾倒（被物理引擎砸歪），也可以在此处引入 rotation 的同步
   }
 
   public destroy() {
     this.currentHealth = 0;
+    this.hideSleepingSfx();
     for (const attacker of [...this.underAttackBy]) {
       if (attacker instanceof MonsterEntity) {
         attacker.stopAttacking?.();
@@ -199,8 +243,15 @@ export abstract class PlantEntity extends CombatEntity {
   }
 
   public setSleeping(value: boolean): void {
+    if (this.isSleeping === value) return;
+
     this.isSleeping = value;
+    if (value) {
+      this.showSleepingSfx();
+    } else {
+      this.hideSleepingSfx();
+    }
+
     this.model.onSleepStateChange(this, value);
-    // TODO: sleeping sfx
   }
 }

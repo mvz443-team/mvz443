@@ -33,18 +33,21 @@ export class SmallDispenserModel extends PlantModel {
   public isNightPlant = true;
   public isTiny = true;
 
+  LevelThresholds1 = 3; // 增加攻击距离的等级阈值
+  LevelThresholds2 = 7;
+
   public override createEntity(scene: Game, col: number, row: number, level: number): SmallDispenserEntity {
     return this.initializeEntity(new SmallDispenserEntity(scene, col, row, level));
   }
 
   public override onCreate(entity: SmallDispenserEntity): void {
     // 精英2, 白天不睡觉
-    if (entity.level >= 9) {
+    if (entity.level >= this.LevelThresholds2) {
       PlantCmd.SetSleeping(entity, false);
     }
 
     let maxDistanceGrid = 3.6;
-    if (entity.level >= 5) {
+    if (entity.level >= this.LevelThresholds1) {
       maxDistanceGrid = 5.6;
     }
 

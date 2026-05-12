@@ -21,6 +21,9 @@ export class GeneratorModel extends PlantModel {
   public cooldownStartAtRatio = 0.7;
   public damage = new PlantStat(0); // 生成器没有伤害
 
+  LevelThresholds1 = 3;
+  LevelThresholds2 = 5;
+
   // 夜间植物标记
   isNightPlant = true;
 
@@ -36,15 +39,16 @@ export class GeneratorModel extends PlantModel {
       let energy = 5;
       if (entity.isSleeping) {
         // 睡眠时产能减少
-        // 1-4级: 3能量
-        // 5-8级: 4能量
-        // 9+级: 6能量
-        energy = (entity.level >= 5) ? (entity.level >= 9 ? 6 : 4) : 3;
+        // 1-2级: 3能量
+        // 3-6级: 4能量
+        // 7+级: 6能量
+        energy = (entity.level >= this.LevelThresholds1) ?
+          (entity.level >= this.LevelThresholds2 ? 6 : 4) : 3;
       } else {
         // 清醒时产能更多
         // 1-8级: 5能量
         // 9+级: 8能量
-        energy = (entity.level >= 9) ? 8 : 5;
+        energy = (entity.level >= this.LevelThresholds2) ? 8 : 5;
       }
       energyToAdd += energy;
     }

@@ -17,12 +17,14 @@ export class IceBombModel extends PlantModel {
   public override texturePath = 'plant/ice_bomb';
 
   public maxHealth = new PlantStat(600);
-  public cost = new PlantStat(75).setThreshold(5, 100);
+  public cost = new PlantStat(75);
   public cooldown = new PlantStat(52000).setThreshold(9, 41000); // 52秒 / 9级时41秒
   public cooldownStartAtRatio = 1; // 需要完整等待cooldown
 
   // 初始化伤害：1-4级 15伤害 * 2倍 = 30；5级以上 350伤害
   public damage = new PlantStat(15).setIncRatio(2).setThreshold(5, 350);
+  private readonly freezeDurationMs = 8000;
+  private readonly slowDurationMs = 5000;
 
   isNightPlant = true;
 
@@ -32,29 +34,34 @@ export class IceBombModel extends PlantModel {
   }
 
   onCreate(entity: IceBombEntity): void {
-    // 立即发射激光
+    entity.canActivateFromSleep = true;
     if (!entity.isSleeping) {
       this.shootLaser(entity);
     }
   }
 
   onSleepStateChange(entity: IceBombEntity, isSleeping: boolean): void {
-    // 从睡眠中唤醒时立即发射
-    if (!isSleeping) {
+    // 初始化时的光敏睡眠不触发；之后只有进入睡眠时才生效。
+    if (isSleeping && entity.canActivateFromSleep) {
       this.shootLaser(entity);
     }
   }
 
   onStarShards(entity: IceBombEntity): void {
-    // 星辰碎片触发时立即发射
-    this.shootLaser(entity);
+    if (entity.isSleeping) {
+      this.shootLaser(entity);
+    }
   }
 
   private shootLaser(entity: IceBombEntity): void {
     if (!entity.scene || entity.currentHealth <= 0) return;
+    if (entity.hasTriggered) return;
+    entity.hasTriggered = true;
 
     const scene = entity.scene as Game;
     const damageValue = this.damage.getValueAt(entity.level);
+
+    SoundCmd.PlayPlant('freeze');
 
     // 触发视觉效果
     entity.playFreezeAnimation();
@@ -73,10 +80,10 @@ export class IceBombModel extends PlantModel {
           ProjectileCmd.CreateLaser(
             scene, -1 * PositionManager.Instance.GRID_SIZEX, row, {
             damage: damageValue,
-            duration: 5000,
+            duration: this.freezeDurationMs,
             distance: 12,
             debuff: 'frozen',
-            debuffDuration: 5000,
+            debuffDuration: this.freezeDurationMs,
             couldAttackFlying: true,
             invisible: true,
             color: 0x00ffff,
@@ -88,9 +95,9 @@ export class IceBombModel extends PlantModel {
       }
     });
 
-    // 第二次攻击：5000ms后发射减速激光
+    // 第二次攻击：冻结结束后发射减速激光
     entity.tickmanager.delayedCall({
-      delay: 5000,
+      delay: 500 + this.freezeDurationMs,
       callback: () => {
         if (!entity || entity.currentHealth <= 0) return;
 
@@ -99,10 +106,10 @@ export class IceBombModel extends PlantModel {
           ProjectileCmd.CreateLaser(
             scene, -1 * PositionManager.Instance.GRID_SIZEX, row, {
             damage: damageValue,
-            duration: 5000,
+            duration: this.slowDurationMs,
             distance: 12,
             debuff: 'slow',
-            debuffDuration: 5000,
+            debuffDuration: this.slowDurationMs,
             couldAttackFlying: true,
             invisible: true,
             color: 0x00ffff,
@@ -125,10 +132,11 @@ export class IceBombModel extends PlantModel {
 }
 
 export class IceBombEntity extends PlantEntity {
+  public canActivateFromSleep = false;
+  public hasTriggered = false;
+
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, IceBombData, level);
-    // 播放冻结音效
-    SoundCmd.PlayPlant('freeze');
   }
 
   protected buildView() {

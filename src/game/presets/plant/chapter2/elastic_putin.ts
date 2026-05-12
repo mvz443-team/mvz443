@@ -64,26 +64,26 @@ export class ElasticPutinEntity extends PlantEntity {
   }
 
   /**
-   * 碰撞事件处理：反弹子弹
+   * 碰撞事件处理：反弹箭矢
    */
   public override onCollision(ctx: CollisionContext): void {
-    // 只反弹 BulletEntity
-    if (!(ctx.targetEntity instanceof BulletEntity)) return;
+    // 只反弹 ArrowEntity
+    if (!(ctx.targetEntity instanceof ArrowEntity)) return;
 
-    const bullet = ctx.targetEntity as BulletEntity;
+    const arrow = ctx.targetEntity as ArrowEntity;
 
-    // 只反弹自己的子弹
-    if (bullet.faction !== this.faction) return;
+    // 只反弹自己的箭矢
+    if (arrow.faction !== this.faction) return;
 
-    // 如果子弹不可反弹，则不反弹
-    if (!bullet.bounceable) return;
+    // 如果箭矢不可反弹，则不反弹
+    if (!arrow.bounceable) return;
 
-    // 调用子弹的反弹方法
-    bullet.reverseVelocityX();
+    // 调用箭矢的反弹方法
+    arrow.reverseVelocityX();
 
-    // 如果激活了闪电效果，为子弹施加增强
-    if (this.isLightning && bullet instanceof ArrowEntity) {
-      bullet.catchEnhancement('lightning');
+    // 如果激活了闪电效果，为箭矢施加增强
+    if (this.isLightning && arrow instanceof ArrowEntity) {
+      arrow.catchEnhancement('lightning');
     }
   }
 
