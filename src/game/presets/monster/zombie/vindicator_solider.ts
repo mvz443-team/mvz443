@@ -25,6 +25,7 @@ export class ShieldVindicatorEntity extends BaseVindicatorEntity {
     );
     shield.setScale(PositionManager.Instance.scaleFactor * 2.2).setOrigin(0.5, 0.35).setFrame(0).setDepth(DepthHelper.Mob.attachment(this.baseDepth, "shield"));
     this.attachSprites.set("shield", shield);
+    this.registerShieldAttachment("shield");
   }
 
   public override takeDamage(amount: number, dealer?: BaseEntity, source?: BaseEntity): void {

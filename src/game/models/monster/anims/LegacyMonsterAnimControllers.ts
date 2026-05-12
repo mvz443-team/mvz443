@@ -2,11 +2,12 @@ import GolemAnim, { GolemAnimProps } from "../../../sprite/golem";
 import { newNormalEvokerAnim, newNormalSkeletonAnim, newNormalVindicatorAnim, newNormalZombieAnim } from "../../../sprite/normal_zombie";
 import IMutantAnim, { MutantAnimProps } from "../../../sprite/zombie_mutant";
 import type { Game } from "../../../scenes/Game";
-import type { IMonsterAnimController } from "./IMonsterAnimController";
+import type { IMonsterAnimController, MonsterHandAnchor } from "./IMonsterAnimController";
 
 type LegacyAnimLike = {
   updatePosition(x: number, y: number): void;
   setDepth(depth: number): void;
+  getHandAnchor?(): MonsterHandAnchor | null;
   highlight(): void;
   twinkle?(): void;
   startLegSwing(): void;
@@ -50,6 +51,10 @@ export class LegacyMonsterAnimController<TAnim extends LegacyAnimLike> implement
 
   public setDepth(depth: number): void {
     this.raw.setDepth(depth);
+  }
+
+  public getHandAnchor(): MonsterHandAnchor | null {
+    return this.raw.getHandAnchor?.() ?? null;
   }
 
   public highlight(): void {

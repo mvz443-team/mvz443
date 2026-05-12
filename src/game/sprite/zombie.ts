@@ -205,6 +205,17 @@ export default class IZombieAnim {
             y + this.rightLegOffset[1] * this.scaneFactor);
     }
 
+    getHandAnchor() {
+        const arm = this.armRight;
+        const reach = arm.displayWidth;
+        const rad = Phaser.Math.DegToRad(arm.angle);
+
+        return {
+            x: arm.x - Math.cos(rad) * reach,
+            y: arm.y - Math.sin(rad) * reach,
+        };
+    }
+
     setOrigin(x: number, y: number) {
         this.body.setOrigin(x, y);
         this.head.setOrigin(x, y);

@@ -1,7 +1,13 @@
+export type MonsterHandAnchor = {
+  x: number;
+  y: number;
+};
+
 export interface IMonsterAnimController {
   // 基础更新
   updatePosition(x: number, y: number): void;
   setDepth(depth: number): void;
+  getHandAnchor?(): MonsterHandAnchor | null;
 
   // 视觉特效
   highlight(): void;

@@ -418,6 +418,8 @@ export class PresetMonsterModel extends MonsterModel {
 
 export abstract class BaseMonsterEntity extends MonsterEntity {
   declare public model: PresetMonsterModel;
+  private readonly handAttachmentKeys = new Set<string>();
+  private readonly fixedAttachmentOffsets = new Map<string, { x: number; y: number }>();
 
   public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
     super(scene, col, row, model, waveID);
@@ -433,6 +435,60 @@ export abstract class BaseMonsterEntity extends MonsterEntity {
     this.animController = this.createAnimController();
     this.animController.setDepth(this.baseDepth);
     this.animController.updatePosition(this.x + this.offsetX, this.y + this.offsetY);
+    this.syncRegisteredAttachments();
+  }
+
+  public override updateView(vec: { x: number, y: number }): void {
+    super.updateView(vec);
+    this.syncRegisteredAttachments();
+  }
+
+  public registerHandAttachment(key: string) {
+    this.handAttachmentKeys.add(key);
+    this.syncHandAttachment(key);
+  }
+
+  public registerArmorAttachment(key: string) {
+    this.registerFixedAttachment(key);
+  }
+
+  public registerShieldAttachment(key: string) {
+    this.registerFixedAttachment(key);
+  }
+
+  private registerFixedAttachment(key: string) {
+    const sprite = this.attachSprites.get(key);
+    if (!sprite) return;
+
+    this.fixedAttachmentOffsets.set(key, {
+      x: sprite.x - (this.x + this.offsetX),
+      y: sprite.y - (this.y + this.offsetY),
+    });
+    this.syncFixedAttachment(key);
+  }
+
+  private syncRegisteredAttachments() {
+    this.handAttachmentKeys.forEach((key) => this.syncHandAttachment(key));
+    this.fixedAttachmentOffsets.forEach((_offset, key) => this.syncFixedAttachment(key));
+  }
+
+  private syncHandAttachment(key: string) {
+    const sprite = this.attachSprites.get(key);
+    if (!sprite) return;
+
+    const anchor = this.animController?.getHandAnchor?.() ?? {
+      x: this.x + this.offsetX - PositionManager.Instance.GRID_SIZEX * 0.42,
+      y: this.y + this.offsetY - PositionManager.Instance.GRID_SIZEY * 0.7,
+    };
+    sprite.setPosition(anchor.x, anchor.y);
+  }
+
+  private syncFixedAttachment(key: string) {
+    const sprite = this.attachSprites.get(key);
+    const offset = this.fixedAttachmentOffsets.get(key);
+    if (!sprite || !offset) return;
+
+    sprite.setPosition(this.x + this.offsetX + offset.x, this.y + this.offsetY + offset.y);
   }
 
   public getLegacyController() {
@@ -567,6 +623,7 @@ export abstract class ArmorMonsterEntity extends StagedBodyMonsterEntity {
     sprite.setOrigin(config.originX ?? 0.5, config.originY ?? 0.5);
     sprite.setFrame(0).setDepth(DepthHelper.Mob.customAttachment(this.baseDepth, config.depth ?? 13));
     this.attachSprites.set(config.key, sprite);
+    this.registerArmorAttachment(config.key);
   }
 
   protected updateArmorFrame() {
@@ -623,5 +680,6 @@ export function addHandAttachment(entity: BaseMonsterEntity, key: string, scale 
   );
   sprite.setScale(scale * PositionManager.Instance.scaleFactor).setOrigin(0.5, 1).setDepth(DepthHelper.Mob.customAttachment(entity.baseDepth, depth));
   entity.attachSprites.set(key, sprite);
+  entity.registerHandAttachment(key);
   return sprite;
 }
