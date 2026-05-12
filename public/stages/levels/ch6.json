@@ -20,7 +20,7 @@
     "first_wave_id": 0,
     "total_waves": 27,
     "base_difficulty": 0,
-    "difficulty_limit": 50,
+    "difficulty_limit": 35,
     "phase1_end": 9,
     "phase2_end": 17,
     "dayOrNight": 1,
@@ -46,11 +46,11 @@
     "globalRatio": [
       [
         0,
-        1
+        1.4
       ],
       [
         25,
-        1.2
+        1.6
       ]
     ],
     "bossInsert": [ ]
