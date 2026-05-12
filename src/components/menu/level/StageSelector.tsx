@@ -130,16 +130,27 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
   const selectedStageName = selectedStageRecord ? translate(stageKey(selectedStageRecord.nameKey)) : '';
   const selectedStageCompleted = state.selectedStage !== null && saveManager.isLevelPassed(state.selectedStage, chapterId);
   const stageLightText = state.selectedStageData
-    ? (state.selectedStageData.stageScript.dayOrNight === 1 ? '光照强烈' : '无光')
+    ? translate(state.selectedStageData.stageScript.dayOrNight === 1 ? 'menu.level_light_strong' : 'menu.level_light_none')
     : translate('common.loading');
-  const stageRowsText = state.selectedStageData ? `${state.selectedStageData.rows}` : translate('common.loading');
+  const stageRowsText = state.selectedStageData
+    ? translate('menu.level_rows', { count: state.selectedStageData.rows })
+    : translate('common.loading');
   const stageBossInsertCount = state.selectedStageData?.stageScript.bossInsert.length ?? 0;
   const stageWaveCount = state.selectedStageData
     ? state.selectedStageData.stageScript.total_waves + stageBossInsertCount
     : 0;
-  const stageThreatText = stageBossInsertCount > 1 ? '精英+Boss' : stageBossInsertCount === 1 ? 'Boss' : '无 Boss';
+  const stageThreatText = translate(
+    stageBossInsertCount > 1
+      ? 'menu.level_threat_elite_boss'
+      : stageBossInsertCount === 1
+        ? 'menu.level_threat_boss'
+        : 'menu.level_threat_no_boss'
+  );
   const stageSummaryText = state.selectedStageData
-    ? `${stageWaveCount} 波 · ${stageThreatText}`
+    ? translate('menu.level_wave_summary', {
+      count: stageWaveCount,
+      threat: stageThreatText,
+    })
     : translate('common.loading');
   const stageSummaryPercent = state.selectedStageData
     ? Math.min(100, Math.max(18, (stageWaveCount / 40) * 100))
@@ -276,7 +287,7 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
                 fontSize: '14px',
                 color: '#b6c9d1',
               }}>
-                {stageRowsText} rows
+                {stageRowsText}
               </div>
             </div>
             <div style={{

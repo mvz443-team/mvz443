@@ -4,7 +4,7 @@ import type { Locale } from '../i18n';
 export type { Locale };
 
 interface UseLocaleResult {
-    translate: (key: string, params?: Record<string, string>) => string
+    translate: (key: string, params?: Record<string, string | number>) => string
     loading: boolean
     error: Error | null
 }

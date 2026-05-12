@@ -171,7 +171,10 @@ const ChapterSelector: React.FC<ChapterSelectorProps> = ({ onSelect, onBack }) =
                 fontSize: '14px',
                 color: '#b6c9d1',
               }}>
-                关卡数量(已完成/总数): {completedStageCount}/{totalStageCount}
+                {translate('menu.level_chapter_stage_count', {
+                  completed: completedStageCount,
+                  total: totalStageCount,
+                })}
               </div>
             </div>
             <button
