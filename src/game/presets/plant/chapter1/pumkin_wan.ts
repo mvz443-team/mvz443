@@ -6,12 +6,14 @@ import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
-import { Faction } from "../../../models/Enum";
 import { PumpkinData } from "./pumkin";
 import ShootHeadAnimationHelper from "../../../utils/helper/ShootHeadAnimationHelper";
 import { ExplosionConfig, LaserConfig } from "../../../models/projectiles/ProjectileModels";
 import { PlantCmd } from "../../../utils/cmd/PlantCmd";
 import { SightLineGroup } from "../../../models/entities/SightLineEntity";
+import SoundCmd from "../../../utils/cmd/SoundCmd";
+import { SfxCmd } from "../../../utils/cmd/SfxCmd";
+import { PumpkinWanLaserSfx } from "../../../sfx/laser/PumpkinWanLaserSfx";
 
 /**
  * 南瓜头·晚上 - 夜间激光植物的升级版
@@ -114,10 +116,21 @@ export class PumpkinWanModel extends PlantModel {
     const startOffset = this.startOffset.getValueAt(level);
     const laserDistance = this.attackDistance.getValueAt(level);
     const canAttackFlying = level >= this.LevelThresholds1;
+    const visualLaserLength = this.getVisualLaserLength(level);
 
     const startX = entity.x - startOffset * PositionManager.Instance.GRID_SIZEX;
 
-    // 向上、中、下三行发射激光
+    SfxCmd.Create(PumpkinWanLaserSfx, {
+      scene,
+      x: entity.x,
+      y: entity.y - PositionManager.Instance.getPlantDisplaySize().sizeY * 0.52,
+      row: entity.row,
+      lengthGrid: visualLaserLength,
+      duration: this.laserDuration,
+    });
+    SoundCmd.PlayShootLaser();
+
+    // 物理体仍然是上、中、下三行独立激光，视觉由中心放射效果承担。
     for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
       const targetRow = entity.row + rowOffset;
       if (targetRow >= 0 && targetRow < PositionManager.Instance.getRowCount()) {
@@ -128,11 +141,21 @@ export class PumpkinWanModel extends PlantModel {
           duration: this.laserDuration,
           distance: laserDistance,
           couldAttackFlying: canAttackFlying,
+          invisible: true,
+          color: 0x7df7ff,
+          alphaFrom: 0,
+          alphaTo: 0,
         };
 
         ProjectileCmd.CreateLaser(scene, startX, targetRow, laserConfig);
       }
     }
+  }
+
+  private getVisualLaserLength(level: number): number {
+    const startOffset = this.startOffset.getValueAt(level);
+    const laserDistance = this.attackDistance.getValueAt(level);
+    return Math.max(startOffset, laserDistance - startOffset) + 0.18;
   }
 
   /**

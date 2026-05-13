@@ -87,14 +87,15 @@ export class LaserModel<TConfig extends LaserConfig = LaserConfig, TEntity exten
 
   // 视觉参数
   public invisible: boolean = false;
-  public color: number = 0xffffff;
+  public color: number = 0xff8a3d;
   // 透明渐变
-  public alphaFrom: number = 0.2;
-  public alphaTo: number = 0.5;
+  public alphaFrom: number = 0.82;
+  public alphaTo: number = 0;
 
   public createEntity(scene: Game, x: number, row: number, config: TConfig): TEntity {
     const y0 = PositionManager.Instance.getRowCenterY(row); // 获取行中心坐标
-    const x2 = x + this.distance * PositionManager.Instance.GRID_SIZEX;
+    const laserDistance = config.distance ?? this.distance;
+    const x2 = x + laserDistance * PositionManager.Instance.GRID_SIZEX;
 
     return new LaserEntity(scene, x, y0, x2, y0, this, row, config) as TEntity;
   }

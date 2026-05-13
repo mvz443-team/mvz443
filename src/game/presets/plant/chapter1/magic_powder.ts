@@ -8,6 +8,7 @@ import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { SfxCmd } from "../../../utils/cmd/SfxCmd";
 import { PowderScatterSfx } from "../../../sfx/powder/PowderScatterSfx";
 import SoundCmd from "../../../utils/cmd/SoundCmd";
+import ResourceCmd from "../../../utils/cmd/ResourceCmd";
 
 /**
  * 魔法粉 - 瞬间植物
@@ -46,12 +47,13 @@ export class MagicPowderModel extends PlantModel {
 
     // 播放粉末散射特效
     entity.playPowderAnimation();
+    ResourceCmd.AddStarshardToAll(1);
 
     // 立即发射激光
     const rangeWidth = PositionManager.Instance.GRID_SIZEX; // 1格宽度
     ProjectileCmd.CreateLaser(
       scene,
-      entity.col - 0.6, // 中心位置
+      entity.x - rangeWidth * 0.6, // 覆盖当前格子
       entity.row,
       {
         damage: damageValue,
@@ -63,6 +65,7 @@ export class MagicPowderModel extends PlantModel {
         alphaFrom: 0.2,
         alphaTo: 0.1,
         faction: entity.faction,
+        dealer: entity,
       }
     );
 
@@ -109,8 +112,11 @@ export class MagicPowderEntity extends PlantEntity {
       x: this.x,
       y: this.y,
       depth: DepthHelper.Plant.sfx(this.baseDepth),
-      color: 0x0265b6,
-      count: 15,
+      color: 0x2ba8ff,
+      count: 30,
+      rangeWidth: PositionManager.Instance.GRID_SIZEX * 1.35,
+      rangeHeight: PositionManager.Instance.GRID_SIZEY * 1.2,
+      duration: 900,
     });
   }
 }

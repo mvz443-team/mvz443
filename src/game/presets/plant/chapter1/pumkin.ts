@@ -5,9 +5,11 @@ import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
-import { Faction } from "../../../models/Enum";
 import { LaserConfig } from "../../../models/projectiles/ProjectileModels";
 import { SightLineEntity } from "../../../models/entities/SightLineEntity";
+import { SfxCmd } from "../../../utils/cmd/SfxCmd";
+import SoundCmd from "../../../utils/cmd/SoundCmd";
+import { PumpkinLaserSfx } from "../../../sfx/laser/PumpkinLaserSfx";
 
 /**
  * 南瓜头 - 夜间激光植物
@@ -108,6 +110,10 @@ export class PumpkinModel extends PlantModel {
       dealer: entity,
       duration: this.laserDuration,
       distance: this.laserDistance,
+      invisible: true,
+      color: 0xffb321,
+      alphaFrom: 0,
+      alphaTo: 0,
     };
 
     // 9级以上添加减速效果
@@ -117,6 +123,15 @@ export class PumpkinModel extends PlantModel {
     }
 
     ProjectileCmd.CreateLaser(scene, x, row, laserConfig);
+    SfxCmd.Create(PumpkinLaserSfx, {
+      scene,
+      x,
+      y: PositionManager.Instance.getRowCenterY(row),
+      row,
+      distanceGrid: this.laserDistance,
+      duration: this.laserDuration,
+    });
+    SoundCmd.PlayShootLaser();
   }
 
   /**
@@ -142,10 +157,23 @@ export class PumpkinModel extends PlantModel {
         dealer: entity,
         duration: this.masterSparkDuration,
         distance: this.masterSparkDistance,
+        invisible: true,
+        color: 0xffd36a,
+        alphaFrom: 0,
+        alphaTo: 0,
       };
 
       ProjectileCmd.CreateLaser(scene, x, i, laserConfig);
+      SfxCmd.Create(PumpkinLaserSfx, {
+        scene,
+        x,
+        y: PositionManager.Instance.getRowCenterY(i),
+        row: i,
+        distanceGrid: this.masterSparkDistance,
+        duration: this.masterSparkDuration,
+      });
     }
+    SoundCmd.PlayShootLaser();
   }
 
   public createEntity(scene: Game, col: number, row: number, level: number): PumpkinEntity {

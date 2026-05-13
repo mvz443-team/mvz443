@@ -29,19 +29,28 @@ export class PowderScatterSfx extends BaseSfx<PowderScatterSfxArgs> {
     const duration = this.args.duration ?? 1600;
 
     for (let i = 0; i < rectCount; i++) {
-      const posX = Phaser.Math.Between(centerX - rangeWidth / 2, centerX + rangeWidth / 2);
-      const posY = Phaser.Math.Between(centerY - rangeHeight / 2, centerY + rangeHeight / 2);
-
-      const graphics = this.scene.add.graphics({ fillStyle: { color: this.args.color } })
+      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      const startRadius = Phaser.Math.FloatBetween(0, Math.min(rangeWidth, rangeHeight) * 0.12);
+      const endRadiusX = Phaser.Math.FloatBetween(rangeWidth * 0.18, rangeWidth * 0.55);
+      const endRadiusY = Phaser.Math.FloatBetween(rangeHeight * 0.18, rangeHeight * 0.55);
+      const startX = centerX + Math.cos(angle) * startRadius;
+      const startY = centerY + Math.sin(angle) * startRadius;
+      const endX = centerX + Math.cos(angle) * endRadiusX;
+      const endY = centerY + Math.sin(angle) * endRadiusY;
+      const particle = this.scene.add.rectangle(startX, startY, rectWidth, rectHeight, this.args.color, 0.92)
+        .setAngle(Phaser.Math.Between(0, 360))
         .setDepth(this.args.depth);
-      graphics.fillRect(posX - rectWidth / 2, posY - rectHeight / 2, rectWidth, rectHeight);
 
       this.scene.tweens.add({
-        targets: graphics,
-        alpha: 0.2,
-        duration,
-        ease: 'Linear',
-        onComplete: () => graphics.destroy(),
+        targets: particle,
+        x: endX,
+        y: endY,
+        alpha: 0,
+        scale: 0.35,
+        angle: particle.angle + Phaser.Math.Between(-160, 160),
+        duration: Phaser.Math.Between(Math.floor(duration * 0.7), duration),
+        ease: 'Cubic.easeOut',
+        onComplete: () => particle.destroy(),
       });
     }
   }
