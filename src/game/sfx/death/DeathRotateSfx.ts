@@ -11,10 +11,20 @@ export interface DeathRotateSfxArgs extends BaseSfxArgs {
 
 export class DeathRotateSfx extends BaseSfx<DeathRotateSfxArgs> {
   play(): void {
+    const targets = Array.isArray(this.args.targets) ? this.args.targets : [this.args.targets];
+    const duration = this.args.duration ?? 400;
+
+    if (targets.length === 0) {
+      this.scene.time.delayedCall(duration, () => {
+        this.args.onComplete?.();
+      });
+      return;
+    }
+
     this.scene.tweens.add({
-      targets: this.args.targets,
+      targets,
       angle: 90,
-      duration: this.args.duration ?? 400,
+      duration,
       ease: "Linear",
       onComplete: () => {
         this.args.onComplete?.();

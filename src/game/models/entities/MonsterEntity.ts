@@ -22,6 +22,16 @@ import { DeathRotateSfx } from "../../sfx/death/DeathRotateSfx";
 import { DeathSmokeSfx } from "../../sfx/death/DeathSmokeSfx";
 import SoundCmd from "../../utils/cmd/SoundCmd";
 
+type DeathSmokeSpawn = {
+  x: number;
+  y: number;
+  displaySize: number;
+};
+
+type BoundsGameObject = Phaser.GameObjects.GameObject & {
+  getBounds: (output?: Phaser.Geom.Rectangle) => Phaser.Geom.Rectangle;
+};
+
 export abstract class MonsterEntity extends CombatEntity {
   declare public scene: Game;
   public model: MonsterModel;
@@ -253,10 +263,6 @@ export abstract class MonsterEntity extends CombatEntity {
     this.dropCarriedStarShards();
     this.stopAttacking();
     this.playDeathAnimation();
-    this.tickmanager.delayedCall({
-      delay: 300,
-      callback: () => this.destroy(),
-    });
   }
 
   protected playDeathAnimation() {
@@ -269,11 +275,22 @@ export abstract class MonsterEntity extends CombatEntity {
       this.rigidBody = null;
     }
 
+    const targets = this.getDeathAnimationTargets();
     SfxCmd.Create(DeathRotateSfx, {
       scene: this.scene,
-      targets: this.viewGroup.getChildren(),
-      onComplete: () => this.playDeathSmokeAnimation(),
+      targets,
+      onComplete: () => this.finishDeathAnimation(targets),
     });
+  }
+
+  protected getDeathAnimationTargets(): Phaser.GameObjects.GameObject[] {
+    return this.viewGroup.getChildren();
+  }
+
+  private finishDeathAnimation(targets: Phaser.GameObjects.GameObject[]): void {
+    const smokeSpawns = this.getDeathSmokeSpawns(this.getDeathSmokeBounds(targets));
+    this.destroy();
+    this.playDeathSmokeAnimation(smokeSpawns);
   }
 
   private checkAndAddBoat() {
@@ -298,13 +315,95 @@ export abstract class MonsterEntity extends CombatEntity {
     SoundCmd.PlayZombieSpawn(idx);
   }
 
-  protected playDeathSmokeAnimation() {
-    SfxCmd.Create(DeathSmokeSfx, {
-      scene: this.scene,
-      x: this.x,
-      y: this.y,
-      depth: DepthHelper.Mob.deathSmoke(this.baseDepth),
+  protected playDeathSmokeAnimation(spawns = this.getDeathSmokeSpawns(null)) {
+    spawns.forEach((spawn, index) => {
+      SfxCmd.Create(DeathSmokeSfx, {
+        scene: this.scene,
+        x: spawn.x,
+        y: spawn.y,
+        depth: DepthHelper.Mob.deathSmoke(this.baseDepth),
+        displaySize: spawn.displaySize,
+        playSound: index === 0,
+      });
     });
+  }
+
+  private getDeathSmokeBounds(targets: Phaser.GameObjects.GameObject[]): Phaser.Geom.Rectangle | null {
+    let bounds: Phaser.Geom.Rectangle | null = null;
+
+    targets.forEach((target) => {
+      if (!this.hasBounds(target)) return;
+      const targetBounds = target.getBounds();
+      if (targetBounds.width <= 0 || targetBounds.height <= 0) return;
+
+      if (!bounds) {
+        bounds = new Phaser.Geom.Rectangle(
+          targetBounds.x,
+          targetBounds.y,
+          targetBounds.width,
+          targetBounds.height,
+        );
+        return;
+      }
+
+      Phaser.Geom.Rectangle.Union(bounds, targetBounds, bounds);
+    });
+
+    return bounds;
+  }
+
+  private hasBounds(target: Phaser.GameObjects.GameObject): target is BoundsGameObject {
+    return typeof (target as Partial<BoundsGameObject>).getBounds === "function";
+  }
+
+  private getDeathSmokeSpawns(bounds: Phaser.Geom.Rectangle | null): DeathSmokeSpawn[] {
+    const rect = bounds ?? this.getFallbackDeathSmokeBounds();
+    const gridX = PositionManager.Instance.GRID_SIZEX;
+    const gridY = PositionManager.Instance.GRID_SIZEY;
+    const displaySize = Phaser.Math.Clamp(Math.min(gridX, gridY) * 0.52, 34, 52);
+    const smokeCount = this.model.rank === "boss"
+      ? 18
+      : Phaser.Math.Clamp(Math.ceil(rect.width / Math.max(1, gridX * 0.18)) + 4, 8, 12);
+    const pattern = [
+      { x: 0.10, y: 0.72, size: 1.00 },
+      { x: 0.22, y: 0.50, size: 0.92 },
+      { x: 0.34, y: 0.68, size: 1.06 },
+      { x: 0.46, y: 0.44, size: 0.88 },
+      { x: 0.58, y: 0.66, size: 1.02 },
+      { x: 0.70, y: 0.42, size: 0.94 },
+      { x: 0.82, y: 0.62, size: 1.08 },
+      { x: 0.92, y: 0.78, size: 0.90 },
+      { x: 0.16, y: 0.34, size: 0.84 },
+      { x: 0.28, y: 0.82, size: 0.94 },
+      { x: 0.40, y: 0.26, size: 1.00 },
+      { x: 0.52, y: 0.86, size: 0.86 },
+      { x: 0.64, y: 0.28, size: 0.98 },
+      { x: 0.76, y: 0.82, size: 0.92 },
+      { x: 0.88, y: 0.36, size: 0.86 },
+      { x: 0.24, y: 0.22, size: 0.80 },
+      { x: 0.50, y: 0.18, size: 0.82 },
+      { x: 0.74, y: 0.20, size: 0.80 },
+    ];
+
+    return pattern.slice(0, smokeCount).map((point) => ({
+      x: rect.left + rect.width * point.x,
+      y: rect.top + rect.height * point.y,
+      displaySize: displaySize * point.size,
+    }));
+  }
+
+  private getFallbackDeathSmokeBounds(): Phaser.Geom.Rectangle {
+    const widthScale = this.model.rank === "boss" ? 2.4 : 1.15;
+    const heightScale = this.model.rank === "boss" ? 1.7 : 1.1;
+    const width = PositionManager.Instance.GRID_SIZEX * widthScale;
+    const height = PositionManager.Instance.GRID_SIZEY * heightScale;
+
+    return new Phaser.Geom.Rectangle(
+      this.x + this.offsetX - width / 2,
+      this.y + this.offsetY - height,
+      width,
+      height,
+    );
   }
 
   private dropCarriedStarShards() {
@@ -531,27 +630,8 @@ export abstract class BaseMonsterEntity extends MonsterEntity {
     this.ZombieDie();
   }
 
-  protected override playDeathAnimation(): void {
-    this.isDying = true;
-    this.stopMove();
-
-    if (this.rigidBody) {
-      this.scene.rapierWorld.removeRigidBody(this.rigidBody);
-      this.rigidBody = null;
-    }
-
-    SfxCmd.Create(DeathRotateSfx, {
-      scene: this.scene,
-      targets: [...this.getAnimTargets(), ...this.attachSprites.values()],
-      onComplete: () => {
-        SfxCmd.Create(DeathSmokeSfx, {
-          scene: this.scene,
-          x: this.x,
-          y: this.y,
-          depth: DepthHelper.Mob.deathSmoke(this.baseDepth),
-        });
-      },
-    });
+  protected override getDeathAnimationTargets(): Phaser.GameObjects.GameObject[] {
+    return [...new Set([...this.getAnimTargets(), ...this.attachSprites.values()])];
   }
 }
 
