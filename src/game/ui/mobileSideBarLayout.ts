@@ -31,7 +31,7 @@ export function getMobileSideBarLayout(): MobileSideBarLayout {
   const progressHeight = Math.max(progressBarHeight + 10, Math.min(40, progressBarHeight + 14));
   const actionHeight = Math.max(36, Math.min(48, bounds.height * 0.08));
   const cardHeight = Math.max(72, bounds.height - progressHeight - actionHeight);
-  const laneWidth = (bounds.width - padding * 2 - laneGap * 2) / 3;
+  const laneWidth = (bounds.width - padding - laneGap * 2) / 3;
 
   return {
     bounds,

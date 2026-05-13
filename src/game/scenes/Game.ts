@@ -35,7 +35,6 @@ import { SendLoaded } from '../../utils/net/room';
 import {
   BATTLE_GRID_CELL_HEIGHT,
   BATTLE_GRID_CELL_WIDTH,
-  BATTLE_GRID_LEFT_CART_MARGIN_RATIO,
   BATTLE_GRID_COLS,
   LOGICAL_BATTLE_HEIGHT,
   LOGICAL_BATTLE_WIDTH,
@@ -546,7 +545,6 @@ export class Game extends Scene {
   private getMobileBattleCameraView(viewport: Phaser.Geom.Rectangle | { width: number; height: number }, gridBounds: { x: number; y: number; width: number; height: number }) {
     const rowCount = PositionManager.Instance.getRowCount();
     const rowTuning = this.getMobileCameraRowTuning(rowCount);
-    const leftCartMargin = BATTLE_GRID_CELL_WIDTH * BATTLE_GRID_LEFT_CART_MARGIN_RATIO;
     const topCrop = BATTLE_GRID_CELL_HEIGHT * rowTuning.topCropRows;
     const bottomOverscanRatio = Math.max(
       MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO,
@@ -555,10 +553,11 @@ export class Game extends Scene {
     const bottomOverscan = BATTLE_GRID_CELL_HEIGHT * bottomOverscanRatio;
     const targetHeight = gridBounds.height - topCrop + bottomOverscan;
     const zoom = viewport.height / targetHeight * rowTuning.zoomScale;
+    const horizontalShift = BATTLE_GRID_CELL_WIDTH * rowTuning.horizontalShiftCols;
 
     return {
       zoom,
-      scrollX: gridBounds.x - leftCartMargin,
+      scrollX: gridBounds.x + horizontalShift,
       scrollY: gridBounds.y + topCrop,
     };
   }
@@ -569,18 +568,19 @@ export class Game extends Scene {
   topCropRows: 从网格顶部裁剪的“行数”（可为小数）。实际顶部裁剪像素 = topCropRows * BATTLE_GRID_CELL_HEIGHT。
   bottomOverscanRows: 底部的超出/外溢“行数”（可为小数）。函数内部会与常量 MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO 取最大值，再乘以 BATTLE_GRID_CELL_HEIGHT 得到底部像素超出量。
   zoomScale: 额外的缩放系数，作用于基于视口与目标高度计算出的 zoom（>1 表示放大，<1 表示缩小，1 表示不变）。
+  horizontalShiftCols: 横向左移量，单位是网格列宽。值越大，战斗画面越向左贴近卡槽，右侧显示越多。
 */
-  private getMobileCameraRowTuning(rowCount: number): { topCropRows: number; bottomOverscanRows: number; zoomScale: number } {
+  private getMobileCameraRowTuning(rowCount: number): { topCropRows: number; bottomOverscanRows: number; zoomScale: number; horizontalShiftCols: number } {
     if (rowCount >= 7) {
-      return { topCropRows: 1.14, bottomOverscanRows: 0.55, zoomScale: 0.90 };
+      return { topCropRows: 1.14, bottomOverscanRows: 0.55, zoomScale: 0.90, horizontalShiftCols: 1.3 };
     }
     if (rowCount >= 6) {
-      return { topCropRows: 0.58, bottomOverscanRows: 0.55, zoomScale: 0.95 };
+      return { topCropRows: 0.58, bottomOverscanRows: 0.55, zoomScale: 0.95, horizontalShiftCols: 0.45 };
     }
     if (rowCount >= 5) {
-      return { topCropRows: 0.1, bottomOverscanRows: 0.1, zoomScale: 0.97 };
+      return { topCropRows: 0.1, bottomOverscanRows: 0.1, zoomScale: 0.97, horizontalShiftCols: 0 };
     }
-    return { topCropRows: -0.5, bottomOverscanRows: 0.5, zoomScale: 0.95 };
+    return { topCropRows: -0.5, bottomOverscanRows: 0.5, zoomScale: 0.95, horizontalShiftCols: 0 };
 
     // return { topCropRows: 0, bottomOverscanRows: MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO, zoomScale: 1 };
   }

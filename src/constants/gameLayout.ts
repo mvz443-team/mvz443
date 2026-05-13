@@ -162,7 +162,7 @@ export function getGameToolLayoutMetrics(
   const sideCardSlotWidth = deviceType === 'mobile'
     ? getMobileCardSlotWidth(mainWidth, mainHeight, showGameTool)
     : getSideCardSlotWidth(mainWidth, mainHeight, showGameTool);
-  const sideToolGap = showGameTool ? GAME_SIDE_TOOL_GAP : 0;
+  const sideToolGap = showGameTool && !isMobile ? GAME_SIDE_TOOL_GAP : 0;
   const mobileLeftCardSlotWidth = showGameTool && deviceType === 'mobile' ? sideCardSlotWidth : 0;
   const mobileRightCardSlotWidth = showGameTool && deviceType === 'mobile' ? sideCardSlotWidth : 0;
   const mobileBottomToolbarWidth = showGameTool && deviceType === 'mobile'
