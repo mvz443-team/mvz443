@@ -45,11 +45,12 @@ export class PumpkinWanModel extends PlantModel {
   // 攻击参数
   private readonly attackDistance = new PlantStat(3).setThreshold(this.LevelThresholds2, 5); // 格子数（比基础版短）
   private readonly startOffset = new PlantStat(1.5).setThreshold(this.LevelThresholds2, 2.5); // 格子数
-  private readonly baseAttackInterval = new PlantStat(1550); // 毫秒（比基础版短）
+  private readonly dpsReferenceAttackInterval = 1550; // 旧版攻击间隔，用于保持总 DPS 不变
+  private readonly baseAttackInterval = new PlantStat(500); // 忧郁蘑菇式高频脉冲
 
 
   // 激光参数
-  private readonly laserDuration = 550; // 激光持续时间
+  private readonly laserDuration = 260; // 高频脉冲下激光表现需要更短促
 
   onCreate(entity: PumpkinWanEntity): void {
     // 设置最大血量和当前血量
@@ -83,12 +84,7 @@ export class PumpkinWanModel extends PlantModel {
         // 检查三行任意有敌人
         if (sightLine.hasTarget()) {
           entity.playAttackAnimation();
-          entity.tickmanager.delayedCall({
-            delay: 100, // 动画播放中途发射
-            callback: () => {
-              this.normalShot(entity.scene, entity);
-            }
-          });
+          this.normalShot(entity.scene, entity, attackInterval);
         }
       }
     });
@@ -108,9 +104,9 @@ export class PumpkinWanModel extends PlantModel {
   /**
    * 普通发射：三束激光
    */
-  private normalShot(scene: Game, entity: PumpkinWanEntity): void {
+  private normalShot(scene: Game, entity: PumpkinWanEntity, attackInterval: number): void {
     const level = entity.level;
-    const damage = this.damage.getValueAt(level);
+    const damage = this.getPulseDamage(level, attackInterval);
 
     // 根据等级调整激光起始位置和距离
     const startOffset = this.startOffset.getValueAt(level);
@@ -156,6 +152,11 @@ export class PumpkinWanModel extends PlantModel {
     const startOffset = this.startOffset.getValueAt(level);
     const laserDistance = this.attackDistance.getValueAt(level);
     return Math.max(startOffset, laserDistance - startOffset) + 0.18;
+  }
+
+  private getPulseDamage(level: number, attackInterval: number): number {
+    const oldHitDamage = this.damage.getValueAt(level);
+    return Number((oldHitDamage * attackInterval / this.dpsReferenceAttackInterval).toFixed(3));
   }
 
   /**
@@ -229,6 +230,8 @@ export class PumpkinWanEntity extends PlantEntity {
       .setOrigin(0.5, 1)
       .setDisplaySize(size.sizeX, size.sizeY)
       .setDepth(this.baseDepth);
+    sprite.setData('baseScaleX', sprite.scaleX);
+    sprite.setData('baseScaleY', sprite.scaleY);
 
     this.viewGroup.add(sprite);
   }
@@ -241,9 +244,22 @@ export class PumpkinWanEntity extends PlantEntity {
     if (!sprite) return;
 
     sprite.setFrame(1);
+    const baseScaleX = (sprite.getData('baseScaleX') as number | undefined) ?? sprite.scaleX;
+    const baseScaleY = (sprite.getData('baseScaleY') as number | undefined) ?? sprite.scaleY;
+    this.scene.tweens.killTweensOf(sprite);
+    sprite.setScale(baseScaleX, baseScaleY);
+    this.scene.tweens.add({
+      targets: sprite,
+      scaleX: baseScaleX * 1.04,
+      scaleY: baseScaleY * 0.96,
+      duration: 70,
+      yoyo: true,
+      ease: 'Sine.easeOut',
+      onComplete: () => sprite.setScale(baseScaleX, baseScaleY),
+    });
 
-    // 550ms 后恢复帧
-    this.scene.time.delayedCall(550, () => {
+    // 高频脉冲只短暂闪帧，避免一直停在攻击帧。
+    this.scene.time.delayedCall(150, () => {
       if (this && this.currentHealth > 0 && sprite) {
         sprite.setFrame(0);
       }
