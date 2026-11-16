@@ -358,7 +358,7 @@ export class StateRegistry {
     const entities: EntityLogicState[] = [];
     for (const key of [...this.entities.keys()].sort()) {
       for (const entity of this.entities.get(key)!.provide()) {
-        entities.push(normalizeEntity(key, entity));
+        entities.push({ ...normalizeEntity(key, entity), kind: key });
       }
     }
     entities.sort((a, b) => {

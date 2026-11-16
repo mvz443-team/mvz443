@@ -137,11 +137,11 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
     if (this.skipTiny && ctx.targetEntity.isTiny) return;
     if (this.couldAttackFlying === false) {
       if (ctx.targetEntity instanceof MonsterEntity &&
-        ctx.targetEntity.isFlying) return;
+        ctx.targetEntity.model.isFlying) return;
     }
 
     // Void filter.
-    if (ctx.targetEntity instanceof MonsterEntity && ctx.targetEntity.isInVoid) return;
+    if (ctx.targetEntity instanceof MonsterEntity && ctx.targetEntity.model.isInVoid) return;
 
     // Piercing rules.
     const target = ctx.targetEntity as CombatEntity;

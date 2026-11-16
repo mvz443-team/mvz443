@@ -107,7 +107,7 @@ export default class MobManager extends BaseManager {
   constructor() {
     super();
     this.EventBus = new EventBus<MobManagerEvent>();
-    // Initialize MobManager
+    this._seedRandom = seedrandom.alea(String(this.seed), { state: true });
   }
   public Load(): void {
     PhaserEventBus.on(PhaserEvents.RoomAllReady, this.handleRoomAllReady, this);
@@ -154,6 +154,7 @@ export default class MobManager extends BaseManager {
     this.SpawnTimer?.remove();
     this.MobsByLane.clear();
     this.seed = 0;
+    this.setRandomSeed(this.seed);
     this.waves = [];
     this.progress = 0;
     this.current_wave_idx = 0;

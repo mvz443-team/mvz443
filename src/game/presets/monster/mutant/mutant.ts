@@ -1,5 +1,5 @@
 import type { ITickTimerHandle } from "../../../core/logic/EntityTickManager";
-import { DEFAULT_TICK_EVENT_NAMES, TickEventNameEnums } from "../../../core/logic/TickEvents";
+import { DEFAULT_TICK_EVENT_NAMES } from "../../../core/logic/TickEvents";
 import { BaseMonsterEntity, PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { createMutantAnimController } from "../../../models/monster/anims/LegacyMonsterAnimControllers";
@@ -34,11 +34,15 @@ const SIGN_WEAPON: EquipmentDef = {
 const MutantModelBase = withWeaponModel(PresetMonsterModel);
 const MutantEntityBase = withWeaponEntity(BaseMonsterEntity);
 
+const MUTANT_EVENTS = {
+  Recover: "MutantRecover",
+} as const;
+
 /** 武器牌、攻击目标队列、伤害和恢复全部在 Model。 */
 export class MutantModel extends MutantModelBase {
-  public override readonly tickEventNames = [
+  public override readonly tickEventNames: readonly string[] = [
     ...DEFAULT_TICK_EVENT_NAMES,
-    TickEventNameEnums.MutantRecover,
+    MUTANT_EVENTS.Recover,
   ];
 
   public readonly chargeMs = 1500;
@@ -57,11 +61,11 @@ export class MutantModel extends MutantModelBase {
   }
 
   public canStartMove(entity: MutantEntity): boolean {
-    return !entity.isFrozen && !entity.isStop && !entity.isDying && !entity.isAttacking;
+    return !this.isFrozen && !this.isStop && !this.isDying && !entity.isAttacking;
   }
 
   public queueAttackTarget(entity: MutantEntity, plant: PlantEntity): void {
-    if (entity.currentHealth <= 0 || entity.isFrozen || entity.isDying) return;
+    if (entity.currentHealth <= 0 || this.isFrozen || this.isDying) return;
     if (entity.attackedPlants.includes(plant) || entity.preAttackedPlant === plant) return;
 
     if (entity.isAttacking && entity.attackedPlants.length > 0) {
@@ -89,16 +93,16 @@ export class MutantModel extends MutantModelBase {
     entity.attackedPlants = [];
     entity.preAttackedPlant = null;
     entity.attacking = null;
-    entity.isStop = false;
+    this.isStop = false;
     this.onAttackStopped(entity);
   }
 
   public startAttackProcess(entity: MutantEntity): void {
-    if (entity.currentHealth <= 0 || entity.isFrozen || entity.isDying || entity.attackedPlants.length === 0) return;
+    if (entity.currentHealth <= 0 || this.isFrozen || this.isDying || entity.attackedPlants.length === 0) return;
 
     entity.stopMove();
     entity.isAttacking = true;
-    entity.isStop = true;
+    this.isStop = true;
     entity.attacking = entity.attackedPlants[0];
     this.onAttackStarted(entity);
 
@@ -107,22 +111,22 @@ export class MutantModel extends MutantModelBase {
     const attackTargets = [...entity.attackedPlants];
 
     raw?.startLeftArmSmash?.(() => {
-      if (entity.currentHealth <= 0 || entity.isFrozen || entity.isDying) return;
+      if (entity.currentHealth <= 0 || this.isFrozen || this.isDying) return;
 
       const cells = attackTargets.map((plant) => ({ col: plant.col, row: plant.row }));
       MobCmd.DamagePlantsInCells(cells, this.smashDamage);
 
       entity.recoverTimer?.remove();
-      entity.recoverTimer = this.tickmanager.schedule(TickEventNameEnums.MutantRecover, this.recoverMs);
+      entity.recoverTimer = this.tickmanager.schedule(MUTANT_EVENTS.Recover, this.recoverMs);
     });
   }
 
   public override handleTickEvent(
-    eventName: TickEventNameEnums | string,
+    eventName: string,
     args: import("../../../core/SimulationState").JsonValue = null,
     timerId?: number,
   ): void {
-    if (eventName === TickEventNameEnums.MutantRecover) {
+    if (eventName === MUTANT_EVENTS.Recover) {
       this.finishRecover(this.host as MutantEntity | null);
       return;
     }
@@ -130,7 +134,7 @@ export class MutantModel extends MutantModelBase {
   }
 
   private finishRecover(entity: MutantEntity | null): void {
-    if (!entity || entity.currentHealth <= 0 || entity.isFrozen || entity.isDying) return;
+    if (!entity || entity.currentHealth <= 0 || this.isFrozen || this.isDying) return;
 
     entity.attackedPlants = [];
     if (entity.preAttackedPlant) {
@@ -141,7 +145,7 @@ export class MutantModel extends MutantModelBase {
     }
 
     entity.isAttacking = false;
-    entity.isStop = false;
+    this.isStop = false;
     entity.attacking = null;
     this.onAttackStopped(entity);
     entity.startMove();
@@ -183,7 +187,7 @@ export class MutantEntity extends MutantEntityBase {
 
   public override startMove() {
     if (!this.model.canStartMove(this)) return;
-    this.setVelocityX(-this.speed);
+    this.setVelocityX(-this.model.speed);
     this.animController.startLegSwing();
     this.animController.startArmSwing();
   }

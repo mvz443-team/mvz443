@@ -16,10 +16,20 @@ import { DeferredManager } from "../../../managers/DeferredManager";
 import { CombatEntity } from "../../../models/core/CombatEntity";
 import { MonsterEntity } from "../../../models/entities/MonsterEntity";
 import type { ModelHost } from "../../../core/logic/LogicModel";
+import { DEFAULT_TICK_EVENT_NAMES } from "../../../core/logic/TickEvents";
+import type { JsonValue } from "../../../core/SimulationState";
+import MobManager from "../../../managers/combat/MobManager";
 
 type VaultingMonster = MonsterEntity & {
   canVaultOverPlant?: (target: PlantEntity) => boolean;
 };
+
+const TNT_MINES_EVENTS = {
+  Wakeup: "TntMinesWakeup",
+  SpawnMine: "TntMinesSpawnMine",
+} as const;
+
+type TntContactResult = "explode" | "pending" | "ignore";
 
 export class TntMinesModel extends PlantModel {
   public override pid = 4;
@@ -34,6 +44,12 @@ export class TntMinesModel extends PlantModel {
   public cooldownStartAtRatio = 0.5;
 
   public damage = new LevelScaledValue(1500);
+
+  public override readonly tickEventNames: readonly string[] = [
+    ...DEFAULT_TICK_EVENT_NAMES,
+    TNT_MINES_EVENTS.Wakeup,
+    TNT_MINES_EVENTS.SpawnMine,
+  ];
 
   /** 地雷爆炸效果由 Model 定义。 */
   public explode(host: ModelHost, level: number): void {
@@ -50,6 +66,20 @@ export class TntMinesModel extends PlantModel {
     host.destroySelf();
   }
 
+  /** 接触判定统一在 Model：爆炸、等待飞行单位落地、或忽略。 */
+  public handleContact(host: TntMinesEntity, target: unknown): TntContactResult {
+    if (this.isBuried || this.hasExploded) return "ignore";
+    if (!(target instanceof CombatEntity)) return "ignore";
+    if (target.faction === host.faction) return "ignore";
+
+    if (target instanceof MonsterEntity) {
+      if (target.model.isInVoid) return "ignore";
+      if (canVaultOverMine(target, host)) return "ignore";
+      if (target.model.isFlying) return "pending";
+    }
+    return "explode";
+  }
+
   public isNightPlant = false;
   public isTiny = true;
 
@@ -59,13 +89,35 @@ export class TntMinesModel extends PlantModel {
 
   public override onCreate(entity: TntMinesEntity): void {
     const buriedTime = GetDecValue(15000, 0.8, entity.level);
+    this.tickmanager.schedule(TNT_MINES_EVENTS.Wakeup, buriedTime);
+  }
 
-    entity.model.tickmanager.addEvent({
-      delay: buriedTime,
-      loop: false,
-      callback: () => {
-        entity.wakeup();
-      }
+  public override handleTickEvent(
+    eventName: string,
+    args: JsonValue = null,
+    timerId?: number,
+  ): void {
+    if (eventName === TNT_MINES_EVENTS.Wakeup) {
+      (this.host as TntMinesEntity | null)?.wakeup();
+      return;
+    }
+    if (eventName === TNT_MINES_EVENTS.SpawnMine) {
+      this.spawnMineFromEvent(args);
+      return;
+    }
+    super.handleTickEvent(eventName, args, timerId);
+  }
+
+  private spawnMineFromEvent(args: JsonValue): void {
+    const host = this.host as TntMinesEntity | null;
+    if (!host || !args || typeof args !== "object" || Array.isArray(args)) return;
+
+    const { col, row, level } = args as Record<string, JsonValue>;
+    if (typeof col !== "number" || typeof row !== "number" || typeof level !== "number") return;
+
+    DeferredManager.Instance.defer(() => {
+      const newMine = this.createEntity(host.scene, col, row, level);
+      newMine.wakeup();
     });
   }
 
@@ -137,14 +189,8 @@ export class TntMinesModel extends PlantModel {
           texture: 'plant/tnt_mines',
           duration: arcDuration,
         });
-        entity.model.tickmanager.delayedCall({
-          delay: arcDuration,
-          callback: () => {
-            DeferredManager.Instance.defer(() => {
-              const newMine = this.createEntity(scene, pos.col, pos.row, entity.level);
-              newMine.wakeup();
-            });
-          }
+        this.tickmanager.schedule(TNT_MINES_EVENTS.SpawnMine, arcDuration, {
+          args: { col: pos.col, row: pos.row, level: entity.level },
         });
       }
     }
@@ -198,8 +244,8 @@ export class TntMinesEntity extends PlantEntity {
   }
 
   public wakeup(): void {
-    if (this.currentHealth > 0 && this.isBuried && this.game) {
-      this.isBuried = false;
+    if (this.currentHealth > 0 && this.model.isBuried && this.game) {
+      this.model.isBuried = false;
 
       this.buriedSprite.setVisible(false);
       SfxCmd.Create(DirtOutSfx, {
@@ -212,50 +258,79 @@ export class TntMinesEntity extends PlantEntity {
   }
 
   public override onHurt(damage: number, realDamage: number, dealer?: any, source?: any): void {
-    if (this.isBuried) {
+    if (this.model.isBuried) {
       // 埋藏时受伤正常减血
       super.onHurt(damage, realDamage, dealer, source);
     } else {
       // 出土后立即爆炸
-      this.explode();
+      this.model.explode(this, this.level);
     }
   }
 
   public override onCollision(ctx: CollisionContext): void {
-    if (this.isBuried || this.currentHealth <= 0 || this.hasExploded) return;
-    if (!(ctx.targetEntity instanceof CombatEntity)) return;
-    if (ctx.targetEntity.faction === this.faction) return;
+    if (this.currentHealth <= 0) return;
 
-    if (ctx.targetEntity instanceof MonsterEntity) {
-      if (ctx.targetEntity.isInVoid) return;
-      if (canVaultOverMine(ctx.targetEntity, this)) return;
-      if (ctx.targetEntity.isFlying) {
-        this.pendingFlyingMonsters.add(ctx.targetEntity);
-        return;
-      }
+    const action = this.model.handleContact(this, ctx.targetEntity);
+    if (action === "pending" && ctx.targetEntity instanceof MonsterEntity) {
+      this.pendingFlyingMonsters.add(ctx.targetEntity);
+      return;
     }
-    this.explode();
+    if (action === "explode") this.model.explode(this, this.level);
   }
 
   public override stepUpdate(): void {
-    if (this.hasExploded || this.isBuried || this.currentHealth <= 0) {
+    if (this.model.hasExploded || this.model.isBuried || this.currentHealth <= 0) {
       if (this.pendingFlyingMonsters.size > 0) this.pendingFlyingMonsters.clear();
       return;
     }
-    if (this.pendingFlyingMonsters.size === 0) return;
 
     const range = PositionManager.Instance.GRID_SIZEX * 0.5;
-    for (const m of this.pendingFlyingMonsters) {
-      if (m.isDying || m.currentHealth <= 0 || m.isInVoid ||
-        m.row !== this.row || Math.abs(m.x - this.x) > range) {
-        this.pendingFlyingMonsters.delete(m);
-        continue;
-      }
-      if (!m.isFlying) {
+    const mobs = MobManager.Instance.MobsByLane.get(this.row);
+    if (mobs) {
+      for (const mob of mobs) {
+        if (!(mob instanceof MonsterEntity)) continue;
+        if (mob.currentHealth <= 0 || mob.model.isDying || mob.model.isInVoid) continue;
+
+        const action = this.model.handleContact(this, mob);
+        if (action === "pending") {
+          this.pendingFlyingMonsters.add(mob);
+          continue;
+        }
+        if (action === "ignore") {
+          this.pendingFlyingMonsters.delete(mob);
+          continue;
+        }
+        if (mob.row !== this.row || Math.abs(mob.x - this.x) > range) continue;
         this.model.explode(this, this.level);
         return;
       }
     }
+
+    if (this.pendingFlyingMonsters.size === 0) return;
+    for (const m of this.pendingFlyingMonsters) {
+      if (m.model.isDying || m.currentHealth <= 0 || m.model.isInVoid ||
+        m.row !== this.row || Math.abs(m.x - this.x) > range) {
+        this.pendingFlyingMonsters.delete(m);
+        continue;
+      }
+      if (!m.model.isFlying) {
+        const action = this.model.handleContact(this, m);
+        if (action === "explode") {
+          this.model.explode(this, this.level);
+          return;
+        }
+        if (action === "ignore") this.pendingFlyingMonsters.delete(m);
+      }
+    }
+  }
+
+  public override syncViewFromModel(): void {
+    super.syncViewFromModel();
+    if (!this.viewGroup?.children) return;
+
+    const buried = this.model.isBuried && this.currentHealth > 0;
+    this.buriedSprite?.setVisible(buried);
+    this.mainSprite?.setVisible(!buried && this.currentHealth > 0);
   }
 
 }

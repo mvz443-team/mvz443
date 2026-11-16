@@ -238,17 +238,8 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
     if (this.model && modelState && typeof modelState === "object" && !Array.isArray(modelState)) {
       restoreModel(this.model, modelState as Record<string, JsonValue>);
     }
-    if (state.hp !== null) this.writeModelNumber("health", state.hp);
-    if (state.maxHp !== null) this.writeModelNumber("healthMax", state.maxHp);
-    if (state.speed !== null) this.writeModelNumber("speed", state.speed);
     this.applySnapshotPosition(state.x, state.y);
     this.syncViewFromModel();
-  }
-
-  private writeModelNumber(name: string, value: number): void {
-    if (!this.model) return;
-    const state = snapshotModel(this.model);
-    if (name in state) restoreModel(this.model, { ...state, [name]: value });
   }
 
   protected applySnapshotPosition(x: number, y: number): void {

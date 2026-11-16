@@ -1,11 +1,12 @@
 import seedrandom from "seedrandom";
 import type { Game } from "../scenes/Game";
 import type { BaseEntity } from "./core/BaseEntity";
+import { CombatEntity } from "./core/CombatEntity";
 import type { MonsterEntity } from "./entities/MonsterEntity";
 import { LogicModel } from "../core/logic/LogicModel";
 import type { JsonValue } from "../core/SimulationState";
 import type { ITickTimerHandle } from "../core/logic/EntityTickManager";
-import { DEFAULT_TICK_EVENT_NAMES, TickEventNameEnums } from "../core/logic/TickEvents";
+import { DEFAULT_TICK_EVENT_NAMES } from "../core/logic/TickEvents";
 import { Faction } from "./Enum";
 import PlantHelper from "../utils/helper/PlantHelper";
 import CombatManager from "../managers/CombatManager";
@@ -13,10 +14,14 @@ import { PositionManager } from "../managers/view/PositionManager";
 import ResourceCmd from "../utils/cmd/ResourceCmd";
 import type { CollisionContext } from "../types";
 
+const MONSTER_EVENTS = {
+  Attack: "MonsterAttack",
+} as const;
+
 export abstract class MonsterModel extends LogicModel {
-  public override readonly tickEventNames = [
+  public override readonly tickEventNames: readonly string[] = [
     ...DEFAULT_TICK_EVENT_NAMES,
-    TickEventNameEnums.MonsterAttack,
+    MONSTER_EVENTS.Attack,
   ];
 
   /** 以下运行时字段全部自动进入快照；新增字段直接写在这里即可。 */
@@ -32,8 +37,6 @@ export abstract class MonsterModel extends LogicModel {
   public carryStarShards: boolean = false;
   public carriedStarShards: number = 0;
   public starShardsDropped: boolean = false;
-  public offsetX: number = 0;
-  public offsetY: number = 0;
   public currentStage: number = -1;
   public hasStick: boolean = false;
   public vaultTargetX: number = 0;
@@ -48,6 +51,8 @@ export abstract class MonsterModel extends LogicModel {
   public arrowInterval: number = 0;
   public hpTriggers: number[] = [];
   public damageThresholds: number[] = [];
+  /** 实体引用关系留在 Entity 编解码，Model 只保存其稳定 id。 */
+  public attackingId: string | null = null;
 
   public abstract readonly mid: number;
   public abstract readonly nameKey: string;
@@ -71,17 +76,28 @@ export abstract class MonsterModel extends LogicModel {
 
   public abstract getWeight(waveID: number): number;
 
+  /** 每个实体由 Model 负责初始化自己的运行时状态。 */
+  public initializeState(scene: Game, col: number, row: number, waveID: number): void {
+    this.waveID = waveID;
+    this.health = this.maxHealth;
+    this.healthMax = this.maxHealth;
+    this.originalSpeed = this.baseSpeed;
+    this.speed = this.originalSpeed;
+    this.isFlying = this.isDefaultFlying;
+    this.isInVoid = this.isDefaultInVoid;
+  }
+
   /** 普攻定时器由 Model 创建；Entity 只保存句柄用于停止。 */
   public beginAttackTimer(_entity: MonsterEntity, intervalMs: number): ITickTimerHandle {
-    return this.tickmanager.schedule(TickEventNameEnums.MonsterAttack, intervalMs, { loop: true });
+    return this.tickmanager.schedule(MONSTER_EVENTS.Attack, intervalMs, { loop: true });
   }
 
   public override handleTickEvent(
-    eventName: TickEventNameEnums | string,
+    eventName: string,
     args: JsonValue = null,
     timerId?: number,
   ): void {
-    if (eventName === TickEventNameEnums.MonsterAttack) {
+    if (eventName === MONSTER_EVENTS.Attack) {
       (this.host as MonsterEntity | null)?.hurtTarget();
       return;
     }
@@ -90,12 +106,14 @@ export abstract class MonsterModel extends LogicModel {
 
   // --- 通用战斗逻辑：Entity 只做胶水调用，决策全部留在这里 -----------------
 
-  public applySpawnSeed(entity: MonsterEntity, spawnSeq: number): void {
+  public getSpawnViewOffset(col: number, row: number, spawnSeq: number): { x: number; y: number } {
     const rng = seedrandom.alea(
-      `${CombatManager.Instance.seed}:${entity.waveID}:${entity.col}:${entity.row}:${spawnSeq}`,
+      `${CombatManager.Instance.seed}:${this.waveID}:${col}:${row}:${spawnSeq}`,
     );
-    entity.offsetX = rng() * PositionManager.Instance.GRID_SIZEX / 5;
-    entity.offsetY = rng() * PositionManager.Instance.GRID_SIZEY / 10;
+    return {
+      x: rng() * PositionManager.Instance.GRID_SIZEX / 5,
+      y: rng() * PositionManager.Instance.GRID_SIZEY / 10,
+    };
   }
 
   public checkOutOfBounds(entity: MonsterEntity): void {
@@ -105,11 +123,7 @@ export abstract class MonsterModel extends LogicModel {
   }
 
   public tryStartAttack(entity: MonsterEntity, target: BaseEntity): boolean {
-    if (entity.isFrozen || entity.attacking === target) return false;
-
-    const targetMonster = target as unknown as MonsterEntity;
-    if (targetMonster.isFlying && !entity.isFlying) return false;
-    if (targetMonster.isInVoid) return false;
+    if (this.isFrozen || !this.canStartAttack(target)) return false;
 
     const current = entity.attacking as unknown as { col?: number; row?: number } | null;
     if (current && typeof current.col === "number" && typeof (target as any).col === "number"
@@ -118,7 +132,8 @@ export abstract class MonsterModel extends LogicModel {
     }
 
     entity.attacking = target as any;
-    entity.isStop = true;
+    this.attackingId = target.SnapshotId;
+    this.isStop = true;
     entity.stopMove();
     (target as any).underAttackBy?.add(entity);
     entity.animController.startArmSwing();
@@ -130,10 +145,11 @@ export abstract class MonsterModel extends LogicModel {
   public stopAttacking(entity: MonsterEntity): void {
     entity.attacking?.underAttackBy?.delete(entity);
     entity.attacking = null;
+    this.attackingId = null;
     entity.animController.stopArmSwing();
     (entity as any).attackTimer?.remove();
     (entity as any).attackTimer = null;
-    entity.isStop = false;
+    this.isStop = false;
     this.onAttackStopped(entity);
     entity.startMove();
   }
@@ -144,25 +160,41 @@ export abstract class MonsterModel extends LogicModel {
 
   public hurtTarget(entity: MonsterEntity): void {
     const target = entity.attacking;
-    if (!target || target.currentHealth <= 0) {
+    if (!target || !this.isValidAttackTarget(target)) {
       this.stopAttacking(entity);
       return;
     }
     target.takeDamage(this.attackDamage, entity as any);
-    if (entity.attacking !== target) return;
-    if (target.currentHealth <= 0) this.stopAttacking(entity);
+    if (!this.isValidAttackTarget(entity.attacking)) this.stopAttacking(entity);
+  }
+
+  public isValidAttackTarget(target: BaseEntity | null): boolean {
+    if (!target || target.SnapshotId !== this.attackingId || target.currentHealth <= 0) return false;
+    return this.canStartAttack(target);
+  }
+
+  /** 目标是否可作为新的普攻对象；已锁定的目标仍可被当前攻击继续命中。 */
+  public canStartAttack(target: BaseEntity): boolean {
+    if (!(target instanceof CombatEntity)) return false;
+    if (target.currentHealth <= 0) return false;
+    if (target.faction === Faction.ZOMBIE) return false;
+    if ((target as { hasExploded?: boolean }).hasExploded) return false;
+    const targetModel = (target as { model?: { isFlying?: boolean; isInVoid?: boolean } }).model;
+    if (targetModel?.isFlying && !this.isFlying) return false;
+    if (targetModel?.isInVoid) return false;
+    return true;
   }
 
   public takeDamage(entity: MonsterEntity, amount: number, dealer?: BaseEntity, source?: BaseEntity): void {
-    if (entity.currentHealth <= 0 || entity.isDying) return;
+    if (entity.currentHealth <= 0 || this.isDying) return;
     const realDamage = Math.min(amount, entity.currentHealth);
     entity.currentHealth -= amount;
-    entity.health = entity.currentHealth;
+    this.health = entity.currentHealth;
     this.onHurt(entity, amount, realDamage, dealer, source);
     entity.animController.highlight();
     if (entity.currentHealth <= 0) {
       entity.currentHealth = 0;
-      entity.health = 0;
+      this.health = 0;
       this.zombieDie(entity);
     }
   }
@@ -175,7 +207,8 @@ export abstract class MonsterModel extends LogicModel {
   }
 
   public zombieDie(entity: MonsterEntity): void {
-    if (entity.isDying) return;
+    if (this.isDying) return;
+    this.isDying = true;
     this.dropCarriedStarShards(entity);
     this.stopAttacking(entity);
     (entity as any).playDeathAnimation();
@@ -183,17 +216,17 @@ export abstract class MonsterModel extends LogicModel {
 
   public addStarShards(entity: MonsterEntity, amount = 1): void {
     if (amount <= 0) return;
-    entity.carryStarShards = true;
-    entity.carriedStarShards += amount;
+    this.carryStarShards = true;
+    this.carriedStarShards += amount;
     (entity as any).startStarShardsOrbitEffect();
   }
 
   public dropCarriedStarShards(entity: MonsterEntity): void {
-    if (entity.starShardsDropped || !entity.carryStarShards) return;
-    entity.starShardsDropped = true;
-    ResourceCmd.AddStarshardToAll(Math.max(1, entity.carriedStarShards));
-    entity.carryStarShards = false;
-    entity.carriedStarShards = 0;
+    if (this.starShardsDropped || !this.carryStarShards) return;
+    this.starShardsDropped = true;
+    ResourceCmd.AddStarshardToAll(Math.max(1, this.carriedStarShards));
+    this.carryStarShards = false;
+    this.carriedStarShards = 0;
   }
 
   public updateBodyDamageStage(entity: MonsterEntity, thresholds: number[]): void {

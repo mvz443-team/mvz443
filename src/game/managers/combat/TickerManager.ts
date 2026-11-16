@@ -5,6 +5,7 @@ import {
 import { PhaserEventBus, PhaserEvents } from "../../EventBus";
 import { BaseManager } from "../BaseManager";
 import type { JsonValue, RestoreContext, TimerState } from "../../core/SimulationState";
+import { resetTickManagerClock } from "../../core/logic/EntityTickManager";
 
 export function timerToState(timer: FrameTimer): TimerState {
   return {
@@ -443,6 +444,7 @@ export default class TickerManager extends BaseManager {
    * 清空所有计时器
    */
   public Reset(): void {
+    resetTickManagerClock();
     PhaserEventBus.off(PhaserEvents.RoomGameStart, this.handleRoomGameStart, this);
     this.timers.clear();
     this.nextTimerId = 1;

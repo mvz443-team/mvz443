@@ -23,7 +23,7 @@ import { MineRockObstacleData } from "../../obstacle";
 import { CentipedeAnimController } from "./centipede_anim";
 import { CENTIPEDE_MINION_WIDTH_CELLS, CentipedeMinionData } from "./centipede_minion";
 import type { JsonValue } from "../../../core/SimulationState";
-import { TickEventNameEnums } from "../../../core/logic/TickEvents";
+import { DEFAULT_TICK_EVENT_NAMES } from "../../../core/logic/TickEvents";
 import type { BaseEntity } from "../../../models/core/BaseEntity";
 
 const PAUSE_BEFORE_SKILL_MS = 6000;
@@ -45,29 +45,34 @@ export function setCentipedeHooks(hooks: CentipedeHooks | null) {
   pendingHooks = hooks;
 }
 
-const CENTIPEDE_EVENTS = [
-  TickEventNameEnums.CentipedeSpawn,
-  TickEventNameEnums.CentipedeCycle,
-  TickEventNameEnums.CentipedeDisappear,
-  TickEventNameEnums.CentipedeSkillStep,
-  TickEventNameEnums.CentipedeRockImpact,
-  TickEventNameEnums.CentipedeSummonSfx,
-  TickEventNameEnums.CentipedeSpawnMinion,
-  TickEventNameEnums.CentipedeBlastImpact,
+const CENTIPEDE_EVENTS = {
+  Spawn: "CentipedeSpawn",
+  Cycle: "CentipedeCycle",
+  Disappear: "CentipedeDisappear",
+  SkillStep: "CentipedeSkillStep",
+  RockImpact: "CentipedeRockImpact",
+  SummonSfx: "CentipedeSummonSfx",
+  SpawnMinion: "CentipedeSpawnMinion",
+  BlastImpact: "CentipedeBlastImpact",
+} as const;
+
+const CENTIPEDE_TICK_EVENT_NAMES = [
+  ...DEFAULT_TICK_EVENT_NAMES,
+  ...Object.values(CENTIPEDE_EVENTS),
 ];
 
 /** 蜈蚣的全部战斗决策（血量触发、四套技能、召唤、范围伤害）都在 Model。 */
 export class CentipedeModel extends PresetMonsterModel {
-  public override readonly tickEventNames = CENTIPEDE_EVENTS;
+  public override readonly tickEventNames: readonly string[] = CENTIPEDE_TICK_EVENT_NAMES;
 
   constructor(def: MonsterDefinition) { super(def); }
 
   public override onCreate(_entity: MonsterEntity): void {
-    this.tickmanager.schedule(TickEventNameEnums.CentipedeSpawn, 250);
+    this.tickmanager.schedule(CENTIPEDE_EVENTS.Spawn, 250);
   }
 
   public override handleTickEvent(
-    eventName: TickEventNameEnums | string,
+    eventName: string,
     args: JsonValue = null,
     timerId?: number,
   ): void {
@@ -75,33 +80,33 @@ export class CentipedeModel extends PresetMonsterModel {
     if (!entity) return;
 
     switch (eventName) {
-      case TickEventNameEnums.CentipedeSpawn:
+      case CENTIPEDE_EVENTS.Spawn:
         entity.notifySpawnHooks();
         this.beginCycle(entity);
         return;
-      case TickEventNameEnums.CentipedeCycle:
+      case CENTIPEDE_EVENTS.Cycle:
         this.runSkillCycle(entity);
         return;
-      case TickEventNameEnums.CentipedeDisappear:
+      case CENTIPEDE_EVENTS.Disappear:
         this.beginDisappear(entity);
         return;
-      case TickEventNameEnums.CentipedeRockImpact:
+      case CENTIPEDE_EVENTS.RockImpact:
         this.rockImpact(entity, numberArg(args, "col", entity.col), numberArg(args, "row", entity.row));
         return;
-      case TickEventNameEnums.CentipedeSummonSfx: {
+      case CENTIPEDE_EVENTS.SummonSfx: {
         const row = numberArg(args, "row", entity.row);
         entity.playSummonEffects(row);
-        this.tickmanager.schedule(TickEventNameEnums.CentipedeSpawnMinion, 450, { args: { row } });
+        this.tickmanager.schedule(CENTIPEDE_EVENTS.SpawnMinion, 450, { args: { row } });
         return;
       }
-      case TickEventNameEnums.CentipedeSpawnMinion:
+      case CENTIPEDE_EVENTS.SpawnMinion:
         MobCmd.Spawn(
           CentipedeMinionData.mid, entity.scene,
           PositionManager.Instance.Col_Number - 1,
           numberArg(args, "row", entity.row), -10,
         );
         return;
-      case TickEventNameEnums.CentipedeBlastImpact:
+      case CENTIPEDE_EVENTS.BlastImpact:
         this.blastImpact(entity, numberArg(args, "col", entity.col), numberArg(args, "row", entity.row));
         return;
       default:
@@ -126,20 +131,20 @@ export class CentipedeModel extends PresetMonsterModel {
   }
 
   private beginCycle(entity: CentipedeEntity): void {
-    if (entity.currentHealth <= 0 || entity.isDying) return;
+    if (entity.currentHealth <= 0 || this.isDying) return;
     entity.stopMove();
-    this.tickmanager.schedule(TickEventNameEnums.CentipedeCycle, PAUSE_BEFORE_SKILL_MS);
+    this.tickmanager.schedule(CENTIPEDE_EVENTS.Cycle, PAUSE_BEFORE_SKILL_MS);
   }
 
   private runSkillCycle(entity: CentipedeEntity): void {
-    if (entity.currentHealth <= 0 || entity.isDying) return;
+    if (entity.currentHealth <= 0 || this.isDying) return;
     const skill = this.pickSkill();
     this.lastSkill = skill;
     if (skill === 1) this.castSkill1(entity);
     else if (skill === 2) this.castSkill2(entity);
     else this.castSkill3(entity);
 
-    this.tickmanager.schedule(TickEventNameEnums.CentipedeDisappear, SKILL_DURATION_MS);
+    this.tickmanager.schedule(CENTIPEDE_EVENTS.Disappear, SKILL_DURATION_MS);
   }
 
   private pickSkill(): SkillIndex {
@@ -149,7 +154,7 @@ export class CentipedeModel extends PresetMonsterModel {
   }
 
   private beginDisappear(entity: CentipedeEntity): void {
-    if (entity.currentHealth <= 0 || entity.isDying) return;
+    if (entity.currentHealth <= 0 || this.isDying) return;
     this.isHidden = true;
     const newRow = Math.floor(MobCmd.DeterministicRandom(0, PositionManager.Instance.Row_Number));
     const clamped = Phaser.Math.Clamp(newRow, 0, PositionManager.Instance.Row_Number - 1);
@@ -175,7 +180,7 @@ export class CentipedeModel extends PresetMonsterModel {
     const targetPos = PositionManager.Instance.getPlantBottomCenter(col, row + 1);
     entity.playArc(targetPos.x, targetPos.y - PositionManager.Instance.GRID_SIZEY * 5, targetPos.x, targetPos.y,
       "sfxCentipedeOrb", 1100, 0);
-    this.tickmanager.schedule(TickEventNameEnums.CentipedeRockImpact, 1100, { args: { col, row } });
+    this.tickmanager.schedule(CENTIPEDE_EVENTS.RockImpact, 1100, { args: { col, row } });
   }
 
   private rockImpact(entity: CentipedeEntity, col: number, row: number): void {
@@ -225,7 +230,7 @@ export class CentipedeModel extends PresetMonsterModel {
       picked.push(pool.splice(Math.min(idx, pool.length - 1), 1)[0]);
     }
     picked.forEach((row, i) => {
-      this.tickmanager.schedule(TickEventNameEnums.CentipedeSummonSfx, 200 + i * 250, { args: { row } });
+      this.tickmanager.schedule(CENTIPEDE_EVENTS.SummonSfx, 200 + i * 250, { args: { row } });
     });
   }
 
@@ -246,7 +251,7 @@ export class CentipedeModel extends PresetMonsterModel {
       const arcDuration = 900 + i * 100;
       entity.playArc(entity.x, entity.y - PositionManager.Instance.GRID_SIZEY * 0.5,
         targetPos.x, targetPos.y, "sfxCentipedeOrb", arcDuration, 220);
-      this.tickmanager.schedule(TickEventNameEnums.CentipedeBlastImpact, arcDuration, {
+      this.tickmanager.schedule(CENTIPEDE_EVENTS.BlastImpact, arcDuration, {
         args: { col: tCol, row: tRow },
       });
     });
@@ -437,7 +442,7 @@ export class CentipedeEntity extends BaseMonsterEntity {
     const to = { x: toViewPos.x + this.offsetX, y: toViewPos.y + this.offsetY };
     const arcHeight = PositionManager.Instance.GRID_SIZEY * 1.45;
     ctrl.startArc(from, to, REPOSITION_ARC_DURATION_MS, arcHeight, undefined, () => {
-      if (this.currentHealth <= 0 || this.isDying) return;
+      if (this.currentHealth <= 0 || this.model.isDying) return;
       const bodyPos = PositionManager.Instance.getZombieBodyCenter(newCol, newRow);
       this.col = newCol;
       this.row = newRow;

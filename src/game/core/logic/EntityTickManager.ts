@@ -5,7 +5,7 @@
  * - 每个 LogicModel 持有一个独立实例，不共享全局 timer 列表。
  * - timer 本体只保存 id / eventName / targetFrame / repeat / interval / group / args，
  *   全部为 JSON 安全数据；callback/context 只存在于 TickEvents 的稳定注册表。
- * - 到点后向宿主 LogicModel 派发 TickEventNameEnums 事件，由 HandleTickEvent 处理。
+ * - 到点后向宿主 LogicModel 派发事件名，由 handleTickEvent 处理。
  * - 同一 callback 只注册一次，回滚不会重新创建函数对象。
  */
 
@@ -135,10 +135,12 @@ type TickEventSink = {
 };
 
 const managedTickManagers = new Set<EntityTickManager>();
+let currentLogicFrame = 0;
+let currentFrameInterval = LEGACY_BALANCE_FRAME_INTERVAL_MS;
 
 export class EntityTickManager implements ITickManagerProxy {
-  public currentFrame = 0;
-  public frameInterval = LEGACY_BALANCE_FRAME_INTERVAL_MS;
+  public currentFrame = currentLogicFrame;
+  public frameInterval = currentFrameInterval;
 
   private ownerId = "entity";
   private nextTimerId = 1;
@@ -395,8 +397,18 @@ export class EntityTickManager implements ITickManagerProxy {
 
 /** 由固定步长主循环调用；只驱动帧号，所有 timer 状态仍归各 LogicModel 所有。 */
 export function updateAllTickManagers(frame: number, frameIntervalMs?: number): void {
+  currentLogicFrame = Math.trunc(frame);
+  if (typeof frameIntervalMs === "number" && frameIntervalMs > 0) {
+    currentFrameInterval = frameIntervalMs;
+  }
   for (const manager of managedTickManagers) {
     manager.setFrame(frame, frameIntervalMs);
     manager.update();
   }
+}
+
+/** 新开一局时重置实体定时器时钟，避免沿用上一局的高帧号。 */
+export function resetTickManagerClock(): void {
+  currentLogicFrame = 0;
+  currentFrameInterval = LEGACY_BALANCE_FRAME_INTERVAL_MS;
 }

@@ -1,5 +1,5 @@
 import type { JsonValue } from "../../../../game/core/SimulationState";
-import { DEFAULT_TICK_EVENT_NAMES, TickEventNameEnums } from "../../../core/logic/TickEvents";
+import { DEFAULT_TICK_EVENT_NAMES } from "../../../core/logic/TickEvents";
 import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
 import { createZombieAnimController } from "../../../models/monster/anims/LegacyMonsterAnimControllers";
@@ -14,35 +14,40 @@ const SUMMON_INTERVAL_MS = 28000;
 const SUMMON_COUNT = 3;
 const SUMMON_RECOVER_MS = 3000;
 
+const EVOKER_EVENTS = {
+  Summon: "EvokerSummon",
+  Resume: "EvokerResume",
+} as const;
+
 /**
  * Evoker 的召唤逻辑完全在 Model 中：
  * timer 只保存 (ownerId, TickEventNameEnums, TriggerFrame)，到点由 HandleTickEvent 派发。
  */
 export class EvokerModel extends PresetMonsterModel {
-  public override readonly tickEventNames = [
+  public override readonly tickEventNames: readonly string[] = [
     ...DEFAULT_TICK_EVENT_NAMES,
-    TickEventNameEnums.EvokerSummon,
-    TickEventNameEnums.EvokerResume,
+    EVOKER_EVENTS.Summon,
+    EVOKER_EVENTS.Resume,
   ];
 
   public override onCreate(entity: MonsterEntity): void {
-    this.tickmanager.schedule(TickEventNameEnums.EvokerSummon, SUMMON_INTERVAL_MS, {
+    this.tickmanager.schedule(EVOKER_EVENTS.Summon, SUMMON_INTERVAL_MS, {
       startAt: SUMMON_START_AT_MS,
       repeat: SUMMON_COUNT,
     });
   }
 
   public override handleTickEvent(
-    eventName: TickEventNameEnums | string,
+    eventName: string,
     args: JsonValue = null,
     timerId?: number,
   ): void {
     const entity = this.host as MonsterEntity | null;
-    if (eventName === TickEventNameEnums.EvokerSummon) {
+    if (eventName === EVOKER_EVENTS.Summon) {
       this.summonVindicator(entity);
       return;
     }
-    if (eventName === TickEventNameEnums.EvokerResume) {
+    if (eventName === EVOKER_EVENTS.Resume) {
       this.resumeAfterSummon(entity);
       return;
     }
@@ -50,7 +55,7 @@ export class EvokerModel extends PresetMonsterModel {
   }
 
   private summonVindicator(entity: MonsterEntity | null): void {
-    if (!entity || entity.isFrozen || entity.currentHealth <= 0) return;
+    if (!entity || this.isFrozen || entity.currentHealth <= 0) return;
 
     entity.stopAttacking();
     entity.stopMove();
@@ -67,11 +72,11 @@ export class EvokerModel extends PresetMonsterModel {
       MobCmd.Spawn(VindicatorData.mid, entity.scene, col, row, -10);
     }
 
-    this.tickmanager.schedule(TickEventNameEnums.EvokerResume, SUMMON_RECOVER_MS);
+    this.tickmanager.schedule(EVOKER_EVENTS.Resume, SUMMON_RECOVER_MS);
   }
 
   private resumeAfterSummon(entity: MonsterEntity | null): void {
-    if (!entity || entity.currentHealth <= 0 || entity.isFrozen) return;
+    if (!entity || entity.currentHealth <= 0 || this.isFrozen) return;
     entity.animController.stopArmSwing();
     entity.startMove();
   }

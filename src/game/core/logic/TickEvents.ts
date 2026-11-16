@@ -1,8 +1,8 @@
 /**
  * 帧定时器事件定义。
  *
- * 定时器本体只保存 (ownerId, TickEventNameEnums, TriggerFrame)，不保存任何函数。
- * 到点后由 LogicModel.HandleTickEvent 按枚举派发，回调通过稳定的事件注册表解析，
+ * 定时器本体只保存 (ownerId, eventName, TriggerFrame)，不保存任何函数。
+ * 到点后由 LogicModel.handleTickEvent 按事件名派发，回调通过稳定的事件注册表解析，
  * 因此回滚/重建不会创建新的函数对象，也不会产生“幽灵回调”。
  */
 
@@ -11,42 +11,6 @@ export const TickEventNameEnums = {
   TimerTriggered: "TimerTriggered",
   /** 逻辑帧推进（可用于状态驱动帧计数）。 */
   LogicTick: "LogicTick",
-  /** 实体自定义事件的起始值；业务可用字符串枚举值。 */
-  Custom: "Custom",
-
-  /** 怪物普攻命中。 */
-  MonsterAttack: "MonsterAttack",
-  /** 骨架弓手射击与恢复移动。 */
-  SkeletonBowShoot: "SkeletonBowShoot",
-  SkeletonBowResume: "SkeletonBowResume",
-  /** Evoker 召唤 vindicator。 */
-  EvokerSummon: "EvokerSummon",
-  /** Evoker 结束召唤姿态。 */
-  EvokerResume: "EvokerResume",
-  /** 龟壳破碎后的连续发箭。 */
-  TurtleShellBurst: "TurtleShellBurst",
-  /** Mutant 砸击后的恢复窗口结束。 */
-  MutantRecover: "MutantRecover",
-  /** Golem 技能循环阶段。 */
-  GolemBegin: "GolemBegin",
-  GolemCast: "GolemCast",
-  GolemArmStop: "GolemArmStop",
-  GolemReposition: "GolemReposition",
-  GolemSummonNext: "GolemSummonNext",
-  WardenLand: "WardenLand",
-  WardenReposition: "WardenReposition",
-  ObsidianColumn: "ObsidianColumn",
-  ObsidianObstacleSpawn: "ObsidianObstacleSpawn",
-  ObsidianReposition: "ObsidianReposition",
-  /** 蜈蚣技能循环阶段。 */
-  CentipedeSpawn: "CentipedeSpawn",
-  CentipedeCycle: "CentipedeCycle",
-  CentipedeDisappear: "CentipedeDisappear",
-  CentipedeSkillStep: "CentipedeSkillStep",
-  CentipedeRockImpact: "CentipedeRockImpact",
-  CentipedeSummonSfx: "CentipedeSummonSfx",
-  CentipedeSpawnMinion: "CentipedeSpawnMinion",
-  CentipedeBlastImpact: "CentipedeBlastImpact",
 } as const;
 
 export type TickEventNameEnums = typeof TickEventNameEnums[keyof typeof TickEventNameEnums];

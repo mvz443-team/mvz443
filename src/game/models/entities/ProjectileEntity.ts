@@ -17,7 +17,7 @@ export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> exte
   public faction: Faction;
 
   // 运行时状态
-  public currentDamage: number;
+  declare public currentDamage: number;
   /** 命中关系集合，由关系快照负责恢复。 */
   public hasAttackedSet: Set<BaseEntity> = new Set();
 
@@ -29,7 +29,7 @@ export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> exte
 
   constructor(scene: Game, x: number, y: number, model: T, cfg: ProjectileConfig) {
     super(scene, x, y, model);
-    this.currentDamage = this.model.damage;
+    this.currentDamage = cfg.damage ?? model.damage;
     this.faction = cfg.faction;
     this.dealer = cfg.dealer;
 
@@ -74,11 +74,11 @@ export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> exte
     // 高度/飞行逻辑判断
     if (this.couldAttackFlying === false) {
       if (ctx.targetEntity instanceof MonsterEntity &&
-        ctx.targetEntity.isFlying) return; // 地面子弹打不到天上
+        ctx.targetEntity.model.isFlying) return; // 地面子弹打不到天上
     }
 
     // 虚空/黑夜逻辑
-    if (ctx.targetEntity instanceof MonsterEntity && ctx.targetEntity.isInVoid) return;
+    if (ctx.targetEntity instanceof MonsterEntity && ctx.targetEntity.model.isInVoid) return;
 
     // 命中效果由 Model 实现，Entity 不写战斗逻辑。
     this.model.applyEffect(this, ctx.targetEntity);

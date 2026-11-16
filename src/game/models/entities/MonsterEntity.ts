@@ -30,8 +30,7 @@ type BoundsGameObject = Phaser.GameObjects.GameObject & {
 
 export abstract class MonsterEntity extends CombatEntity {
   declare public scene: Game;
-  public model: MonsterModel;
-  declare public waveID: number;
+  declare public model: MonsterModel;
 
   protected override getRelationFields(): readonly string[] {
     return MONSTER_RELATION_FIELDS;
@@ -56,18 +55,6 @@ export abstract class MonsterEntity extends CombatEntity {
   declare public y: number;
   public baseDepth: number;
 
-  declare public health: number;
-  declare public speed: number;
-  declare public originalSpeed: number;
-  declare public isFlying: boolean;
-  declare public isInVoid: boolean;
-  declare public isDying: boolean;
-  declare public isFrozen: boolean;
-  declare public isStop: boolean;
-
-  declare public carryStarShards: boolean;
-  declare public carriedStarShards: number;
-  declare public starShardsDropped: boolean;
   private starOrbitSfx: StarShardsOrbitSfx | null = null;
   public attacking: CombatEntity | null = null;
   protected attackTimer: ITickTimerHandle | null = null;
@@ -79,27 +66,19 @@ export abstract class MonsterEntity extends CombatEntity {
   private destroyListeners: Array<(entity: MonsterEntity) => void> = [];
   private initialized = false;
 
-  declare public offsetX: number;
-  declare public offsetY: number;
+  /** 纯视觉出生偏移：让同格实体的渲染不重叠，不影响物理与模拟。 */
+  public offsetX: number = 0;
+  public offsetY: number = 0;
 
   constructor(scene: Game, col: number, row: number, model: MonsterModel, waveID: number) {
     const pos = PositionManager.Instance.getZombieBottomCenter(col, row);
     super(scene, pos.x, pos.y, model.maxHealth, Faction.ZOMBIE, model);
-    this.model = model;
+    this.model.initializeState(scene, col, row, waveID);
     this.col = col;
     this.row = row;
-    this.waveID = waveID;
 
     // 出生偏移必须由 seed 决定（见 applySpawnSeed），不能使用未播种的随机源。
-    this.offsetX = 0;
-    this.offsetY = 0;
     this.baseDepth = DepthHelper.Mob.base(row, this.offsetY);
-
-    this.health = model.maxHealth;
-    this.originalSpeed = model.baseSpeed;
-    this.speed = this.originalSpeed;
-    this.isFlying = model.isDefaultFlying;
-    this.isInVoid = model.isDefaultInVoid;
     this.viewGroup = scene.add.group();
   }
 
@@ -108,7 +87,9 @@ export abstract class MonsterEntity extends CombatEntity {
    * 保证同一局同一出怪序号的偏移在所有端一致。
    */
   public applySpawnSeed(spawnSeq: number): void {
-    this.model.applySpawnSeed(this, spawnSeq);
+    const offset = this.model.getSpawnViewOffset(this.col, this.row, spawnSeq);
+    this.offsetX = offset.x;
+    this.offsetY = offset.y;
     this.baseDepth = DepthHelper.Mob.base(this.row, this.offsetY);
   }
 
@@ -158,7 +139,7 @@ export abstract class MonsterEntity extends CombatEntity {
   }
 
   public override updateView(vec: { x: number, y: number }) {
-    if (this.isDying) return;
+    if (this.model.isDying) return;
     const nextPosition = PositionManager.Instance.getZombieBottomCenterByBody(vec.x, vec.y);
     this.x = nextPosition.x;
     this.y = nextPosition.y;
@@ -177,13 +158,13 @@ export abstract class MonsterEntity extends CombatEntity {
   }
 
   public setVelocityX(vx: number) {
-    if (!this.rigidBody || this.isDying) return;
+    if (!this.rigidBody || this.model.isDying) return;
     this.rigidBody.setLinvel({ x: vx, y: 0 }, true);
   }
 
   public startMove() {
-    if (this.isFrozen || this.isStop || this.isDying) return;
-    this.setVelocityX(-this.speed);
+    if (this.model.isFrozen || this.model.isStop || this.model.isDying) return;
+    this.setVelocityX(-this.model.speed);
     this.animController.startLegSwing();
   }
 
@@ -222,7 +203,6 @@ export abstract class MonsterEntity extends CombatEntity {
   }
 
   protected playDeathAnimation() {
-    this.isDying = true;
     this.stopStarShardsOrbitEffect();
     this.stopMove();
 
@@ -371,7 +351,7 @@ export abstract class MonsterEntity extends CombatEntity {
       getAnchor: () => ({
         x: this.x + this.offsetX,
         y: this.y + this.offsetY,
-        active: !this.isDying,
+        active: !this.model.isDying,
       }),
     });
   }
@@ -422,9 +402,7 @@ export class PresetMonsterModel extends MonsterModel {
   public readonly nameKey: string;
   public readonly texturePath: string;
   public readonly level: number;
-  public readonly weight: (waveID: number) => number;
   public readonly leastWaveID?: number;
-  public readonly leastWaveIDByStageID?: (stageID: number) => number;
   public readonly rank: MonsterRank;
   public readonly maxHealth: number;
   public readonly baseSpeed: number;
@@ -434,7 +412,13 @@ export class PresetMonsterModel extends MonsterModel {
   public readonly isDefaultInVoid: boolean;
   public readonly couldCarryStarShards: boolean;
 
-  private readonly entityFactory: MonsterDefinition["createEntity"];
+  public override get weight(): (waveID: number) => number {
+    return this.getConfigValue<PresetMonsterModel["weight"]>("weight")!;
+  }
+
+  public override get leastWaveIDByStageID(): ((stageID: number) => number) | undefined {
+    return this.getConfigValue<(stageID: number) => number>("leastWaveIDByStageID");
+  }
 
   public constructor(def: MonsterDefinition) {
     super();
@@ -442,9 +426,7 @@ export class PresetMonsterModel extends MonsterModel {
     this.nameKey = def.nameKey;
     this.texturePath = def.texturePath ?? "zombie/zombie";
     this.level = def.level;
-    this.weight = def.weight;
     this.leastWaveID = def.leastWaveID;
-    this.leastWaveIDByStageID = def.leastWaveIDByStageID;
     this.rank = def.rank ?? "normal";
     this.maxHealth = def.maxHealth;
     this.baseSpeed = def.baseSpeed;
@@ -454,7 +436,9 @@ export class PresetMonsterModel extends MonsterModel {
     this.isDefaultFlying = def.isDefaultFlying ?? false;
     this.isDefaultInVoid = def.isDefaultInVoid ?? false;
     this.couldCarryStarShards = def.couldCarryStarShards ?? true;
-    this.entityFactory = def.createEntity;
+    this.setConfigValue("weight", def.weight);
+    this.setConfigValue("leastWaveIDByStageID", def.leastWaveIDByStageID);
+    this.setConfigValue("entityFactory", def.createEntity);
   }
 
   public getWeight(waveID: number): number {
@@ -462,7 +446,8 @@ export class PresetMonsterModel extends MonsterModel {
   }
 
   public createEntity(scene: Game, col: number, row: number, waveID: number): MonsterEntity {
-    return this.initializeEntity(this.entityFactory(scene, col, row, this, waveID));
+    const entityFactory = this.getConfigValue<MonsterDefinition["createEntity"]>("entityFactory")!;
+    return this.initializeEntity(entityFactory(scene, col, row, this, waveID));
   }
 }
 
@@ -474,8 +459,8 @@ export abstract class BaseMonsterEntity extends MonsterEntity {
   public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
     super(scene, col, row, model, waveID);
     this.ExtraData.waveId = waveID;
-    this.currentHealth = model.maxHealth;
-    this.health = model.maxHealth;
+    this.model.health = model.maxHealth;
+    this.model.healthMax = model.maxHealth;
   }
 
   protected abstract createAnimController(): IMonsterAnimController;
@@ -547,7 +532,7 @@ export abstract class BaseMonsterEntity extends MonsterEntity {
   }
 
   protected syncHealth() {
-    this.health = this.currentHealth;
+    this.model.health = this.currentHealth;
   }
 
   public override takeDamage(amount: number, dealer?: BaseEntity, source?: BaseEntity): void {

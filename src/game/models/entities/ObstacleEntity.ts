@@ -18,7 +18,7 @@ export interface ObstacleConfig {
 }
 
 export abstract class ObstacleEntity extends CombatEntity {
-  public model: ObstacleModel;
+  declare public model: ObstacleModel;
 
   public col: number;
   public row: number;
@@ -32,7 +32,6 @@ export abstract class ObstacleEntity extends CombatEntity {
     const { x, y } = PositionManager.Instance.getPlantBottomCenter(col, row);
     super(scene, x, y, config.hp, config.faction, model);
 
-    this.model = model;
     this.col = col;
     this.row = row;
     this.baseDepth = DepthHelper.Plant.base(row);
@@ -79,7 +78,6 @@ export abstract class ObstacleEntity extends CombatEntity {
 
   public override takeDamage(amount: number, dealer?: BaseEntity, source?: BaseEntity): void {
     super.takeDamage(amount, dealer, source);
-    this.health = this.currentHealth;
   }
 
   protected onHurt(amount: number, realDamage: number, dealer?: BaseEntity, source?: BaseEntity): void {

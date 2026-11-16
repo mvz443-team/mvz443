@@ -78,3 +78,40 @@ test('每个实体拿到独立 Model，爆炸逻辑由 Model 自己触发', () =
   clone.onModelDestroy({ id: 'projectile:1' }, calls);
   assert.equal(clone.destroyed, 1);
 });
+
+test('配置函数不进入快照，clone 后仍可读取', () => {
+  class PresetModel extends LogicModel {
+    get weight() {
+      return this.getConfigValue('weight');
+    }
+
+    constructor() {
+      super();
+      this.setConfigValue('weight', (waveID) => waveID * 2);
+      this.level = 1;
+    }
+  }
+
+  const template = new PresetModel();
+  assert.equal(template.weight(3), 6);
+  assert.equal(snapshotModel(template).weight, undefined);
+
+  const clone = template.clone();
+  assert.equal(clone.weight(3), 6);
+  clone.level = 2;
+  assert.equal(template.level, 1);
+});
+
+test('attachModelAccessors 只装访问器，不在 Entity 上复制 Model 状态', () => {
+  const model = new ExplosionModel();
+  const entity = {};
+  attachModelAccessors(entity, model);
+
+  const descriptor = Object.getOwnPropertyDescriptor(entity, 'explodeDamage');
+  assert.equal(typeof descriptor.get, 'function');
+  assert.equal(typeof descriptor.set, 'function');
+  assert.equal(descriptor.value, undefined);
+  entity.explodeDamage = 80;
+  assert.equal(model.explodeDamage, 80);
+  assert.equal(Object.getOwnPropertyDescriptor(entity, 'explodeDamage').value, undefined);
+});

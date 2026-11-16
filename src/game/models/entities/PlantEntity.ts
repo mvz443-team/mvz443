@@ -26,7 +26,7 @@ export abstract class PlantEntity extends CombatEntity {
   public col: number;
   public row: number;
 
-  public level: number;
+  declare public level: number;
   public baseDepth: number;
 
   /** 运行时状态由 Model 的字段访问器提供。 */
@@ -51,7 +51,7 @@ export abstract class PlantEntity extends CombatEntity {
 
     this.col = col;
     this.row = row;
-    this.level = level;
+    this.model.level = level;
   }
 
   public get pid() {

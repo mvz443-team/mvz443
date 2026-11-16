@@ -31,3 +31,7 @@ tools/resources/*
 # Generated protocol contracts
 contracts/
 # protobuf TS contracts are committed so a fresh checkout can build/test.
+
+# Generated protocol contracts
+../proto-repo-temp/
+src/pb/

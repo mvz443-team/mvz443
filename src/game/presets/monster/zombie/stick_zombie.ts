@@ -37,26 +37,26 @@ export class StickZombieModel extends StickModelBase {
   public tryStartVault(entity: MonsterEntity, target: CombatEntity): boolean {
     if (!this.canVaultOverPlant(target as PlantEntity)) return false;
     this.hasStick = false;
-    entity.isFlying = true;
+    this.isFlying = true;
+    entity.setVelocityX(-this.originalSpeed * 2.2);
     this.vaultTargetX = PositionManager.Instance.getGridTopLeft((target as PlantEntity).col, entity.row).x
       - PositionManager.Instance.GRID_SIZEX * 0.25;
-    entity.setVelocityX(-entity.originalSpeed * 2.2);
     return true;
   }
 
   public onVaultCollision(entity: MonsterEntity, target: unknown): boolean {
-    if (!entity.isFlying || !(target instanceof PlantEntity)) return false;
+    if (!this.isFlying || !(target instanceof PlantEntity)) return false;
     (entity as any).vaultCollisionTarget = target;
     return true;
   }
 
   public shouldFinishVault(entity: MonsterEntity): boolean {
-    return entity.isFlying && entity.x <= this.vaultTargetX;
+    return this.isFlying && entity.x <= this.vaultTargetX;
   }
 
   public finishVault(entity: MonsterEntity): void {
-    entity.isFlying = false;
-    entity.speed = entity.originalSpeed * 0.5;
+    this.isFlying = false;
+    this.speed = this.originalSpeed * 0.5;
     this.consumeWeapon(entity);
 
     const target = (entity as any).vaultCollisionTarget as PlantEntity | null;
@@ -84,7 +84,7 @@ export class StickZombieEntity extends StickEntityBase {
 
   public override startAttacking(target: CombatEntity): void {
     if (this.model.tryStartVault(this, target)) return;
-    if (this.isFlying) return;
+    if (this.model.isFlying) return;
     super.startAttacking(target);
   }
 
@@ -100,7 +100,7 @@ export class StickZombieEntity extends StickEntityBase {
 
   public override updateView(vec: { x: number; y: number }): void {
     super.updateView(vec);
-    if (this.isFlying) {
+    if (this.model.isFlying) {
       this.animController.updatePosition(this.x + this.offsetX, this.y + this.offsetY - PositionManager.Instance.GRID_SIZEY * 0.4);
     }
   }

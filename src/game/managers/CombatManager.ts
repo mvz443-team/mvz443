@@ -504,6 +504,9 @@ export default class CombatManager extends BaseManager {
     const frameId = SyncManager.Instance.recvQueue.currentFrameId;
     if (frameId <= 0 || frameId % CombatManager.STATE_HASH_INTERVAL_FRAMES !== 0) return;
     if (frameId === this.lastStateHashFrame) return;
+    // 单机 mock 会话没有真正的跨端分叉检测；建立检查点属于调试功能，
+    // 由 ConsoleCmd 显式触发，避免低频 capture/序列化造成周期性卡顿。
+    if (BackendWS.isMockRoomMode()) return;
     try {
       const hash = simulationState.hash();
       this.lastStateHash = hash.h64;

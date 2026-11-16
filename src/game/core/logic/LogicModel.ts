@@ -51,17 +51,35 @@ export abstract class LogicModel {
   /** 每个 Model 独立持有一个可快照定时器；非枚举，不进入 LogicState 快照。 */
   public readonly tickmanager!: ITickManagerProxy;
   /** 本 Model 关心的计时器事件名列表。 */
-  public readonly tickEventNames!: readonly TickEventNameEnums[];
+  public readonly tickEventNames!: readonly string[];
   /** 宿主实体引用；非枚举，不进入 LogicState 快照。 */
   public readonly host!: ModelHost | null;
+  /** 静态配置（函数、工厂等）；非枚举，不进入 LogicState 快照。 */
+  public readonly config!: Record<string, unknown>;
 
   constructor() {
     installTickManager(this);
+    installConfig(this);
     // 返回代理：派生类字段初始化与后续赋值都自动进入 Undo Log。
     return trackLogicObject(this) as this;
   }
 
-  /** 定时器到点后的统一入口；子类可覆写并按枚举分派业务。 */
+  /** 读取不参与快照的静态配置值。 */
+  public getConfigValue<T>(key: string): T | undefined {
+    return this.getConfigStorage()?.[key] as T | undefined;
+  }
+
+  /** 写入不参与快照的静态配置值；配置对象在实体 clone 间共享。 */
+  protected setConfigValue(key: string, value: unknown): void {
+    const config = this.getConfigStorage();
+    if (config) config[key] = value;
+  }
+
+  private getConfigStorage(): Record<string, unknown> | undefined {
+    return Object.getOwnPropertyDescriptor(this, "config")?.value as Record<string, unknown> | undefined;
+  }
+
+  /** 定时器到点后的统一入口；子类可覆写并按事件名分派业务。 */
   public handleTickEvent(
     eventName: TickEventNameEnums | string,
     args: JsonValue = null,
@@ -143,9 +161,21 @@ function installTickManager(model: LogicModel): void {
   });
 }
 
+function installConfig(model: LogicModel, source?: Record<string, unknown>): void {
+  const existing = Object.getOwnPropertyDescriptor(model, "config")?.value;
+  Object.defineProperty(model, "config", {
+    value: existing ?? source ?? {},
+    enumerable: false,
+    writable: false,
+    configurable: true,
+  });
+}
+
 export function cloneLogicModel<T extends LogicModel>(model: T): T {
+  const config = Object.getOwnPropertyDescriptor(model, "config")?.value as Record<string, unknown> | undefined;
   const copy = Object.assign(Object.create(Object.getPrototypeOf(model)), model) as T;
   installTickManager(copy);
+  installConfig(copy, config);
   return trackLogicObject(copy) as T;
 }
 

@@ -12,16 +12,21 @@ import ObstacleCmd from "../../../utils/cmd/ObstacleCmd";
 import { PlantCmd } from "../../../utils/cmd/PlantCmd";
 import { ObsidianObstacleData } from "../../obstacle";
 import type { JsonValue } from "../../../core/SimulationState";
-import { TickEventNameEnums } from "../../../core/logic/TickEvents";
 import { GolemModel, BaseGolemEntity, GOLEM_TICK_EVENT_NAMES } from "./shared";
+
+const OBSIDIAN_EVENTS = {
+  Column: "ObsidianColumn",
+  ObstacleSpawn: "ObsidianObstacleSpawn",
+  Reposition: "ObsidianReposition",
+} as const;
 
 /** 黑曜石 Golem 的岩柱生成与范围伤害全部在 Model。 */
 export class ObsidianGolemModel extends GolemModel {
-  public override readonly tickEventNames = [
+  public override readonly tickEventNames: readonly string[] = [
     ...GOLEM_TICK_EVENT_NAMES,
-    TickEventNameEnums.ObsidianColumn,
-    TickEventNameEnums.ObsidianObstacleSpawn,
-    TickEventNameEnums.ObsidianReposition,
+    OBSIDIAN_EVENTS.Column,
+    OBSIDIAN_EVENTS.ObstacleSpawn,
+    OBSIDIAN_EVENTS.Reposition,
   ];
 
   constructor(def: MonsterDefinition) {
@@ -30,16 +35,16 @@ export class ObsidianGolemModel extends GolemModel {
   }
 
   public override handleTickEvent(
-    eventName: TickEventNameEnums | string,
+    eventName: string,
     args: JsonValue = null,
     timerId?: number,
   ): void {
     const entity = this.host as ObsidianGolemEntity | null;
-    if (eventName === TickEventNameEnums.ObsidianColumn && entity) {
+    if (eventName === OBSIDIAN_EVENTS.Column && entity) {
       this.spawnColumn(entity, numberArg(args, "col", entity.col), numberArg(args, "row", entity.row));
       return;
     }
-    if (eventName === TickEventNameEnums.ObsidianObstacleSpawn && entity) {
+    if (eventName === OBSIDIAN_EVENTS.ObstacleSpawn && entity) {
       this.createObstacleAndDamage(
         entity,
         numberArg(args, "col", entity.col),
@@ -48,7 +53,7 @@ export class ObsidianGolemModel extends GolemModel {
       );
       return;
     }
-    if (eventName === TickEventNameEnums.ObsidianReposition && entity) {
+    if (eventName === OBSIDIAN_EVENTS.Reposition && entity) {
       entity.applyObsidianReposition(numberArg(args, "row", entity.row));
       return;
     }
@@ -66,7 +71,7 @@ export class ObsidianGolemModel extends GolemModel {
       for (let r = 0; r < PositionManager.Instance.Row_Number; r += 2) rows.push(r);
     }
     rows.forEach((row, index) => {
-      this.tickmanager.schedule(TickEventNameEnums.ObsidianColumn, 800 + index * 600, {
+      this.tickmanager.schedule(OBSIDIAN_EVENTS.Column, 800 + index * 600, {
         args: { col: entity.col, row, hp: 300, arcHeight: 800 + index * 100 },
       });
     });
@@ -92,7 +97,7 @@ export class ObsidianGolemModel extends GolemModel {
       duration: 1200,
       arcHeight,
     });
-    this.tickmanager.schedule(TickEventNameEnums.ObsidianObstacleSpawn, 1200, {
+    this.tickmanager.schedule(OBSIDIAN_EVENTS.ObstacleSpawn, 1200, {
       args: { col, row, hp },
     });
   }
@@ -112,7 +117,7 @@ export class ObsidianGolemModel extends GolemModel {
   public beginReposition(entity: ObsidianGolemEntity): void {
     entity.playObsidianHighJump();
     const newRow = entity.randomInt(PositionManager.Instance.Row_Number);
-    this.tickmanager.schedule(TickEventNameEnums.ObsidianReposition, 1200, {
+    this.tickmanager.schedule(OBSIDIAN_EVENTS.Reposition, 1200, {
       args: { row: newRow, col: 8 },
     });
   }

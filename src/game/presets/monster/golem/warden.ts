@@ -5,30 +5,34 @@ import { WardenGolemAnimProps } from "../../../sprite/normal_golem";
 import MobCmd from "../../../utils/cmd/MobCmd";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import type { JsonValue } from "../../../core/SimulationState";
-import { TickEventNameEnums } from "../../../core/logic/TickEvents";
 import { GolemModel, BaseGolemEntity, GOLEM_TICK_EVENT_NAMES } from "./shared";
+
+const WARDEN_EVENTS = {
+  Land: "WardenLand",
+  Reposition: "WardenReposition",
+} as const;
 
 /** Warden 的技能决策在 Model。 */
 export class WardenModel extends GolemModel {
-  public override readonly tickEventNames = [
+  public override readonly tickEventNames: readonly string[] = [
     ...GOLEM_TICK_EVENT_NAMES,
-    TickEventNameEnums.WardenLand,
-    TickEventNameEnums.WardenReposition,
+    WARDEN_EVENTS.Land,
+    WARDEN_EVENTS.Reposition,
   ];
 
   constructor(def: MonsterDefinition) { super(def); }
 
   public override handleTickEvent(
-    eventName: TickEventNameEnums | string,
+    eventName: string,
     args: JsonValue = null,
     timerId?: number,
   ): void {
     const entity = this.host as WardenEntity | null;
-    if (eventName === TickEventNameEnums.WardenLand && entity) {
+    if (eventName === WARDEN_EVENTS.Land && entity) {
       entity.onWardenLand();
       return;
     }
-    if (eventName === TickEventNameEnums.WardenReposition && entity) {
+    if (eventName === WARDEN_EVENTS.Reposition && entity) {
       const row = readNumber(args, "row", entity.row);
       const col = readNumber(args, "col", entity.col);
       entity.applyWardenReposition(row, col);
@@ -53,7 +57,7 @@ export class WardenModel extends GolemModel {
   public override skill2(entity: BaseGolemEntity): void {
     MobCmd.AnnounceBossSkill(entity.scene, "warden", "burrow_ambush");
     entity.playWardenHighJump();
-    this.tickmanager.schedule(TickEventNameEnums.WardenLand, 1000);
+    this.tickmanager.schedule(WARDEN_EVENTS.Land, 1000);
   }
 
   public onWardenLand(entity: WardenEntity): void {
@@ -67,7 +71,7 @@ export class WardenModel extends GolemModel {
     entity.playWardenDig();
     const newRow = entity.randomInt(PositionManager.Instance.Row_Number);
     const newCol = entity.getRandom()() > 0.5 ? 8 : 3;
-    this.tickmanager.schedule(TickEventNameEnums.WardenReposition, 1600, {
+    this.tickmanager.schedule(WARDEN_EVENTS.Reposition, 1600, {
       args: { row: newRow, col: newCol },
     });
   }

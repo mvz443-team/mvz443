@@ -1,4 +1,6 @@
 import { LevelScaledValue } from "../../../../utils/numbervalue";
+import { DEFAULT_TICK_EVENT_NAMES } from "../../../core/logic/TickEvents";
+import type { JsonValue } from "../../../core/SimulationState";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -7,12 +9,20 @@ import { GainEnergySfx, GainEnergySfxSize } from "../../../sfx/energy/GainEnergy
 import ResourceCmd from "../../../utils/cmd/ResourceCmd";
 import { SfxCmd } from "../../../utils/cmd/SfxCmd";
 
+const FURNACE_EVENTS = {
+  FurnaceGenerate: "FurnaceGenerate",
+} as const;
 
 export class FurnaceModel extends PlantModel {
   public override pid = 2;
   public override nameKey = 'name_furnace';
   public override descriptionKey = 'furnace_description';
   public override texturePath = 'plant/furnace';
+
+  public override readonly tickEventNames: readonly string[] = [
+    ...DEFAULT_TICK_EVENT_NAMES,
+    FURNACE_EVENTS.FurnaceGenerate,
+  ];
 
   public maxHealth = new LevelScaledValue(300);
   public cost = new LevelScaledValue(50).setThreshold(5, 35);
@@ -25,23 +35,49 @@ export class FurnaceModel extends PlantModel {
 
   isNightPlant = false;
 
+  /** 视觉生成态：进 Model 快照，回滚后由实体同步 sprite frame。 */
+  public generating = false;
+
   onCreate(entity: FurnaceEntity): void {
     // 启动能量生产定时器
     const cooldownTime = this.generateEnergyCooldown.getValueAt(entity.level);
-
-    entity.model.tickmanager.addEvent({
+    this.tickmanager.schedule(FURNACE_EVENTS.FurnaceGenerate, cooldownTime, {
       startAt: cooldownTime * 0.7,
-      delay: cooldownTime,
-      repeat: -1,
-      callback: () => {
-        if (entity.isSleeping) return;
-        if (entity.currentHealth > 0 && entity.scene && entity.scene.time) {
-          entity.playGenerateAnimation();
-          this.playGainEnergySfx(entity, "medium", true);
-          const energyToAdd = this.generateEnergyAmount.getValueAt(entity.level);
-          ResourceCmd.AddEnergyToAll(energyToAdd);
-        }
+      loop: true,
+    });
+  }
+
+  public override handleTickEvent(
+    eventName: string,
+    args: JsonValue = null,
+    timerId?: number,
+  ): void {
+    if (eventName === FURNACE_EVENTS.FurnaceGenerate) {
+      const eventArgs = args && typeof args === "object" && !Array.isArray(args)
+        ? args as Record<string, JsonValue>
+        : {};
+      if (eventArgs.reset === true) {
+        this.generating = false;
+        (this.host as FurnaceEntity | null)?.syncViewFromModel();
+        return;
       }
+      this.onGenerate(this.host as FurnaceEntity | null);
+      return;
+    }
+    super.handleTickEvent(eventName, args, timerId);
+  }
+
+  private onGenerate(entity: FurnaceEntity | null): void {
+    if (!entity) return;
+    if (this.isSleeping || entity.currentHealth <= 0 || !entity.scene?.time) return;
+
+    this.generating = true;
+    entity.syncViewFromModel();
+    this.playGainEnergySfx(entity, "medium", true);
+    const energyToAdd = this.generateEnergyAmount.getValueAt(entity.level);
+    ResourceCmd.AddEnergyToAll(energyToAdd);
+    this.tickmanager.schedule(FURNACE_EVENTS.FurnaceGenerate, 1000, {
+      args: { reset: true },
     });
   }
 
@@ -102,21 +138,15 @@ export class FurnaceEntity extends PlantEntity {
     this.viewGroup.add(sprite);
   }
 
-  public playGenerateAnimation() {
-    const sprite = this.viewGroup.getChildren()[0] as Phaser.GameObjects.Sprite;
-    if (!sprite) return;
+  public override syncViewFromModel(): void {
+    super.syncViewFromModel();
+    if (!this.viewGroup?.children) return;
+    const sprite = this.viewGroup.getChildren()[0] as Phaser.GameObjects.Sprite | undefined;
+    if (!sprite?.frame) return;
 
-    // 切换帧到生成状态
-    sprite.setFrame(1);
-
-    // 1秒后恢复
-    this.scene.time.delayedCall(
-      1000,
-      () => {
-        if (this && this.currentHealth && this.currentHealth > 0) {
-          sprite.setFrame(0);
-        }
-      });
+    const model = this.model as FurnaceModel;
+    const frame = model.generating && this.currentHealth > 0 ? 1 : 0;
+    if (sprite.frame.name !== String(frame)) sprite.setFrame(frame);
   }
 }
 

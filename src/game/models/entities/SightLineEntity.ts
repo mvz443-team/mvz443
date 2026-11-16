@@ -304,7 +304,7 @@ export class SightLineEntity extends BaseEntity {
     if (target.currentHealth <= 0) return false;
     if (!this.matchFaction(target.faction)) return false;
     if (!this.includeTiny && target.isTiny) return false;
-    if (!this.includeFlying && target instanceof MonsterEntity && target.isFlying) return false;
+    if (!this.includeFlying && target instanceof MonsterEntity && target.model.isFlying) return false;
     if (target.GetRow() !== row) return false;
 
     return this.isInBaseRay(target.x, originX) || this.isInBounceRay(target, originX, reflectors);

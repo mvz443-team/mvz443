@@ -26,8 +26,8 @@ export class TurtleZombieModel extends withHelmetModel(PresetMonsterModel) {
   public override onHelmetBroken(entity: MonsterEntity): void {
     if (this.buffApplied) return;
     this.buffApplied = true;
-    entity.speed = entity.originalSpeed * 2;
-    if (!entity.attacking && !entity.isFrozen) entity.startMove();
+    this.speed = this.originalSpeed * 2;
+    if (!this.attackingId && !this.isFrozen) entity.startMove();
   }
 }
 

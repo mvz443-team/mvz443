@@ -4,7 +4,7 @@ import { PositionManager } from "../../../managers/view/PositionManager";
 import { Faction } from "../../../models/Enum";
 import type { Game } from "../../../scenes/Game";
 import type { JsonValue } from "../../../core/SimulationState";
-import { DEFAULT_TICK_EVENT_NAMES, TickEventNameEnums } from "../../../core/logic/TickEvents";
+import { DEFAULT_TICK_EVENT_NAMES } from "../../../core/logic/TickEvents";
 import type { MonsterDefinition } from "../../../models/entities/MonsterEntity";
 import { SkeletonBowModel } from "../../../models/entities/BaseSkeletonBowEntity";
 import { BaseSkeletonBowEntity } from "../../../models/entities/BaseSkeletonBowEntity";
@@ -15,6 +15,10 @@ import { withShieldModel, type EquipmentDef } from "../../../models/equipment/Eq
 
 const SHELL_BURST_COUNT = 5;
 const SHELL_BURST_INTERVAL_MS = 600;
+
+const TURTLE_SHELL_EVENTS = {
+  Burst: "TurtleShellBurst",
+} as const;
 
 function createTurtleShellDef(): EquipmentDef {
   return {
@@ -43,9 +47,9 @@ export class TurtleSkeletonBowModel extends TurtleModelBase {
     this.arrowInterval = 2000;
   }
 
-  public override readonly tickEventNames = [
+  public override readonly tickEventNames: readonly string[] = [
     ...DEFAULT_TICK_EVENT_NAMES,
-    TickEventNameEnums.TurtleShellBurst,
+    TURTLE_SHELL_EVENTS.Burst,
   ];
 
   public override onCreate(entity: MonsterEntity): void {
@@ -54,11 +58,11 @@ export class TurtleSkeletonBowModel extends TurtleModelBase {
   }
 
   public override handleTickEvent(
-    eventName: TickEventNameEnums | string,
+    eventName: string,
     args: JsonValue = null,
     timerId?: number,
   ): void {
-    if (eventName === TickEventNameEnums.TurtleShellBurst) {
+    if (eventName === TURTLE_SHELL_EVENTS.Burst) {
       this.fireBurstArrow(this.host as MonsterEntity | null);
       return;
     }
@@ -71,9 +75,9 @@ export class TurtleSkeletonBowModel extends TurtleModelBase {
   }
 
   public override onShieldBroken(entity: MonsterEntity): void {
-    entity.speed = entity.originalSpeed * 2;
+    this.speed = this.originalSpeed * 2;
     for (let i = 0; i < SHELL_BURST_COUNT; i++) {
-      this.tickmanager.schedule(TickEventNameEnums.TurtleShellBurst, SHELL_BURST_INTERVAL_MS * i);
+      this.tickmanager.schedule(TURTLE_SHELL_EVENTS.Burst, SHELL_BURST_INTERVAL_MS * i);
     }
   }
 

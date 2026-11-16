@@ -10,22 +10,26 @@ import type { MonsterDefinition } from "../../../models/entities/MonsterEntity";
 import { BaseMonsterEntity, PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
 import type { JsonValue } from "../../../core/SimulationState";
-import { DEFAULT_TICK_EVENT_NAMES, TickEventNameEnums } from "../../../core/logic/TickEvents";
+import { DEFAULT_TICK_EVENT_NAMES } from "../../../core/logic/TickEvents";
 import SoundCmd from "../../../utils/cmd/SoundCmd";
 import CombatManager from "../../../managers/CombatManager";
 
+const GOLEM_EVENTS = {
+  Begin: "GolemBegin",
+  Cast: "GolemCast",
+  ArmStop: "GolemArmStop",
+  Reposition: "GolemReposition",
+  SummonNext: "GolemSummonNext",
+} as const;
+
 export const GOLEM_TICK_EVENT_NAMES = [
   ...DEFAULT_TICK_EVENT_NAMES,
-  TickEventNameEnums.GolemBegin,
-  TickEventNameEnums.GolemCast,
-  TickEventNameEnums.GolemArmStop,
-  TickEventNameEnums.GolemReposition,
-  TickEventNameEnums.GolemSummonNext,
+  ...Object.values(GOLEM_EVENTS),
 ];
 
 /** Golem 技能状态机与召唤决策全部在 Model；Entity 只提供动画/物理表现。 */
 export class GolemModel extends PresetMonsterModel {
-  public override readonly tickEventNames = GOLEM_TICK_EVENT_NAMES;
+  public override readonly tickEventNames: readonly string[] = GOLEM_TICK_EVENT_NAMES;
 
   public pendingSpawns: number[] = [];
   private nextSkill: 1 | 2 = 1;
@@ -33,41 +37,41 @@ export class GolemModel extends PresetMonsterModel {
   constructor(def: MonsterDefinition) { super(def); }
 
   public override onCreate(_entity: MonsterEntity): void {
-    this.tickmanager.schedule(TickEventNameEnums.GolemBegin, 2500);
+    this.tickmanager.schedule(GOLEM_EVENTS.Begin, 2500);
   }
 
   public override handleTickEvent(
-    eventName: TickEventNameEnums | string,
+    eventName: string,
     args: JsonValue = null,
     timerId?: number,
   ): void {
     const entity = this.host as BaseGolemEntity | null;
     if (!entity) return;
-    if (eventName === TickEventNameEnums.GolemBegin) {
+    if (eventName === GOLEM_EVENTS.Begin) {
       if (entity.currentHealth <= 0) return;
       entity.onGolemBegin();
       this.runCycle(entity);
       this.callMob(entity);
       return;
     }
-    if (eventName === TickEventNameEnums.GolemCast) {
+    if (eventName === GOLEM_EVENTS.Cast) {
       if (entity.currentHealth <= 0) return;
       entity.animController.startArmSwing();
       if (this.readSkillArg(args) === 1) this.skill1(entity);
       else this.skill2(entity);
-      this.tickmanager.schedule(TickEventNameEnums.GolemArmStop, 3200);
+      this.tickmanager.schedule(GOLEM_EVENTS.ArmStop, 3200);
       return;
     }
-    if (eventName === TickEventNameEnums.GolemArmStop) {
+    if (eventName === GOLEM_EVENTS.ArmStop) {
       entity.onGolemArmStop();
-      this.tickmanager.schedule(TickEventNameEnums.GolemReposition, entity.getGolemRecoverDelay());
+      this.tickmanager.schedule(GOLEM_EVENTS.Reposition, entity.getGolemRecoverDelay());
       return;
     }
-    if (eventName === TickEventNameEnums.GolemReposition) {
+    if (eventName === GOLEM_EVENTS.Reposition) {
       entity.repositionGolem(() => this.runCycle(entity));
       return;
     }
-    if (eventName === TickEventNameEnums.GolemSummonNext) {
+    if (eventName === GOLEM_EVENTS.SummonNext) {
       this.spawnNextBatch(entity);
       return;
     }
@@ -89,7 +93,7 @@ export class GolemModel extends PresetMonsterModel {
 
   private runCycle(entity: BaseGolemEntity): void {
     this.nextSkill = this.nextSkill === 1 ? 2 : 1;
-    this.tickmanager.schedule(TickEventNameEnums.GolemCast, entity.getGolemCastDelay(), {
+    this.tickmanager.schedule(GOLEM_EVENTS.Cast, entity.getGolemCastDelay(), {
       args: { skill: this.nextSkill },
     });
   }
@@ -123,7 +127,7 @@ export class GolemModel extends PresetMonsterModel {
     }
     if (this.pendingSpawns.length > 0) {
       this.tickmanager.schedule(
-        TickEventNameEnums.GolemSummonNext,
+        GOLEM_EVENTS.SummonNext,
         4500 + Math.floor(random() * 2500),
       );
     }
