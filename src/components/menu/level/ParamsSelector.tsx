@@ -17,7 +17,6 @@ import BackendWS from '../../../utils/net/sync';
 import { Request, RequestChooseMap, RequestReady } from '../../../pb/request';
 import { SendReady } from '../../../utils/net/room';
 import type { StageData } from '../../../types/stage';
-import { LEGACY_BALANCE_FRAME_INTERVAL_MS } from '../../../constants/physics';
 
 interface ParamsSelectorProps {
   chapterId: number;
@@ -253,7 +252,6 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
           isBgm: settings.isBgm,
           isSoundAudio: settings.isSoundAudio,
           showCardLevelInGame: settings.showCardLevelInGame,
-          gameUpdateIntervalMs: LEGACY_BALANCE_FRAME_INTERVAL_MS,
           bgmVolume: settings.bgmVolume,
           soundAudioVolume: settings.soundAudioVolume,
         }
@@ -301,7 +299,6 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
         isBgm: settings.isBgm,
         isSoundAudio: settings.isSoundAudio,
         showCardLevelInGame: settings.showCardLevelInGame,
-        gameUpdateIntervalMs: settings.gameUpdateIntervalMs,
         bgmVolume: settings.bgmVolume,
         soundAudioVolume: settings.soundAudioVolume,
       }

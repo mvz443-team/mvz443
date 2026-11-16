@@ -42,8 +42,7 @@ import {
 } from '../../constants/gameLayout';
 import {
   LEGACY_BALANCE_FRAME_INTERVAL_MS,
-  getRapierTimestepSeconds,
-  normalizeGameUpdateIntervalMs
+  getRapierTimestepSeconds
 } from '../../constants/physics';
 import { CardSlots } from '../ui/cardslots';
 import { MobileCardSlots } from '../ui/cardslots_mobile';
@@ -138,7 +137,7 @@ export class Game extends Scene {
     // TODO : 根据type具体判断放置那张背景图
     this.params = this.game.registry.get('gameParams') as GameParams;
     this.innerSettings = this.params.gameSettings;
-    const frameIntervalMs = this.applyFrameIntervalSettings();
+    const frameIntervalMs = LEGACY_BALANCE_FRAME_INTERVAL_MS;
     const deviceType = this.params.deviceType ?? 'pc';
     this.scaleFactor = 1;
     PositionManager.Instance.setSceneViewportSize(
@@ -257,17 +256,6 @@ export class Game extends Scene {
         console.error("[Game] media assets are not ready; loaded signal was not sent.", error);
       }
     }
-  }
-
-  private applyFrameIntervalSettings(): number {
-    const frameIntervalMs = BackendWS.isOnlineMode()
-      ? LEGACY_BALANCE_FRAME_INTERVAL_MS
-      : normalizeGameUpdateIntervalMs(this.params.gameSettings.gameUpdateIntervalMs);
-
-    this.innerSettings.gameUpdateIntervalMs = frameIntervalMs;
-    SyncManager.Instance.setFrameIntervalMs(frameIntervalMs);
-    TickerManager.Instance.setFrameInterval(frameIntervalMs);
-    return frameIntervalMs;
   }
 
   private async waitForMediaReady(): Promise<void> {

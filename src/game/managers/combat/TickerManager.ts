@@ -1,7 +1,4 @@
-import {
-  LEGACY_BALANCE_FRAME_INTERVAL_MS,
-  normalizeGameUpdateIntervalMs
-} from "../../../constants/physics";
+import { LEGACY_BALANCE_FRAME_INTERVAL_MS } from "../../../constants/physics";
 import { PhaserEventBus, PhaserEvents } from "../../EventBus";
 import { BaseManager } from "../BaseManager";
 import type { JsonValue, RestoreContext, TimerState } from "../../core/SimulationState";
@@ -113,7 +110,7 @@ export type AddEventConfigType = {
 export default class TickerManager extends BaseManager {
   private static _instance: TickerManager;
 
-  public frameInterval: number = LEGACY_BALANCE_FRAME_INTERVAL_MS;
+  public readonly frameInterval: number = LEGACY_BALANCE_FRAME_INTERVAL_MS;
   public currentFrame: number = 0;
 
   private timers: Map<number, FrameTimer> = new Map();
@@ -138,10 +135,6 @@ export default class TickerManager extends BaseManager {
 
   private handleRoomGameStart() {
     this.initStart();
-  }
-
-  public setFrameInterval(frameIntervalMs: number): void {
-    this.frameInterval = normalizeGameUpdateIntervalMs(frameIntervalMs);
   }
 
   /**
@@ -450,7 +443,6 @@ export default class TickerManager extends BaseManager {
     this.nextTimerId = 1;
     this.currentFrame = 0;
     this.startTime = 0;
-    this.frameInterval = LEGACY_BALANCE_FRAME_INTERVAL_MS;
   }
 }
 

@@ -1,12 +1,6 @@
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { debounce } from '../utils/debounce';
 import { changeLocale, Locale } from '../i18n';
-import {
-  GameUpdateIntervalMs,
-  normalizeGameUpdateIntervalMs
-} from '../constants/physics';
-
-const DEFAULT_GAME_UPDATE_INTERVAL_MS: GameUpdateIntervalMs = 10;
 
 const loadCookie = <T,>(key: string, defaultValue: T): T => {
   const value = document.cookie
@@ -32,7 +26,6 @@ interface GameSettings {
   showCardLevelInGame: boolean;
   bgmVolume: number;
   soundAudioVolume: number;
-  gameUpdateIntervalMs: GameUpdateIntervalMs;
   linkOptions: {
     baseUrl: string;
     key: string;
@@ -48,7 +41,6 @@ interface GameSettings {
   setShowCardLevelInGame: (showCardLevelInGame: boolean) => void;
   setBgmVolume: (volume: number) => void;
   setSoundAudioVolume: (volume: number) => void;
-  setGameUpdateIntervalMs: (intervalMs: number) => void;
   setLinkOptions: (baseUrl: string, key: string) => void;
   exportAsJson: () => string;
   importFromJson: (jsonString: string) => void;
@@ -72,9 +64,6 @@ export function SettingsProvider(props: Props) {
   const [showCardLevelInGame, setShowCardLevelInGameStatus] = useState<boolean>(loadCookie('showCardLevelInGame', true));
   const [bgmVolume, setBgmVolumeStatus] = useState<number>(loadCookie('bgmVolume', loadCookie('isBgm', true) ? 1 : 0));
   const [soundAudioVolume, setSoundAudioVolumeStatus] = useState<number>(loadCookie('soundAudioVolume', loadCookie('isSoundAudio', true) ? 1 : 0));
-  const [gameUpdateIntervalMs, setGameUpdateIntervalMsStatus] = useState<GameUpdateIntervalMs>(
-    normalizeGameUpdateIntervalMs(loadCookie('gameUpdateIntervalMs', DEFAULT_GAME_UPDATE_INTERVAL_MS), DEFAULT_GAME_UPDATE_INTERVAL_MS)
-  );
   const [linkOptions, setLinkOptionsStatus] = useState<{ baseUrl: string; key: string }>(
     loadCookie('linkOptions', { baseUrl: '', key: '' })
   );
@@ -145,14 +134,6 @@ export function SettingsProvider(props: Props) {
     }, 50)(value);
   };
 
-  const setGameUpdateIntervalMs = (value: number) => {
-    debounce((newVal: number) => {
-      const intervalMs = normalizeGameUpdateIntervalMs(newVal);
-      setGameUpdateIntervalMsStatus(intervalMs);
-      storeCookie('gameUpdateIntervalMs', intervalMs);
-    }, 50)(value);
-  };
-
   const setLinkOptions = (baseUrl: string, key: string) => {
     debounce((newBaseUrl, newKey) => {
       setLinkOptionsStatus({ baseUrl: newBaseUrl, key: newKey });
@@ -194,10 +175,9 @@ export function SettingsProvider(props: Props) {
       showLevelIntroImages,
       showCardLevelInGame,
       bgmVolume,
-      soundAudioVolume,
-      gameUpdateIntervalMs
+      soundAudioVolume
     });
-  }, [isFullScreen, width, language, isBluePrint, showLevelIntroImages, showCardLevelInGame, bgmVolume, soundAudioVolume, gameUpdateIntervalMs]);
+  }, [isFullScreen, width, language, isBluePrint, showLevelIntroImages, showCardLevelInGame, bgmVolume, soundAudioVolume]);
 
   const importFromJson = (jsonString: string) => {
     const data = JSON.parse(jsonString);
@@ -220,11 +200,6 @@ export function SettingsProvider(props: Props) {
     if (typeof data.soundAudioVolume === 'number') {
       setSoundAudioVolumeStatus(clampVolume(data.soundAudioVolume));
     }
-    if (typeof data.gameUpdateIntervalMs === 'number') {
-      const intervalMs = normalizeGameUpdateIntervalMs(data.gameUpdateIntervalMs);
-      setGameUpdateIntervalMsStatus(intervalMs);
-      storeCookie('gameUpdateIntervalMs', intervalMs);
-    }
   };
 
   useEffect(() => {
@@ -239,7 +214,6 @@ export function SettingsProvider(props: Props) {
     setShowCardLevelInGameStatus(loadCookie('showCardLevelInGame', true));
     setBgmVolumeStatus(loadCookie('bgmVolume', loadCookie('isBgm', true) ? 1 : 0));
     setSoundAudioVolumeStatus(loadCookie('soundAudioVolume', loadCookie('isSoundAudio', true) ? 1 : 0));
-    setGameUpdateIntervalMsStatus(normalizeGameUpdateIntervalMs(loadCookie('gameUpdateIntervalMs', DEFAULT_GAME_UPDATE_INTERVAL_MS), DEFAULT_GAME_UPDATE_INTERVAL_MS));
     setLinkOptionsStatus(loadCookie('linkOptions', { baseUrl: '', key: '' }));
   }, []);
 
@@ -255,7 +229,6 @@ export function SettingsProvider(props: Props) {
     showCardLevelInGame,
     bgmVolume,
     soundAudioVolume,
-    gameUpdateIntervalMs,
     linkOptions,
     toggleFullScreen,
     setWidth,
@@ -268,7 +241,6 @@ export function SettingsProvider(props: Props) {
     setShowCardLevelInGame,
     setBgmVolume,
     setSoundAudioVolume,
-    setGameUpdateIntervalMs,
     setLinkOptions,
     exportAsJson,
     importFromJson,

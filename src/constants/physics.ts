@@ -2,20 +2,7 @@ import { BATTLE_GRID_CELL_WIDTH } from "./gameLayout";
 
 export const RAPIER_DEFAULT_TIMESTEP_SECONDS = 1 / 60;
 export const LEGACY_BALANCE_FRAME_INTERVAL_MS = 50;
-export const GAME_UPDATE_INTERVAL_MS_OPTIONS = [10, 20, 50, 100] as const;
 const ONE_GRID_VELOCITY_CALIBRATION = 1.0;
-
-export type GameUpdateIntervalMs = typeof GAME_UPDATE_INTERVAL_MS_OPTIONS[number];
-
-export function normalizeGameUpdateIntervalMs(
-  value: unknown,
-  fallback: GameUpdateIntervalMs = LEGACY_BALANCE_FRAME_INTERVAL_MS
-): GameUpdateIntervalMs {
-  const interval = Number(value);
-  return GAME_UPDATE_INTERVAL_MS_OPTIONS.includes(interval as GameUpdateIntervalMs)
-    ? interval as GameUpdateIntervalMs
-    : fallback;
-}
 
 export function getRapierTimestepSeconds(frameIntervalMs = LEGACY_BALANCE_FRAME_INTERVAL_MS): number {
   return frameIntervalMs / 1000;

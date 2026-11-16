@@ -47,8 +47,11 @@ class MockServer {
   private readonly clientTimeoutMs: number = 15000;
   private readonly maxResendPerPull: number = 32;
   private readonly maxHistoryFrames: number = 600;
-  private readonly estimatedLeadFrames: number = 8;
-  private readonly baseDeltaFrames: number = 2;
+  // 与 Go server constants.CommandLeadFrames 对齐：操作最早落在客户端当前帧 + 2。
+  private readonly commandLeadFrames: number = 2;
+  // mock server 没有独立时钟，只预生成 1 帧，确保操作目标帧尚未生成，
+  // 否则高接收延迟下客户端可能先消费掉没有该操作的旧帧。
+  private readonly serverLeadFrames: number = 1;
 
   private isRunning: boolean = false;
   private roomId: number = 1;
@@ -309,13 +312,13 @@ class MockServer {
       base?.base?.frameId ?? 0,
       base?.base?.ackFrameId ?? 0
     );
-    const earliestServerFrame = reportedCurrentFrame + this.getCurrentLeadFrames();
+    const earliestServerFrame = reportedCurrentFrame + this.commandLeadFrames;
     const requestedFrame = base?.processFrameId ?? 0;
     return Math.max(requestedFrame, earliestServerFrame);
   }
 
   private getCurrentLeadFrames(): number {
-    return this.estimatedLeadFrames + this.baseDeltaFrames;
+    return this.serverLeadFrames;
   }
 
   private getMaxClientAckFrameId(): number {

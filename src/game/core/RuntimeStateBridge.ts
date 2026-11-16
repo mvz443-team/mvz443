@@ -189,7 +189,7 @@ export function installRuntimeStateSources(): void {
   simulationState.registerValue(
     "ticker.frameInterval",
     () => ticker.frameInterval,
-    (value) => { ticker.setFrameInterval(Number(value) || ticker.frameInterval); },
+    () => { /* 逻辑帧间隔固定为 50ms，不接受旧快照覆盖。 */ },
   );
   simulationState.registerValue("resources", () => resources.GetResourceState(), (value) => {
     resources.RestoreResourceState(value as Record<string, number>);

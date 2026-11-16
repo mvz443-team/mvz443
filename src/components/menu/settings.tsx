@@ -6,7 +6,6 @@ import { debounce } from '../../utils/debounce';
 import BackendWS from '../../utils/net/sync';
 import { createRoom, getRoomsInfo, RoomInfo, RoomListWidget } from '../../utils/net/lobby';
 import { Locale, useLocaleMessages } from '../../hooks/useLocaleMessages';
-import { GAME_UPDATE_INTERVAL_MS_OPTIONS } from '../../constants/physics';
 
 interface Props {
   width: number;
@@ -275,18 +274,6 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
             controlProps: {
               value: settingManager.showCardLevelInGame, onToggle: (val) => {
                 debounce((newVal) => settingManager.setShowCardLevelInGame(newVal), 50)(val);
-              }
-            }
-          },
-          {
-            titleKey: "menu.settings_gaming_update_interval",
-            descriptionKey: "menu.settings_gaming_update_interval_t",
-            controlType: "selections",
-            controlProps: {
-              options: GAME_UPDATE_INTERVAL_MS_OPTIONS.map(String),
-              selected: String(settingManager.gameUpdateIntervalMs),
-              onSelect: (val) => {
-                settingManager.setGameUpdateIntervalMs(Number(val));
               }
             }
           },

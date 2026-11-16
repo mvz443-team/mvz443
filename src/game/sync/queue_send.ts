@@ -15,7 +15,8 @@ import { LEGACY_BALANCE_FRAME_INTERVAL_MS } from "../../constants/physics";
 export default class QueueSend {
   queues: Denque<Request>;
   private readonly pendingStateHashes: Denque<{ frameId: number; hash: number }> = new Denque();
-  private readonly commandBaseDeltaFrames: number = 2;
+  // 与 Go server constants.CommandLeadFrames 对齐：点击后最少 2 帧进入权威帧。
+  private readonly commandLeadFrames: number = 2;
   private readonly frameIntervalMsProvider: () => number;
   private lastBlankAckFrameIdSent: number = -1;
   private lastBlankAckFrameIdQueued: number = -1;
@@ -151,7 +152,7 @@ export default class QueueSend {
     const roundTripLatencyMs = sendLatencyMs + receiveLatencyMs;
     const networkDelayFrames = Math.ceil(roundTripLatencyMs / this.getFrameIntervalMs());
 
-    return networkDelayFrames + this.commandBaseDeltaFrames;
+    return networkDelayFrames + this.commandLeadFrames;
   }
 
   /** @returns 本次操作的 client_op_seq，用于关联服务端失败回包和撤销预测。 */
