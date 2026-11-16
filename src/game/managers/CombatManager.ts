@@ -74,6 +74,7 @@ export default class CombatManager extends BaseManager {
   private lastRestoreReport: ReturnType<typeof simulationState.restore> | null = null;
   private desyncOffline = false;
   private desyncReason = "";
+  private desyncLogExported = false;
   private lastCheckpointFrame = 0;
   /** 进行中的确定性自检（回滚-重放）任务。 */
   private pendingDeterminismCheck: { targetFrame: number; expectedHash: string; restoreFrame: number } | null = null;
@@ -166,6 +167,9 @@ export default class CombatManager extends BaseManager {
     this.snapshotRing = [];
     this.pendingDeterminismCheck = null;
     this.lastRestoreReport = null;
+    this.desyncOffline = false;
+    this.desyncReason = "";
+    this.desyncLogExported = false;
     this.Eventbus.removeAllListeners();
     this.combatStatus = {
       dayOrNight: true,
@@ -181,6 +185,7 @@ export default class CombatManager extends BaseManager {
     if (this.desyncOffline) {
       this.isGameEnd = true;
       this.isPaused = true;
+      this.exportDesyncLog();
       this.Eventbus.emit("onCombatEnd", isWin);
       return;
     }
@@ -435,7 +440,8 @@ export default class CombatManager extends BaseManager {
 
   /** 分叉日志只在结算时下载一次，内容来自确定性模拟状态。 */
   public exportDesyncLog(): void {
-    if (!this.desyncOffline) return;
+    if (!this.desyncOffline || this.desyncLogExported) return;
+    this.desyncLogExported = true;
     const log = {
       type: "mvz443-desync-report",
       reason: this.desyncReason,
@@ -536,7 +542,7 @@ export default class CombatManager extends BaseManager {
     const inline = buildInlineSnapshotOrHash(state, hash.h32);
     return {
       frameId,
-      hash: hash.h32,
+      hash: Number.parseInt(hash.h32, 16).toString(16).padStart(8, "0"),
       payload: inline.snapshot ?? { hash: inline.hash },
     };
   }

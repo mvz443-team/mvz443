@@ -117,6 +117,8 @@ export default class QueueSend {
         ackFrameId: BackendWS.AckFrameID,
         stateHash: entry.hash,
         hashFrameId: entry.frameId,
+        stateHashHex: "",
+        inlineSnapshotJson: "",
       };
       BackendWS.send(Request.toBinary({
         payload: { blank: request, oneofKind: "blank" }
@@ -133,7 +135,9 @@ export default class QueueSend {
         frameId: currentFrameId,
         ackFrameId: BackendWS.AckFrameID,
         stateHash: 0,
-        hashFrameId: 0
+        hashFrameId: 0,
+        stateHashHex: "",
+        inlineSnapshotJson: "",
       },
       col,
       row,
@@ -214,7 +218,9 @@ export default class QueueSend {
       frameId,
       ackFrameId: BackendWS.AckFrameID,
       stateHash: 0,
-      hashFrameId: 0
+      hashFrameId: 0,
+      stateHashHex: "",
+      inlineSnapshotJson: "",
     };
     // console.log("[QueueSend] queue blank frame", {
     //   frameId,

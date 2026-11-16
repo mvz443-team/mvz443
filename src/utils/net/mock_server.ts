@@ -593,6 +593,7 @@ class MockServer {
     return {
       processFrameId: frameId,
       operationIndex: this.nextOperationIndex(),
+      responseClientOpSeq: request.base?.clientOpSeq ?? 0,
       payload: {
         oneofKind: "cardPlant",
         cardPlant: {
@@ -616,6 +617,7 @@ class MockServer {
     return {
       processFrameId: frameId,
       operationIndex: this.nextOperationIndex(),
+      responseClientOpSeq: request.base?.clientOpSeq ?? 0,
       payload: {
         oneofKind: "removePlant",
         removePlant: {
@@ -637,6 +639,7 @@ class MockServer {
     return {
       processFrameId: frameId,
       operationIndex: this.nextOperationIndex(),
+      responseClientOpSeq: request.base?.clientOpSeq ?? 0,
       payload: {
         oneofKind: "useStarShards",
         useStarShards: {
@@ -656,6 +659,7 @@ class MockServer {
     return {
       processFrameId: frameId,
       operationIndex: this.nextOperationIndex(),
+      responseClientOpSeq: 0,
       payload: {
         oneofKind: "gameEvent",
         gameEvent: {

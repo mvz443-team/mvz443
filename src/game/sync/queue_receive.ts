@@ -115,6 +115,7 @@ export default class QueueReceive {
       operations: [{
         processFrameId: frameId,
         operationIndex: Number.MAX_SAFE_INTEGER,
+        responseClientOpSeq: 0,
         payload: {
           oneofKind: "gameEvent",
           gameEvent: {

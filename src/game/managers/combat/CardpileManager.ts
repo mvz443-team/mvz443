@@ -169,6 +169,13 @@ export default class CardpileManager extends BaseManager {
     }
   }
 
+  /** 拒绝预测后清除预演冷却，使回滚后的卡槽显示与权威状态一致。 */
+  public ClearPreviewCooldowns(): void {
+    for (const status of this.cardpileStatus.values()) {
+      status.previewLeftMs = 0;
+    }
+  }
+
   /** 卡槽冷却状态（含表现层预演值），用于精确回滚。 */
   public CaptureCardpileState(): Record<string, unknown> {
     return {

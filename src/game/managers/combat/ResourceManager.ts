@@ -233,6 +233,22 @@ export default class ResourceManager extends BaseManager {
     this.Eventbus.emit('onStarShardsUpdate', this.getDisplayStarShards(playerId), playerId);
   }
 
+  /** 拒绝预测后清除尚未被权威更新抵消的预演资源，避免回滚后 HUD 仍显示已撤销的花费。 */
+  public ClearPreviewDeltas(): void {
+    const players = new Set<PlayerIdentify>([
+      ...this.EnergyMaps.keys(),
+      ...this.StarShardsMaps.keys(),
+      ...this.previewEnergyDeltaMaps.keys(),
+      ...this.previewStarShardsDeltaMaps.keys(),
+    ]);
+    this.previewEnergyDeltaMaps.clear();
+    this.previewStarShardsDeltaMaps.clear();
+    for (const playerId of players) {
+      this.Eventbus.emit('onEnergyUpdate', this.getDisplayEnergy(playerId), playerId);
+      this.Eventbus.emit('onStarShardsUpdate', this.getDisplayStarShards(playerId), playerId);
+    }
+  }
+
   private reconcilePreviewDelta(
     previewMap: Map<PlayerIdentify, number>,
     actualDelta: number,

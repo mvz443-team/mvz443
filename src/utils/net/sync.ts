@@ -29,7 +29,7 @@ class WebSocketClient {
   // 断线重连状态：InGame 掉线后保留本地战局，按退避重连并请求补帧。
   private reconnectAttempt: number = 0;
   private reconnectTimer: number | null = null;
-  private isReconnecting: boolean = false;
+  private reconnecting: boolean = false;
   private static readonly MAX_RECONNECT_ATTEMPTS = 12;
   private offlineMode: "none" | "desync" = "none";
   private latencySamples: number[] = [];
@@ -232,7 +232,7 @@ class WebSocketClient {
   }
 
   public isReconnecting(): boolean {
-    return this.isReconnecting || this.reconnectTimer !== null;
+    return this.reconnecting || this.reconnectTimer !== null;
   }
 
   public recordLatencySample(sampleMs: number): void {
@@ -287,13 +287,13 @@ class WebSocketClient {
       return;
     }
 
-    this.isReconnecting = reconnect;
+    this.reconnecting = reconnect;
     this.ws = new WebSocket(url);
     this.ws.binaryType = "arraybuffer";
 
     this.ws.onopen = () => {
       console.log(reconnect ? "WebSocket reconnected." : "WebSocket connection established.");
-      this.isReconnecting = false;
+      this.reconnecting = false;
       if (reconnect) {
         this.reconnectAttempt = 0;
         onlineStateManager.updateOnlineMode(true);
@@ -366,7 +366,7 @@ class WebSocketClient {
         roomInfo: onlineStateManager.getRoomInfo()
       });
 
-      this.isReconnecting = false;
+      this.reconnecting = false;
       // InGame/Loading 掉线时不销毁本地战局，保留状态等待补帧重连。
       if (stage === EnumGameStage.InGame || stage === EnumGameStage.Loading) {
         this.scheduleReconnect();
@@ -405,7 +405,7 @@ class WebSocketClient {
       this.reconnectTimer = null;
     }
     this.reconnectAttempt = 0;
-    this.isReconnecting = false;
+    this.reconnecting = false;
   }
 
   private giveUpReconnect(message: string) {
@@ -536,7 +536,9 @@ class WebSocketClient {
   }
 
   isOnlineMode(): boolean {
-    return (!this.isMockRoomMode()) && onlineStateManager.getIsOnlineMode();
+    return (!this.isMockRoomMode())
+      && onlineStateManager.getIsOnlineMode()
+      && !this.isDesyncOfflineMode();
   }
 
   isMockRoomMode(): boolean {

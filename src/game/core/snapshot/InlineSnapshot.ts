@@ -5,6 +5,7 @@
  */
 
 import type { JsonValue, SimulationState } from "../SimulationState.ts";
+import { SIMULATION_STATE_VERSION } from "../SimulationState.ts";
 
 export interface InlineSnapshot {
   version: 1;
@@ -23,7 +24,26 @@ export function createInlineSnapshot(state: SimulationState, hash: string): Inli
       timers: state.timers,
       prngs: state.prngs,
       entities: state.entities,
-    },
+    } as unknown as JsonValue,
+  };
+}
+
+/** 重连回放：把 inline payload 还原成可直接 restore 的 SimulationState。 */
+export function restoreInlineSnapshot(snapshot: InlineSnapshot): SimulationState {
+  const payload = snapshot.payload;
+  if (!payload || typeof payload !== "object" || !("values" in payload)) {
+    throw new Error("inline 快照缺少状态正文");
+  }
+  const body = payload as Record<string, JsonValue>;
+  return {
+    version: SIMULATION_STATE_VERSION,
+    seed: Number(body.seed) || 0,
+    frameId: Number(body.frameId) || 0,
+    values: (body.values ?? {}) as unknown as SimulationState["values"],
+    timers: (body.timers ?? {}) as unknown as SimulationState["timers"],
+    prngs: (body.prngs ?? []) as unknown as SimulationState["prngs"],
+    entities: (body.entities ?? []) as unknown as SimulationState["entities"],
+    physics: null,
   };
 }
 

@@ -13,6 +13,8 @@ import { onlineStateManager } from "../../store/OnlineStateManager";
 import { PeerInfo, RoomAllReadyEvent } from "../../types/online";
 import { computeLoadoutHash } from "./loadout";
 import CombatManager from "../../game/managers/CombatManager";
+import { restoreInlineSnapshot } from "../../game/core/snapshot/InlineSnapshot";
+import type { InlineSnapshot } from "../../game/core/snapshot/InlineSnapshot";
 
 export default class WSClientHandlers {
   private ws: WebSocketClient;
@@ -143,6 +145,17 @@ export default class WSClientHandlers {
       case 'replayFrames': {
         const replay = roomResponse.payload.replayFrames;
         const receiveQueue = this.ws.getReceiveQueue();
+        if (replay.checkpointFrameId > 0 && replay.inlineSnapshotJson) {
+          try {
+            const snapshot = JSON.parse(replay.inlineSnapshotJson) as InlineSnapshot;
+            const state = restoreInlineSnapshot(snapshot);
+            state.frameId = replay.checkpointFrameId;
+            CombatManager.Instance.restoreState(state, "rebuild");
+            receiveQueue?.restoreToFrame(replay.checkpointFrameId);
+          } catch (error) {
+            console.warn("[checkpoint] replay snapshot restore failed", error);
+          }
+        }
         for (const frame of replay.frames) {
           if (receiveQueue) receiveQueue.handleInGameResponse(frame);
           else this.ws.enqueuePendingInGameResponse(frame);

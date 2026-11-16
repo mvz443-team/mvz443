@@ -219,6 +219,18 @@ export interface ResponseReplayFrames {
      * @generated from protobuf field: uint32 to_frame_id = 3
      */
     toFrameId: number;
+    /**
+     * 已确认 checkpoint 的帧号；大于 0 时客户端应先恢复该帧快照再快进 frames。
+     *
+     * @generated from protobuf field: uint32 checkpoint_frame_id = 4
+     */
+    checkpointFrameId: number;
+    /**
+     * checkpoint 对应的 inline 状态 JSON；为空表示服务端只缓存了 hash。
+     *
+     * @generated from protobuf field: string inline_snapshot_json = 5
+     */
+    inlineSnapshotJson: string;
 }
 /**
  * 客户端加入时通知的信息， 或者广播给所有客户端的信息
@@ -1033,7 +1045,9 @@ class ResponseReplayFrames$Type extends MessageType<ResponseReplayFrames> {
         super("messages.ResponseReplayFrames", [
             { no: 1, name: "frames", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => InGameResponse },
             { no: 2, name: "from_frame_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 3, name: "to_frame_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 3, name: "to_frame_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 4, name: "checkpoint_frame_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 5, name: "inline_snapshot_json", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ResponseReplayFrames>): ResponseReplayFrames {
@@ -1041,6 +1055,8 @@ class ResponseReplayFrames$Type extends MessageType<ResponseReplayFrames> {
         message.frames = [];
         message.fromFrameId = 0;
         message.toFrameId = 0;
+        message.checkpointFrameId = 0;
+        message.inlineSnapshotJson = "";
         if (value !== undefined)
             reflectionMergePartial<ResponseReplayFrames>(this, message, value);
         return message;
@@ -1058,6 +1074,12 @@ class ResponseReplayFrames$Type extends MessageType<ResponseReplayFrames> {
                     break;
                 case /* uint32 to_frame_id */ 3:
                     message.toFrameId = reader.uint32();
+                    break;
+                case /* uint32 checkpoint_frame_id */ 4:
+                    message.checkpointFrameId = reader.uint32();
+                    break;
+                case /* string inline_snapshot_json */ 5:
+                    message.inlineSnapshotJson = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1080,6 +1102,12 @@ class ResponseReplayFrames$Type extends MessageType<ResponseReplayFrames> {
         /* uint32 to_frame_id = 3; */
         if (message.toFrameId !== 0)
             writer.tag(3, WireType.Varint).uint32(message.toFrameId);
+        /* uint32 checkpoint_frame_id = 4; */
+        if (message.checkpointFrameId !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.checkpointFrameId);
+        /* string inline_snapshot_json = 5; */
+        if (message.inlineSnapshotJson !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.inlineSnapshotJson);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
