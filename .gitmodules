@@ -1,0 +1,3 @@
+[submodule "proto-repo-temp"]
+	path = proto-repo-temp
+	url = https://github.com/mvz443-team/protos.git
