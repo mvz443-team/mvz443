@@ -64,7 +64,7 @@ export class PumpkinModel extends PlantModel {
       ignoreBounce: true,
     });
 
-    entity.tickmanager.addEvent({
+    entity.model.tickmanager.addEvent({
       startAt: attackInterval * 0.75, // 第一次攻击延迟
       delay: attackInterval,
       repeat: -1,
@@ -73,7 +73,7 @@ export class PumpkinModel extends PlantModel {
 
         if (sightLine.hasTarget()) {
           entity.playAttackAnimation();
-          entity.tickmanager.delayedCall({
+          entity.model.tickmanager.delayedCall({
             delay: 100, // 动画播放中途发射
             callback: () => {
               this.normalShot(entity.scene, entity);

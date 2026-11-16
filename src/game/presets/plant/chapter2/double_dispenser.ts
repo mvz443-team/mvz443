@@ -48,7 +48,7 @@ export class DoubleDispenserModel extends PlantModel {
       includeFlying: false,
     });
 
-    entity.tickmanager.addEvent({
+    entity.model.tickmanager.addEvent({
       startAt: 600,
       delay: 900,
       loop: true,
@@ -58,7 +58,7 @@ export class DoubleDispenserModel extends PlantModel {
         if (sightLine.hasTarget()) {
           entity.playShootAnimation();
 
-          entity.tickmanager.delayedCall({
+          entity.model.tickmanager.delayedCall({
             delay: 200,
             callback: () => {
               this.shootNormal(entity);
@@ -78,7 +78,7 @@ export class DoubleDispenserModel extends PlantModel {
     const elapsed = Math.floor(front / back);
     let frontCount = 0;
 
-    entity.tickmanager.addEvent({
+    entity.model.tickmanager.addEvent({
       startAt: 200,
       delay: frontInterval,
       repeat: front - 1,
@@ -98,7 +98,7 @@ export class DoubleDispenserModel extends PlantModel {
 
     // 计算总持续时间
     const overallDuration = 200 + frontInterval * front;
-    entity.tickmanager.delayedCall({
+    entity.model.tickmanager.delayedCall({
       delay: overallDuration,
       callback: () => {
         if (entity.currentHealth > 0) {
@@ -128,7 +128,7 @@ export class DoubleDispenserModel extends PlantModel {
 
     // Lv7+：100ms后再发一发
     if (entity.level >= 7) {
-      entity.tickmanager.delayedCall({
+      entity.model.tickmanager.delayedCall({
         delay: 100,
         callback: () => {
           if (entity.currentHealth <= 0) return;
@@ -159,7 +159,7 @@ export class DoubleDispenserModel extends PlantModel {
 
     // Lv3+：100ms后再发一发反向箭
     if (entity.level >= 3) {
-      entity.tickmanager.delayedCall({
+      entity.model.tickmanager.delayedCall({
         delay: 100,
         callback: () => {
           if (entity.currentHealth <= 0) return;
@@ -177,7 +177,7 @@ export class DoubleDispenserModel extends PlantModel {
 
     // Lv7+：150ms后再发一发反向箭
     if (entity.level >= 7) {
-      entity.tickmanager.delayedCall({
+      entity.model.tickmanager.delayedCall({
         delay: 150,
         callback: () => {
           if (entity.currentHealth <= 0) return;

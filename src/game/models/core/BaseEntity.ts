@@ -1,6 +1,5 @@
 import uniqueId from "lodash/uniqueId";
 import type { Game } from "../../scenes/Game";
-import TickerManager, { TickerManagerProxy } from "../../managers/combat/TickerManager";
 import RAPIER, { Vector } from "@dimforge/rapier2d-deterministic-compat";
 import { CollisionContext } from "../../types";
 import { DeferredManager } from "../../managers/DeferredManager";
@@ -36,21 +35,23 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
   public y: number;
 
   public abstract baseDepth: number;
-  public get SnapshotId(): string { return this.TimerKey; }
+  private snapshotKeyId: string = "";
+  public get SnapshotId(): string { return this.snapshotKeyId; }
   public get id(): string { return this.SnapshotId; }
-  public get snapshotKey(): string { return this.TimerKey; }
-  public get TimerGroupKey(): string { return this.TimerKey; }
+  public get snapshotKey(): string { return this.snapshotKeyId; }
   public get IsAlive(): boolean { return !this.isDestroyQueued && !this.isDestroyed; }
 
-  public adoptStableTimerKey(key: string): void {
-    if (!key || key === this.TimerKey) return;
-    TickerManager.Instance.RenameGroup(this.TimerKey, key);
-    this.TimerKey = key;
-    this.tickmanager = new TickerManagerProxy(key);
+  /** 稳定快照 id，同时作为 Model 定时器的 owner 标签；与全局 timer group 无关。 */
+  public adoptStableSnapshotKey(key: string): void {
+    if (!key || key === this.snapshotKeyId) return;
+    this.snapshotKeyId = key;
+    this.model?.setTickOwnerId(key);
   }
 
-  private TimerKey: string;
-  public tickmanager: TickerManagerProxy;
+  /** @deprecated 使用 adoptStableSnapshotKey；实体已不持有 TimerKey。 */
+  public adoptStableTimerKey(key: string): void {
+    this.adoptStableSnapshotKey(key);
+  }
 
   public rigidBody: RAPIER.RigidBody | null = null;
   public viewGroup: Phaser.GameObjects.Group;
@@ -67,11 +68,12 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
     this.x = x;
     this.y = y;
     this.viewGroup = scene.add.group();
-    this.TimerKey = uniqueId("entity_");
-    this.tickmanager = new TickerManagerProxy(this.TimerKey);
+    this.snapshotKeyId = uniqueId("entity_");
     // 每个实体持有独立 Model 副本；Library 里的实例只当模板。
     this.model = model ? cloneLogicModel(model) : null;
     if (this.model) {
+      this.model.setTickOwnerId(this.snapshotKeyId);
+      this.model.attachHost(this);
       attachModelAccessors(this, this.model);
       this.modelBound = true;
     }
@@ -125,6 +127,9 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
 
   public setVisible(visible: boolean) { this.viewGroup.setVisible(visible); }
 
+  /** 默认无视图可同步；Entity 子类按 Model 状态覆写。 */
+  public syncViewFromModel(): void { }
+
   protected abstract buildView(): void;
 
   public updateView(vec: Vector, rotation?: number): void {
@@ -161,7 +166,7 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
         this.rigidBody = null;
       }
       this.viewGroup.destroy(true, true);
-      TickerManager.Instance.RemoveGroup(this.TimerKey);
+      this.model?.disposeTickManager();
       this.isDestroyed = true;
     });
   }
@@ -205,7 +210,7 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
         ...this.captureLogicState(),
         model: this.model ? snapshotModel(this.model) : {},
       },
-      timers: TickerManager.Instance.GetTimerStates().filter((timer) => timer.group === this.TimerKey),
+      timers: this.model?.captureTimers() ?? [],
       extra: {
         rigidBodyHandle: rigidBody ? rigidBody.handle : null,
         hasRigidBody: Boolean(rigidBody),
@@ -218,6 +223,7 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
     restoreRelations(this, state.flags, context, this.getRelationFields());
     restorePrngs(this, state.flags, this.getPrngFields(), context);
     this.restoreLogicState(state.flags, context);
+    this.model?.restoreTimers(state.timers ?? [], context);
 
     const modelState = state.flags.model;
     if (this.model && modelState && typeof modelState === "object" && !Array.isArray(modelState)) {
@@ -227,6 +233,7 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
     if (state.maxHp !== null) this.writeModelNumber("healthMax", state.maxHp);
     if (state.speed !== null) this.writeModelNumber("speed", state.speed);
     this.applySnapshotPosition(state.x, state.y);
+    this.syncViewFromModel();
   }
 
   private writeModelNumber(name: string, value: number): void {

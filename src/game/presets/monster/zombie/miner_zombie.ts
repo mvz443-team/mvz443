@@ -1,42 +1,44 @@
-import { PresetMonsterModel, addHandAttachment } from "../../../models/entities/MonsterEntity";
 import type { Game } from "../../../scenes/Game";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
-import { BaseZombieEntity } from "./zombie";
+import { createZombieAnimController } from "../../../models/monster/anims/LegacyMonsterAnimControllers";
+import type { MonsterDefinition } from "../../../models/entities/MonsterEntity";
+import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
+import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
+import { EquippedMonsterEntity, withWeaponModel, type EquipmentDef } from "../../../models/equipment/Equipment";
 
-export class MinerZombieEntity extends BaseZombieEntity {
-  private swingTween: Phaser.Tweens.Tween | null = null;
+export const PICKAXE_WEAPON: EquipmentDef = {
+  key: "attach/hd_pickaxe",
+  maxHealth: 0,
+  thresholds: [],
+  visual: {
+    attachment: "hand",
+    swingAngle: -15,
+    swingDuration: 200,
+    depth: 13,
+  },
+};
 
-  public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
-    super(scene, col, row, model, waveID);
-    addHandAttachment(this, "attach/hd_pickaxe");
-  }
+/** 镐子是武器能力；挥动由 Model 的攻击状态驱动，Entity 只播放 Tween。 */
+export class MinerZombieModel extends withWeaponModel(PresetMonsterModel) {
+  constructor(def: MonsterDefinition) { super(def); }
 
-  public override startAttacking(target: any) {
-    if (!this.swingTween) {
-      const sprite = this.attachSprites.get("attach/hd_pickaxe");
-      if (sprite) {
-        this.swingTween = this.scene.tweens.add({
-          targets: sprite,
-          angle: -15,
-          duration: 200,
-          yoyo: true,
-          repeat: -1,
-          ease: "Sine.easeInOut",
-        });
-      }
-    }
-    super.startAttacking(target);
-  }
-
-  public override stopAttacking() {
-    this.swingTween?.stop();
-    this.swingTween = null;
-    this.attachSprites.get("attach/hd_pickaxe")?.setAngle(0);
-    super.stopAttacking();
+  public override onCreate(entity: MonsterEntity): void {
+    this.equipWeapon(entity, PICKAXE_WEAPON);
   }
 }
 
-export const MinerZombieData = new PresetMonsterModel({
+export class MinerZombieEntity extends EquippedMonsterEntity {
+  declare public model: MinerZombieModel;
+
+  public constructor(scene: Game, col: number, row: number, model: MinerZombieModel, waveID: number) {
+    super(scene, col, row, model, waveID);  }
+
+  protected createAnimController() {
+    return createZombieAnimController("zombie", this.scene, this.x, this.y);
+  }
+}
+
+export const MinerZombieData = new MinerZombieModel({
   mid: 4,
   nameKey: "MinerZombie",
   level: 2,
@@ -46,5 +48,6 @@ export const MinerZombieData = new PresetMonsterModel({
   baseSpeed: MonsterSpeed.MinerZombie,
   attackDamage: 60,
   attackInterval: ZombieAttackInterval.MinerZombie,
-  createEntity: (scene, col, row, model, waveID) => new MinerZombieEntity(scene, col, row, model, waveID),
+  damageThresholds: [150],
+  createEntity: (scene, col, row, model, waveID) => new MinerZombieEntity(scene, col, row, model as MinerZombieModel, waveID),
 });

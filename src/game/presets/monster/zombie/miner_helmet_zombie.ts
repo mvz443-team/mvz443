@@ -1,42 +1,41 @@
-import { PresetMonsterModel, addHandAttachment } from "../../../models/entities/MonsterEntity";
 import type { Game } from "../../../scenes/Game";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
-import { HelmetZombieEntity } from "./helmet_zombie";
+import { createZombieAnimController } from "../../../models/monster/anims/LegacyMonsterAnimControllers";
+import type { MonsterDefinition } from "../../../models/entities/MonsterEntity";
+import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
+import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
+import {
+  EquippedMonsterEntity,
+  withHelmetModel,
+  withWeaponModel,
+} from "../../../models/equipment/Equipment";
+import { STEEL_HELMET } from "./helmet_zombie";
+import { PICKAXE_WEAPON } from "./miner_zombie";
 
-export class MinerHelmetZombieEntity extends HelmetZombieEntity {
-  private swingTween: Phaser.Tweens.Tween | null = null;
+const MinerHelmetModelBase = withWeaponModel(withHelmetModel(PresetMonsterModel));
 
-  public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
-    super(scene, col, row, model, waveID);
-    addHandAttachment(this, "attach/hd_pickaxe");
-  }
+/** 同时拥有钢盔与镐子；两种能力都只由 Model 定义数据。 */
+export class MinerHelmetZombieModel extends MinerHelmetModelBase {
+  constructor(def: MonsterDefinition) { super(def); }
 
-  public override startAttacking(target: any) {
-    if (!this.swingTween) {
-      const sprite = this.attachSprites.get("attach/hd_pickaxe");
-      if (sprite) {
-        this.swingTween = this.scene.tweens.add({
-          targets: sprite,
-          angle: -15,
-          duration: 200,
-          yoyo: true,
-          repeat: -1,
-          ease: "Sine.easeInOut",
-        });
-      }
-    }
-    super.startAttacking(target);
-  }
-
-  public override stopAttacking() {
-    this.swingTween?.stop();
-    this.swingTween = null;
-    this.attachSprites.get("attach/hd_pickaxe")?.setAngle(0);
-    super.stopAttacking();
+  public override onCreate(entity: MonsterEntity): void {
+    this.equipHelmet(entity, STEEL_HELMET);
+    this.equipWeapon(entity, PICKAXE_WEAPON);
   }
 }
 
-export const MinerHelmetZombieData = new PresetMonsterModel({
+export class MinerHelmetZombieEntity extends EquippedMonsterEntity {
+  declare public model: MinerHelmetZombieModel;
+
+  public constructor(scene: Game, col: number, row: number, model: MinerHelmetZombieModel, waveID: number) {
+    super(scene, col, row, model, waveID);  }
+
+  protected createAnimController() {
+    return createZombieAnimController("zombie", this.scene, this.x, this.y);
+  }
+}
+
+export const MinerHelmetZombieData = new MinerHelmetZombieModel({
   mid: 5,
   nameKey: "MinerHelmetZombie",
   level: 5,
@@ -46,5 +45,6 @@ export const MinerHelmetZombieData = new PresetMonsterModel({
   baseSpeed: MonsterSpeed.MinerHelmetZombie,
   attackDamage: 60,
   attackInterval: ZombieAttackInterval.MinerHelmetZombie,
-  createEntity: (scene, col, row, model, waveID) => new MinerHelmetZombieEntity(scene, col, row, model, waveID),
+  damageThresholds: [150],
+  createEntity: (scene, col, row, model, waveID) => new MinerHelmetZombieEntity(scene, col, row, model as MinerHelmetZombieModel, waveID),
 });

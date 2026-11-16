@@ -74,7 +74,7 @@ export class PumpkinWanModel extends PlantModel {
       ignoreBounce: true,
     });
 
-    entity.tickmanager.addEvent({
+    entity.model.tickmanager.addEvent({
       startAt: attackInterval / 2, // 第一次攻击延迟
       delay: attackInterval,
       repeat: -1,
@@ -168,7 +168,7 @@ export class PumpkinWanModel extends PlantModel {
 
     entity.playBruteShootAnimation(totalExplosions);
 
-    entity.tickmanager.addEvent({
+    entity.model.tickmanager.addEvent({
       startAt: initialDelay,
       delay: 2000,
       repeat: totalExplosions - 1,

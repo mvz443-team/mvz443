@@ -1,71 +1,101 @@
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { ArrowModel } from "../../bullet/arrow";
-import DepthHelper from "../../../utils/helper/DepthHelper";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { Faction } from "../../../models/Enum";
 import type { Game } from "../../../scenes/Game";
-import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
+import type { JsonValue } from "../../../core/SimulationState";
+import { DEFAULT_TICK_EVENT_NAMES, TickEventNameEnums } from "../../../core/logic/TickEvents";
+import type { MonsterDefinition } from "../../../models/entities/MonsterEntity";
+import { SkeletonBowModel } from "../../../models/entities/BaseSkeletonBowEntity";
 import { BaseSkeletonBowEntity } from "../../../models/entities/BaseSkeletonBowEntity";
+import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
 import { legacyRapierVelocityToUnitsPerSecond } from "../../../../constants/physics";
-import SoundCmd from "../../../utils/cmd/SoundCmd";
+import { withShieldModel, type EquipmentDef } from "../../../models/equipment/Equipment";
 
-export class TurtleSkeletonBowEntity extends BaseSkeletonBowEntity {
-  private shellHealth = 375;
-  private broken = false;
+const SHELL_BURST_COUNT = 5;
+const SHELL_BURST_INTERVAL_MS = 600;
 
-  public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
-    super(scene, col, row, model, waveID);
-    const shell = this.scene.add.sprite(
-      this.x + this.offsetX,
-      this.y - PositionManager.Instance.GRID_SIZEY * 1.15 + this.offsetY,
-      "attach/turtle",
-    );
-    shell.setScale(PositionManager.Instance.scaleFactor * 1.4).setFrame(0).setDepth(DepthHelper.Mob.attachment(this.baseDepth, "shell"));
-    this.attachSprites.set("turtle_shell", shell);
+function createTurtleShellDef(): EquipmentDef {
+  return {
+    key: "attach/turtle",
+    maxHealth: 375,
+    thresholds: [250, 125],
+    damageScale: 0.5,
+    hitSound: "leatherHit",
+    visual: {
+      attachment: "fixed",
+      x: 0,
+      y: -PositionManager.Instance.GRID_SIZEY * 1.15,
+      scale: 1.4,
+      depth: 13,
+    },
+  };
+}
+
+const TurtleModelBase = withShieldModel(SkeletonBowModel);
+
+/** 龟壳数值与破碎后连射都在 Model；Entity 只按 Model 状态渲染龟壳。 */
+export class TurtleSkeletonBowModel extends TurtleModelBase {
+  constructor(def: MonsterDefinition) {
+    super(def);
     this.arrowDamage = 50;
     this.arrowInterval = 2000;
   }
 
-  public override takeDamage(amount: number, dealer?: any, source?: any): void {
-    if (!this.broken && this.shellHealth > 0) {
-      const real = amount * 0.5;
-      if (this.shellHealth > real) {
-        this.shellHealth -= real;
-        this.attachSprites.get("turtle_shell")?.setFrame(this.shellHealth > 250 ? 0 : this.shellHealth > 125 ? 1 : 2);
-        SoundCmd.PlayShieldHit("leatherHit");
-        this.animController.highlight();
-        return;
-      }
+  public override readonly tickEventNames = [
+    ...DEFAULT_TICK_EVENT_NAMES,
+    TickEventNameEnums.TurtleShellBurst,
+  ];
 
-      this.broken = true;
-      this.shellHealth = 0;
-      this.attachSprites.get("turtle_shell")?.setVisible(false);
-      this.speed = this.originalSpeed * 2;
-      this.arrowDamage = 90;
+  public override onCreate(entity: MonsterEntity): void {
+    super.onCreate(entity);
+    this.equipShield(entity, createTurtleShellDef());
+  }
 
-      for (let i = 0; i < 5; i++) {
-        // 发箭顺序影响战斗结果，必须用可快照的定时系统。
-        this.tickmanager.delayedCall({
-          delay: 600 * i,
-          callback: () => {
-            if (this.currentHealth > 0) {
-              ProjectileCmd.Create(ArrowModel, this.scene, this.x, this.row, {
-                damage: this.arrowDamage,
-                faction: Faction.ZOMBIE,
-                speed: -legacyRapierVelocityToUnitsPerSecond(320),
-              });
-            }
-          },
-        });
-      }
+  public override handleTickEvent(
+    eventName: TickEventNameEnums | string,
+    args: JsonValue = null,
+    timerId?: number,
+  ): void {
+    if (eventName === TickEventNameEnums.TurtleShellBurst) {
+      this.fireBurstArrow(this.host as MonsterEntity | null);
+      return;
     }
+    super.handleTickEvent(eventName, args, timerId);
+  }
 
-    super.takeDamage(amount, dealer, source);
+  /** 原行为：龟壳破碎时本次伤害不再减半，直接结算完整伤害。 */
+  public override shieldBreakOverflow(_entity: MonsterEntity, amount: number): number {
+    return amount;
+  }
+
+  public override onShieldBroken(entity: MonsterEntity): void {
+    entity.speed = entity.originalSpeed * 2;
+    for (let i = 0; i < SHELL_BURST_COUNT; i++) {
+      this.tickmanager.schedule(TickEventNameEnums.TurtleShellBurst, SHELL_BURST_INTERVAL_MS * i);
+    }
+  }
+
+  private fireBurstArrow(entity: MonsterEntity | null): void {
+    if (!entity || entity.currentHealth <= 0) return;
+    ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
+      damage: 90,
+      faction: Faction.ZOMBIE,
+      speed: -legacyRapierVelocityToUnitsPerSecond(320),
+    });
   }
 }
 
-export const TurtleSkeletonBowData = new PresetMonsterModel({
+export class TurtleSkeletonBowEntity extends BaseSkeletonBowEntity {
+  declare public model: TurtleSkeletonBowModel;
+
+  public constructor(scene: Game, col: number, row: number, model: TurtleSkeletonBowModel, waveID: number) {
+    super(scene, col, row, model, waveID);
+  }
+}
+
+export const TurtleSkeletonBowData = new TurtleSkeletonBowModel({
   mid: 16,
   nameKey: "TurtleSkeletonBow",
   level: 3,
@@ -76,5 +106,5 @@ export const TurtleSkeletonBowData = new PresetMonsterModel({
   baseSpeed: MonsterSpeed.TurtleSkeletonBow,
   attackDamage: 40,
   attackInterval: ZombieAttackInterval.TurtleSkeletonBow,
-  createEntity: (scene, col, row, model, waveID) => new TurtleSkeletonBowEntity(scene, col, row, model, waveID),
+  createEntity: (scene, col, row, model, waveID) => new TurtleSkeletonBowEntity(scene, col, row, model as TurtleSkeletonBowModel, waveID),
 });

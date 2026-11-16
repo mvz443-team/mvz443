@@ -3,19 +3,96 @@ import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
 import { ArrowModel } from "../../presets/bullet/arrow";
 import { Faction } from "../Enum";
 import type { Game } from "../../scenes/Game";
-import { addHandAttachment, PresetMonsterModel } from "./MonsterEntity";
+import type { JsonValue } from "../../core/SimulationState";
+import { DEFAULT_TICK_EVENT_NAMES, TickEventNameEnums } from "../../core/logic/TickEvents";
+import { PresetMonsterModel } from "./MonsterEntity";
+import type { MonsterEntity } from "./MonsterEntity";
+import type { MonsterDefinition } from "./MonsterEntity";
 import { BaseSkeletonEntity } from "../../presets/monster/zombie/skeleton";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { SightLineEntity } from "./SightLineEntity";
+import {
+  withShieldEntity,
+  withWeaponEntity,
+  withWeaponModel,
+  type EquipmentDef,
+  type IShieldModel,
+} from "../equipment/Equipment";
+import type { BaseEntity } from "../core/BaseEntity";
 
-export class BaseSkeletonBowEntity extends BaseSkeletonEntity {
-  protected arrowDamage = 70;
-  protected arrowInterval = 3500;
+export const BOW_WEAPON: EquipmentDef = {
+  key: "attach/hd_bow",
+  maxHealth: 0,
+  thresholds: [],
+  visual: { attachment: "hand", depth: 13 },
+};
+
+const SkeletonBowModelBase = withWeaponModel(PresetMonsterModel);
+
+/** 骨架弓手的射击决策与时序都在 Model；Entity 只提供视线查询与视角能力。 */
+export class SkeletonBowModel extends SkeletonBowModelBase {
+  public override readonly tickEventNames = [
+    ...DEFAULT_TICK_EVENT_NAMES,
+    TickEventNameEnums.SkeletonBowShoot,
+    TickEventNameEnums.SkeletonBowResume,
+  ];
+
+  constructor(def: MonsterDefinition) {
+    super(def);
+    this.arrowDamage = 70;
+    this.arrowInterval = 3500;
+  }
+
+  public override onCreate(entity: MonsterEntity): void {
+    this.equipWeapon(entity, BOW_WEAPON);
+    this.tickmanager.schedule(TickEventNameEnums.SkeletonBowShoot, this.arrowInterval, { loop: true });
+  }
+
+  public override handleTickEvent(
+    eventName: TickEventNameEnums | string,
+    args: JsonValue = null,
+    timerId?: number,
+  ): void {
+    if (eventName === TickEventNameEnums.SkeletonBowShoot) {
+      this.tryShoot(this.host as BaseSkeletonBowEntity | null);
+      return;
+    }
+    if (eventName === TickEventNameEnums.SkeletonBowResume) {
+      const entity = this.host as BaseSkeletonBowEntity | null;
+      this.onAttackStopped(entity);
+      if (entity && entity.currentHealth > 0 && !entity.attacking) entity.startMove();
+      return;
+    }
+    super.handleTickEvent(eventName, args, timerId);
+  }
+
+  private tryShoot(entity: BaseSkeletonBowEntity | null): void {
+    if (!entity || entity.isFrozen || entity.attacking || entity.currentHealth <= 0) return;
+    if (!entity.hasSightTarget()) return;
+
+    entity.stopMove();
+    if (entity.currentHealth <= 0) return;
+    ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
+      damage: this.arrowDamage,
+      faction: Faction.ZOMBIE,
+      speed: -legacyRapierVelocityToUnitsPerSecond(320),
+    });
+    this.onAttackStarted(entity);
+    this.tickmanager.schedule(TickEventNameEnums.SkeletonBowResume, 350);
+  }
+}
+
+const SkeletonBowEntityBase = withShieldEntity(withWeaponEntity(BaseSkeletonEntity));
+
+export class BaseSkeletonBowEntity extends SkeletonBowEntityBase {
+  declare protected arrowDamage: number;
+  declare protected arrowInterval: number;
+
+  private readonly sightLine: SightLineEntity;
 
   public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
     super(scene, col, row, model, waveID);
-    addHandAttachment(this, "attach/hd_bow");
-    const sightLine = new SightLineEntity(scene, {
+    this.sightLine = new SightLineEntity(scene, {
       owner: this,
       row: () => this.GetRow(),
       direction: -1,
@@ -25,26 +102,17 @@ export class BaseSkeletonBowEntity extends BaseSkeletonEntity {
       includeFlying: false,
       ignoreBounce: true,
     });
+  }
 
-    this.tickmanager.addEvent({
-      delay: this.arrowInterval,
-      repeat: -1,
-      callback: () => {
-        if (this.isFrozen || this.attacking || this.currentHealth <= 0) return;
-        if (!sightLine.hasTarget()) return;
-        this.stopMove();
-        if (this.currentHealth <= 0 || !this.scene) return;
-        ProjectileCmd.Create(ArrowModel, this.scene, this.x, this.row, {
-          damage: this.arrowDamage,
-          faction: Faction.ZOMBIE,
-          speed: -legacyRapierVelocityToUnitsPerSecond(320),
-        });
-        this.scene.time.delayedCall(350, () => {
-          if (this.currentHealth > 0 && !this.attacking) {
-            this.startMove();
-          }
-        });
-      }
-    });
+  /** 视线查询由视图侧加速结构提供，是否射击由 Model 决定。 */
+  public hasSightTarget(): boolean {
+    return this.sightLine.hasTarget();
+  }
+
+  /** 通用护盾路由；是否具有护盾由 Model 的 shieldDef 决定。 */
+  public override takeDamage(amount: number, dealer?: BaseEntity, source?: BaseEntity): void {
+    const shield = this.model as unknown as IShieldModel;
+    if (shield.absorbShieldDamage?.(this, amount, dealer, source)) return;
+    super.takeDamage(amount, dealer, source);
   }
 }

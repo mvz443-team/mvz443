@@ -60,7 +60,7 @@ export class TntMinesModel extends PlantModel {
   public override onCreate(entity: TntMinesEntity): void {
     const buriedTime = GetDecValue(15000, 0.8, entity.level);
 
-    entity.tickmanager.addEvent({
+    entity.model.tickmanager.addEvent({
       delay: buriedTime,
       loop: false,
       callback: () => {
@@ -137,7 +137,7 @@ export class TntMinesModel extends PlantModel {
           texture: 'plant/tnt_mines',
           duration: arcDuration,
         });
-        entity.tickmanager.delayedCall({
+        entity.model.tickmanager.delayedCall({
           delay: arcDuration,
           callback: () => {
             DeferredManager.Instance.defer(() => {

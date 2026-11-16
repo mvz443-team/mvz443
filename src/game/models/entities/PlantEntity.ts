@@ -179,7 +179,7 @@ export abstract class PlantEntity extends CombatEntity {
     this.initialized = true;
 
     // 稳定 key 让快照恢复后计时器组仍能对齐（重建实体得到同一 group）。
-    this.adoptStableTimerKey(`plant:${this.col}:${this.row}:${this.model.pid}`);
+    this.adoptStableSnapshotKey(`plant:${this.col}:${this.row}:${this.model.pid}`);
     // 子类字段初始化完成后，把同名逻辑字段迁入寄存器并安装访问器。
 
     this.buildView();

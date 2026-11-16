@@ -1,23 +1,14 @@
-import { ArmorMonsterEntity, PresetMonsterModel, StagedBodyMonsterEntity } from "../../../models/entities/MonsterEntity";
+import { PresetMonsterModel, StagedBodyMonsterEntity } from "../../../models/entities/MonsterEntity";
 import { createZombieAnimController } from "../../../models/monster/anims/LegacyMonsterAnimControllers";
 import type { Game } from "../../../scenes/Game";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
 
 
 export class BaseZombieEntity extends StagedBodyMonsterEntity {
-  protected damageThresholds = [150];
+  declare protected damageThresholds: number[];
 
   public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
-    super(scene, col, row, model, waveID);
-  }
-
-  protected createAnimController() {
-    return createZombieAnimController("zombie", this.scene, this.x, this.y);
-  }
-}
-
-export class BaseZombieArmorEntity extends ArmorMonsterEntity {
-  protected damageThresholds = [150];
+    super(scene, col, row, model, waveID);  }
 
   protected createAnimController() {
     return createZombieAnimController("zombie", this.scene, this.x, this.y);
@@ -40,5 +31,6 @@ export const ZombieData = new PresetMonsterModel({
   baseSpeed: MonsterSpeed.Zombie,
   attackDamage: 20,
   attackInterval: ZombieAttackInterval.Zombie,
+  damageThresholds: [150],
   createEntity: (scene, col, row, model, waveID) => new ZombieEntity(scene, col, row, model, waveID),
 });

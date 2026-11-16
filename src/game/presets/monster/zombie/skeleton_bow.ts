@@ -1,16 +1,15 @@
-import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
-import { BaseSkeletonBowEntity } from "../../../models/entities/BaseSkeletonBowEntity";
+import { SkeletonBowModel, BaseSkeletonBowEntity } from "../../../models/entities/BaseSkeletonBowEntity";
 import type { Game } from "../../../scenes/Game";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
 
 
 export class SkeletonBowEntity extends BaseSkeletonBowEntity {
-  public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
+  public constructor(scene: Game, col: number, row: number, model: SkeletonBowModel, waveID: number) {
     super(scene, col, row, model, waveID);
   }
 }
 
-export const SkeletonBowData = new PresetMonsterModel({
+export const SkeletonBowData = new SkeletonBowModel({
   mid: 7,
   nameKey: "SkeletonBow",
   level: 2,
@@ -20,5 +19,5 @@ export const SkeletonBowData = new PresetMonsterModel({
   baseSpeed: MonsterSpeed.SkeletonBow,
   attackDamage: 25,
   attackInterval: ZombieAttackInterval.SkeletonBow,
-  createEntity: (scene, col, row, model, waveID) => new SkeletonBowEntity(scene, col, row, model, waveID),
+  createEntity: (scene, col, row, model, waveID) => new SkeletonBowEntity(scene, col, row, model as SkeletonBowModel, waveID),
 });

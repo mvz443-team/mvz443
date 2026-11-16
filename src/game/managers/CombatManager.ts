@@ -15,6 +15,7 @@ import CardpileManager from "./combat/CardpileManager";
 import { simulationState, SimulationState, serializeSimulationState } from "../core/SimulationState";
 import { resolveEntityBySnapshotId } from "../core/EntityLookup";
 import { logicEvents } from "../core/logic/LogicEvents";
+import { updateAllTickManagers } from "../core/logic/EntityTickManager";
 
 // 单次 update 允许接受的最大 delta（切后台/断点会产生数秒级 delta）
 const MAX_FRAME_DELTA_MS = 250;
@@ -261,6 +262,10 @@ export default class CombatManager extends BaseManager {
       // Tick-based systems.
       if (!this.isPaused) {
         TickerManager.Instance.Update();
+        updateAllTickManagers(
+          TickerManager.Instance.currentFrame,
+          TickerManager.Instance.frameInterval,
+        );
         CardpileManager.Instance.stepUpdate();
       }
 

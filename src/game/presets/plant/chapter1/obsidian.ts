@@ -1,5 +1,4 @@
 import { PlantStat } from "../../../../utils/numbervalue";
-import { DeferredManager } from "../../../managers/DeferredManager";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -36,36 +35,27 @@ export class ObsidianModel extends PlantModel {
   maxShieldHealth = 6000;
 
   onHurt(entity: ObsidianEntity, damage: number, _realDamage: number, _dealer?: BaseEntity): void {
-    // 护盾衰减系数：9级为 0.8，其他为 1.0
+    // 护盾衰减系数：9级为 0.8，其他为 1.0；护盾血量是 Model 状态，直接进快照。
     const shieldRatio = entity.level >= 9 ? 0.8 : 1.0;
     const actualDamage = damage * shieldRatio;
 
-    // 如果护盾足以吸收伤害
-    if (entity.shieldHealth > actualDamage) {
-      // ✅ 使用 DeferredManager 更新护盾血量
-      entity.updateShieldHealth(entity.shieldHealth - actualDamage);
+    if (this.shieldHealth > actualDamage) {
+      this.shieldHealth -= actualDamage;
     } else {
-      // 护盾不足，先扣护盾的等量伤害
-      const remainingDamage = damage - Math.ceil(entity.shieldHealth / shieldRatio);
-
-      // ✅ 更新护盾为 0
-      entity.updateShieldHealth(0);
-
-      // 剩余伤害扣基础血量（使用 PlantCmd）
+      const remainingDamage = damage - Math.ceil(this.shieldHealth / shieldRatio);
+      this.shieldHealth = 0;
       if (remainingDamage > 0) {
         PlantCmd.SetHealth(entity, Math.max(0, entity.currentHealth - remainingDamage));
       }
     }
 
-    // 更新显示帧
     entity.updateDisplayFrame();
   }
 
   onStarShards(entity: ObsidianEntity): void {
     if (entity.currentHealth <= 0) return;
 
-    // 恢复护盾和血量
-    entity.updateShieldHealth(this.maxShieldHealth);
+    this.shieldHealth = this.maxShieldHealth;
     PlantCmd.SetHealth(entity, entity.maxHealth);
     entity.updateDisplayFrame();
     entity.playShieldActivateAnimation();
@@ -80,17 +70,16 @@ export class ObsidianModel extends PlantModel {
  * ObsidianEntity - 黑曜石的实体表现层
  */
 export class ObsidianEntity extends PlantEntity {
-  // 运行时护盾血量（独立于基础血量）
-  public shieldHealth: number = 0;
-  private shieldHealthMax: number = 6000;
+  /** 护盾血量定义在 PlantModel，Entity 只通过访问器读取。 */
+  declare public shieldHealth: number;
 
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, ObsidianData, level);
+    this.updateDisplayFrame();
+  }
 
-    // 初始化护盾（没有护盾）
-    this.shieldHealth = 0;
-
-    // 初始帧
+  public override syncViewFromModel(): void {
+    super.syncViewFromModel();
     this.updateDisplayFrame();
   }
 
@@ -103,17 +92,6 @@ export class ObsidianEntity extends PlantEntity {
       .setDepth(this.baseDepth);
 
     this.viewGroup.add(sprite);
-  }
-
-  /**
-   * 更新护盾血量 - 使用 DeferredManager 延迟处理
-   * 
-   * 这确保护盾血量变化在 post-update 阶段才被应用
-   */
-  public updateShieldHealth(newShieldHealth: number): void {
-    DeferredManager.Instance.defer(() => {
-      this.shieldHealth = Math.max(0, Math.min(newShieldHealth, this.shieldHealthMax));
-    });
   }
 
   /**
@@ -133,11 +111,13 @@ export class ObsidianEntity extends PlantEntity {
 
     if (this.currentHealth <= 0) return;
 
+    const shieldMax = (this.model as ObsidianModel).maxShieldHealth;
+
     // 有护盾时的帧显示
     if (this.shieldHealth > 0) {
-      if (this.shieldHealth > this.shieldHealthMax * (2 / 3)) {
+      if (this.shieldHealth > shieldMax * (2 / 3)) {
         sprite.setFrame(3);
-      } else if (this.shieldHealth > this.shieldHealthMax * (1 / 3)) {
+      } else if (this.shieldHealth > shieldMax * (1 / 3)) {
         sprite.setFrame(4);
       } else {
         sprite.setFrame(5);

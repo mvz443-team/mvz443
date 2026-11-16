@@ -49,7 +49,7 @@ export class LaserEntity extends ProjectileEntity<LaserModel> {
       glow.setAlpha(0);
       beam.setAlpha(0);
       core.setAlpha(0);
-      this.tickmanager.delayedCall({
+      this.model.tickmanager.delayedCall({
         delay: Math.max(1, cfg.duration),
         callback: () => this.destroy(),
       });
@@ -61,7 +61,7 @@ export class LaserEntity extends ProjectileEntity<LaserModel> {
         duration: cfg.duration,
         onComplete: () => this.destroy()
       });
-      this.tickmanager.delayedCall({
+      this.model.tickmanager.delayedCall({
         delay: cfg.duration + 80,
         callback: () => this.destroy(),
       });

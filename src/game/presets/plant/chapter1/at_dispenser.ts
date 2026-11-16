@@ -100,7 +100,7 @@ export class ATDispenserModel extends PlantModel {
       includeFlying: false,
     });
 
-    entity.tickmanager.addEvent({
+    entity.model.tickmanager.addEvent({
       startAt: 2500,
       delay: 3550,
       repeat: -1,
@@ -109,7 +109,7 @@ export class ATDispenserModel extends PlantModel {
 
         if (sightLine.hasTarget()) {
           entity.playShootAnimation();
-          entity.tickmanager.delayedCall({
+          entity.model.tickmanager.delayedCall({
             delay: 200,
             callback: () => {
               this.normalShot(entity);

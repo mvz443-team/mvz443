@@ -70,7 +70,7 @@ export class MagicPowderModel extends PlantModel {
     );
 
     // 300ms后销毁自身
-    entity.tickmanager.delayedCall({
+    entity.model.tickmanager.delayedCall({
       delay: 300,
       callback: () => {
         if (entity && entity.currentHealth > 0) {

@@ -67,7 +67,7 @@ export class IceBombModel extends PlantModel {
     entity.playFreezeAnimation();
 
     // 第一次攻击：500ms后发射冻结激光
-    entity.tickmanager.delayedCall({
+    entity.model.tickmanager.delayedCall({
       delay: 500,
       callback: () => {
         if (!entity || entity.currentHealth <= 0) return;
@@ -96,7 +96,7 @@ export class IceBombModel extends PlantModel {
     });
 
     // 第二次攻击：冻结结束后发射减速激光
-    entity.tickmanager.delayedCall({
+    entity.model.tickmanager.delayedCall({
       delay: 500 + this.freezeDurationMs,
       callback: () => {
         if (!entity || entity.currentHealth <= 0) return;

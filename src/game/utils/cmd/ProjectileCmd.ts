@@ -103,7 +103,7 @@ export namespace ProjectileCmd {
       rebuildFactories.set(snapshotId, () => {
         const rebuilt = new ModelClass().createEntity(scene, x, row, cfg) as ProjectileEntity<any>;
         rebuilt.initializeEntity();
-        rebuilt.adoptStableTimerKey(snapshotId);
+        rebuilt.adoptStableSnapshotKey(snapshotId);
         return rebuilt;
       });
       if (rebuildFactories.size > MAX_REBUILD_FACTORIES) {

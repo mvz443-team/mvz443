@@ -11,8 +11,7 @@ const ENTITY_REF_PREFIX = "entity:";
 
 export function encodeEntityRef(entity: unknown): JsonValue {
   if (!entity) return null;
-  const id = (entity as { SnapshotId?: string }).SnapshotId
-    ?? (entity as { TimerKey?: string }).TimerKey;
+  const id = (entity as { SnapshotId?: string }).SnapshotId;
   return typeof id === "string" ? `${ENTITY_REF_PREFIX}${id}` : null;
 }
 

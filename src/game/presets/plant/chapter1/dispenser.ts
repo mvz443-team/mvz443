@@ -42,7 +42,7 @@ export class DispenserModel extends PlantModel {
     });
 
     // 启动普通发射定时器
-    entity.tickmanager.addEvent({
+    entity.model.tickmanager.addEvent({
       startAt: 800,
       delay: 1000,
       repeat: -1,
@@ -51,7 +51,7 @@ export class DispenserModel extends PlantModel {
         if (entity.inBruteShoot) return; // 暴力发射中不执行普通发射逻辑
         if (sightLine.hasTarget()) {
           entity.playShootAnimation();
-          entity.tickmanager.delayedCall({
+          entity.model.tickmanager.delayedCall({
             delay: 200,
             callback: () => {
               this.normalShot(entity.scene, entity);
@@ -90,7 +90,7 @@ export class DispenserModel extends PlantModel {
   private bruteShot(scene: Game, entity: DispenserEntity, callback: () => void) {
     const totalArrows = 50; // 暴力发射的箭矢数量
     entity.playBruteShootAnimation(totalArrows);
-    entity.tickmanager.addEvent({
+    entity.model.tickmanager.addEvent({
       startAt: 200,
       delay: 50,
       repeat: totalArrows - 1,
@@ -100,7 +100,7 @@ export class DispenserModel extends PlantModel {
     });
     // 计算总持续时间：Tween 200ms + Timer 发射的时长
     const overallDuration = 200 + 50 * (totalArrows - 1);
-    entity.tickmanager.delayedCall({
+    entity.model.tickmanager.delayedCall({
       delay: overallDuration,
       callback: () => {
         entity.recoverHeadPosition();

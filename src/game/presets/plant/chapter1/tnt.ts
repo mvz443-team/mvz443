@@ -49,14 +49,14 @@ export class TntModel extends PlantModel {
     });
 
     // 倒计时爆炸（游戏逻辑），使用 tickmanager
-    entity.tickmanager.delayedCall({
+    entity.model.tickmanager.delayedCall({
       delay: 850,
       callback: () => {
         this.primaryExplosion(entity);
       }
     });
 
-    entity.tickmanager.delayedCall({
+    entity.model.tickmanager.delayedCall({
       delay: 900,
       callback: () => {
         entity.destroy();

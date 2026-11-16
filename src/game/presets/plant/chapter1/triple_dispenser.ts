@@ -46,7 +46,7 @@ export class TripleDispenserModel extends PlantModel {
       includeFlying: false,
     });
 
-    entity.tickmanager.addEvent({
+    entity.model.tickmanager.addEvent({
       startAt: 600,
       delay: 1200,
       loop: true,
@@ -59,7 +59,7 @@ export class TripleDispenserModel extends PlantModel {
         if (hasEnemyInRange) {
           entity.playShootAnimation();
 
-          entity.tickmanager.delayedCall({
+          entity.model.tickmanager.delayedCall({
             delay: 200,
             callback: () => {
               this.shootArrows(entity, false);
@@ -81,14 +81,14 @@ export class TripleDispenserModel extends PlantModel {
 
     entity.playBruteShootSequence();
 
-    entity.tickmanager.delayedCall({
+    entity.model.tickmanager.delayedCall({
       delay: 200,
       callback: () => {
         if (entity.currentHealth <= 0) return;
         this.shootBruteVolley(entity, volleyIndex);
         volleyIndex++;
 
-        entity.tickmanager.addEvent({
+        entity.model.tickmanager.addEvent({
           delay: volleyDelay,
           repeat: totalVolleys - 2,
           callback: () => {
@@ -101,7 +101,7 @@ export class TripleDispenserModel extends PlantModel {
     });
 
     const overallDuration = 200 + volleyDelay * (totalVolleys - 1);
-    entity.tickmanager.delayedCall({
+    entity.model.tickmanager.delayedCall({
       delay: overallDuration,
       callback: () => {
         // 暴力发射结束后，继续正常射击

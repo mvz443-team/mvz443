@@ -440,7 +440,7 @@ export default class MobManager extends BaseManager {
           if (!this.scene) return;
           const zomb = model.createEntity(this.scene, colMax, row, wave.waveId);
           this.spawnSeq += 1;
-          zomb.adoptStableTimerKey(`mob:${wave.waveId}:${this.spawnSeq}`);
+          zomb.adoptStableSnapshotKey(`mob:${wave.waveId}:${this.spawnSeq}`);
           zomb.applySpawnSeed(this.spawnSeq);
           zomb.ExtraData.spawnSeq = this.spawnSeq;
           this.attachLifecycle(zomb);
@@ -474,7 +474,7 @@ export default class MobManager extends BaseManager {
     const model = MonsterLibrary.GetModel(mid);
     if (!model) return null;
     const monster = model.createEntity(this.scene, col, row, waveID);
-    monster.adoptStableTimerKey(`mob:${waveID}:${spawnSeq}`);
+    monster.adoptStableSnapshotKey(`mob:${waveID}:${spawnSeq}`);
     monster.applySpawnSeed(spawnSeq);
     monster.ExtraData.spawnSeq = spawnSeq;
     this.attachLifecycle(monster);

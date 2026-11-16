@@ -1,5 +1,5 @@
 import { _Typedebuffs } from "../../../constants/game";
-import { FrameTimer } from "../../managers/combat/TickerManager";
+import type { ITickTimerHandle } from "../../core/logic/EntityTickManager";
 import { PositionManager } from "../../managers/view/PositionManager";
 import type { Game } from "../../scenes/Game";
 import { Faction } from "../Enum";
@@ -19,7 +19,7 @@ export abstract class CombatEntity extends BaseEntity implements IDamageable {
   public faction: Faction;
 
   // 存储每个debuff的剩余时间和定时器
-  protected debuffs: { [key: string]: { remaining: number, timer: FrameTimer } } = {};
+  protected debuffs: { [key: string]: { remaining: number, timer: ITickTimerHandle } } = {};
 
   public ExtraData: Record<string, any> = {}; // 用于存储额外数据，供子类使用
 

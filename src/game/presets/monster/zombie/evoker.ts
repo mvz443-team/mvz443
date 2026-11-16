@@ -1,4 +1,7 @@
+import type { JsonValue } from "../../../../game/core/SimulationState";
+import { DEFAULT_TICK_EVENT_NAMES, TickEventNameEnums } from "../../../core/logic/TickEvents";
 import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
+import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
 import { createZombieAnimController } from "../../../models/monster/anims/LegacyMonsterAnimControllers";
 import type { Game } from "../../../scenes/Game";
 import MobCmd from "../../../utils/cmd/MobCmd";
@@ -6,7 +9,75 @@ import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
 import { VindicatorData } from "./vindicator";
 import { BaseZombieEntity } from "./zombie";
 
-export const EvokerData = new PresetMonsterModel({
+const SUMMON_START_AT_MS = 24000;
+const SUMMON_INTERVAL_MS = 28000;
+const SUMMON_COUNT = 3;
+const SUMMON_RECOVER_MS = 3000;
+
+/**
+ * Evoker 的召唤逻辑完全在 Model 中：
+ * timer 只保存 (ownerId, TickEventNameEnums, TriggerFrame)，到点由 HandleTickEvent 派发。
+ */
+export class EvokerModel extends PresetMonsterModel {
+  public override readonly tickEventNames = [
+    ...DEFAULT_TICK_EVENT_NAMES,
+    TickEventNameEnums.EvokerSummon,
+    TickEventNameEnums.EvokerResume,
+  ];
+
+  public override onCreate(entity: MonsterEntity): void {
+    this.tickmanager.schedule(TickEventNameEnums.EvokerSummon, SUMMON_INTERVAL_MS, {
+      startAt: SUMMON_START_AT_MS,
+      repeat: SUMMON_COUNT,
+    });
+  }
+
+  public override handleTickEvent(
+    eventName: TickEventNameEnums | string,
+    args: JsonValue = null,
+    timerId?: number,
+  ): void {
+    const entity = this.host as MonsterEntity | null;
+    if (eventName === TickEventNameEnums.EvokerSummon) {
+      this.summonVindicator(entity);
+      return;
+    }
+    if (eventName === TickEventNameEnums.EvokerResume) {
+      this.resumeAfterSummon(entity);
+      return;
+    }
+    super.handleTickEvent(eventName, args, timerId);
+  }
+
+  private summonVindicator(entity: MonsterEntity | null): void {
+    if (!entity || entity.isFrozen || entity.currentHealth <= 0) return;
+
+    entity.stopAttacking();
+    entity.stopMove();
+    entity.animController.stopLegSwing();
+    entity.animController.startArmSwing();
+
+    const entries = [
+      [entity.col + 1, entity.row],
+      [Math.max(0, entity.col - 1), entity.row],
+      [entity.col, entity.row - 1],
+      [entity.col, entity.row + 1],
+    ];
+    for (const [col, row] of entries) {
+      MobCmd.Spawn(VindicatorData.mid, entity.scene, col, row, -10);
+    }
+
+    this.tickmanager.schedule(TickEventNameEnums.EvokerResume, SUMMON_RECOVER_MS);
+  }
+
+  private resumeAfterSummon(entity: MonsterEntity | null): void {
+    if (!entity || entity.currentHealth <= 0 || entity.isFrozen) return;
+    entity.animController.stopArmSwing();
+    entity.startMove();
+  }
+}
+
+export const EvokerData = new EvokerModel({
   mid: 9,
   nameKey: "Evoker",
   level: 5,
@@ -16,55 +87,18 @@ export const EvokerData = new PresetMonsterModel({
   baseSpeed: MonsterSpeed.Evoker,
   attackDamage: 20,
   attackInterval: ZombieAttackInterval.Evoker,
+  damageThresholds: [160],
   createEntity: (scene, col, row, model, waveID) => new EvokerEntity(scene, col, row, model, waveID),
 });
 
-
+/** Entity 只负责视图与动画控制器，所有技能决策在 EvokerModel。 */
 export class EvokerEntity extends BaseZombieEntity {
-  protected damageThresholds = [160];
+  declare protected damageThresholds: number[];
 
   public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
-    super(scene, col, row, model, waveID);
-    this.tickmanager.addEvent({
-      startAt: 24000,
-      delay: 28000,
-      repeat: 3,
-      callback: () => this.summonVindicator(),
-    });
-  }
+    super(scene, col, row, model, waveID);  }
 
   protected override createAnimController() {
     return createZombieAnimController("evoker", this.scene, this.x, this.y);
-  }
-
-  private summonVindicator() {
-    if (this.isFrozen || this.currentHealth <= 0) return;
-
-    this.stopAttacking();
-    this.stopMove();
-    this.animController.stopLegSwing();
-    this.animController.startArmSwing();
-
-    const entries = [
-      [this.col + 1, this.row],
-      [Math.max(0, this.col - 1), this.row],
-      [this.col, this.row - 1],
-      [this.col, this.row + 1],
-    ];
-
-    for (const [col, row] of entries) {
-      MobCmd.Spawn(VindicatorData.mid, this.scene, col, row, -10);
-    }
-
-    // 恢复移动决定后续战斗，必须随快照回滚。
-    this.tickmanager.delayedCall({
-      delay: 3000,
-      callback: () => {
-        if (this.currentHealth > 0 && !this.isFrozen) {
-          this.animController.stopArmSwing();
-          this.startMove();
-        }
-      },
-    });
   }
 }

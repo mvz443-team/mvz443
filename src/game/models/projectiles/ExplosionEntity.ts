@@ -56,7 +56,7 @@ export class ExplosionEntity extends ProjectileEntity<ExplosionModel> {
     this.initVisuals();
 
     // 110ms 后自动销毁物理体 (只生效极短时间)
-    this.tickmanager.delayedCall({
+    this.model.tickmanager.delayedCall({
       delay: 110,
       callback: () => this.destroy()
     });

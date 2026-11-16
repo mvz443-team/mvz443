@@ -1,7 +1,6 @@
 import RAPIER from "@dimforge/rapier2d-deterministic-compat";
-import seedrandom from "seedrandom";
 import DepthHelper from "../../utils/helper/DepthHelper";
-import { FrameTimer } from "../../managers/combat/TickerManager";
+import type { ITickTimerHandle } from "../../core/logic/EntityTickManager";
 import type { Game } from "../../scenes/Game";
 import { CollisionContext } from "../../types";
 import { IMonsterAnimController } from "../monster/anims/IMonsterAnimController";
@@ -9,13 +8,9 @@ import { MonsterModel } from "../MonsterModel";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { CombatEntity } from "../core/CombatEntity";
 import { Faction } from "../Enum";
-import CombatManager from "../../managers/CombatManager";
 import GridManager from "../../managers/combat/GridManager";
-import PlantHelper from "../../utils/helper/PlantHelper";
-import { PlantEntity } from "./PlantEntity";
 import { BaseEntity } from "../core/BaseEntity";
 import { LegacyMonsterAnimController } from "../monster/anims/LegacyMonsterAnimControllers";
-import ResourceCmd from "../../utils/cmd/ResourceCmd";
 import { SfxCmd } from "../../utils/cmd/SfxCmd";
 import { StarShardsOrbitSfx } from "../../sfx/star/StarShardsOrbitSfx";
 import { DeathRotateSfx } from "../../sfx/death/DeathRotateSfx";
@@ -36,7 +31,7 @@ type BoundsGameObject = Phaser.GameObjects.GameObject & {
 export abstract class MonsterEntity extends CombatEntity {
   declare public scene: Game;
   public model: MonsterModel;
-  public waveID: number;
+  declare public waveID: number;
 
   protected override getRelationFields(): readonly string[] {
     return MONSTER_RELATION_FIELDS;
@@ -61,22 +56,22 @@ export abstract class MonsterEntity extends CombatEntity {
   declare public y: number;
   public baseDepth: number;
 
-  public health: number;
-  public speed: number;
-  public originalSpeed: number;
-  public isFlying = false;
-  public isInVoid = false;
-  public isDying = false;
-  public isFrozen = false;
-  public isStop = false;
+  declare public health: number;
+  declare public speed: number;
+  declare public originalSpeed: number;
+  declare public isFlying: boolean;
+  declare public isInVoid: boolean;
+  declare public isDying: boolean;
+  declare public isFrozen: boolean;
+  declare public isStop: boolean;
 
-  public carryStarShards = false;
-  private carriedStarShards = 0;
-  private starShardsDropped = false;
+  declare public carryStarShards: boolean;
+  declare public carriedStarShards: number;
+  declare public starShardsDropped: boolean;
   private starOrbitSfx: StarShardsOrbitSfx | null = null;
   public attacking: CombatEntity | null = null;
-  protected attackTimer: FrameTimer | null = null;
-  protected debuffs: { [key: string]: { remaining: number, timer: FrameTimer } } = {};
+  protected attackTimer: ITickTimerHandle | null = null;
+  protected debuffs: { [key: string]: { remaining: number, timer: ITickTimerHandle } } = {};
 
   public animController!: IMonsterAnimController;
   public viewGroup: Phaser.GameObjects.Group;
@@ -84,8 +79,8 @@ export abstract class MonsterEntity extends CombatEntity {
   private destroyListeners: Array<(entity: MonsterEntity) => void> = [];
   private initialized = false;
 
-  public offsetX: number;
-  public offsetY: number;
+  declare public offsetX: number;
+  declare public offsetY: number;
 
   constructor(scene: Game, col: number, row: number, model: MonsterModel, waveID: number) {
     const pos = PositionManager.Instance.getZombieBottomCenter(col, row);
@@ -113,11 +108,7 @@ export abstract class MonsterEntity extends CombatEntity {
    * 保证同一局同一出怪序号的偏移在所有端一致。
    */
   public applySpawnSeed(spawnSeq: number): void {
-    const rng = seedrandom.alea(
-      `${CombatManager.Instance.seed}:${this.waveID}:${this.col}:${this.row}:${spawnSeq}`,
-    );
-    this.offsetX = rng() * PositionManager.Instance.GRID_SIZEX / 5;
-    this.offsetY = rng() * PositionManager.Instance.GRID_SIZEY / 10;
+    this.model.applySpawnSeed(this, spawnSeq);
     this.baseDepth = DepthHelper.Mob.base(this.row, this.offsetY);
   }
 
@@ -126,10 +117,7 @@ export abstract class MonsterEntity extends CombatEntity {
   }
 
   public addStarShards(amount = 1) {
-    if (amount <= 0) return;
-    this.carryStarShards = true;
-    this.carriedStarShards += amount;
-    this.startStarShardsOrbitEffect();
+    this.model.addStarShards(this, amount);
   }
 
   protected abstract buildView(): void;
@@ -185,13 +173,10 @@ export abstract class MonsterEntity extends CombatEntity {
   }
 
   public override stepUpdate() {
-    if (this.x < PositionManager.Instance.getWorldBounds().left) {
-      this.destroy();
-      CombatManager.Instance.EndGame(false);
-    }
+    this.model.checkOutOfBounds(this);
   }
 
-  protected setVelocityX(vx: number) {
+  public setVelocityX(vx: number) {
     if (!this.rigidBody || this.isDying) return;
     this.rigidBody.setLinvel({ x: vx, y: 0 }, true);
   }
@@ -208,60 +193,15 @@ export abstract class MonsterEntity extends CombatEntity {
   }
 
   public startAttacking(target: CombatEntity) {
-    if (this.isFrozen || this.attacking === target) return;
-
-    if (target instanceof MonsterEntity) {
-      if (target.isFlying && !this.isFlying) return;
-      if (target.isInVoid) return;
-    }
-
-    if (this.attacking instanceof PlantEntity && target instanceof PlantEntity) {
-      if (PlantHelper.IsMorePriorityPlant(this.attacking, target)) {
-        this.notifyTargetStopAttacked();
-      }
-    }
-
-    this.attacking = target;
-    this.isStop = true;
-    this.stopMove();
-    target.underAttackBy.add(this);
-    this.animController.startArmSwing();
-
-    this.attackTimer = this.tickmanager.addEvent({
-      startAt: this.model.attackInterval,
-      delay: this.model.attackInterval,
-      callback: () => this.hurtTarget(),
-      loop: true,
-    });
+    this.model.tryStartAttack(this, target);
   }
 
   public stopAttacking() {
-    this.notifyTargetStopAttacked();
-    this.animController.stopArmSwing();
-    this.attackTimer?.remove();
-    this.attackTimer = null;
-    this.isStop = false;
-    this.startMove();
+    this.model.stopAttacking(this);
   }
 
-  protected hurtTarget() {
-    const target = this.attacking;
-    if (!target || target.currentHealth <= 0) {
-      this.stopAttacking();
-      return;
-    }
-
-    target.takeDamage(this.model.attackDamage, this);
-
-    // `takeDamage` 可能在致死流程中触发 destroy，
-    // 并通过 underAttackBy / stopAttacking 把 this.attacking 置空。
-    if (this.attacking !== target) {
-      return;
-    }
-
-    if (target.currentHealth <= 0) {
-      this.stopAttacking();
-    }
+  public hurtTarget() {
+    this.model.hurtTarget(this);
   }
 
   protected notifyTargetStopAttacked() {
@@ -270,31 +210,15 @@ export abstract class MonsterEntity extends CombatEntity {
   }
 
   public override takeDamage(amount: number, dealer?: BaseEntity, source?: BaseEntity): void {
-    if (this.currentHealth <= 0 || this.isDying) return;
-
-    const realDamage = Math.min(amount, this.currentHealth);
-    this.currentHealth -= amount;
-    this.health = this.currentHealth;
-    this.model.onHurt(this, amount, realDamage, dealer, source);
-
-    if (this.currentHealth <= 0) {
-      this.currentHealth = 0;
-      this.health = 0;
-      this.ZombieDie();
-    }
+    this.model.takeDamage(this, amount, dealer, source);
   }
 
   public onCollision(ctx: CollisionContext) {
-    if (ctx.targetEntity instanceof CombatEntity && ctx.targetEntity.faction !== this.faction) {
-      this.startAttacking(ctx.targetEntity);
-    }
+    this.model.onCollision(this, ctx);
   }
 
   public ZombieDie() {
-    if (this.isDying) return;
-    this.dropCarriedStarShards();
-    this.stopAttacking();
-    this.playDeathAnimation();
+    this.model.zombieDie(this);
   }
 
   protected playDeathAnimation() {
@@ -438,14 +362,6 @@ export abstract class MonsterEntity extends CombatEntity {
     );
   }
 
-  private dropCarriedStarShards() {
-    if (this.starShardsDropped || !this.carryStarShards) return;
-    this.starShardsDropped = true;
-    ResourceCmd.AddStarshardToAll(Math.max(1, this.carriedStarShards));
-    this.carryStarShards = false;
-    this.carriedStarShards = 0;
-  }
-
   private startStarShardsOrbitEffect() {
     if (this.starOrbitSfx) return;
     this.starOrbitSfx = SfxCmd.Create(StarShardsOrbitSfx, {
@@ -493,6 +409,8 @@ export type MonsterDefinition = {
   baseSpeed: number;
   attackDamage: number;
   attackInterval?: number;
+  /** 躯体破损阶段阈值；属于 Model 配置，不在 Entity 构造函数里定义。 */
+  damageThresholds?: number[];
   isDefaultFlying?: boolean;
   isDefaultInVoid?: boolean;
   couldCarryStarShards?: boolean;
@@ -532,6 +450,7 @@ export class PresetMonsterModel extends MonsterModel {
     this.baseSpeed = def.baseSpeed;
     this.attackDamage = def.attackDamage;
     this.attackInterval = def.attackInterval ?? 1000;
+    this.damageThresholds = def.damageThresholds ?? [];
     this.isDefaultFlying = def.isDefaultFlying ?? false;
     this.isDefaultInVoid = def.isDefaultInVoid ?? false;
     this.couldCarryStarShards = def.couldCarryStarShards ?? true;
@@ -579,11 +498,8 @@ export abstract class BaseMonsterEntity extends MonsterEntity {
     this.syncHandAttachment(key);
   }
 
-  public registerArmorAttachment(key: string) {
-    this.registerFixedAttachment(key);
-  }
-
-  public registerShieldAttachment(key: string) {
+  /** 装备渲染层统一入口：只记录固定件偏移，不保存业务数值。 */
+  public registerEquipmentAttachment(key: string) {
     this.registerFixedAttachment(key);
   }
 
@@ -634,32 +550,14 @@ export abstract class BaseMonsterEntity extends MonsterEntity {
     this.health = this.currentHealth;
   }
 
-  protected rawDamage(amount: number) {
-    this.currentHealth -= amount;
-    this.syncHealth();
-    this.animController.highlight();
-
-    if (this.currentHealth <= 0) {
-      this.currentHealth = 0;
-      this.syncHealth();
-      this.ZombieDie();
-      return;
-    }
-
-    if (amount > 10) {
-      SoundCmd.PlayGeneralHit();
-    }
-  }
-
-  public override takeDamage(amount: number, _dealer?: BaseEntity, _source?: BaseEntity): void {
-    if (this.currentHealth <= 0 || this.isDying) return;
-    this.rawDamage(amount);
+  public override takeDamage(amount: number, dealer?: BaseEntity, source?: BaseEntity): void {
+    this.model.takeDamage(this, amount, dealer, source);
   }
 
   protected onHurt(_amount: number, _realDamage: number, _dealer?: BaseEntity, _source?: BaseEntity): void { }
 
   protected onDeath(): void {
-    this.ZombieDie();
+    this.model.zombieDie(this);
   }
 
   protected override getDeathAnimationTargets(): Phaser.GameObjects.GameObject[] {
@@ -668,30 +566,11 @@ export abstract class BaseMonsterEntity extends MonsterEntity {
 }
 
 export abstract class StagedBodyMonsterEntity extends BaseMonsterEntity {
-  // 破损程度分界点
-  protected damageThresholds: number[] = [];
-  private currentStage = -1;
+  protected declare damageThresholds: number[];
+  declare private currentStage: number;
 
   protected updateBodyDamageStage() {
-    const raw = this.getLegacyController()?.raw as { switchBodyFrame?: (value: boolean | number) => void } | undefined;
-    const fn = raw?.switchBodyFrame?.bind(raw);
-    if (!fn || this.damageThresholds.length === 0) return;
-
-    let stage = -1;
-    for (let i = 0; i < this.damageThresholds.length; i++) {
-      if (this.currentHealth <= this.damageThresholds[i]) {
-        stage = i;
-      }
-    }
-    if (stage === this.currentStage) return;
-    this.currentStage = stage;
-
-    if (this.damageThresholds.length === 1) {
-      fn(stage >= 0);
-      return;
-    }
-
-    fn(stage < 0 ? 0 : Math.min(stage + 1, this.damageThresholds.length));
+    this.model.updateBodyDamageStage(this, this.damageThresholds);
   }
 
   public override takeDamage(amount: number, dealer?: BaseEntity, source?: BaseEntity): void {
@@ -700,98 +579,3 @@ export abstract class StagedBodyMonsterEntity extends BaseMonsterEntity {
   }
 }
 
-export type ArmorConfig = {
-  key: string;
-  maxHealth: number;
-  thresholds: number[];
-  damageScale?: number;
-  hitSound?: "ironHit" | "leatherHit";
-  scale?: number;
-  originX?: number;
-  originY?: number;
-  x?: number;
-  y?: number;
-  depth?: number;
-};
-
-export abstract class ArmorMonsterEntity extends StagedBodyMonsterEntity {
-  protected armorHealth = 0;
-  protected armorBroken = false;
-  protected armorKey = "";
-  protected armorConfig!: ArmorConfig;
-
-  protected createArmor(config: ArmorConfig) {
-    this.armorConfig = config;
-    this.armorHealth = config.maxHealth;
-    this.armorBroken = false;
-    this.armorKey = config.key;
-
-    const sprite = this.scene.add.sprite(
-      this.x + this.offsetX + (config.x ?? 0),
-      this.y + this.offsetY + (config.y ?? -PositionManager.Instance.GRID_SIZEY * 1.15),
-      config.key,
-    );
-    sprite.setScale((config.scale ?? 1.4) * PositionManager.Instance.scaleFactor);
-    sprite.setOrigin(config.originX ?? 0.5, config.originY ?? 0.5);
-    sprite.setFrame(0).setDepth(DepthHelper.Mob.customAttachment(this.baseDepth, config.depth ?? 13));
-    this.attachSprites.set(config.key, sprite);
-    this.registerArmorAttachment(config.key);
-  }
-
-  protected updateArmorFrame() {
-    if (this.armorBroken) return;
-    const sprite = this.attachSprites.get(this.armorKey);
-    if (!sprite) return;
-
-    let frame = this.armorConfig.thresholds.length;
-    for (let i = 0; i < this.armorConfig.thresholds.length; i++) {
-      if (this.armorHealth > this.armorConfig.thresholds[i]) {
-        frame = i;
-        break;
-      }
-    }
-    sprite.setFrame(frame);
-  }
-
-  protected onArmorBroken(_overflowDamage: number): void { }
-
-  public override takeDamage(amount: number, dealer?: BaseEntity, source?: BaseEntity): void {
-    if (this.currentHealth <= 0 || this.isDying) return;
-
-    if (!this.armorBroken && this.armorHealth > 0) {
-      const real = amount * (this.armorConfig.damageScale ?? 1);
-      if (this.armorHealth > real) {
-        this.armorHealth -= real;
-        this.animController.highlight();
-        if (this.armorConfig.hitSound) {
-          SoundCmd.PlayShieldHit(this.armorConfig.hitSound);
-        }
-        this.updateArmorFrame();
-        return;
-      }
-
-      const overflow = Math.max(0, real - this.armorHealth);
-      this.armorHealth = 0;
-      this.armorBroken = true;
-      this.attachSprites.get(this.armorKey)?.setVisible(false);
-      this.onArmorBroken(overflow);
-      if (overflow <= 0) return;
-      super.takeDamage(overflow, dealer, source);
-      return;
-    }
-
-    super.takeDamage(amount, dealer, source);
-  }
-}
-
-export function addHandAttachment(entity: BaseMonsterEntity, key: string, scale = 1.4, depth = 13) {
-  const sprite = entity.scene.add.sprite(
-    entity.x + entity.offsetX - PositionManager.Instance.GRID_SIZEX * 0.42,
-    entity.y - PositionManager.Instance.GRID_SIZEY * 0.7 + entity.offsetY,
-    key,
-  );
-  sprite.setScale(scale * PositionManager.Instance.scaleFactor).setOrigin(0.5, 1).setDepth(DepthHelper.Mob.customAttachment(entity.baseDepth, depth));
-  entity.attachSprites.set(key, sprite);
-  entity.registerHandAttachment(key);
-  return sprite;
-}

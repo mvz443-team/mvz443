@@ -5,11 +5,10 @@ import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
 
 
 export class BaseSkeletonEntity extends StagedBodyMonsterEntity {
-  protected damageThresholds = [100];
+  declare protected damageThresholds: number[];
 
   public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
-    super(scene, col, row, model, waveID);
-  }
+    super(scene, col, row, model, waveID);  }
 
   protected createAnimController() {
     return createZombieAnimController("skeleton", this.scene, this.x, this.y);
@@ -32,5 +31,6 @@ export const SkeletonData = new PresetMonsterModel({
   baseSpeed: MonsterSpeed.Skeleton,
   attackDamage: 20,
   attackInterval: ZombieAttackInterval.Skeleton,
+  damageThresholds: [100],
   createEntity: (scene, col, row, model, waveID) => new SkeletonEntity(scene, col, row, model, waveID),
 });

@@ -38,7 +38,7 @@ export class GlowPowderModel extends PlantModel {
     entity.createVisualEffect();
 
     // 销毁时机决定对象生命周期，必须用可快照的定时系统。
-    entity.tickmanager.delayedCall({
+    entity.model.tickmanager.delayedCall({
       delay: 300,
       callback: () => {
         if (entity.currentHealth > 0) {

@@ -58,7 +58,7 @@ export class SmallDispenserModel extends PlantModel {
       includeFlying: false,
     });
 
-    entity.tickmanager.addEvent({
+    entity.model.tickmanager.addEvent({
       startAt: 500,
       delay: 1000,
       loop: true,

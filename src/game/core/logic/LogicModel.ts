@@ -7,8 +7,14 @@
  * - Entity 只持有视图/物理胶水代码，通过 ModelHost 把世界能力借给 Model。
  */
 
-import type { JsonValue } from "../SimulationState.ts";
+import type { JsonValue, RestoreContext, TimerState } from "../SimulationState.ts";
+import { EntityTickManager, type ITickManagerProxy } from "./EntityTickManager.ts";
 import { getLogicHandle, trackLogicObject, type Tracked } from "./LogicState.ts";
+import {
+  DEFAULT_TICK_EVENT_NAMES,
+  TickEventNameEnums,
+  invokeTickEventCallback,
+} from "./TickEvents.ts";
 
 /** Entity 提供给 Model 的最小世界能力，避免 Model 依赖 Phaser/Rapier。 */
 export interface ModelHost {
@@ -32,6 +38,8 @@ export interface ModelHost {
   markPenetrated(target: unknown): void;
   destroySelf(): void;
   setEnhancement?(value: string): void;
+  /** Model 状态变化后请求 Entity 单向刷新视图；Entity 不反向保存业务状态。 */
+  syncViewFromModel?(): void;
   emit(type: string, data?: JsonValue): void;
 }
 
@@ -40,9 +48,63 @@ export abstract class LogicModel {
   public health: number = 0;
   public healthMax: number = 0;
 
+  /** 每个 Model 独立持有一个可快照定时器；非枚举，不进入 LogicState 快照。 */
+  public readonly tickmanager!: ITickManagerProxy;
+  /** 本 Model 关心的计时器事件名列表。 */
+  public readonly tickEventNames!: readonly TickEventNameEnums[];
+  /** 宿主实体引用；非枚举，不进入 LogicState 快照。 */
+  public readonly host!: ModelHost | null;
+
   constructor() {
+    installTickManager(this);
     // 返回代理：派生类字段初始化与后续赋值都自动进入 Undo Log。
     return trackLogicObject(this) as this;
+  }
+
+  /** 定时器到点后的统一入口；子类可覆写并按枚举分派业务。 */
+  public handleTickEvent(
+    eventName: TickEventNameEnums | string,
+    args: JsonValue = null,
+    _timerId?: number,
+  ): void {
+    if (eventName === TickEventNameEnums.TimerTriggered) {
+      const name = args && typeof args === "object" && !Array.isArray(args)
+        ? (args as Record<string, JsonValue>).eventName
+        : null;
+      if (typeof name === "string") invokeTickEventCallback(name);
+      return;
+    }
+    invokeTickEventCallback(String(eventName));
+  }
+
+  public stepTick(): void {
+    this.tickmanager.update();
+  }
+
+  public setTickOwnerId(ownerId: string): void {
+    this.tickmanager.setOwnerId(ownerId);
+  }
+
+  /** 由 Entity 构造时绑定；Entity 不持有 timer，只作为 Model 访问世界的宿主。 */
+  public attachHost(host: ModelHost): void {
+    Object.defineProperty(this, "host", {
+      value: host,
+      enumerable: false,
+      writable: true,
+      configurable: true,
+    });
+  }
+
+  public captureTimers(): TimerState[] {
+    return this.tickmanager.capture();
+  }
+
+  public restoreTimers(states: TimerState[], context: RestoreContext): void {
+    this.tickmanager.restore(states, context);
+  }
+
+  public disposeTickManager(): void {
+    (this.tickmanager as EntityTickManager).dispose?.();
   }
 
   onModelStep?(_host: ModelHost): void { }
@@ -57,8 +119,30 @@ export abstract class LogicModel {
   }
 }
 
+function installTickManager(model: LogicModel): void {
+  Object.defineProperty(model, "tickmanager", {
+    value: new EntityTickManager(model),
+    enumerable: false,
+    writable: false,
+    configurable: true,
+  });
+  Object.defineProperty(model, "tickEventNames", {
+    value: [...DEFAULT_TICK_EVENT_NAMES],
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  });
+  Object.defineProperty(model, "host", {
+    value: null,
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  });
+}
+
 export function cloneLogicModel<T extends LogicModel>(model: T): T {
   const copy = Object.assign(Object.create(Object.getPrototypeOf(model)), model) as T;
+  installTickManager(copy);
   return trackLogicObject(copy) as T;
 }
 

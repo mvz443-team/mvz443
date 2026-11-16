@@ -95,7 +95,7 @@ export class ElasticPutinEntity extends PlantEntity {
     this.isLightning = true;
     // 逻辑窗口必须用可快照的定时系统，不能用 scene.time：
     // scene.time 不进入快照，回滚后会出现"幽灵闪电"。
-    this.tickmanager.delayedCall({
+    this.model.tickmanager.delayedCall({
       delay: duration,
       callback: () => {
         if (this.currentHealth > 0) {

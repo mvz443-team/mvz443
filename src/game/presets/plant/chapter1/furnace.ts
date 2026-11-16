@@ -29,7 +29,7 @@ export class FurnaceModel extends PlantModel {
     // 启动能量生产定时器
     const cooldownTime = this.generateEnergyCooldown.getValueAt(entity.level);
 
-    entity.tickmanager.addEvent({
+    entity.model.tickmanager.addEvent({
       startAt: cooldownTime * 0.7,
       delay: cooldownTime,
       repeat: -1,
