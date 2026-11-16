@@ -1,6 +1,6 @@
 import DepthHelper from "../../../utils/helper/DepthHelper";
 import ProjectileDamage from "../../../../constants/damage";
-import { PlantStat } from "../../../../utils/numbervalue";
+import { LevelScaledValue } from "../../../../utils/numbervalue";
 import { DeferredManager } from "../../../managers/DeferredManager";
 import PlantsManager from "../../../managers/combat/PlantsManager";
 import { PositionManager } from "../../../managers/view/PositionManager";
@@ -64,13 +64,13 @@ export class ATDispenserModel extends PlantModel {
   public override descriptionKey = 'at_dispenser_description';
   public override texturePath = 'plant/at_dispenser';
 
-  public maxHealth = new PlantStat(450).setIncRatio(2);
-  public cost = new PlantStat(450).setThreshold(5, 425);
+  public maxHealth = new LevelScaledValue(450).setIncRatio(2);
+  public cost = new LevelScaledValue(450).setThreshold(5, 425);
 
-  public cooldown = new PlantStat(50000).setThreshold(9, 44000);
+  public cooldown = new LevelScaledValue(50000).setThreshold(9, 44000);
   public cooldownStartAtRatio = 1;
 
-  public damage = new PlantStat(ProjectileDamage.bullet.firework).setIncRatio(1.4);
+  public damage = new LevelScaledValue(ProjectileDamage.bullet.firework).setIncRatio(1.4);
   public isNightPlant: boolean = false;
 
   public override createEntity(scene: Game, col: number, row: number, level: number): ATDispenserEntity {

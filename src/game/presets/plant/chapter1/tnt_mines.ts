@@ -1,6 +1,6 @@
 import PlantsManager from "../../../managers/combat/PlantsManager";
 import seedrandom from "seedrandom";
-import { GetDecValue, PlantStat } from "../../../../utils/numbervalue";
+import { GetDecValue, LevelScaledValue } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -27,13 +27,13 @@ export class TntMinesModel extends PlantModel {
   public override descriptionKey = 'tnt_mines_description';
   public override texturePath = 'plant/tnt_mines';
 
-  public maxHealth = new PlantStat(400);
-  public cost = new PlantStat(25);
+  public maxHealth = new LevelScaledValue(400);
+  public cost = new LevelScaledValue(25);
 
-  public cooldown = new PlantStat(30000).setThreshold(5, 25000);
+  public cooldown = new LevelScaledValue(30000).setThreshold(5, 25000);
   public cooldownStartAtRatio = 0.5;
 
-  public damage = new PlantStat(1500);
+  public damage = new LevelScaledValue(1500);
 
   /** 地雷爆炸效果由 Model 定义。 */
   public explode(host: ModelHost, level: number): void {

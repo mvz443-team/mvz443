@@ -1,4 +1,4 @@
-import { PlantStat } from "../../../../utils/numbervalue";
+import { LevelScaledValue } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -23,12 +23,12 @@ export class ObsidianModel extends PlantModel {
   public override descriptionKey = 'obsidian_description';
   public override texturePath = 'plant/obsidian';
 
-  public maxHealth = new PlantStat(4000).setIncRatio(1.4);
-  public cost = new PlantStat(50);
-  public cooldown = new PlantStat(32000).setThreshold(5, 24000); // 32秒 / 5级时24秒
+  public maxHealth = new LevelScaledValue(4000).setIncRatio(1.4);
+  public cost = new LevelScaledValue(50);
+  public cooldown = new LevelScaledValue(32000).setThreshold(5, 24000); // 32秒 / 5级时24秒
   public cooldownStartAtRatio = 1; // 需要完整等待cooldown
 
-  public damage = new PlantStat(0); // 黑曜石没有伤害
+  public damage = new LevelScaledValue(0); // 黑曜石没有伤害
   public isNightPlant = false;
 
   // 护盾相关数据

@@ -5,7 +5,7 @@ import DepthHelper from "../../../utils/helper/DepthHelper";
 
 import ProjectileDamage from "../../../../constants/damage";
 import { legacyRapierVelocityToUnitsPerSecond } from "../../../../constants/physics";
-import { PlantStat } from "../../../../utils/numbervalue";
+import { LevelScaledValue } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -23,14 +23,14 @@ export class DoubleDispenserModel extends PlantModel {
   public override descriptionKey = 'double_dispenser_description';
   public override texturePath = 'plant/double_dispenser';
 
-  public maxHealth = new PlantStat(300);
-  public cost = new PlantStat(125);
+  public maxHealth = new LevelScaledValue(300);
+  public cost = new LevelScaledValue(125);
 
-  public cooldown = new PlantStat(8000);
+  public cooldown = new LevelScaledValue(8000);
   public cooldownStartAtRatio = 0;
 
-  public damage = new PlantStat(ProjectileDamage.bullet.arrow).setIncRatio(1.3);
-  public fireworkDamage = new PlantStat(150).setIncRatio(1.2);
+  public damage = new LevelScaledValue(ProjectileDamage.bullet.arrow).setIncRatio(1.3);
+  public fireworkDamage = new LevelScaledValue(150).setIncRatio(1.2);
   public isNightPlant = false;
 
   public override createEntity(scene: Game, col: number, row: number, level: number): DoubleDispenserEntity {

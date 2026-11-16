@@ -24,11 +24,13 @@ export function GetDecValue(origin: number, ratio: number, level: number): numbe
 
 // 初始等级为0
 
-export class PlantStat {
+export class LevelScaledValue {
   private base: number;
   private incRatio: number | null = null;
   private decRatio: number | null = null;
   private levelThresholds: Record<number, number> = {};
+
+  private _cache: Float64Array | null = null;
 
   constructor(base: number) {
     this.base = base;
@@ -84,7 +86,7 @@ export class PlantStat {
 /**
  * 
 // 基础 100，每级伤害增加，5级突变为 300
-const stat = new PlantStat(100)
+const stat = new LevelScaledValue(100)
   .setIncRatio(1.5) 
   .setThreshold(5, 300);
 

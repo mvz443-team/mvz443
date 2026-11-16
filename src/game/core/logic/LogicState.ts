@@ -2,7 +2,7 @@
  * 无感逻辑状态：只有 Model 会被快照，业务写普通字段即可。
  *
  * - 没有 reg、没有 schema、没有 logicFields；Model 上的所有 JSON 安全字段自动进 Undo Log。
- * - 配置型字段（PlantStat、纹理、函数等）不是运行时状态，不进快照，也不允许运行时改写。
+ * - 配置型字段（LevelScaledValue、纹理、函数等）不是运行时状态，不进快照，也不允许运行时改写。
  * - 不依赖 Phaser / Rapier，可在 Node 下独立测试。
  */
 
@@ -99,7 +99,7 @@ function makeProxy<T extends object>(raw: T, tracker: Tracker, path: string): T 
       return tracker.wrap(Reflect.get(target, prop, receiver), `${path}.${String(prop)}`);
     },
     set(target, prop, value, receiver) {
-      // 配置字段（PlantStat/sprite 等）不允许运行时改写，防止表现层状态混入 Model。
+      // 配置字段（LevelScaledValue/sprite 等）不允许运行时改写，防止表现层状态混入 Model。
       if (!isLogicValue(value)) {
         throw new Error(`[LogicState] ${path}.${String(prop)} 不是确定性数据，不能写入 Model`);
       }

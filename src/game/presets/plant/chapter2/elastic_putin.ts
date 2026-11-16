@@ -2,7 +2,7 @@
  * 弹性小兵 - 反弹敌方子弹，支持闪电增强
  */
 
-import { PlantStat } from "../../../../utils/numbervalue";
+import { LevelScaledValue } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -17,11 +17,11 @@ export class ElasticPutinModel extends PlantModel {
   public override descriptionKey = 'elastic_putin_description';
   public override texturePath = 'plant/elastic_putin';
 
-  public maxHealth = new PlantStat(300);
-  public cost = new PlantStat(100).setThreshold(3, 75);
-  public cooldown = new PlantStat(7500);
+  public maxHealth = new LevelScaledValue(300);
+  public cost = new LevelScaledValue(100).setThreshold(3, 75);
+  public cooldown = new LevelScaledValue(7500);
   public cooldownStartAtRatio = 0;
-  public damage = new PlantStat(0);
+  public damage = new LevelScaledValue(0);
   public isNightPlant = true;
 
   public override createEntity(scene: Game, col: number, row: number, level: number): ElasticPutinEntity {

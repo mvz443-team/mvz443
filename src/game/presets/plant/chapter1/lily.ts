@@ -1,5 +1,5 @@
 import DepthHelper from "../../../utils/helper/DepthHelper";
-import { PlantStat } from "../../../../utils/numbervalue";
+import { LevelScaledValue } from "../../../../utils/numbervalue";
 import PlantsManager from "../../../managers/combat/PlantsManager";
 import GridManager from "../../../managers/combat/GridManager";
 import { PositionManager } from "../../../managers/view/PositionManager";
@@ -15,11 +15,11 @@ export class LilyModel extends PlantModel {
   public override descriptionKey = 'lily_description';
   public override texturePath = 'plant/lily';
 
-  public maxHealth = new PlantStat(300).setIncRatio(2);
-  public cost = new PlantStat(25).setThreshold(5, 0); // 5级以上无需能量
-  public cooldown = new PlantStat(4000);
+  public maxHealth = new LevelScaledValue(300).setIncRatio(2);
+  public cost = new LevelScaledValue(25).setThreshold(5, 0); // 5级以上无需能量
+  public cooldown = new LevelScaledValue(4000);
   public cooldownStartAtRatio = 0;
-  public damage = new PlantStat(0); // Lily没有伤害
+  public damage = new LevelScaledValue(0); // Lily没有伤害
 
   isNightPlant = false;
   public isTiny: boolean = true;

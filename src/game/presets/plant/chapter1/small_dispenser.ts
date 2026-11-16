@@ -1,6 +1,6 @@
 import DepthHelper from "../../../utils/helper/DepthHelper";
 import ProjectileDamage from "../../../../constants/damage";
-import { PlantStat } from "../../../../utils/numbervalue";
+import { LevelScaledValue } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -21,13 +21,13 @@ export class SmallDispenserModel extends PlantModel {
   public override descriptionKey = 'small_dispenser_description';
   public override texturePath = 'plant/small_dispenser';
 
-  public maxHealth = new PlantStat(300);
-  public cost = new PlantStat(0);
+  public maxHealth = new LevelScaledValue(300);
+  public cost = new LevelScaledValue(0);
 
-  public cooldown = new PlantStat(10000);
+  public cooldown = new LevelScaledValue(10000);
   public cooldownStartAtRatio = 0;
 
-  public damage = new PlantStat(ProjectileDamage.bullet.snowBall).setIncRatio(1.3);
+  public damage = new LevelScaledValue(ProjectileDamage.bullet.snowBall).setIncRatio(1.3);
   public isNightPlant = true;
   public isTiny = true;
 
@@ -84,7 +84,7 @@ export class SmallDispenserModel extends PlantModel {
       PlantCmd.SetSleeping(entity, false);
     }
 
-    const dmg = new PlantStat(ProjectileDamage.bullet.bomb_fireBall).setIncRatio(1.2).getValueAt(entity.level);
+    const dmg = new LevelScaledValue(ProjectileDamage.bullet.bomb_fireBall).setIncRatio(1.2).getValueAt(entity.level);
 
     ProjectileCmd.Create(FireBallModel, entity.scene, entity.x, entity.row, {
       damage: dmg,

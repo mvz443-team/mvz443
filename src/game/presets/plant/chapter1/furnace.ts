@@ -1,4 +1,4 @@
-import { PlantStat } from "../../../../utils/numbervalue";
+import { LevelScaledValue } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -14,14 +14,14 @@ export class FurnaceModel extends PlantModel {
   public override descriptionKey = 'furnace_description';
   public override texturePath = 'plant/furnace';
 
-  public maxHealth = new PlantStat(300);
-  public cost = new PlantStat(50).setThreshold(5, 35);
-  public cooldown = new PlantStat(6000);
+  public maxHealth = new LevelScaledValue(300);
+  public cost = new LevelScaledValue(50).setThreshold(5, 35);
+  public cooldown = new LevelScaledValue(6000);
   public cooldownStartAtRatio = 0;
 
-  generateEnergyCooldown = new PlantStat(25000).setDecValue(0.85); // 生成能量的冷却时间，随等级增加而递减
-  generateEnergyAmount = new PlantStat(25).setThreshold(9, 40); // 生成能量的数量，9级时提升
-  public damage = new PlantStat(0); // 炉子没有伤害
+  generateEnergyCooldown = new LevelScaledValue(25000).setDecValue(0.85); // 生成能量的冷却时间，随等级增加而递减
+  generateEnergyAmount = new LevelScaledValue(25).setThreshold(9, 40); // 生成能量的数量，9级时提升
+  public damage = new LevelScaledValue(0); // 炉子没有伤害
 
   isNightPlant = false;
 

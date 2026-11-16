@@ -1,5 +1,5 @@
 // models/PlantModel.ts
-import { PlantStat } from "../../utils/numbervalue";
+import { LevelScaledValue } from "../../utils/numbervalue";
 import { Game } from "../scenes/Game";
 import { BaseEntity } from "./core/BaseEntity";
 import { PlantEntity } from "./entities/PlantEntity";
@@ -26,18 +26,18 @@ export abstract class PlantModel extends LogicModel {
   public abstract readonly descriptionKey: string;
   public abstract readonly texturePath: string;
 
-  // 核心数值定义 (使用PlantStat处理等级差异)
-  public abstract maxHealth: PlantStat;
-  public abstract cost: PlantStat;
-  public abstract cooldown: PlantStat; // 单位ms
+  // 核心数值定义 (使用LevelScaledValue处理等级差异)
+  public abstract maxHealth: LevelScaledValue;
+  public abstract cost: LevelScaledValue;
+  public abstract cooldown: LevelScaledValue; // 单位ms
   public abstract cooldownStartAtRatio: number;// 0-1, 0表示无需等待，立即装填；1表示 游戏开始时需要完整等待cooldown
-  public abstract damage: PlantStat;
+  public abstract damage: LevelScaledValue;
 
   public abstract isNightPlant: boolean;
   public isTiny: boolean = false; // 是否为小型植物（会被skipTinyPlant忽略）
 
-  protected readonly LevelThresholds1 : number; 
-  protected readonly LevelThresholds2 : number;
+  protected readonly LevelThresholds1: number;
+  protected readonly LevelThresholds2: number;
 
   // 行为接口：当植物准备就绪
   // 注意：传入的是 entity (实体对象)，Model本身不保存任何状态！

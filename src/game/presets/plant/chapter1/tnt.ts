@@ -1,5 +1,5 @@
 import seedrandom from "seedrandom";
-import { PlantStat } from "../../../../utils/numbervalue";
+import { LevelScaledValue } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -16,13 +16,13 @@ export class TntModel extends PlantModel {
   public override descriptionKey = 'tnt_description';
   public override texturePath = 'plant/tnt';
 
-  public maxHealth = new PlantStat(2000).setThreshold(1, 2000); // SECKILL 高血量
-  public cost = new PlantStat(150);
+  public maxHealth = new LevelScaledValue(2000).setThreshold(1, 2000); // SECKILL 高血量
+  public cost = new LevelScaledValue(150);
 
-  public cooldown = new PlantStat(50000).setIncRatio(0.85);
+  public cooldown = new LevelScaledValue(50000).setIncRatio(0.85);
   public cooldownStartAtRatio = 0.5;
 
-  public damage = new PlantStat(1400).setIncRatio(1.35);
+  public damage = new LevelScaledValue(1400).setIncRatio(1.35);
   public isNightPlant = false;
 
   public override createEntity(scene: Game, col: number, row: number, level: number): TntEntity {

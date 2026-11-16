@@ -1,5 +1,5 @@
 import DepthHelper from "../../../utils/helper/DepthHelper";
-import { PlantStat } from "../../../../utils/numbervalue";
+import { LevelScaledValue } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -16,13 +16,13 @@ export class IceBombModel extends PlantModel {
   public override descriptionKey = 'ice_bomb_description';
   public override texturePath = 'plant/ice_bomb';
 
-  public maxHealth = new PlantStat(600);
-  public cost = new PlantStat(75);
-  public cooldown = new PlantStat(52000).setThreshold(9, 41000); // 52秒 / 9级时41秒
+  public maxHealth = new LevelScaledValue(600);
+  public cost = new LevelScaledValue(75);
+  public cooldown = new LevelScaledValue(52000).setThreshold(9, 41000); // 52秒 / 9级时41秒
   public cooldownStartAtRatio = 1; // 需要完整等待cooldown
 
   // 初始化伤害：1-4级 15伤害 * 2倍 = 30；5级以上 350伤害
-  public damage = new PlantStat(15).setIncRatio(2).setThreshold(5, 350);
+  public damage = new LevelScaledValue(15).setIncRatio(2).setThreshold(5, 350);
   private readonly freezeDurationMs = 8000;
   private readonly slowDurationMs = 5000;
 

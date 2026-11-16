@@ -1,7 +1,7 @@
 import DepthHelper from "../../../utils/helper/DepthHelper";
 import ProjectileDamage from "../../../../constants/damage";
 import { legacyRapierVelocityToUnitsPerSecond } from "../../../../constants/physics";
-import { PlantStat } from "../../../../utils/numbervalue";
+import { LevelScaledValue } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -19,14 +19,14 @@ export class DispenserModel extends PlantModel {
   public override descriptionKey = 'dispenser_description';
   public override texturePath = 'plant/dispenser';
 
-  public maxHealth = new PlantStat(300);
-  public cost = new PlantStat(100).setThreshold(5, 75);
-  public cooldown = new PlantStat(6000);
+  public maxHealth = new LevelScaledValue(300);
+  public cost = new LevelScaledValue(100).setThreshold(5, 75);
+  public cooldown = new LevelScaledValue(6000);
   public cooldownStartAtRatio = 0; // 不需要等待，立即装填
 
-  public damage = new PlantStat(ProjectileDamage.bullet.arrow).setIncRatio(1.35);
-  public penetratePower = new PlantStat(1).setThreshold(3, 2);
-  public starShardsPenetratePower = new PlantStat(1).setThreshold(3, 2).setThreshold(5, 3);
+  public damage = new LevelScaledValue(ProjectileDamage.bullet.arrow).setIncRatio(1.35);
+  public penetratePower = new LevelScaledValue(1).setThreshold(3, 2);
+  public starShardsPenetratePower = new LevelScaledValue(1).setThreshold(3, 2).setThreshold(5, 3);
 
   isNightPlant = false;
 

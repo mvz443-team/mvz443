@@ -3,7 +3,7 @@ import DepthHelper from "../../../utils/helper/DepthHelper";
  * 发光粉 - 即时效果植物，唤醒同格器械并创建视觉效果
  */
 
-import { PlantStat } from "../../../../utils/numbervalue";
+import { LevelScaledValue } from "../../../../utils/numbervalue";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
@@ -19,11 +19,11 @@ export class GlowPowderModel extends PlantModel {
   public override descriptionKey = 'glow_powder_description';
   public override texturePath = 'plant/glow_powder';
 
-  public maxHealth = new PlantStat(SECKILL);
-  public cost = new PlantStat(75).setThreshold(5, 50);
-  public cooldown = new PlantStat(14000).setDecValue(0.6);
+  public maxHealth = new LevelScaledValue(SECKILL);
+  public cost = new LevelScaledValue(75).setThreshold(5, 50);
+  public cooldown = new LevelScaledValue(14000).setDecValue(0.6);
   public cooldownStartAtRatio = 0;
-  public damage = new PlantStat(0);
+  public damage = new LevelScaledValue(0);
   public isNightPlant = false;
 
   public override createEntity(scene: Game, col: number, row: number, level: number): GlowPowderEntity {

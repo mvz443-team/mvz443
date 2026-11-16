@@ -1,5 +1,5 @@
 import ProjectileDamage from "../../../../constants/damage";
-import { PlantStat } from "../../../../utils/numbervalue";
+import { LevelScaledValue } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -26,18 +26,18 @@ export class PumpkinModel extends PlantModel {
   public override descriptionKey = 'pumpkin_description';
   public override texturePath = 'plant/pumpkin';
 
-  public maxHealth = new PlantStat(300);
-  public cost = new PlantStat(100);
-  public cooldown = new PlantStat(12000);
+  public maxHealth = new LevelScaledValue(300);
+  public cost = new LevelScaledValue(100);
+  public cooldown = new LevelScaledValue(12000);
   public cooldownStartAtRatio = 0;
 
-  public damage = new PlantStat(42).setIncRatio(1.35); // 伤害在激光中定义
-  public SparkDamage = new PlantStat(290).setIncRatio(1.3); // 大招伤害
+  public damage = new LevelScaledValue(42).setIncRatio(1.35); // 伤害在激光中定义
+  public SparkDamage = new LevelScaledValue(290).setIncRatio(1.3); // 大招伤害
   public isNightPlant = true;
 
   // 攻击参数
   private readonly attackDistance = 4.6; // 格子数
-  private readonly baseAttackInterval = new PlantStat(1950).setDecValue(0.75); // 毫秒
+  private readonly baseAttackInterval = new LevelScaledValue(1950).setDecValue(0.75); // 毫秒
 
   // 激光参数
   private readonly laserDistance = 4.6; // 激光长度（格子数）

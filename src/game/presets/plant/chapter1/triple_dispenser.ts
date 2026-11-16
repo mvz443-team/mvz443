@@ -1,7 +1,7 @@
 import DepthHelper from "../../../utils/helper/DepthHelper";
 import ProjectileDamage from "../../../../constants/damage";
 import { legacyRapierVelocityToUnitsPerSecond } from "../../../../constants/physics";
-import { PlantStat } from "../../../../utils/numbervalue";
+import { LevelScaledValue } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -18,13 +18,13 @@ export class TripleDispenserModel extends PlantModel {
   public override descriptionKey = 'triple_dispenser_description';
   public override texturePath = 'plant/triple_dispenser';
 
-  public maxHealth = new PlantStat(300);
-  public cost = new PlantStat(325);
+  public maxHealth = new LevelScaledValue(300);
+  public cost = new LevelScaledValue(325);
 
-  public cooldown = new PlantStat(10000);
+  public cooldown = new LevelScaledValue(10000);
   public cooldownStartAtRatio = 0;
 
-  public damage = new PlantStat(ProjectileDamage.bullet.arrow).setIncRatio(1.35);
+  public damage = new LevelScaledValue(ProjectileDamage.bullet.arrow).setIncRatio(1.35);
   public isNightPlant = false;
 
   protected LevelThresholds1 = 3;
