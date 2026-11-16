@@ -138,7 +138,7 @@ export default class WSClientHandlers {
         const gameEnd = roomResponse.payload.gameEnd;
         const receiveQueue = this.ws.getReceiveQueue();
         if (onlineStateManager.getCurrentGameStage() === EnumGameStage.InGame && receiveQueue) {
-          receiveQueue.handleGameEndResponse(gameEnd.gameResult === 1);
+          receiveQueue.handleGameEndResponse(gameEnd.gameResult === 1, gameEnd.endFrameId);
         } else {
           onlineStateManager.updateGameStage(EnumGameStage.PostGame);
           PhaserEventBus.emit(PhaserEvents.RoomGameEnd, { isWin: gameEnd.gameResult === 1 });

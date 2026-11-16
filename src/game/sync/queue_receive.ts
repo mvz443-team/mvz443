@@ -70,11 +70,15 @@ export default class QueueReceive {
     this.queues.push(response);
   }
 
-  handleGameEndResponse(isWin: boolean) {
+  handleGameEndResponse(isWin: boolean, endFrameId?: number) {
+    // 旧服务端未提供权威帧号时才退回本地 +1；否则必须对齐服务端结束帧。
+    const frameId = endFrameId && endFrameId > this.currentFrameId
+      ? endFrameId
+      : this.currentFrameId + 1;
     this.handleInGameResponse({
-      frameId: this.currentFrameId + 1,
+      frameId,
       operations: [{
-        processFrameId: this.currentFrameId + 1,
+        processFrameId: frameId,
         operationIndex: Number.MAX_SAFE_INTEGER,
         payload: {
           oneofKind: "gameEvent",
