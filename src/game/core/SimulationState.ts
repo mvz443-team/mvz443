@@ -74,6 +74,8 @@ export interface RestoreContext {
   mode: RestoreMode;
   /** 恢复诊断信息。 */
   report: RestoreReport;
+  /** 快照中的全局 ticker 下一个 timer id；实体 timer 恢复必须与其一致。 */
+  nextTimerId?: number;
   /** 按快照 id 解析仍然存活的实体引用。 */
   resolveEntity?: (snapshotId: string) => unknown;
 }
@@ -410,6 +412,11 @@ export class StateRegistry {
       report.restored.push("seed");
     } else {
       report.missing.push("seed");
+    }
+
+    const nextTimerIdValue = state.values["ticker.nextTimerId"];
+    if (typeof nextTimerIdValue === "number") {
+      context.nextTimerId = nextTimerIdValue;
     }
 
     for (const [key, binding] of this.values) {

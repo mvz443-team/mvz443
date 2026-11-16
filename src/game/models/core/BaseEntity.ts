@@ -177,9 +177,18 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
 
   protected getRelationFields(): readonly string[] { return NO_RELATION_FIELDS; }
   protected getPrngFields(): readonly string[] { return []; }
-  protected captureLogicState(): Record<string, JsonValue> { return {}; }
-  protected restoreLogicState(_state: Record<string, JsonValue>, _context: RestoreContext): void { }
-  protected captureExtraState(): Record<string, JsonValue> { return {}; }
+  protected captureLogicState(): Record<string, JsonValue> {
+    return { lastConsumedEventId: this.lastConsumedEventId };
+  }
+  protected restoreLogicState(state: Record<string, JsonValue>, _context: RestoreContext): void {
+    const cursor = state.lastConsumedEventId;
+    this.lastConsumedEventId = typeof cursor === "number" && Number.isFinite(cursor)
+      ? Math.max(0, Math.trunc(cursor))
+      : 0;
+  }
+  protected captureExtraState(): Record<string, JsonValue> {
+    return { lastConsumedEventId: this.lastConsumedEventId };
+  }
 
   private readModelNumber(name: string, fallback: unknown): number | null {
     const state = this.model ? snapshotModel(this.model) : {};

@@ -6,6 +6,7 @@ import {
 import { EventBus } from "../../utils/eventBus";
 import BackendWS from "../../utils/net/sync";
 import { PhaserEventBus, PhaserEvents } from "../EventBus";
+import SyncManager from "../managers/combat/SyncManager";
 
 type InGameEvent = {
   onCardPlant: (pid: number, col: number, row: number, level: number, uid: number) => void;
@@ -126,6 +127,8 @@ export default class QueueReceive {
   }
 
   public ConsumeInGameOperation(operation: InGameOperation): void {
+    const responseSeq = operation.responseClientOpSeq ?? 0;
+    SyncManager.Instance.setCurrentOperationResponseSeq(responseSeq);
     switch (operation.payload.oneofKind) {
       case "cardPlant": {
         const cardPlant = operation.payload.cardPlant;

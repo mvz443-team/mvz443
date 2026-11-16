@@ -16,6 +16,7 @@ import { simulationState, SimulationState, serializeSimulationState } from "../c
 import { resolveEntityBySnapshotId } from "../core/EntityLookup";
 import { logicEvents } from "../core/logic/LogicEvents";
 import { updateAllTickManagers } from "../core/logic/EntityTickManager";
+import { buildInlineSnapshotOrHash } from "../core/snapshot/InlineSnapshot";
 
 // 单次 update 允许接受的最大 delta（切后台/断点会产生数秒级 delta）
 const MAX_FRAME_DELTA_MS = 250;
@@ -66,8 +67,14 @@ export default class CombatManager extends BaseManager {
 
   /** 环形快照：用于分叉恢复、断线恢复与确定性自检。 */
   public static readonly SNAPSHOT_INTERVAL_FRAMES = 10;
+  /** checkpoint 低频上报：10 帧采样用于检测，200 帧才构造 inline 快照。 */
+  public static readonly CHECKPOINT_INTERVAL_FRAMES = 200;
   public static readonly SNAPSHOT_RING_SIZE = 20;
   private snapshotRing: Array<{ frameId: number; state: SimulationState }> = [];
+  private lastRestoreReport: ReturnType<typeof simulationState.restore> | null = null;
+  private desyncOffline = false;
+  private desyncReason = "";
+  private lastCheckpointFrame = 0;
   /** 进行中的确定性自检（回滚-重放）任务。 */
   private pendingDeterminismCheck: { targetFrame: number; expectedHash: string; restoreFrame: number } | null = null;
 
@@ -158,6 +165,7 @@ export default class CombatManager extends BaseManager {
     this.lastStateHashFrame = 0;
     this.snapshotRing = [];
     this.pendingDeterminismCheck = null;
+    this.lastRestoreReport = null;
     this.Eventbus.removeAllListeners();
     this.combatStatus = {
       dayOrNight: true,
@@ -170,12 +178,18 @@ export default class CombatManager extends BaseManager {
       return;
     }
     this.isEndGameRequested = true;
+    if (this.desyncOffline) {
+      this.isGameEnd = true;
+      this.isPaused = true;
+      this.Eventbus.emit("onCombatEnd", isWin);
+      return;
+    }
     SyncManager.Instance.sendQueue.sendGameEnd(isWin ? 1 : 0);
     SyncManager.Instance.sendQueue.Consume();
   }
 
   private handleTogglePause() {
-    if (BackendWS.isOnlineMode()) return;
+    if (BackendWS.isOnlineMode() && !this.desyncOffline) return;
     if (this.isGameEnd) return;
     this.isPaused = !this._isPaused;
   }
@@ -209,7 +223,7 @@ export default class CombatManager extends BaseManager {
   // 切换游戏速度（1速/2速）
   public handleTimespeedToggle(): boolean {
     // 真实联机无效；单机 mock 会话仍允许本地倍速 / 暂停时无效 / 结束时无效
-    if (BackendWS.isOnlineMode() || this.isPaused || this.isGameEnd) return false;
+    if ((BackendWS.isOnlineMode() && !this.desyncOffline) || this.isPaused || this.isGameEnd) return false;
     if (!this.scene) return false;
 
     const previousTimeScale = this.scene.time.timeScale;
@@ -335,9 +349,22 @@ export default class CombatManager extends BaseManager {
       mode,
       resolveEntity: resolveEntityBySnapshotId,
     });
+    this.lastRestoreReport = report;
+    if (!report.ok || report.missing.length > 0 || report.errors.length > 0) {
+      console.warn("[CombatManager] restoreState incomplete", {
+        ok: report.ok,
+        missing: report.missing,
+        errors: report.errors,
+      });
+    }
     this.lastStateHash = null;
     this.lastStateHashFrame = 0;
     return report;
+  }
+
+  /** 最近一次恢复的诊断结果，供自检/联机恢复策略判定是否可继续模拟。 */
+  public getRestoreReport(): ReturnType<typeof simulationState.restore> | null {
+    return this.lastRestoreReport;
   }
 
   /** 每个逻辑帧结束后按固定间隔记录快照。 */
@@ -385,6 +412,44 @@ export default class CombatManager extends BaseManager {
   /** 当前完整状态的 64 位摘要。 */
   public hashState(): string {
     return simulationState.hash().h64;
+  }
+
+  /** 分叉后不再等待权威帧；保留当前世界，按单机固定步继续模拟。 */
+  public enterDesyncOfflineMode(reason: string): void {
+    if (this.desyncOffline) return;
+    this.desyncOffline = true;
+    this.desyncReason = reason;
+    this.isEndGameRequested = false;
+    this.isPaused = false;
+    this.snapshotRing = [];
+    this.pendingDeterminismCheck = null;
+  }
+
+  public isDesyncOffline(): boolean {
+    return this.desyncOffline;
+  }
+
+  public getDesyncReason(): string {
+    return this.desyncReason;
+  }
+
+  /** 分叉日志只在结算时下载一次，内容来自确定性模拟状态。 */
+  public exportDesyncLog(): void {
+    if (!this.desyncOffline) return;
+    const log = {
+      type: "mvz443-desync-report",
+      reason: this.desyncReason,
+      seed: this.seed,
+      frameId: SyncManager.Instance.recvQueue.currentFrameId,
+      state: this.serializeState(),
+    };
+    const blob = new Blob([JSON.stringify(log, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `mvz443-desync-${Date.now()}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   /**
@@ -445,9 +510,34 @@ export default class CombatManager extends BaseManager {
       const hash32 = Number.parseInt(hash.h32, 16) >>> 0;
       if (BackendWS.isRoomSessionMode() && hash32 !== 0) {
         SyncManager.Instance.sendQueue?.sendStateHash(frameId, hash32);
+        if (
+          BackendWS.isRoomSessionMode()
+          && frameId % CombatManager.CHECKPOINT_INTERVAL_FRAMES === 0
+          && frameId !== this.lastCheckpointFrame
+        ) {
+          this.lastCheckpointFrame = frameId;
+          const checkpoint = this.captureCheckpoint();
+          if (checkpoint) {
+            SyncManager.Instance.sendQueue?.sendCheckpoint(checkpoint.frameId, checkpoint.hash, checkpoint.payload);
+          }
+        }
       }
     } catch {
       // 状态采样失败不应中断锁步推进；后续按周期重试。
     }
+  }
+
+  /** 低频 checkpoint：只构造不含 Rapier physics 的 inline 状态，避免高频全量序列化。 */
+  public captureCheckpoint(): { frameId: number; hash: string; payload: unknown } | null {
+    const frameId = SyncManager.Instance.recvQueue.currentFrameId;
+    if (frameId <= 0) return null;
+    const state = this.captureState();
+    const hash = simulationState.hash(state);
+    const inline = buildInlineSnapshotOrHash(state, hash.h32);
+    return {
+      frameId,
+      hash: hash.h32,
+      payload: inline.snapshot ?? { hash: inline.hash },
+    };
   }
 }

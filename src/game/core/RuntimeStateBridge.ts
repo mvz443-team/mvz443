@@ -271,7 +271,9 @@ export function registerPhysicsSource(scene: Game): void {
   simulationState.registerPhysics({
     capture: () => {
       try {
-        return scene.rapierWorld?.takeSnapshot?.() ?? null;
+        // 高频状态采样不应序列化 Rapier world；checkpoint 只保存 Model 逻辑状态，
+        // 物理世界由实体位置/速度/刚体绑定在恢复时重建。
+        return null;
       } catch {
         return null;
       }

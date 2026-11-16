@@ -90,6 +90,9 @@ export namespace PhaserEvents {
   /** 确定性自检：回滚到旧快照并重放到当前帧，比对哈希 */
   export const DeterminismSelfCheckResult = 'determinism-self-check-result';
 
+  /** 对战进入分叉后的离线单机模式：收益按单人规则恢复、暂停/倍速可用、对局结束后可导出日志。 */
+  export const DesyncOfflineMode = 'desync-offline-mode';
+
   /**
    * @deprecated 使用MobManager的事件来替代
    * 游戏进度更新

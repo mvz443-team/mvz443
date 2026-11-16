@@ -31,6 +31,10 @@ class WebSocketClient {
   private reconnectTimer: number | null = null;
   private isReconnecting: boolean = false;
   private static readonly MAX_RECONNECT_ATTEMPTS = 12;
+  private offlineMode: "none" | "desync" = "none";
+  private latencySamples: number[] = [];
+  private static readonly MAX_LATENCY_SAMPLES = 30;
+  private lastSentAt: number = 0;
 
   private trace(message: string, details?: unknown) {
     if (details !== undefined) {
@@ -200,6 +204,51 @@ class WebSocketClient {
     this.dispatchMockPackets(mockServer.startSingleRoom());
   }
 
+  /** 分叉后进入不可恢复的离线单机模式：只影响本端，不再接收权威帧。 */
+  public enterDesyncOfflineMode(): void {
+    this.offlineMode = "desync";
+    this.cancelReconnect();
+    this.clearPendingTimers();
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.close();
+    }
+    this.ws = null;
+    onlineStateManager.updateGameStage(EnumGameStage.InGame);
+    this.mockRoomMode = false;
+    this.receiveQueue = null;
+    this.sendQueue = null;
+  }
+
+  public exitDesyncOfflineMode(): void {
+    this.offlineMode = "none";
+  }
+
+  public isDesyncOfflineMode(): boolean {
+    return this.offlineMode === "desync";
+  }
+
+  public getReconnectAttempt(): number {
+    return this.reconnectAttempt;
+  }
+
+  public isReconnecting(): boolean {
+    return this.isReconnecting || this.reconnectTimer !== null;
+  }
+
+  public recordLatencySample(sampleMs: number): void {
+    if (!Number.isFinite(sampleMs) || sampleMs < 0) return;
+    this.latencySamples.push(Math.round(sampleMs));
+    if (this.latencySamples.length > WebSocketClient.MAX_LATENCY_SAMPLES) {
+      this.latencySamples.shift();
+    }
+  }
+
+  public getAverageLatencyMs(): number | null {
+    if (this.latencySamples.length === 0) return null;
+    const sum = this.latencySamples.reduce((total, value) => total + value, 0);
+    return Math.round(sum / this.latencySamples.length);
+  }
+
   public closeMockRoom() {
     if (!this.mockRoomMode) {
       return;
@@ -262,15 +311,13 @@ class WebSocketClient {
       }
 
       const data = new Uint8Array(event.data);
+      if (this.lastSentAt > 0) this.recordLatencySample(performance.now() - this.lastSentAt);
       this.scheduleIncomingPacket(() => {
         try {
           if (reconnect) {
-            // 重连期间服务端只补发 InGameResponse，不发送 JoinRoomSuccess。
-            if (onlineStateManager.getCurrentGameStage() === EnumGameStage.InGame) {
-              this.handlers.handleInGameResponse(data);
-            } else {
-              this.handlers.handleRoomResponse(data);
-            }
+            // 重连期间服务端可能补发 InGameResponse 或 RoomResponse(ReplayFrames)。
+            if (data[0] === 0x08) this.handlers.handleInGameResponse(data);
+            else this.handlers.handleRoomResponse(data);
             return;
           }
           if (!onlineStateManager.getIsOnlineMode()) {
@@ -308,6 +355,7 @@ class WebSocketClient {
       this.clearPendingTimers();
       this.ws = null;
       const stage = onlineStateManager.getCurrentGameStage();
+      if (this.offlineMode === "desync") return;
       console.log("WebSocket connection closed:", {
         code: event.code,
         reason: event.reason,
@@ -385,6 +433,7 @@ class WebSocketClient {
 
   send(message: Uint8Array<ArrayBufferLike>) {
     const sendNow = () => this.dispatchBinaryMessage(message);
+    this.lastSentAt = performance.now();
 
     const delayMs = this.debugLatencyConfig.sendLatencyMs;
     if (delayMs <= 0) {

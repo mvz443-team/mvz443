@@ -212,6 +212,10 @@
     "waiting": "Waiting...",
     "bigWave": "A huge wave of monsters is approaching",
     "debugHint": "Press {{key}} to toggle Rapier debug",
+    "netOffline": "offline",
+    "netRetry": "retry({{count}})",
+    "netDesync": "desync",
+    "netLatency": "{{ms}}ms",
     "boss_skill": {
       "centipede": {
         "skill": {

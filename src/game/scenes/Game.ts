@@ -74,6 +74,7 @@ export class Game extends Scene {
   waitText: Phaser.GameObjects.Text;
   speedText: Phaser.GameObjects.Text;
   debugFrameText: Phaser.GameObjects.Text | null = null;
+  netStatusText: Phaser.GameObjects.Text | null = null;
   private waitTextVisibleTarget: boolean = false;
   private cardSlotsUi: CardSlots | MobileCardSlots | null = null;
   private bottomBarUi: BottomBar | MobileBottomBar | null = null;
@@ -195,6 +196,18 @@ export class Game extends Scene {
         padding: { x: 8, y: 3 },
       }
     ).setOrigin(0.5, 0).setDepth(DepthHelper.UI.waitingText()).setVisible(false).setAlpha(0);
+
+    this.netStatusText = this.add.text(
+      gameViewport.x + 8 * this.scaleFactor,
+      gameViewport.y + 8 * this.scaleFactor,
+      translate("game.netOffline"),
+      {
+        fontSize: `${Math.max(11, Math.round(this.scale.displaySize.width / 60))}px`,
+        color: '#9fe8ff',
+        backgroundColor: 'rgba(0, 0, 0, 0.35)',
+        padding: { x: 6, y: 3 },
+      },
+    ).setOrigin(0, 0).setDepth(DepthHelper.UI.waitingText());
 
     if (this.innerSettings.isDebug) {
       const sceneBounds = PositionManager.Instance.getSceneBounds(deviceType);
@@ -404,6 +417,7 @@ export class Game extends Scene {
 
   update(time: number, delta: number): void {
     CombatManager.Instance.update(time, delta);
+    this.updateNetStatusText();
     DebugManager.Instance.update();
     this.syncCameraLayers();
     this.updateWaitText(delta);
@@ -417,6 +431,20 @@ export class Game extends Scene {
     if (visible) {
       this.waitText.setVisible(true);
     }
+  }
+
+  private updateNetStatusText(): void {
+    if (!this.netStatusText) return;
+    let label = translate("game.netOffline");
+    if (BackendWS.isDesyncOfflineMode() || CombatManager.Instance.isDesyncOffline()) {
+      label = translate("game.netDesync");
+    } else if (BackendWS.isReconnecting()) {
+      label = translate("game.netRetry", { count: BackendWS.getReconnectAttempt() });
+    } else if (BackendWS.isOnlineMode() || BackendWS.isMockRoomMode()) {
+      const latency = BackendWS.getAverageLatencyMs();
+      label = latency === null ? translate("game.netOffline") : translate("game.netLatency", { ms: latency });
+    }
+    if (this.netStatusText.text !== label) this.netStatusText.setText(label);
   }
 
   private updateWaitText(delta: number) {
@@ -664,12 +692,17 @@ export class Game extends Scene {
 
   // 游戏退出真实入口, 由消息队列调用
   private handleRoomGameEnd({ isWin = false }: { isWin?: boolean } = {}) {
+    if (CombatManager.Instance.isDesyncOffline()) {
+      CombatManager.Instance.exportDesyncLog();
+    }
     this.cleanupSceneListeners();
 
     ConsoleCmd.uninstall(this);
     SoundManager.Instance.Reset();
     this.debugFrameText?.destroy();
     this.debugFrameText = null;
+    this.netStatusText?.destroy();
+    this.netStatusText = null;
     this.cardSlotsUi?.destroy();
     this.cardSlotsUi = null;
     this.bottomBarUi?.destroy();

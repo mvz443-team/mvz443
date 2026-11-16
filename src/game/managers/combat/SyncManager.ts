@@ -22,6 +22,19 @@ type SyncManagerEvent = {
   onRequestPlant: (playerId: PlayerIdentify, pid: number, level: number, col: number, row: number) => void;
   onRequestUseStarShards: (playerId: PlayerIdentify, pid: number, col: number, row: number) => void;
   onRequestRemovePlant: (pid: number, col: number, row: number) => void;
+  onPredictedOperation: (operation: PredictedOperation) => void;
+  onAuthoritativeOperation: (clientOpSeq: number) => void;
+  onPredictedOperationRejected: (clientOpSeq: number) => void;
+};
+
+export type PredictedOperation = {
+  clientOpSeq: number;
+  uid: number;
+  kind: "plant" | "starShards" | "removePlant";
+  pid: number;
+  level: number;
+  col: number;
+  row: number;
 };
 
 export default class SyncManager extends BaseManager {
@@ -39,6 +52,14 @@ export default class SyncManager extends BaseManager {
   // 乐观预测：点击种植后立即显示半透明虚影，服务端确认/拒绝时移除
   private deployGhosts: Map<number, Phaser.GameObjects.Sprite> = new Map();
   private deployGhostTweens: Map<number, Phaser.Tweens.Tween> = new Map();
+  private readonly predictedOperations = new Map<number, PredictedOperation>();
+  private readonly authoritativeOperationSeqs = new Set<number>();
+  private currentResponseClientOpSeq = 0;
+
+  /** 由 QueueReceive 在消费每个权威操作时设置，用于把回包关联到本地预测。 */
+  public setCurrentOperationResponseSeq(clientOpSeq: number): void {
+    this.currentResponseClientOpSeq = clientOpSeq;
+  }
 
   constructor() {
     super();
@@ -98,7 +119,16 @@ export default class SyncManager extends BaseManager {
   }
 
   private handleDeterminePlant = (pid: number, level: number, col: number, row: number, cost: number) => {
+    if (CombatManager.Instance.isDesyncOffline()) {
+      this.Eventbus.emit("onRequestPlant", BackendWS.my_id, pid, level, col, row);
+      return;
+    }
     const clientOpSeq = this.sendQueue.sendCardPlant(pid, col, row, level, cost);
+    const predicted: PredictedOperation = {
+      clientOpSeq, uid: BackendWS.my_id, kind: "plant", pid, level, col, row,
+    };
+    this.predictedOperations.set(clientOpSeq, predicted);
+    this.Eventbus.emit("onPredictedOperation", predicted);
     // 点击即反馈：先放半透明虚影，等服务端确认帧到达后再由真实实体接管。
     if (BackendWS.isRoomSessionMode()) {
       this.spawnDeployGhost(clientOpSeq, pid, col, row);
@@ -106,14 +136,57 @@ export default class SyncManager extends BaseManager {
   };
 
   private handleDetermineUseStarShards = (pid: number, col: number, row: number, cost: number) => {
-    this.sendQueue.sendStarShards(pid, col, row, cost);
+    if (CombatManager.Instance.isDesyncOffline()) {
+      this.Eventbus.emit("onRequestUseStarShards", BackendWS.my_id, pid, col, row);
+      return;
+    }
+    const clientOpSeq = this.sendQueue.sendStarShards(pid, col, row, cost) ?? 0;
+    if (clientOpSeq > 0) {
+      const predicted: PredictedOperation = {
+        clientOpSeq, uid: BackendWS.my_id, kind: "starShards", pid, level: 1, col, row,
+      };
+      this.predictedOperations.set(clientOpSeq, predicted);
+      this.Eventbus.emit("onPredictedOperation", predicted);
+    }
   };
 
   private handleDetermineRemovePlant = (pid: number, col: number, row: number) => {
-    this.sendQueue.sendRemovePlant(pid, col, row);
+    if (CombatManager.Instance.isDesyncOffline()) {
+      this.Eventbus.emit("onRequestRemovePlant", pid, col, row);
+      return;
+    }
+    const clientOpSeq = this.sendQueue.sendRemovePlant(pid, col, row) ?? 0;
+    if (clientOpSeq > 0) {
+      const predicted: PredictedOperation = {
+        clientOpSeq, uid: BackendWS.my_id, kind: "removePlant", pid, level: 1, col, row,
+      };
+      this.predictedOperations.set(clientOpSeq, predicted);
+      this.Eventbus.emit("onPredictedOperation", predicted);
+    }
   };
 
+  /** 权威帧到达时确认本地预测；重复帧或他端操作不会重复落地。 */
+  public confirmPredictedOperation(clientOpSeq: number): void {
+    if (clientOpSeq <= 0 || this.authoritativeOperationSeqs.has(clientOpSeq)) return;
+    this.authoritativeOperationSeqs.add(clientOpSeq);
+    const predicted = this.predictedOperations.get(clientOpSeq);
+    this.predictedOperations.delete(clientOpSeq);
+    this.Eventbus.emit("onAuthoritativeOperation", clientOpSeq);
+    if (!predicted && BackendWS.isRoomSessionMode() && !CombatManager.Instance.isDesyncOffline()) {
+      console.warn(`[sync] authoritative operation ${clientOpSeq} has no local prediction`);
+    }
+  }
+
+  /** 拒绝回包撤销预测操作。 */
+  public rejectPredictedOperation(clientOpSeq: number): void {
+    const predicted = this.predictedOperations.get(clientOpSeq);
+    if (!predicted) return;
+    this.predictedOperations.delete(clientOpSeq);
+    this.Eventbus.emit("onPredictedOperationRejected", clientOpSeq);
+  }
+
   private handleRecvCardPlant = (pid: number, col: number, row: number, level: number, uid: number) => {
+    this.confirmPredictedOperation(this.currentResponseClientOpSeq);
     if (uid === BackendWS.my_id) {
       this.clearGhostsAt(col, row);
     }
@@ -175,13 +248,16 @@ export default class SyncManager extends BaseManager {
   private handleOperationRejected = (rejection: { clientOpSeq: number }) => {
     // 服务端明确拒绝：仅撤销虚影表现，不触碰物理世界，也不回滚已确认状态。
     this.removeGhost(rejection.clientOpSeq);
+    this.rejectPredictedOperation(rejection.clientOpSeq);
   };
 
   private handleRecvUseStarShards = (pid: number, col: number, row: number, uid: number) => {
+    this.confirmPredictedOperation(this.currentResponseClientOpSeq);
     this.Eventbus.emit("onRequestUseStarShards", uid, pid, col, row);
   };
 
   private handleRecvRemovePlant = (pid: number, col: number, row: number) => {
+    this.confirmPredictedOperation(this.currentResponseClientOpSeq);
     this.Eventbus.emit("onRequestRemovePlant", pid, col, row);
   };
 
@@ -191,6 +267,11 @@ export default class SyncManager extends BaseManager {
   };
 
   public update(): boolean {
+    if (CombatManager.Instance.isDesyncOffline()) {
+      this.recvQueue.currentFrameId += 1;
+      this.recvQueue.lastAckFrameId = this.recvQueue.currentFrameId;
+      return true;
+    }
     const frameReady = this.recvQueue.Consume();
     if (!frameReady && BackendWS.isRoomSessionMode() && !CombatManager.Instance.isPaused) {
       this.sendQueue.ensureBlankFrame(this.recvQueue.currentFrameId);

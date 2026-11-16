@@ -100,6 +100,9 @@ export abstract class LogicModel {
   }
 
   public restoreTimers(states: TimerState[], context: RestoreContext): void {
+    if (typeof context.nextTimerId === "number") {
+      (this.tickmanager as EntityTickManager).setNextTimerId(context.nextTimerId);
+    }
     this.tickmanager.restore(states, context);
   }
 

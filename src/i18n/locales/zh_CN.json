@@ -212,6 +212,10 @@
     "waiting": "等待中...",
     "bigWave": "一大波怪物即将登场",
     "debugHint": "按 {{key}} 切换 Rapier 调试",
+    "netOffline": "offline",
+    "netRetry": "retry({{count}})",
+    "netDesync": "desync",
+    "netLatency": "{{ms}}ms",
     "boss_skill": {
       "centipede": {
         "skill": {

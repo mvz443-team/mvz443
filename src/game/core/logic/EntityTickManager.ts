@@ -78,6 +78,8 @@ export interface ITickManagerProxy {
   update(): void;
   capture(): TimerState[];
   restore(states: TimerState[], context: RestoreContext): void;
+  setNextTimerId(nextId: number): void;
+  getNextTimerId(): number;
   clear(): void;
 }
 
@@ -161,6 +163,15 @@ export class EntityTickManager implements ITickManagerProxy {
 
   public getOwnerId(): string {
     return this.ownerId;
+  }
+
+  /** 供快照恢复使用：实体计时器的下一个 id 必须与快照一致。 */
+  public setNextTimerId(nextId: number): void {
+    this.nextTimerId = Number.isFinite(nextId) ? Math.max(1, Math.trunc(nextId)) : 1;
+  }
+
+  public getNextTimerId(): number {
+    return this.nextTimerId;
   }
 
   public setFrame(frame: number, frameIntervalMs?: number): void {
@@ -367,7 +378,7 @@ export class EntityTickManager implements ITickManagerProxy {
       context.report.restored.push(`timer:${eventName}`);
     }
 
-    this.nextTimerId = Math.max(this.nextTimerId, ...states.map((timer) => timer.id + 1), 1);
+    this.setNextTimerId(context.nextTimerId ?? Math.max(...states.map((timer) => timer.id + 1), 1));
   }
 
   public clear(): void {

@@ -12,6 +12,7 @@ import {
 import { onlineStateManager } from "../../store/OnlineStateManager";
 import { PeerInfo, RoomAllReadyEvent } from "../../types/online";
 import { computeLoadoutHash } from "./loadout";
+import CombatManager from "../../game/managers/CombatManager";
 
 export default class WSClientHandlers {
   private ws: WebSocketClient;
@@ -134,6 +135,20 @@ export default class WSClientHandlers {
         PhaserEventBus.emit(PhaserEvents.RoomGameStart, { myID: roomInfo.myId });
         break;
       }
+      case 'checkpointAccepted': {
+        const accepted = roomResponse.payload.checkpointAccepted;
+        console.log('[checkpoint] accepted', accepted.frameId, accepted.snapshotKind);
+        break;
+      }
+      case 'replayFrames': {
+        const replay = roomResponse.payload.replayFrames;
+        const receiveQueue = this.ws.getReceiveQueue();
+        for (const frame of replay.frames) {
+          if (receiveQueue) receiveQueue.handleInGameResponse(frame);
+          else this.ws.enqueuePendingInGameResponse(frame);
+        }
+        break;
+      }
       case 'gameEnd': {
         const gameEnd = roomResponse.payload.gameEnd;
         const receiveQueue = this.ws.getReceiveQueue();
@@ -154,6 +169,12 @@ export default class WSClientHandlers {
       }
       case 'error': {
         const error = roomResponse.payload.error;
+        if (error.message.includes('状态分叉')) {
+          this.ws.enterDesyncOfflineMode();
+          CombatManager.Instance.enterDesyncOfflineMode(error.message);
+          PhaserEventBus.emit(PhaserEvents.DesyncOfflineMode, { message: error.message });
+          return;
+        }
         PhaserEventBus.emit(PhaserEvents.RoomError, { message: error.message });
         break;
       }

@@ -164,7 +164,7 @@ export class PauseMenu {
   }
 
   private setGameSpeed(timeScale: 1 | 2) {
-    if (BackendWS.isOnlineMode()) {
+    if (BackendWS.isOnlineMode() && !CombatManager.Instance.isDesyncOffline()) {
       this.speedSwitch?.setChecked(false);
       return;
     }

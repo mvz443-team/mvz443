@@ -89,12 +89,31 @@ export default class QueueSend {
     }
   }
 
+  /** 上报低频 checkpoint；服务端只在双端摘要一致时采纳。 */
+  public sendCheckpoint(frameId: number, hash: string, payload: unknown): void {
+    if (frameId <= 0 || !hash) return;
+    const inlineSnapshotJson = payload && typeof payload === "object" && "values" in payload
+      ? JSON.stringify(payload)
+      : "";
+    const request: RequestBlank = {
+      frameId: BackendWS.GetFrameID(),
+      ackFrameId: BackendWS.AckFrameID,
+      stateHash: 0,
+      hashFrameId: 0,
+      stateHashHex: hash,
+      inlineSnapshotJson,
+    };
+    this.queues.push({
+      payload: { blank: request, oneofKind: "blank" },
+    });
+  }
+
   private flushStateHashes() {
     while (!this.pendingStateHashes.isEmpty()) {
       const entry = this.pendingStateHashes.shift();
       if (!entry) continue;
       const request: RequestBlank = {
-        frameId: entry.frameId,
+        frameId: BackendWS.GetFrameID(),
         ackFrameId: BackendWS.AckFrameID,
         stateHash: entry.hash,
         hashFrameId: entry.frameId,
@@ -152,7 +171,7 @@ export default class QueueSend {
     return base.clientOpSeq;
   }
 
-  public sendRemovePlant(pid: number, col: number, row: number) {
+  public sendRemovePlant(pid: number, col: number, row: number): number {
     const base = this.createOperationBase(col, row);
 
     const request: RequestRemovePlant = {
@@ -165,9 +184,10 @@ export default class QueueSend {
         oneofKind: "removePlant"
       }
     });
+    return base.clientOpSeq;
   }
 
-  public sendStarShards(pid: number, col: number, row: number, cost: number) {
+  public sendStarShards(pid: number, col: number, row: number, cost: number): number {
     const base = this.createOperationBase(col, row);
 
     const currentStarShards = ResourceManager.Instance.getStarShards('mine');
@@ -185,6 +205,7 @@ export default class QueueSend {
         oneofKind: "starShards"
       }
     });
+    return base.clientOpSeq;
   }
 
   public sendBlankFrame(frameId: number) {
