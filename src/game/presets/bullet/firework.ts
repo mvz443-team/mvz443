@@ -22,8 +22,6 @@ export class HFireWorkModel extends BulletModel<HFireWorkConfig, HFireWorkEntity
   }
 }
 
-export const HFireWorkData = new HFireWorkModel();
-
 export class HFireWorkEntity extends BulletEntity {
   private explodeDamage: number;
   private smokeTimer: number = 0; // 限制产生烟雾的频率

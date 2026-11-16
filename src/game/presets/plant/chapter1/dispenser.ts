@@ -9,7 +9,7 @@ import type { Game } from "../../../scenes/Game";
 import createShootBurstAnim from "../../../sprite/shoot_anim";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import ShootHeadAnimationHelper from "../../../utils/helper/ShootHeadAnimationHelper";
-import { ArrowData, ArrowModel } from "../../bullet/arrow";
+import { ArrowModel } from "../../bullet/arrow";
 import { SightLineEntity } from "../../../models/entities/SightLineEntity";
 
 
@@ -76,8 +76,8 @@ export class DispenserModel extends PlantModel {
   }
 
   protected normalShot(scene: Game, entity: DispenserEntity, penetratePower = this.penetratePower.getValueAt(entity.level)) {
-    ProjectileCmd.Create<ArrowModel>(
-      ArrowData, scene, entity.x, entity.row, {
+    ProjectileCmd.Create(
+      ArrowModel, scene, entity.x, entity.row, {
       damage: this.damage.getValueAt(entity.level),
       faction: entity.faction,
       speed: legacyRapierVelocityToUnitsPerSecond(800),

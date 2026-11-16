@@ -1,6 +1,6 @@
 import { legacyRapierVelocityToUnitsPerSecond } from "../../../constants/physics";
 import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
-import { ArrowData } from "../../presets/bullet/arrow";
+import { ArrowModel } from "../../presets/bullet/arrow";
 import { Faction } from "../Enum";
 import type { Game } from "../../scenes/Game";
 import { addHandAttachment, PresetMonsterModel } from "./MonsterEntity";
@@ -34,7 +34,7 @@ export class BaseSkeletonBowEntity extends BaseSkeletonEntity {
         if (!sightLine.hasTarget()) return;
         this.stopMove();
         if (this.currentHealth <= 0 || !this.scene) return;
-        ProjectileCmd.Create(ArrowData, this.scene, this.x, this.row, {
+        ProjectileCmd.Create(ArrowModel, this.scene, this.x, this.row, {
           damage: this.arrowDamage,
           faction: Faction.ZOMBIE,
           speed: -legacyRapierVelocityToUnitsPerSecond(320),

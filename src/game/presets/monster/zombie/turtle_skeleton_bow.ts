@@ -1,5 +1,5 @@
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
-import { ArrowData } from "../../bullet/arrow";
+import { ArrowModel } from "../../bullet/arrow";
 import DepthHelper from "../../../utils/helper/DepthHelper";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { Faction } from "../../../models/Enum";
@@ -47,7 +47,7 @@ export class TurtleSkeletonBowEntity extends BaseSkeletonBowEntity {
       for (let i = 0; i < 5; i++) {
         this.scene.time.delayedCall(600 * i, () => {
           if (this.currentHealth > 0) {
-            ProjectileCmd.Create(ArrowData, this.scene, this.x, this.row, {
+            ProjectileCmd.Create(ArrowModel, this.scene, this.x, this.row, {
               damage: this.arrowDamage,
               faction: Faction.ZOMBIE,
               speed: -legacyRapierVelocityToUnitsPerSecond(320),

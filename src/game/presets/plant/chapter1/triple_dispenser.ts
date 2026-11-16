@@ -9,7 +9,7 @@ import type { Game } from "../../../scenes/Game";
 import createShootBurstAnim from "../../../sprite/shoot_anim";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import ShootHeadAnimationHelper from "../../../utils/helper/ShootHeadAnimationHelper";
-import { ArrowData, ArrowModel, MutantYAxisArrowData, MutantYAxisArrowModel } from "../../bullet/arrow";
+import { ArrowModel, MutantYAxisArrowModel } from "../../bullet/arrow";
 import { SightLineGroup } from "../../../models/entities/SightLineEntity";
 
 export class TripleDispenserModel extends PlantModel {
@@ -122,7 +122,7 @@ export class TripleDispenserModel extends PlantModel {
       .map((index) => legacyRapierVelocityToUnitsPerSecond(index * 40));
 
     speeds.forEach((speed) => {
-      ProjectileCmd.Create<MutantYAxisArrowModel>(MutantYAxisArrowData, entity.scene, entity.x, entity.row, {
+      ProjectileCmd.Create(MutantYAxisArrowModel, entity.scene, entity.x, entity.row, {
         damage: damage / 2,
         maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
         targetRow: topRow,
@@ -132,7 +132,7 @@ export class TripleDispenserModel extends PlantModel {
         penetratePower: penetrate,
       });
 
-      ProjectileCmd.Create<MutantYAxisArrowModel>(MutantYAxisArrowData, entity.scene, entity.x, entity.row, {
+      ProjectileCmd.Create(MutantYAxisArrowModel, entity.scene, entity.x, entity.row, {
         damage: damage / 2,
         maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
         targetRow: bottomRow,
@@ -154,7 +154,7 @@ export class TripleDispenserModel extends PlantModel {
     }
 
     // 中路箭
-    ProjectileCmd.Create<ArrowModel>(ArrowData, entity.scene, entity.x, entity.row, {
+    ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
       damage: damage,
       maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
       faction: entity.faction,
@@ -164,7 +164,7 @@ export class TripleDispenserModel extends PlantModel {
 
     // 精英3+：中路多一发
     if (entity.level >= this.LevelThresholds1) {
-      ProjectileCmd.Create<ArrowModel>(ArrowData, entity.scene, entity.x, entity.row, {
+      ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
         damage: damage,
         maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
         faction: entity.faction,
@@ -175,7 +175,7 @@ export class TripleDispenserModel extends PlantModel {
 
     // 上路箭
     if (entity.row >= 1) {
-      ProjectileCmd.Create<MutantYAxisArrowModel>(MutantYAxisArrowData, entity.scene, entity.x, entity.row, {
+      ProjectileCmd.Create(MutantYAxisArrowModel, entity.scene, entity.x, entity.row, {
         damage: damage,
         maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
         targetRow: entity.row - 1,
@@ -186,7 +186,7 @@ export class TripleDispenserModel extends PlantModel {
 
       // 精英9+：上路多一发
       if (entity.level >= this.LevelThresholds2) {
-        ProjectileCmd.Create<MutantYAxisArrowModel>(MutantYAxisArrowData, entity.scene, entity.x, entity.row, {
+        ProjectileCmd.Create(MutantYAxisArrowModel, entity.scene, entity.x, entity.row, {
           damage: damage,
           maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
           targetRow: entity.row - 1,
@@ -199,7 +199,7 @@ export class TripleDispenserModel extends PlantModel {
 
     // 下路箭
     if (entity.row <= PositionManager.Instance.Row_Number - 2) {
-      ProjectileCmd.Create<MutantYAxisArrowModel>(MutantYAxisArrowData, entity.scene, entity.x, entity.row, {
+      ProjectileCmd.Create(MutantYAxisArrowModel, entity.scene, entity.x, entity.row, {
         damage: damage,
         maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
         targetRow: entity.row + 1,
@@ -210,7 +210,7 @@ export class TripleDispenserModel extends PlantModel {
 
       // 精英9+：下路多一发
       if (entity.level >= this.LevelThresholds2) {
-        ProjectileCmd.Create<MutantYAxisArrowModel>(MutantYAxisArrowData, entity.scene, entity.x, entity.row, {
+        ProjectileCmd.Create(MutantYAxisArrowModel, entity.scene, entity.x, entity.row, {
           damage: damage,
           maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
           targetRow: entity.row + 1,

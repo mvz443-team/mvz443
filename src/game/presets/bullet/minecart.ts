@@ -93,7 +93,7 @@ export class MineCartStandEntity extends BaseEntity {
   }
 
   private launchMinecart(): void {
-    ProjectileCmd.Create(MineCartData, this.scene, this.x, this.row, {
+    ProjectileCmd.Create(MineCartModel, this.scene, this.x, this.row, {
       damage: DamageConstants.SECKILL,
       faction: Faction.PLANT,
       maxDistance: PositionManager.Instance.Col_Number + 4,

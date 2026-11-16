@@ -1,10 +1,12 @@
 import { ProjectileEntity } from "../../models/entities/ProjectileEntity";
-import { ProjectileModel, BulletModel, BulletConfig, ExplosionModel, ExplosionConfig, LaserModel, LaserConfig } from "../../models/projectiles/ProjectileModels";
+import { ProjectileModel, ExplosionModel, ExplosionConfig, LaserModel, LaserConfig } from "../../models/projectiles/ProjectileModels";
 import type { Game } from "../../scenes/Game";
 import { DeferredManager } from "../../managers/DeferredManager";
 import type { EntityLogicState, RestoreContext } from "../../core/SimulationState";
 
 export namespace ProjectileCmd {
+  /** 模型构造器类型（投射物模型均无需构造参数）。 */
+  type ModelClass<TModel extends ProjectileModel<any, any>> = new () => TModel;
   // 类型辅助：从模型推导出配置类型
   type ConfigOf<TModel extends ProjectileModel<any, any>> = TModel extends ProjectileModel<infer TConfig, any> ? TConfig : never;
 
@@ -73,32 +75,33 @@ export namespace ProjectileCmd {
   }
 
   /**
-   * 通用投射物创建方法 - 通过模型类型自动推导配置类型
-   * @param model 投射物模型实例
+   * 通用投射物创建方法 - 传入模型 class，配置类型自动推导
+   * @param ModelClass 投射物模型类（引擎会在创建时实例化）
    * @param scene 当前场景
    * @param x 初始X坐标
    * @param row 初始行
-   * @param cfg 配置参数
+   * @param cfg 初始化配置
    *
    * @example
-   * Create(new BulletModel(), scene, 100, 2, bulletConfig)
-   * Create(new ExplosionModel(), scene, 100, 2, explosionConfig)
+   * Create(ArrowModel, scene, 100, 2, { damage: 20, faction })
+   * Create(ExplosionModel, scene, 100, 2, explosionConfig)
    */
   export function Create<TModel extends ProjectileModel<any, any>>(
-    model: TModel,
+    ModelClass: ModelClass<TModel>,
     scene: Game,
     x: number,
     row: number,
     cfg: ConfigOf<TModel>
-  ) {
+  ): void {
     DeferredManager.Instance.defer(() => {
+      const model = new ModelClass();
       const entity = model.createEntity(scene, x, row, cfg) as ProjectileEntity<any>;
       entity.initializeEntity();
       activeProjectiles.add(entity);
       // 保存重建所需上下文（同进程回滚/重放使用），并用稳定 key 对齐快照计时器组。
       const snapshotId = entity.SnapshotId;
       rebuildFactories.set(snapshotId, () => {
-        const rebuilt = model.createEntity(scene, x, row, cfg) as ProjectileEntity<any>;
+        const rebuilt = new ModelClass().createEntity(scene, x, row, cfg) as ProjectileEntity<any>;
         rebuilt.initializeEntity();
         rebuilt.adoptStableTimerKey(snapshotId);
         return rebuilt;
@@ -110,42 +113,23 @@ export namespace ProjectileCmd {
     });
   }
 
-  /**
-   * 快捷创建子弹
-   */
-  export function CreateBullet(
-    scene: Game,
-    x: number,
-    row: number,
-    cfg: BulletConfig
-  ) {
-    const model = new BulletModel();
-    Create(model, scene, x, row, cfg);
-  }
-
-  /**
-   * 快捷创建爆炸
-   */
+  /** 快捷创建爆炸：等价于 Create(ExplosionModel, ...) */
   export function CreateExplosion(
     scene: Game,
     x: number,
     row: number,
     cfg: ExplosionConfig
-  ) {
-    const model = new ExplosionModel();
-    Create(model, scene, x, row, cfg);
+  ): void {
+    Create(ExplosionModel, scene, x, row, cfg);
   }
 
-  /**
-   * 快捷创建激光
-   */
+  /** 快捷创建激光：等价于 Create(LaserModel, ...) */
   export function CreateLaser(
     scene: Game,
     x: number,
     row: number,
     cfg: LaserConfig
-  ) {
-    const model = new LaserModel();
-    Create(model, scene, x, row, cfg);
+  ): void {
+    Create(LaserModel, scene, x, row, cfg);
   }
 }

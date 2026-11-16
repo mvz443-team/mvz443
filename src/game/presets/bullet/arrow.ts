@@ -20,8 +20,6 @@ export class ArrowModel extends BulletModel<ArrowConfig, ArrowEntity> {
   }
 }
 
-export const ArrowData = new ArrowModel();
-
 export class ArrowEntity extends BulletEntity {
   // 附魔相关属性
   private enhancement: _TypeArrowEnhancement = 'none';
@@ -255,8 +253,6 @@ export class MutantYAxisArrowModel extends ArrowModel {
     return new MutantYAxisArrowEntity(scene, x, row, this, config);
   }
 }
-
-export const MutantYAxisArrowData = new MutantYAxisArrowModel();
 
 export class MutantYAxisArrowEntity extends ArrowEntity {
   private targetRow: number;

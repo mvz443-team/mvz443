@@ -17,8 +17,6 @@ export class SnowBallModel extends BulletModel<BulletConfig, SnowBallEntity> {
   }
 }
 
-export const SnowBallData = new SnowBallModel();
-
 export class SnowBallEntity extends BulletEntity {
   constructor(scene: Game, x: number, row: number, model: SnowBallModel, cfg: BulletConfig) {
     super(scene, x, row, model, cfg);

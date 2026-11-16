@@ -13,8 +13,8 @@ import type { Game } from "../../../scenes/Game";
 import createShootBurstAnim from "../../../sprite/shoot_anim";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import ShootHeadAnimationHelper from "../../../utils/helper/ShootHeadAnimationHelper";
-import { ArrowData, ArrowModel } from "../../bullet/arrow";
-import { HFireWorkData, HFireWorkModel } from "../../bullet/firework";
+import { ArrowModel } from "../../bullet/arrow";
+import { HFireWorkModel } from "../../bullet/firework";
 import { SightLineGroup } from "../../../models/entities/SightLineEntity";
 
 export class DoubleDispenserModel extends PlantModel {
@@ -118,7 +118,7 @@ export class DoubleDispenserModel extends PlantModel {
 
   private shootFrontArrow(entity: DoubleDispenserEntity, damage: number): void {
     // 前方箭矢1
-    ProjectileCmd.Create<ArrowModel>(ArrowData, entity.scene, entity.x, entity.row, {
+    ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
       damage: damage,
       maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
       faction: entity.faction,
@@ -132,7 +132,7 @@ export class DoubleDispenserModel extends PlantModel {
         delay: 100,
         callback: () => {
           if (entity.currentHealth <= 0) return;
-          ProjectileCmd.Create<ArrowModel>(ArrowData, entity.scene, entity.x, entity.row, {
+          ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
             damage: damage,
             maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
             faction: entity.faction,
@@ -148,7 +148,7 @@ export class DoubleDispenserModel extends PlantModel {
     const reverseSpeed = -legacyRapierVelocityToUnitsPerSecond(800); // 反向速度
 
     // 后方箭矢1（反向）
-    ProjectileCmd.Create<ArrowModel>(ArrowData, entity.scene, entity.x, entity.row, {
+    ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
       damage: damage,
       maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
       faction: entity.faction,
@@ -163,7 +163,7 @@ export class DoubleDispenserModel extends PlantModel {
         delay: 100,
         callback: () => {
           if (entity.currentHealth <= 0) return;
-          ProjectileCmd.Create<ArrowModel>(ArrowData, entity.scene, entity.x, entity.row, {
+          ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
             damage: damage,
             maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
             faction: entity.faction,
@@ -181,7 +181,7 @@ export class DoubleDispenserModel extends PlantModel {
         delay: 150,
         callback: () => {
           if (entity.currentHealth <= 0) return;
-          ProjectileCmd.Create<ArrowModel>(ArrowData, entity.scene, entity.x, entity.row, {
+          ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
             damage: damage,
             maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
             faction: entity.faction,
@@ -198,7 +198,7 @@ export class DoubleDispenserModel extends PlantModel {
     const damage = this.fireworkDamage.getValueAt(entity.level);
     const reverseSpeed = -legacyRapierVelocityToUnitsPerSecond(500); // 反向速度
 
-    ProjectileCmd.Create<HFireWorkModel>(HFireWorkData, entity.scene, entity.x, entity.row, {
+    ProjectileCmd.Create(HFireWorkModel, entity.scene, entity.x, entity.row, {
       damage: damage,
       maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
       faction: entity.faction,

@@ -11,7 +11,7 @@ import createShootBurstAnim from "../../../sprite/shoot_anim";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import ShootHeadAnimationHelper from "../../../utils/helper/ShootHeadAnimationHelper";
 import { SightLineEntity } from "../../../models/entities/SightLineEntity";
-import { HFireWorkConfig, HFireWorkData, HFireWorkEntity, HFireWorkModel } from "../../bullet/firework";
+import { HFireWorkConfig, HFireWorkEntity, HFireWorkModel } from "../../bullet/firework";
 import { DispenserData } from "./dispenser";
 
 // 特殊的星辰碎片烟花模型
@@ -20,7 +20,6 @@ export class ATAirHFireWorkModel extends HFireWorkModel {
     return new ATAirHFireWorkEntity(scene, x, row, this, config);
   }
 }
-export const ATAirHFireWorkData = new ATAirHFireWorkModel();
 
 export class ATAirHFireWorkEntity extends HFireWorkEntity {
   private customExplodeDamage: number;
@@ -128,7 +127,7 @@ export class ATDispenserModel extends PlantModel {
 
   public override onStarShards(entity: ATDispenserEntity): void {
     // 发射一颗高射烟花火箭
-    ProjectileCmd.Create<ATAirHFireWorkModel>(ATAirHFireWorkData, entity.scene, entity.x, entity.row, {
+    ProjectileCmd.Create(ATAirHFireWorkModel, entity.scene, entity.x, entity.row, {
       damage: 50,
       maxDistance: PositionManager.Instance.GRID_SIZEX * 4,
       faction: entity.faction,
@@ -138,7 +137,7 @@ export class ATDispenserModel extends PlantModel {
   }
 
   protected normalShot(entity: ATDispenserEntity) {
-    ProjectileCmd.Create<HFireWorkModel>(HFireWorkData, entity.scene, entity.x, entity.row, {
+    ProjectileCmd.Create(HFireWorkModel, entity.scene, entity.x, entity.row, {
       damage: this.damage.getValueAt(entity.level),
       maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
       faction: entity.faction,

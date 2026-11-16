@@ -9,13 +9,11 @@ import createShootBurstAnim from "../../../sprite/shoot_anim";
 import { PlantCmd } from "../../../utils/cmd/PlantCmd";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { SightLineEntity } from "../../../models/entities/SightLineEntity";
-import { SnowBallData, SnowBallModel, BombSnowBallModel } from "../../bullet/snowball";
+import { SnowBallModel, BombSnowBallModel } from "../../bullet/snowball";
 
 export class FireBallModel extends BombSnowBallModel {
   public override texture = 'bullet/fireball';
 }
-
-export const FireBallData = new FireBallModel();
 
 export class SmallDispenserModel extends PlantModel {
   public override pid = 5;
@@ -70,7 +68,7 @@ export class SmallDispenserModel extends PlantModel {
         if (sightLine.hasTarget()) {
           entity.playShootAnimation();
 
-          ProjectileCmd.Create<SnowBallModel>(SnowBallData, entity.scene, entity.x, entity.row, {
+          ProjectileCmd.Create(SnowBallModel, entity.scene, entity.x, entity.row, {
             damage: this.damage.getValueAt(entity.level),
             maxDistance: maxDistanceGrid * PositionManager.Instance.GRID_SIZEX,
             faction: entity.faction,
@@ -88,7 +86,7 @@ export class SmallDispenserModel extends PlantModel {
 
     const dmg = new PlantStat(ProjectileDamage.bullet.bomb_fireBall).setIncRatio(1.2).getValueAt(entity.level);
 
-    ProjectileCmd.Create<FireBallModel>(FireBallData, entity.scene, entity.x, entity.row, {
+    ProjectileCmd.Create(FireBallModel, entity.scene, entity.x, entity.row, {
       damage: dmg,
       maxDistance: PositionManager.Instance.GRID_SIZEY * 12,
       faction: entity.faction,
