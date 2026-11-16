@@ -4,6 +4,18 @@ import {
 } from "../../../constants/physics";
 import { PhaserEventBus, PhaserEvents } from "../../EventBus";
 import { BaseManager } from "../BaseManager";
+import type { TimerState } from "../../core/SimulationState";
+
+export function timerToState(timer: FrameTimer): TimerState {
+  return {
+    id: timer.id,
+    targetFrame: timer.targetFrame,
+    repeat: timer.repeat,
+    interval: timer.interval,
+    group: timer.group,
+  };
+}
+
 export class FrameTimer {
   public id: number = 0;        // 定时器唯一ID
 
@@ -286,6 +298,33 @@ export default class TickerManager extends BaseManager {
     timersToRemove.forEach((id) => {
       this.timers.delete(id);
     });
+  }
+
+  /**
+   * 导出全部定时器的确定性字段，供状态哈希与快照使用。
+   * 回调/context 不入快照：它们由业务对象持有，恢复时按 id 就地更新即可。
+   */
+  public GetTimerStates(): TimerState[] {
+    const states: TimerState[] = [];
+    this.timers.forEach((timer) => {
+      states.push(timerToState(timer));
+    });
+    return states.sort((a, b) => a.id - b.id);
+  }
+
+  /** 就地恢复定时器数值；无法重建回调，只更新仍存活的同 id 定时器。 */
+  public RestoreTimerStates(states: TimerState[], currentFrame: number): void {
+    this.currentFrame = currentFrame;
+    const byId = new Map(states.map((timer) => [timer.id, timer]));
+    this.timers.forEach((timer) => {
+      const snapshot = byId.get(timer.id);
+      if (!snapshot) return;
+      timer.targetFrame = snapshot.targetFrame;
+      timer.repeat = snapshot.repeat;
+      timer.interval = snapshot.interval;
+      timer.group = snapshot.group;
+    });
+    this.nextTimerId = Math.max(this.nextTimerId, ...states.map((timer) => timer.id + 1), 1);
   }
 
   /**

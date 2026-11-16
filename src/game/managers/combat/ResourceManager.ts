@@ -173,6 +173,39 @@ export default class ResourceManager extends BaseManager {
     return (this.StarShardsMaps.get(playerId) || 0) + (this.previewStarShardsDeltaMaps.get(playerId) || 0);
   }
 
+  /** 导出全部玩家的权威资源与预览资源快照。 */
+  public GetResourceState(): Record<string, number> {
+    const snapshot: Record<string, number> = {};
+    this.EnergyMaps.forEach((value, pid) => { snapshot[`energy:${pid}`] = value; });
+    this.StarShardsMaps.forEach((value, pid) => { snapshot[`star:${pid}`] = value; });
+    this.previewEnergyDeltaMaps.forEach((value, pid) => { snapshot[`previewEnergy:${pid}`] = value; });
+    this.previewStarShardsDeltaMaps.forEach((value, pid) => { snapshot[`previewStar:${pid}`] = value; });
+    snapshot["mineId"] = this.mineId;
+    return snapshot;
+  }
+
+  /** 从快照恢复资源状态，并同步视图事件。 */
+  public RestoreResourceState(state: Record<string, number>): void {
+    this.mineId = state["mineId"] ?? this.mineId;
+    this.EnergyMaps.clear();
+    this.StarShardsMaps.clear();
+    this.previewEnergyDeltaMaps.clear();
+    this.previewStarShardsDeltaMaps.clear();
+    Object.keys(state).sort().forEach((key) => {
+      const value = state[key];
+      if (key === "mineId") return;
+      const [kind, idText] = key.split(":");
+      const pid = Number(idText);
+      if (!Number.isFinite(pid)) return;
+      if (kind === "energy") this.EnergyMaps.set(pid, value);
+      else if (kind === "star") this.StarShardsMaps.set(pid, value);
+      else if (kind === "previewEnergy") this.previewEnergyDeltaMaps.set(pid, value);
+      else if (kind === "previewStar") this.previewStarShardsDeltaMaps.set(pid, value);
+    });
+    this.EnergyMaps.forEach((value, pid) => this.Eventbus.emit("onEnergyUpdate", value, pid));
+    this.StarShardsMaps.forEach((value, pid) => this.Eventbus.emit("onStarShardsUpdate", value, pid));
+  }
+
   public ActualEnergySufficient(requiredEnergy: number, playerId: PlayerIdentify | 'mine'): boolean {
     return this.getEnergy(playerId) >= requiredEnergy;
   }

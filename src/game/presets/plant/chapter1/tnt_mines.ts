@@ -139,7 +139,7 @@ export const TntMinesData = new TntMinesModel();
 export class TntMinesEntity extends PlantEntity {
   public isBuried: boolean = true;
   public hasExploded: boolean = false;
-  public random: seedrandom.PRNG;
+  public random: seedrandom.StatefulPRNG<seedrandom.State.Alea>;
 
   private declare buriedSprite: Phaser.GameObjects.Sprite;
   private declare mainSprite: Phaser.GameObjects.Sprite;
@@ -153,7 +153,7 @@ export class TntMinesEntity extends PlantEntity {
 
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, TntMinesData, level);
-    this.random = seedrandom.alea(String(CombatManager.Instance.seed * 3));
+    this.random = seedrandom.alea(String(CombatManager.Instance.seed * 3), { state: true });
     this.game = scene;
   }
 

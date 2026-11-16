@@ -73,6 +73,14 @@ export namespace PhaserEvents {
   export const RoomGameEnd = 'room-game-end';
 
   /**
+   * 战局确定性状态哈希已采样
+   * @param { frameId: number, hash: string } - 采样帧号与 FNV-1a 64 位哈希
+   * 触发时机：每 STATE_HASH_INTERVAL_FRAMES 个逻辑帧采样一次
+   * 用途：联机分叉检测、断线恢复时比对两端状态
+   */
+  export const SimulationHashSampled = 'simulation-hash-sampled';
+
+  /**
    * @deprecated 使用MobManager的事件来替代
    * 游戏进度更新
    * @param { progress: number } - 进度百分比（0-100）

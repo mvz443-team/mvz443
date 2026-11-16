@@ -12,6 +12,7 @@ import { onlineStateManager } from "../../store/OnlineStateManager";
 import { RoomAllReadyEvent } from "../../types/online";
 import BackendWS, { HasConnected } from "../../utils/net/sync";
 import CardpileManager from "./combat/CardpileManager";
+import { simulationState, SimulationState, serializeSimulationState } from "../core/SimulationState";
 
 export type CombatStatus = {
   dayOrNight: boolean; // day = true
@@ -47,6 +48,11 @@ export default class CombatManager extends BaseManager {
 
   // Accumulated frame time for fixed-step simulation.
   elapsedFrameTime: number = 0;
+
+  /** 每 20 个逻辑帧采样一次状态哈希（联机分叉检测使用）。 */
+  public static readonly STATE_HASH_INTERVAL_FRAMES = 20;
+  public lastStateHash: string | null = null;
+  public lastStateHashFrame: number = 0;
 
   constructor() {
     super();
@@ -131,6 +137,8 @@ export default class CombatManager extends BaseManager {
     this.isPaused = true;
     this.isGameEnd = true;
     this.isEndGameRequested = false;
+    this.lastStateHash = null;
+    this.lastStateHashFrame = 0;
     this.Eventbus.removeAllListeners();
     this.combatStatus = {
       dayOrNight: true,
@@ -244,6 +252,7 @@ export default class CombatManager extends BaseManager {
       }
 
       this.isInFixedStep = false;
+      this.sampleStateHash();
       this.commitPendingPausedState();
       if (this.isPaused) {
         this.elapsedFrameTime = 0;
@@ -266,5 +275,38 @@ export default class CombatManager extends BaseManager {
 
     // Regular per-render work.
     SyncManager.Instance.sendQueue.Consume();
+  }
+
+  /** 供联机分叉检测 / 断线恢复使用：收集当前完整确定性状态。 */
+  public captureState(): SimulationState {
+    return simulationState.capture();
+  }
+
+  public serializeState(): string {
+    return serializeSimulationState(this.captureState());
+  }
+
+  /** 供断线重连 / 分叉恢复使用：恢复收集器覆盖的全部状态源。 */
+  public restoreState(state: SimulationState) {
+    const report = simulationState.restore(state);
+    this.lastStateHash = null;
+    this.lastStateHashFrame = 0;
+    return report;
+  }
+
+  private sampleStateHash(): void {
+    const frameId = SyncManager.Instance.recvQueue.currentFrameId;
+    if (frameId <= 0 || frameId % CombatManager.STATE_HASH_INTERVAL_FRAMES !== 0) return;
+    if (frameId === this.lastStateHashFrame) return;
+    try {
+      this.lastStateHash = simulationState.hash().h64;
+      this.lastStateHashFrame = frameId;
+      PhaserEventBus.emit(PhaserEvents.SimulationHashSampled, {
+        frameId,
+        hash: this.lastStateHash,
+      });
+    } catch {
+      // 状态采样失败不应中断锁步推进；后续按周期重试。
+    }
   }
 }

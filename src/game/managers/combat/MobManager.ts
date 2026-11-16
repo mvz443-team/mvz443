@@ -67,7 +67,8 @@ export default class MobManager extends BaseManager {
 
   // 存活的怪物列表
   public MobsByLane: Map<number, Mob[]> = new Map(); // 按行分的怪物列表
-  private _seedRandom: seedrandom.PRNG;
+  /** 使用 stateful alea，使 PRNG 内部状态可被快照 / 恢复 */
+  private _seedRandom: seedrandom.StatefulPRNG<seedrandom.State.Alea>;
 
   private waves: Wave[];
   private current_wave_idx: number = 0;
@@ -113,6 +114,14 @@ export default class MobManager extends BaseManager {
     this.waves = waves;
   }
 
+  public GetWaves(): Wave[] {
+    return this.waves ?? [];
+  }
+
+  public RestoreWaves(waves: Wave[]): void {
+    this.waves = waves;
+  }
+
 
   public get wavesLeng(): number {
     return this.waves ? this.waves.length : 0;
@@ -150,12 +159,52 @@ export default class MobManager extends BaseManager {
     return this._seedRandom;
   }
 
+  /** 导出主随机流的完整内部状态（seed + alea 闭包状态）。 */
+  public CapturePrngState(): { seed: string; state: seedrandom.State.Alea } {
+    return {
+      seed: String(this.seed),
+      state: this._seedRandom.state(),
+    };
+  }
+
+  /** 从快照恢复主随机流，保证后续随机序列与原端完全一致。 */
+  public RestorePrngState(snapshot: { seed: string; state: unknown }): void {
+    this.seed = Number(snapshot.seed) || 0;
+    this._seedRandom = seedrandom.alea(snapshot.seed, { state: true });
+    (this._seedRandom as unknown as { state: (state: seedrandom.State.Alea) => void }).state(
+      snapshot.state as seedrandom.State.Alea,
+    );
+  }
+
+  /** 波次推进相关的确定性计数状态。 */
+  public GetWaveState(): Record<string, number | boolean> {
+    return {
+      current_wave_idx: this.current_wave_idx,
+      prev_wave_frame: this.prev_wave_frame,
+      tmpKilled_count: this.tmpKilled_count,
+      killed_count: this.killed_count,
+      total_count: this.total_count,
+      progress: this.progress,
+      hasRequestedWin: this.hasRequestedWin,
+    };
+  }
+
+  public RestoreWaveState(state: Record<string, number | boolean>): void {
+    this.current_wave_idx = Number(state.current_wave_idx) || 0;
+    this.prev_wave_frame = Number(state.prev_wave_frame) || 0;
+    this.tmpKilled_count = Number(state.tmpKilled_count) || 0;
+    this.killed_count = Number(state.killed_count) || 0;
+    this.total_count = Number(state.total_count) || 0;
+    this.progress = Number(state.progress) || 0;
+    this.hasRequestedWin = Boolean(state.hasRequestedWin);
+  }
+
   currentWave() {
     return this.waves[this.current_wave_idx];
   }
 
   setRandomSeed(seed: number) {
-    this._seedRandom = seedrandom.alea(String(seed))
+    this._seedRandom = seedrandom.alea(String(seed), { state: true })
   }
 
   // 整局,触发开始,一局游戏只能调用一次

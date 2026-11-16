@@ -49,6 +49,7 @@ import { CardSlots } from '../ui/cardslots';
 import { MobileCardSlots } from '../ui/cardslots_mobile';
 import { BottomBar } from '../ui/bottom';
 import { MobileBottomBar } from '../ui/bottom_mobile';
+import { installRuntimeStateSources, registerPhysicsSource } from '../core/RuntimeStateBridge';
 
 
 export class Game extends Scene {
@@ -215,6 +216,9 @@ export class Game extends Scene {
     this.rapierWorld = new RAPIER.World({ x: 0, y: 0 }); // 无重力的物理世界
     this.rapierWorld.timestep = getRapierTimestepSeconds(frameIntervalMs);
     this.rapierEventQueue = new RAPIER.EventQueue(true);
+
+    installRuntimeStateSources();
+    registerPhysicsSource(this);
 
 
 

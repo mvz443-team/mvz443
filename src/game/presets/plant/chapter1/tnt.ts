@@ -72,13 +72,13 @@ export const TntData = new TntModel();
 
 export class TntEntity extends PlantEntity {
   public explosionDamage: number = 0;
-  public random: seedrandom.PRNG;
+  public random: seedrandom.StatefulPRNG<seedrandom.State.Alea>;
   public game: Game;
   public declare mainSprite: Phaser.GameObjects.Sprite;
 
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, TntData, level);
-    this.random = seedrandom.alea(String(CombatManager.Instance.seed * 5));
+    this.random = seedrandom.alea(String(CombatManager.Instance.seed * 5), { state: true });
     this.game = scene;
   }
 
