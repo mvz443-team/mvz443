@@ -120,7 +120,9 @@ export class SightLineEntity extends BaseEntity {
 
     this.owner = options.owner;
     this.getRow = typeof options.row === "function" ? options.row : () => options.row as number;
-    this.getOriginX = typeof options.originX === "function" ? options.originX : () => options.originX ?? this.owner.x;
+    this.getOriginX = typeof options.originX === "function"
+      ? options.originX
+      : () => (options.originX as number | undefined) ?? this.owner.x;
     this.direction = direction;
     this.maxDistance = maxDistance;
     this.includeFactions = options.includeFactions ? new Set(options.includeFactions) : undefined;

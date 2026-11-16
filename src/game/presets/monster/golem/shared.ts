@@ -12,11 +12,13 @@ import CombatManager from "../../../managers/CombatManager";
 
 
 export abstract class BaseGolemEntity extends BaseMonsterEntity {
+  /** PRNG 状态单独走 PRNG 快照；callCount 由 MONSTER_LOGIC_SCHEMA 自动追踪。 */
   protected readonly random: seedrandom.StatefulPRNG<seedrandom.State.Alea>;
-  protected callCount = 0;
+  protected declare callCount: number;
 
   protected constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number, seedFactor: number) {
     super(scene, col, row, model, waveID);
+    this.callCount = 0;
     this.random = seedrandom.alea(String(CombatManager.Instance.seed * seedFactor), { state: true });
     PhaserEventBus.emit(PhaserEvents.BossHealth, { health: 100 });
     SoundCmd.CoverBgm("bgm1");

@@ -49,7 +49,10 @@ export class LaserEntity extends ProjectileEntity<LaserModel> {
       glow.setAlpha(0);
       beam.setAlpha(0);
       core.setAlpha(0);
-      scene.time.delayedCall(Math.max(1, cfg.duration), () => this.destroy());
+      this.tickmanager.delayedCall({
+        delay: Math.max(1, cfg.duration),
+        callback: () => this.destroy(),
+      });
     } else {
       SoundCmd.PlayShootLaser();
       scene.tweens.add({
@@ -58,19 +61,13 @@ export class LaserEntity extends ProjectileEntity<LaserModel> {
         duration: cfg.duration,
         onComplete: () => this.destroy()
       });
-      scene.time.delayedCall(cfg.duration + 80, () => this.destroy());
+      this.tickmanager.delayedCall({
+        delay: cfg.duration + 80,
+        callback: () => this.destroy(),
+      });
     }
   }
 
   buildView() { }
 
-  protected applyEffect(target: CombatEntity): void {
-    this.hasAttacked.add(target);
-    target.takeDamage(this.currentDamage, this.dealer, this);
-
-    // debuff
-    if (this.debuff) {
-      target.addDebuff(this.debuff, this.debuffDuration);
-    }
-  }
 }

@@ -8,6 +8,7 @@ import { _TypeArrowEnhancement, EnhancementPriority } from "../../../constants/g
 import { CombatEntity } from "../../models/core/CombatEntity";
 import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
 import SoundCmd from "../../utils/cmd/SoundCmd";
+import type { ModelHost } from "../../core/logic/LogicModel";
 
 export interface ArrowConfig extends BulletConfig {
   enhancement?: _TypeArrowEnhancement;
@@ -15,18 +16,51 @@ export interface ArrowConfig extends BulletConfig {
 
 export class ArrowModel extends BulletModel<ArrowConfig, ArrowEntity> {
   texture = 'bullet/arrow';
+
+  /** 附魔直接定义在 Model 上，自动进入快照。 */
+  public enhancement: _TypeArrowEnhancement = 'none';
+
+  /** 箭矢命中效果由 Model 计算，Entity 不写战斗逻辑。 */
+  public override applyEffect(host: ModelHost, target: unknown): void {
+    const originalDamage = this.currentDamage;
+    if (this.enhancement === 'fire') {
+      this.currentDamage = Math.floor(this.currentDamage * 1.5);
+    }
+
+    if (this.enhancement === 'lightning') {
+      host.createExplosion({
+        damage: Math.ceil(this.currentDamage / 4),
+        rightGrid: 1,
+        leftGrid: 1,
+        upGrid: 1,
+        faction: host.faction,
+        dealer: host.dealer ?? null,
+      });
+      host.setEnhancement?.('none');
+    }
+
+    super.applyEffect(host, target);
+
+    this.currentDamage = originalDamage;
+
+    if (this.enhancement === 'ice') {
+      host.applyDebuffTo(target, 'slow', 5000);
+    }
+  }
+
   public createEntity(scene: Game, x: number, row: number, config: ArrowConfig): ArrowEntity {
     return new ArrowEntity(scene, x, row, this, config);
   }
 }
 
 export class ArrowEntity extends BulletEntity {
-  // 附魔相关属性
-  private enhancement: _TypeArrowEnhancement = 'none';
+  public declare model: ArrowModel;
+  /** 纯表现：尾迹精灵不进入快照。附魔状态在 Model 上。 */
   private trail: Phaser.GameObjects.Sprite | null = null;
 
   constructor(scene: Game, x: number, row: number, model: ArrowModel, cfg: ArrowConfig) {
     super(scene, x, row, model, cfg);
+    this.model.enhancement = cfg.enhancement ?? 'none';
 
     // 1. 覆盖默认的视觉缩放 (宽度翻倍，高度减半)
     const size = PositionManager.Instance.getBulletDisplaySize();
@@ -76,8 +110,8 @@ export class ArrowEntity extends BulletEntity {
 
     // 2. 如果新 enhancement 与当前一致，则无需重复处理
     // 2.5 判断enhancement的优先级，如果原先的优先级更高，那么也无需处理
-    if (this.enhancement === newEnhancement ||
-      EnhancementPriority(this.enhancement, newEnhancement)) {
+    if (this.model.enhancement === newEnhancement ||
+      EnhancementPriority(this.model.enhancement, newEnhancement)) {
       return;
     }
 
@@ -94,12 +128,12 @@ export class ArrowEntity extends BulletEntity {
       this.trail = null;
     }
 
-    this.enhancement = newEnhancement;
+    this.model.enhancement = newEnhancement;
     const trailDepth = DepthHelper.Projectile.trail(this.baseDepth);
     const fadeDur = 100;
 
     // 4. 新 trail 淡入
-    switch (this.enhancement) {
+    switch (this.model.enhancement) {
       case 'fire': {
         const spr = scene.add.sprite(this.x, this.y, 'anime/fire')
           .setScale(PositionManager.Instance.scaleFactor)
@@ -186,45 +220,12 @@ export class ArrowEntity extends BulletEntity {
     this.syncTrailPosition();
   }
 
-  // 重载 applyEffect 方法，生效 arrow 特殊附魔的逻辑
-  protected applyEffect(t: CombatEntity): void {
-    // 如果是 fire 附魔，提高伤害
-    const originalDamage = this.currentDamage;
-    if (this.enhancement === 'fire') {
-      this.currentDamage = Math.floor(this.currentDamage * 1.5);
-    }
-
-    // 如果附魔Lightning，在命中第一个敌人的时候爆炸
-    if (this.scene && this.enhancement === 'lightning') {
-      const currentRow = PositionManager.Instance.getRowByY(this.y);
-
-      ProjectileCmd.CreateExplosion(this.scene, this.x, currentRow, {
-        damage: Math.ceil(this.currentDamage / 4),
-        rightGrid: 1,
-        leftGrid: 1,
-        upGrid: 1,
-        faction: this.faction,
-        dealer: this.dealer,
-      })
-      // 移除闪电附魔，防止多次触发
-      this.catchEnhancement('none');
-    }
-
-    // 调用父类逻辑处理基本伤害和穿透
-    super.applyEffect(t);
-
-    // 恢复伤害值
-    this.currentDamage = originalDamage;
-
-    // 如果有 ice 效果，施加 slow debuff
-    if (this.enhancement === 'ice') {
-      t.addDebuff('slow', 5000);
-    }
+  /** Model 在 lightning 触发后清除附魔，这里同步表现。 */
+  public override setEnhancement(value: string): void {
+    this.catchEnhancement(value as _TypeArrowEnhancement);
   }
 
-
-
-  // 销毁时清理尾迹和处理 lightning 爆炸
+  // 销毁时清理尾迹（Model 的 onDestroy 负责战斗效果）
   destroy(): void {
     // 清理尾迹（viewGroup 会在 super.destroy() 中统一销毁）
     this.trail = null;
@@ -249,60 +250,51 @@ export interface MutantYAxisArrowConfig extends ArrowConfig {
 export class MutantYAxisArrowModel extends ArrowModel {
   public override texture = 'bullet/arrow';
 
+  /** Y 轴拦截弹道状态直接定义在 Model。 */
+  public targetRow: number = -1;
+  public targetY: number = 0;
+  public ySpeed: number = 0;
+  public hasReachedTargetY: boolean = false;
+  public lowerOrUpper: boolean = false;
+
   public createEntity(scene: Game, x: number, row: number, config: MutantYAxisArrowConfig): MutantYAxisArrowEntity {
     return new MutantYAxisArrowEntity(scene, x, row, this, config);
   }
 }
 
 export class MutantYAxisArrowEntity extends ArrowEntity {
-  private targetRow: number;
-  private targetY: number;
-  private ySpeed: number;
-  private hasReachedTargetY = false;
-  /**
-   * 方向标志：true 表示向上超越某个 row（即 row 小于 targetRow）
-   *           false 表示向下
-   */
-  private lowerOrUpper: boolean;
+  public declare model: MutantYAxisArrowModel;
 
   constructor(scene: Game, x: number, row: number, model: MutantYAxisArrowModel, cfg: MutantYAxisArrowConfig) {
     super(scene, x, row, model, cfg);
+    const state = this.model;
+    state.hasReachedTargetY = false;
+    state.targetRow = cfg.targetRow ?? row;
+    state.targetY = PositionManager.Instance.getRowCenterY(state.targetRow);
+    state.lowerOrUpper = state.targetRow < row;
+    state.ySpeed = cfg.ySpeed ?? legacyRapierVelocityToUnitsPerSecond(200);
 
-    // 初始化目标行
-    this.targetRow = cfg.targetRow ?? row;
-    this.targetY = PositionManager.Instance.getRowCenterY(this.targetRow);
-
-    // 确定方向：是否向上
-    this.lowerOrUpper = this.targetRow < row;
-
-    // 设置 Y 方向速度
-    this.ySpeed = cfg.ySpeed ?? legacyRapierVelocityToUnitsPerSecond(200);
-
-    // 设置初始 Y 速度
     if (this.rigidBody) {
       const currentVel = this.rigidBody.linvel();
-      const newYVel = this.lowerOrUpper ? -this.ySpeed : this.ySpeed;
+      const newYVel = state.lowerOrUpper ? -state.ySpeed : state.ySpeed;
       this.rigidBody.setLinvel({ x: currentVel.x, y: newYVel }, true);
     }
   }
 
   public override stepUpdate() {
     // 检查是否到达目标 row
-    if (this.rigidBody && !this.hasReachedTargetY) {
-      if (this.lowerOrUpper) {
-        // 向上模式：检查是否到达或超过目标Y
-        if (this.y <= this.targetY) {
+    const state = this.model;
+    if (this.rigidBody && !state.hasReachedTargetY) {
+      if (state.lowerOrUpper) {
+        if (this.y <= state.targetY) {
           this.rigidBody.setLinvel({ x: this.rigidBody.linvel().x, y: 0 }, true);
-          this.y = this.targetY;
-          this.hasReachedTargetY = true;
+          this.y = state.targetY;
+          state.hasReachedTargetY = true;
         }
-      } else {
-        // 向下模式：检查是否到达或超过目标Y
-        if (this.y >= this.targetY) {
-          this.rigidBody.setLinvel({ x: this.rigidBody.linvel().x, y: 0 }, true);
-          this.y = this.targetY;
-          this.hasReachedTargetY = true;
-        }
+      } else if (this.y >= state.targetY) {
+        this.rigidBody.setLinvel({ x: this.rigidBody.linvel().x, y: 0 }, true);
+        this.y = state.targetY;
+        state.hasReachedTargetY = true;
       }
     }
 

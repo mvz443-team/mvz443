@@ -56,11 +56,15 @@ export class EvokerEntity extends BaseZombieEntity {
       MobCmd.Spawn(VindicatorData.mid, this.scene, col, row, -10);
     }
 
-    this.scene.time.delayedCall(3000, () => {
-      if (this.currentHealth > 0 && !this.isFrozen) {
-        this.animController.stopArmSwing();
-        this.startMove();
-      }
+    // 恢复移动决定后续战斗，必须随快照回滚。
+    this.tickmanager.delayedCall({
+      delay: 3000,
+      callback: () => {
+        if (this.currentHealth > 0 && !this.isFrozen) {
+          this.animController.stopArmSwing();
+          this.startMove();
+        }
+      },
     });
   }
 }

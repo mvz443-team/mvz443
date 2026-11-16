@@ -5,6 +5,7 @@ import type { Game } from "../../scenes/Game";
 import { CombatEntity } from "../core/CombatEntity";
 import { Faction } from "../Enum";
 import { PlantModel } from "../PlantModel";
+import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
 import DepthHelper from "../../utils/helper/DepthHelper";
 import CombatManager from "../../managers/CombatManager";
 import { CollisionContext } from "../../types";
@@ -15,11 +16,12 @@ import { StarShardsBurstSfx } from "../../sfx/star/StarShardsBurstSfx";
 import { MonsterEntity } from "./MonsterEntity";
 import { getLevelBadgeTextureKey } from "../../ui/levelBadgeSvg";
 import type { JsonValue } from "../../core/SimulationState";
-import { PLANT_PRNG_FIELDS, PLANT_RELATION_FIELDS } from "../../core/LogicSchemas";
+import { PLANT_PRNG_FIELDS, PLANT_RELATION_FIELDS } from "../../core/logic/LogicRelations";
 
 // entities/PlantEntity.ts
 export abstract class PlantEntity extends CombatEntity {
-  public model: PlantModel; // 挂载蓝图数据
+  /** BaseEntity 已克隆为实例专属 Model。 */
+  public declare model: PlantModel;
 
   public col: number;
   public row: number;
@@ -27,10 +29,8 @@ export abstract class PlantEntity extends CombatEntity {
   public level: number;
   public baseDepth: number;
 
-  // 运行时状态
-  declare public currentHealth: number;
-  declare public maxHealth: number;
-  public isSleeping: boolean = false;
+  /** 运行时状态由 Model 的字段访问器提供。 */
+  declare public isSleeping: boolean;
 
   // 表现层容器（替代原有的 extends Sprite）
   declare public viewGroup: Phaser.GameObjects.Group;
@@ -46,8 +46,7 @@ export abstract class PlantEntity extends CombatEntity {
 
     // 传入模型计算出的血量，并指定为 PLANT 阵营
     const hp = model.maxHealth.getValueAt(level);
-    super(scene, x, y, hp, Faction.PLANT, model.logicSchema);
-    this.model = model;
+    super(scene, x, y, hp, Faction.PLANT, model);
     this.baseDepth = DepthHelper.Plant.base(row);
 
     this.col = col;
@@ -57,6 +56,15 @@ export abstract class PlantEntity extends CombatEntity {
 
   public get pid() {
     return this.model.pid;
+  }
+
+  public override createExplosion(config: Record<string, unknown>, x?: number, _y?: number, row?: number): void {
+    ProjectileCmd.CreateExplosion(
+      this.scene,
+      x ?? this.x,
+      row ?? this.row,
+      config as unknown as Parameters<typeof ProjectileCmd.CreateExplosion>[3],
+    );
   }
 
   private buildPhysics() {
@@ -93,7 +101,7 @@ export abstract class PlantEntity extends CombatEntity {
 
   /** 快照中记录 pid，供断线恢复时重建实体。 */
   protected override captureLogicState(): Record<string, JsonValue> {
-    return { pid: this.model.pid, level: Number(this.reg.get("level") ?? 1) };
+    return { pid: this.model.pid, level: Number((this.model as unknown as Record<string, unknown>).level ?? 1) };
   }
 
   private AttachBadgeView(): void {
@@ -173,7 +181,6 @@ export abstract class PlantEntity extends CombatEntity {
     // 稳定 key 让快照恢复后计时器组仍能对齐（重建实体得到同一 group）。
     this.adoptStableTimerKey(`plant:${this.col}:${this.row}:${this.model.pid}`);
     // 子类字段初始化完成后，把同名逻辑字段迁入寄存器并安装访问器。
-    this.bindLogicRegisters();
 
     this.buildView();
     this.AttachBadgeView();

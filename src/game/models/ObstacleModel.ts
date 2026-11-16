@@ -1,12 +1,14 @@
 import { Game } from "../scenes/Game";
 import { BaseEntity } from "./core/BaseEntity";
 import { ObstacleConfig, ObstacleEntity } from "./entities/ObstacleEntity";
-import { RegisterSchema } from "../core/LogicRegister";
-import { OBSTACLE_LOGIC_SCHEMA } from "../core/LogicSchemas";
+import { LogicModel } from "../core/logic/LogicModel";
 
-export abstract class ObstacleModel {
-  /** 逻辑寄存器声明表；实体按此分配寄存器并参与快照。 */
-  public readonly logicSchema: RegisterSchema = OBSTACLE_LOGIC_SCHEMA;
+export abstract class ObstacleModel extends LogicModel {
+  /** 障碍运行时状态。 */
+  public health: number = 0;
+  public extraRow: number = -1;
+  public dropped: boolean = false;
+  public hasTriggered: boolean = false;
 
   public abstract readonly oid: number;
   public abstract readonly nameKey: string;

@@ -37,11 +37,14 @@ export class GlowPowderModel extends PlantModel {
     // 创建视觉效果
     entity.createVisualEffect();
 
-    // 300ms 后销毁自己
-    entity.scene.time.delayedCall(300, () => {
-      if (entity.currentHealth > 0) {
-        entity.destroy();
-      }
+    // 销毁时机决定对象生命周期，必须用可快照的定时系统。
+    entity.tickmanager.delayedCall({
+      delay: 300,
+      callback: () => {
+        if (entity.currentHealth > 0) {
+          entity.destroy();
+        }
+      },
     });
   }
 }

@@ -8,6 +8,7 @@ import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { SfxCmd } from "../../../utils/cmd/SfxCmd";
 import { AlphaBlinkSfx } from "../../../sfx/flash/AlphaBlinkSfx";
 import CombatManager from "../../../managers/CombatManager";
+import type { ModelHost } from "../../../core/logic/LogicModel";
 
 export class TntModel extends PlantModel {
   public override pid = 7;
@@ -51,7 +52,7 @@ export class TntModel extends PlantModel {
     entity.tickmanager.delayedCall({
       delay: 850,
       callback: () => {
-        entity.primaryExplosion();
+        this.primaryExplosion(entity);
       }
     });
 
@@ -60,6 +61,18 @@ export class TntModel extends PlantModel {
       callback: () => {
         entity.destroy();
       }
+    });
+  }
+
+  /** 爆炸效果由 Model 定义。 */
+  public primaryExplosion(host: ModelHost): void {
+    host.createExplosion({
+      damage: host.explosionDamage,
+      rightGrid: 1.5,
+      leftGrid: 1.5,
+      upGrid: 1,
+      faction: host.faction,
+      dealer: host,
     });
   }
 
@@ -93,16 +106,6 @@ export class TntEntity extends PlantEntity {
     this.viewGroup.add(this.mainSprite);
   }
 
-  public primaryExplosion() {
-    ProjectileCmd.CreateExplosion(this.scene, this.x, this.row, {
-      damage: this.explosionDamage,
-      rightGrid: 1.5,
-      leftGrid: 1.5,
-      upGrid: 1,
-      faction: this.faction,
-      dealer: this
-    });
-  }
 }
 
 export default TntData;

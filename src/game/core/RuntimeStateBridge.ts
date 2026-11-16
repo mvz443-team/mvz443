@@ -25,6 +25,7 @@ import type { Game } from "../scenes/Game";
 import { ProjectileCmd } from "../utils/cmd/ProjectileCmd";
 import { rebindPhysicsEntities } from "./PhysicsSnapshot";
 import { registerEntityLookupProvider } from "./EntityLookup";
+import { logicEvents } from "./logic/LogicEvents";
 
 let installed = false;
 
@@ -215,6 +216,11 @@ export function installRuntimeStateSources(): void {
     (value) => { tileitems.RestoreTileItemState(value as Record<string, unknown>); },
   );
   simulationState.registerValue("grid", () => grid.GridProperties);
+  simulationState.registerValue(
+    "logic.events",
+    () => logicEvents.snapshot() as unknown as JsonValue,
+    (value) => { logicEvents.restore(value as unknown as ReturnType<typeof logicEvents.snapshot>); },
+  );
 
   simulationState.registerTimers("ticker", () => ticker.GetTimerStates(), (timers, context) => {
     ticker.RestoreTimerStates(timers, context);

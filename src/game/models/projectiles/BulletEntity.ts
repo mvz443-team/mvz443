@@ -11,26 +11,15 @@ import { ProjectileEntity } from "../entities/ProjectileEntity";
 import { BulletConfig, BulletModel } from "./ProjectileModels";
 
 export class BulletEntity extends ProjectileEntity<BulletModel> {
+  /** 逻辑字段全部在 Model 上；Entity 只保留视图与物理胶水。 */
   public baseDepth: number;
-  public currentPenetrate: number;
-  public penetratePower: number;
-  public penetratedPunish: number;
-  hasPenetrated: Set<CombatEntity> = new Set(); // Track pierced targets to avoid duplicate hits.
+  hasPenetratedSet: Set<CombatEntity> = new Set();
   public sprite!: Phaser.GameObjects.Sprite;
 
   private prevRenderX: number;
   private prevRenderY: number;
   private currentRenderX: number;
   private currentRenderY: number;
-
-  private prevX = 0; // Previous logical x for travel distance checks.
-  private traveledDistanceX: number = 0; // Total traveled logical x distance.
-  private maxDistanceX: number; // Max logical travel distance.
-
-  bounceable: boolean = true; // Whether the bullet can bounce.
-  speed: number;
-
-  skipTiny: boolean; // Whether tiny units should be ignored.
 
   constructor(scene: Game, x: number, row: number, model: BulletModel, cfg: BulletConfig) {
     const y = PositionManager.Instance.getRowCenterY(row);
@@ -49,7 +38,7 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
     this.currentRenderY = y;
 
     this.currentPenetrate = 0;
-    this.hasPenetrated = new Set<CombatEntity>();
+    this.hasPenetratedSet = new Set<CombatEntity>();
     this.penetratePower = cfg.penetratePower ?? model.penetratePower;
     this.penetratedPunish = cfg.penetratedPunish ?? model.penetratedPunish;
 
@@ -131,6 +120,9 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
     }
   }
 
+  public override hasPenetrated(target: unknown): boolean { return this.hasPenetratedSet.has(target as CombatEntity); }
+  public override markPenetrated(target: unknown): void { this.hasPenetratedSet.add(target as CombatEntity); }
+
   // Override collision handling to support piercing and priority logic.
   override onCollision(ctx: CollisionContext): void {
     // Only combat entities can be hit.
@@ -138,7 +130,7 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
 
     // Basic filtering.
     if (!ctx.targetEntity.takeDamage) return;
-    if (this.hasAttacked.has(ctx.targetEntity)) return;
+    if (this.hasAttackedSet.has(ctx.targetEntity)) return;
     if (ctx.targetEntity.faction === this.faction) return;
 
     // Height / flying filters.
@@ -153,17 +145,17 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
 
     // Piercing rules.
     const target = ctx.targetEntity as CombatEntity;
-    if (this.hasPenetrated.has(target) ||
+    if (this.hasPenetratedSet.has(target) ||
       this.currentPenetrate > this.penetratePower) return;
 
     // Recursively pierce the highest-priority plant in the same cell.
     const penetrateHighestPriorityPlant = (plants: PlantEntity[], currentTarget: PlantEntity): void => {
-      if (this.hasPenetrated.has(currentTarget) ||
+      if (this.hasPenetratedSet.has(currentTarget) ||
         this.currentPenetrate > this.penetratePower) {
         return;
       }
 
-      this.applyEffect(currentTarget);
+      this.model.applyEffect(this, currentTarget);
 
       if (this.currentPenetrate > this.penetratePower) {
         this.destroy();
@@ -172,7 +164,7 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
 
       const nextTarget = plants.find(
         plant => plant !== currentTarget &&
-          !this.hasPenetrated.has(plant) &&
+          !this.hasPenetratedSet.has(plant) &&
           PlantHelper.IsMorePriorityPlant(plant, currentTarget),
       );
 
@@ -190,29 +182,7 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
       return;
     }
 
-    this.applyEffect(target);
+    this.model.applyEffect(this, target);
     return;
-  }
-
-  // Apply bullet hit effects to the target.
-  protected applyEffect(t: CombatEntity): void {
-    this.currentPenetrate++;
-    this.hasPenetrated.add(t);
-
-    // Damage
-    this.hasAttacked.add(t);
-    t.takeDamage(this.currentDamage, this.dealer, this);
-
-    // debuff
-    if (this.debuff) {
-      t.addDebuff(this.debuff, this.debuffDuration);
-    }
-
-    // Damage decay after piercing.
-    if (this.currentPenetrate < this.penetratePower) {
-      this.currentDamage = Math.floor(this.currentDamage * this.penetratedPunish);
-    } else {
-      this.destroy();
-    }
   }
 }

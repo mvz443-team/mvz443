@@ -3,12 +3,23 @@ import { PlantStat } from "../../utils/numbervalue";
 import { Game } from "../scenes/Game";
 import { BaseEntity } from "./core/BaseEntity";
 import { PlantEntity } from "./entities/PlantEntity";
-import { RegisterSchema } from "../core/LogicRegister";
-import { PLANT_LOGIC_SCHEMA } from "../core/LogicSchemas";
+import { LogicModel } from "../core/logic/LogicModel";
 
-export abstract class PlantModel {
-  /** 逻辑寄存器声明表；实体按此分配寄存器并参与快照。 */
-  public readonly logicSchema: RegisterSchema = PLANT_LOGIC_SCHEMA;
+export abstract class PlantModel extends LogicModel {
+  /** 以下运行时字段全部自动进入快照；新增字段直接写在这里即可。 */
+  public level: number = 1;
+  public isSleeping: boolean = false;
+  public shieldHealth: number = 0;
+  public damagedSum: number = 0;
+  public inBruteShoot: boolean = false;
+  public isLightning: number = 0;
+  public isBuried: boolean = false;
+  public hasExploded: boolean = false;
+  public hasTriggered: boolean = false;
+  public canActivateFromSleep: boolean = false;
+  public fuse: number = 0;
+  public explosionDamage: number = 0;
+  public customExplodeDamage: number = 0;
 
   public abstract readonly pid: number;
   public abstract readonly nameKey: string;

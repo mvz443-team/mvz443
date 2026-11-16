@@ -8,7 +8,7 @@ import { CombatEntity } from "../core/CombatEntity";
 import { BaseEntity } from "../core/BaseEntity";
 import { Faction } from "../Enum";
 import { ObstacleModel } from "../ObstacleModel";
-import { OBSTACLE_RELATION_FIELDS } from "../../core/LogicSchemas";
+import { OBSTACLE_RELATION_FIELDS } from "../../core/logic/LogicRelations";
 
 export interface ObstacleConfig {
   hp: number;
@@ -30,7 +30,7 @@ export abstract class ObstacleEntity extends CombatEntity {
 
   constructor(scene: Game, col: number, row: number, model: ObstacleModel, config: ObstacleConfig) {
     const { x, y } = PositionManager.Instance.getPlantBottomCenter(col, row);
-    super(scene, x, y, config.hp, config.faction, model.logicSchema);
+    super(scene, x, y, config.hp, config.faction, model);
 
     this.model = model;
     this.col = col;
@@ -70,7 +70,6 @@ export abstract class ObstacleEntity extends CombatEntity {
     if (this.initialized) return this;
     this.initialized = true;
 
-    this.bindLogicRegisters();
     this.buildView();
     this.buildPhysics();
     ObstacleManager.Instance.RegisterObstacle(this);

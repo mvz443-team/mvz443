@@ -42,13 +42,18 @@ export function setCentipedeHooks(hooks: CentipedeHooks | null) {
 
 export class CentipedeEntity extends BaseMonsterEntity {
   private hooks: CentipedeHooks | null;
-  private lastSkill: SkillIndex | 0 = 0;
-  private hpTriggers = new Set<number>();
-  private flashTriggered = false;
-  private isHidden = false;
+  /** 以下字段由 MONSTER_LOGIC_SCHEMA 声明，全部随快照回滚。 */
+  private declare lastSkill: SkillIndex | 0;
+  private declare hpTriggers: number[];
+  private declare flashTriggered: boolean;
+  private declare isHidden: boolean;
 
   public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
     super(scene, col, row, model, waveID);
+    this.lastSkill = 0;
+    this.hpTriggers = [];
+    this.flashTriggered = false;
+    this.isHidden = false;
     this.hooks = pendingHooks;
     pendingHooks = null;
 
@@ -97,8 +102,8 @@ export class CentipedeEntity extends BaseMonsterEntity {
     }
 
     for (const trigger of HEALTH_TRIGGERS) {
-      if (ratio <= trigger && !this.hpTriggers.has(trigger)) {
-        this.hpTriggers.add(trigger);
+      if (ratio <= trigger && !this.hpTriggers.includes(trigger)) {
+        this.hpTriggers.push(trigger);
         this.castSkill0();
       }
     }

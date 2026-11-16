@@ -14,15 +14,18 @@ export class MineRockObstacleModel extends ObstacleModel {
   public readonly nameKey = "MineRockObstacle";
   public readonly texturePath = "";
 
+  /** 矿岩占据的额外行与星碎掉落标记都是战斗状态。 */
+  public extraRow: number = -1;
+  public dropped: boolean = false;
+
   public createEntity(scene: Game, col: number, row: number, config: ObstacleConfig): ObstacleEntity {
     return this.initializeEntity(new MineRockObstacleEntity(scene, col, row, this, config));
   }
 }
 
 export class MineRockObstacleEntity extends ObstacleEntity {
+  /** 纯表现。 */
   private starOrbit: StarShardsOrbitSfx | null = null;
-  private extraRow = -1;
-  private dropped = false;
   private rectangle: Phaser.GameObjects.Rectangle | null = null;
 
   protected buildView(): void {
@@ -40,6 +43,8 @@ export class MineRockObstacleEntity extends ObstacleEntity {
   public override initializeEntity(): this {
     if ((this as any).initialized) return this;
     (this as any).initialized = true;
+    this.extraRow = -1;
+    this.dropped = false;
 
     this.buildView();
     this.buildOwnPhysics();

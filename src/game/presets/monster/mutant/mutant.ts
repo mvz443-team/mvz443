@@ -20,14 +20,18 @@ const mutantProps = {
 export class MutantEntity extends BaseMonsterEntity {
   declare public model: MutantModel;
 
-  public isAttacking = false;
+  /** 攻击开关由 MONSTER_LOGIC_SCHEMA 追踪。 */
+  public declare isAttacking: boolean;
+  /** 植物引用集合通过 MONSTER_RELATION_FIELDS 做实体引用快照。 */
   public attackedPlants: PlantEntity[] = [];
   public preAttackedPlant: PlantEntity | null = null;
+  /** 这两个只是 tickmanager 句柄，定时器本体已随 TickerManager 快照恢复。 */
   public attackTimer: FrameTimer | null = null;
   public recoverTimer: FrameTimer | null = null;
 
   public constructor(scene: Game, col: number, row: number, model: MutantModel, waveID: number) {
     super(scene, col, row, model, waveID);
+    this.isAttacking = false;
   }
 
   protected createAnimController() {

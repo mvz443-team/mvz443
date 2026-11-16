@@ -7,15 +7,19 @@ import { ProjectileConfig, ProjectileModel } from "../projectiles/ProjectileMode
 import { Faction } from "../Enum";
 import { MonsterEntity } from "./MonsterEntity";
 import { _Typedebuffs } from "../../../constants/game";
-import { PROJECTILE_RELATION_FIELDS } from "../../core/LogicSchemas";
+import { PROJECTILE_RELATION_FIELDS } from "../../core/logic/LogicRelations";
+import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
+import type { ExplosionConfig } from "../projectiles/ProjectileModels";
 
 export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> extends BaseEntity {
-  public model: T;
+  /** BaseEntity 已克隆为实例专属 Model。 */
+  public declare model: T;
   public faction: Faction;
 
   // 运行时状态
   public currentDamage: number;
-  public hasAttacked: Set<BaseEntity> = new Set(); // 记录已经打过的实体
+  /** 命中关系集合，由关系快照负责恢复。 */
+  public hasAttackedSet: Set<BaseEntity> = new Set();
 
   public dealer: CombatEntity | undefined; // 伤害来源实体（比如子弹的发射者）
 
@@ -24,9 +28,8 @@ export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> exte
   debuffDuration: number = 0;
 
   constructor(scene: Game, x: number, y: number, model: T, cfg: ProjectileConfig) {
-    super(scene, x, y, model.logicSchema);
-    this.model = model;
-    this.currentDamage = model.damage;
+    super(scene, x, y, model);
+    this.currentDamage = this.model.damage;
     this.faction = cfg.faction;
     this.dealer = cfg.dealer;
 
@@ -35,10 +38,18 @@ export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> exte
     this.debuffDuration = cfg.debuffDuration ?? model.debuffDuration;
   }
 
-  /** 子类构造完成后调用，把逻辑字段接入寄存器。 */
-  public initializeEntity(): this {
-    this.bindLogicRegisters();
-    return this;
+  /** Model 的唯一实例（BaseEntity 已克隆），Entity 只做视图胶水。 */
+  public initializeEntity(): this { return this; }
+
+  public override hasAttacked(target: unknown): boolean { return this.hasAttackedSet.has(target as BaseEntity); }
+  public override markAttacked(target: unknown): void { this.hasAttackedSet.add(target as BaseEntity); }
+
+  public override createExplosion(config: Record<string, unknown>, x?: number, _y?: number, row?: number): void {
+    ProjectileCmd.CreateExplosion(this.scene, x ?? this.x, row ?? this.row, config as unknown as ExplosionConfig);
+  }
+
+  public override createProjectile(model: unknown, config: Record<string, unknown>): void {
+    ProjectileCmd.Create(model as never, this.scene, this.x, this.row, config as never);
   }
 
   protected override getRelationFields(): readonly string[] {
@@ -52,12 +63,12 @@ export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> exte
 
     // 基本条件过滤
     if (!ctx.targetEntity.takeDamage) return; // 不是可受击对象
-    if (this.hasAttacked.has(ctx.targetEntity)) return; // 已经攻击过
+    if (this.hasAttackedSet.has(ctx.targetEntity)) return; // 已经攻击过
     if (ctx.targetEntity.faction === this.faction) return; // 阵营不符
 
     // 基本条件过滤
     if (!ctx.targetEntity.takeDamage) return; // 不是可受击对象
-    if (this.hasAttacked.has(ctx.targetEntity)) return; // 已经攻击过
+    if (this.hasAttackedSet.has(ctx.targetEntity)) return; // 已经攻击过
     if (ctx.targetEntity.faction === this.faction) return; // 阵营不符
 
     // 高度/飞行逻辑判断
@@ -69,12 +80,9 @@ export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> exte
     // 虚空/黑夜逻辑
     if (ctx.targetEntity instanceof MonsterEntity && ctx.targetEntity.isInVoid) return;
 
-    // 【具体生效逻辑交由子类实现】
-    this.applyEffect(ctx.targetEntity);
+    // 命中效果由 Model 实现，Entity 不写战斗逻辑。
+    this.model.applyEffect(this, ctx.targetEntity);
   }
-
-  // 由子弹、激光、爆炸各自重写生效逻辑
-  protected abstract applyEffect(target: CombatEntity): void;
 
   // 通用创建传感器的物理体
   protected createSensor(width: number, height: number, rotation: number = 0) {

@@ -67,15 +67,6 @@ export class ExplosionEntity extends ProjectileEntity<ExplosionModel> {
     // 所以这里不执行任何操作，真正的视觉初始化在 constructor 后完成
   }
 
-  protected applyEffect(target: CombatEntity): void {
-    this.hasAttacked.add(target);
-    target.takeDamage(this.currentDamage, this.dealer, this);
-    // debuff
-    if (this.debuff) {
-      target.addDebuff(this.debuff, this.debuffDuration);
-    }
-  }
-
   private initVisuals() {
     // 播放表现层动画
     if (!this.model.disableAnime) {

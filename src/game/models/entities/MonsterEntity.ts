@@ -21,7 +21,7 @@ import { StarShardsOrbitSfx } from "../../sfx/star/StarShardsOrbitSfx";
 import { DeathRotateSfx } from "../../sfx/death/DeathRotateSfx";
 import { DeathSmokeSfx } from "../../sfx/death/DeathSmokeSfx";
 import SoundCmd from "../../utils/cmd/SoundCmd";
-import { MONSTER_PRNG_FIELDS, MONSTER_RELATION_FIELDS } from "../../core/LogicSchemas";
+import { MONSTER_PRNG_FIELDS, MONSTER_RELATION_FIELDS } from "../../core/logic/LogicRelations";
 
 type DeathSmokeSpawn = {
   x: number;
@@ -50,7 +50,7 @@ export abstract class MonsterEntity extends CombatEntity {
   protected override captureLogicState(): Record<string, import("../../../game/core/SimulationState").JsonValue> {
     return {
       mid: this.model.mid,
-      waveID: Number(this.reg.get("waveID") ?? -1),
+      waveID: Number((this.model as unknown as Record<string, unknown>).waveID ?? -1),
       spawnSeq: Number(this.ExtraData?.spawnSeq ?? 0),
     };
   }
@@ -89,7 +89,7 @@ export abstract class MonsterEntity extends CombatEntity {
 
   constructor(scene: Game, col: number, row: number, model: MonsterModel, waveID: number) {
     const pos = PositionManager.Instance.getZombieBottomCenter(col, row);
-    super(scene, pos.x, pos.y, model.maxHealth, Faction.ZOMBIE, model.logicSchema);
+    super(scene, pos.x, pos.y, model.maxHealth, Faction.ZOMBIE, model);
     this.model = model;
     this.col = col;
     this.row = row;
@@ -138,7 +138,6 @@ export abstract class MonsterEntity extends CombatEntity {
     if (this.initialized) return this;
     this.initialized = true;
 
-    this.bindLogicRegisters();
     this.buildView();
     this.checkAndAddBoat();
     this.buildPhysics();

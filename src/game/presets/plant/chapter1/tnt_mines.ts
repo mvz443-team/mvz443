@@ -15,6 +15,7 @@ import CombatManager from "../../../managers/CombatManager";
 import { DeferredManager } from "../../../managers/DeferredManager";
 import { CombatEntity } from "../../../models/core/CombatEntity";
 import { MonsterEntity } from "../../../models/entities/MonsterEntity";
+import type { ModelHost } from "../../../core/logic/LogicModel";
 
 type VaultingMonster = MonsterEntity & {
   canVaultOverPlant?: (target: PlantEntity) => boolean;
@@ -33,6 +34,22 @@ export class TntMinesModel extends PlantModel {
   public cooldownStartAtRatio = 0.5;
 
   public damage = new PlantStat(1500);
+
+  /** 地雷爆炸效果由 Model 定义。 */
+  public explode(host: ModelHost, level: number): void {
+    if (host.hasExploded) return;
+    host.hasExploded = true;
+    host.createExplosion({
+      damage: this.damage.getValueAt(level),
+      rightGrid: level >= 9 ? 1.5 : 1,
+      leftGrid: 0.5,
+      upGrid: 0,
+      faction: host.faction,
+      dealer: host,
+    });
+    host.destroySelf();
+  }
+
   public isNightPlant = false;
   public isTiny = true;
 
@@ -137,8 +154,10 @@ export class TntMinesModel extends PlantModel {
 export const TntMinesData = new TntMinesModel();
 
 export class TntMinesEntity extends PlantEntity {
-  public isBuried: boolean = true;
-  public hasExploded: boolean = false;
+  public declare model: TntMinesModel;
+  /** 逻辑状态由 Model 持有。 */
+  public declare isBuried: boolean;
+  public declare hasExploded: boolean;
   public random: seedrandom.StatefulPRNG<seedrandom.State.Alea>;
 
   private declare buriedSprite: Phaser.GameObjects.Sprite;
@@ -153,6 +172,8 @@ export class TntMinesEntity extends PlantEntity {
 
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, TntMinesData, level);
+    this.isBuried = true;
+    this.hasExploded = false;
     this.random = seedrandom.alea(String(CombatManager.Instance.seed * 3), { state: true });
     this.game = scene;
   }
@@ -231,28 +252,12 @@ export class TntMinesEntity extends PlantEntity {
         continue;
       }
       if (!m.isFlying) {
-        this.explode();
+        this.model.explode(this, this.level);
         return;
       }
     }
   }
 
-  private explode() {
-    if (this.hasExploded) return;
-    this.hasExploded = true;
-
-    const rightDistance = this.level >= 9 ? 1.5 : 1;
-    ProjectileCmd.CreateExplosion(this.scene, this.x, this.row, {
-      damage: 1500,
-      rightGrid: rightDistance,
-      leftGrid: 0.5,
-      upGrid: 0,
-      faction: this.faction,
-      dealer: this
-    });
-
-    this.destroy();
-  }
 }
 
 function canVaultOverMine(monster: MonsterEntity, mine: PlantEntity): boolean {

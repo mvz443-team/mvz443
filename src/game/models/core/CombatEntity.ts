@@ -5,11 +5,17 @@ import type { Game } from "../../scenes/Game";
 import { Faction } from "../Enum";
 import { IDamageable } from "../Interface";
 import { BaseEntity } from "./BaseEntity";
-import type { RegisterSchema } from "../../core/LogicRegister";
 
 export abstract class CombatEntity extends BaseEntity implements IDamageable {
-  public currentHealth: number;
-  public maxHealth: number;
+  /** 血量实际存储在 Model；这里只提供兼容访问器。 */
+  public get currentHealth(): number { return (this.model as { health?: number } | null)?.health ?? 0; }
+  public set currentHealth(value: number) {
+    if (this.model) (this.model as unknown as Record<string, unknown>).health = value;
+  }
+  public get maxHealth(): number { return (this.model as { healthMax?: number } | null)?.healthMax ?? 0; }
+  public set maxHealth(value: number) {
+    if (this.model) (this.model as unknown as Record<string, unknown>).healthMax = value;
+  }
   public faction: Faction;
 
   // 存储每个debuff的剩余时间和定时器
@@ -23,8 +29,8 @@ export abstract class CombatEntity extends BaseEntity implements IDamageable {
   // 额外状态
   public isTiny = false; // 是否为小型单位，可能会被某些效果忽略
 
-  constructor(scene: Game, x: number, y: number, maxHealth: number, faction: Faction, schema?: RegisterSchema) {
-    super(scene, x, y, schema);
+  constructor(scene: Game, x: number, y: number, maxHealth: number, faction: Faction, model?: import("../../core/logic/LogicModel").LogicModel) {
+    super(scene, x, y, model ?? null);
     this.maxHealth = maxHealth;
     this.currentHealth = maxHealth;
     this.faction = faction;

@@ -11,6 +11,7 @@ import { CombatEntity } from "../../models/core/CombatEntity";
 import { Faction } from "../../models/Enum";
 import { CollisionContext } from "../../types";
 import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
+import { LogicModel } from "../../core/logic/LogicModel";
 
 export interface MineCartStandConfig {
   onLost?: (row: number) => void;
@@ -31,17 +32,23 @@ export class MineCartModel extends BulletModel<MineCartConfig, MineCartEntity> {
 
 export const MineCartData = new MineCartModel();
 
+class MineCartStandModel extends LogicModel {
+  public row: number = -1;
+  public hasTriggered: boolean = false;
+}
+
 export class MineCartStandEntity extends BaseEntity {
+  public declare model: MineCartStandModel;
   public baseDepth: number;
 
-  private readonly row: number;
+  /** 回调只用于表现层通知，不进入快照。 */
   private readonly onLost?: (row: number) => void;
   private sprite!: Phaser.GameObjects.Sprite;
-  private hasTriggered = false;
 
   constructor(scene: Game, x: number, row: number, cfg: MineCartStandConfig = {}) {
-    super(scene, x, PositionManager.Instance.getRowCenterY(row));
-    this.row = row;
+    super(scene, x, PositionManager.Instance.getRowCenterY(row), new MineCartStandModel());
+    this.model.row = row;
+    this.model.hasTriggered = false;
     this.onLost = cfg.onLost;
     this.baseDepth = DepthHelper.Projectile.bulletColumn(PositionManager.Instance.getColByX(x));
 

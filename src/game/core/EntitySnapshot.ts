@@ -1,8 +1,7 @@
 /**
  * 实体快照的关系型状态辅助：
- * - 逻辑数值走 Model 声明的寄存器（LogicRegister），这里只处理无法放进寄存器的部分：
- *   实体引用 / Set、以及少数带 state() 的 PRNG 对象。
- * - 关系字段按实体族显式声明（LogicSchemas 中的 *_RELATION_FIELDS），不做通用字段反射。
+ * - 逻辑数值由 LogicModel 自动追踪并快照，这里只处理实体引用 / Set 与 PRNG 对象。
+ * - 关系字段按实体族显式声明（logic/LogicRelations.ts），不做通用字段反射。
  */
 
 import type { JsonValue } from "./SimulationState";

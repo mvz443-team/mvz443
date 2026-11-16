@@ -1,62 +1,44 @@
 /**
  * 无渲染的确定性战局模型（仅用于验证快照/恢复/追帧/断线恢复）。
  *
- * 它不是游戏渲染层的替代品，而是把“会影响模拟结果的状态类型”完整建模：
- * seed、PRNG、资源、卡槽冷却、植物、僵尸、投射物、buff/debuff 计时器、波次计数。
+ * 本模型是重构后的参考实现：
+ * - 植物 / 僵尸 / 投射物的全部运行时状态都是 LogicState 上的普通字段，
+ *   没有 MODEL_SCHEMA、没有 reg、也没有带回调的定时器。
+ * - 实体生命周期交给 LogicWorld：生成序号与"从未出生"语义都可回滚。
+ * - 定时器退化为 (key, targetFrame, repeat, interval) 纯数据帧计数。
  *
- * 模型与真实游戏共享同一套 SimulationState 注册中心与哈希实现，
- * 因此可以直接验证：
- * - 连续运行 与 多次 capture/restore 的哈希是否一致；
- * - 弱网追帧（不同快照年龄回滚重放）是否一致；
- * - 断线冻结后恢复是否一致。
+ * 它与真实游戏共享 StateRegistry / hash 实现，因此可直接验证跨端一致性。
  */
 
-import type { EntityLogicState, JsonValue, RestoreContext, SimulationState, TimerState } from "./SimulationState.ts";
+import type {
+  EntityLogicState,
+  JsonValue,
+  RestoreContext,
+  SimulationState,
+  TimerState,
+} from "./SimulationState.ts";
 import { StateRegistry, SIMULATION_STATE_VERSION } from "./SimulationState.ts";
-import { RegisterBank, RegisterSchema, bindRegistersToEntity } from "./LogicRegister.ts";
-
-const MODEL_SCHEMA = new RegisterSchema([
-  { name: "hp", type: "f64", default: 0 },
-  { name: "maxHp", type: "f64", default: 0 },
-  { name: "speed", type: "f64", default: 0 },
-  { name: "pid", type: "i32", default: 0 },
-  { name: "mid", type: "i32", default: 0 },
-  { name: "level", type: "i32", default: 0 },
-  { name: "shield", type: "f64", default: 0 },
-  { name: "armor", type: "f64", default: 0 },
-  { name: "stage", type: "i32", default: 0 },
-  { name: "shell", type: "f64", default: 0 },
-  { name: "fuse", type: "f64", default: 0 },
-  { name: "freeze", type: "f64", default: 0 },
-  { name: "damagedSum", type: "f64", default: 0 },
-  { name: "isLightning", type: "f64", default: 0 },
-  { name: "inBruteShoot", type: "bool", default: false },
-  { name: "cooldown", type: "f64", default: 0 },
-  { name: "damage", type: "f64", default: 0 },
-  { name: "penetrate", type: "i32", default: 0 },
-  { name: "traveled", type: "f64", default: 0 },
-  { name: "maxDistance", type: "f64", default: 0 },
-]);
+import {
+  LOGIC_WORLD_SNAPSHOT_VERSION,
+  LogicWorld,
+  type LogicWorldSnapshot,
+} from "./logic/LogicWorld.ts";
 
 export type ModelKind = "plant" | "mob" | "projectile";
 
+/** 逻辑状态即普通数据对象；框架自动追踪每次写入，无需声明寄存器。 */
 export interface ModelEntity {
   id: string;
   kind: ModelKind;
   x: number;
   y: number;
-  reg: RegisterBank;
   hp: number;
   maxHp: number;
+  speed?: number;
   pid?: number;
   mid?: number;
   level?: number;
   shield?: number;
-  damagedSum?: number;
-  inBruteShoot?: boolean;
-  isLightning?: number;
-  cooldown?: number;
-  speed?: number;
   armor?: number;
   stage?: number;
   shell?: number;
@@ -67,6 +49,10 @@ export interface ModelEntity {
   penetrate?: number;
   traveled?: number;
   maxDistance?: number;
+  cooldown?: number;
+  damagedSum?: number;
+  isLightning?: number;
+  inBruteShoot?: boolean;
 }
 
 export interface ModelTimer {
@@ -110,6 +96,7 @@ class Lcg {
 
 export class DeterminismModel {
   public readonly registry = new StateRegistry();
+  public readonly world = new LogicWorld();
   public frame = 0;
   public tickerFrame = 0;
   public nextTimerId = 1;
@@ -118,6 +105,7 @@ export class DeterminismModel {
   public kills = 0;
   public spawned = 0;
   public prng: Lcg;
+  /** 存活实体的稳定视图；权威状态在 this.world 中。 */
   public entities = new Map<string, ModelEntity>();
   public timers = new Map<number, ModelTimer>();
   public seed: number;
@@ -154,13 +142,13 @@ export class DeterminismModel {
     );
     this.registry.registerEntities(
       "entity",
-      () => [...this.entities.values()].map((entity) => this.captureEntity(entity)),
+      () => this.captureEntities(),
       (entities, context) => this.restoreEntities(entities, context),
     );
   }
 
   // ---------------------------------------------------------------------------
-  // 定时器
+  // 帧计数定时器（纯数据，无回调）
   // ---------------------------------------------------------------------------
 
   public setTimer(key: string, group: string, delayFrames: number, repeat = 0): void {
@@ -192,23 +180,18 @@ export class DeterminismModel {
   private restoreTimers(timers: TimerState[], context: RestoreContext): void {
     this.tickerFrame = context.frameId;
     const next = new Map<number, ModelTimer>();
-    const snapshotKeys = new Set<string>();
     for (const timer of timers) {
-      const key = this.timerKeyFromGroup(timer.group);
-      snapshotKeys.add(key);
       next.set(timer.id, {
         id: timer.id,
-        key,
+        key: this.timerKeyFromGroup(timer.group),
         targetFrame: timer.targetFrame,
         repeat: timer.repeat,
         interval: timer.interval,
         group: timer.group,
       });
     }
-    // 快照之后新增的计时器必须删除
     this.timers = next;
     this.nextTimerId = Math.max(this.nextTimerId, ...[...next.keys()].map((id) => id + 1), 1);
-    void snapshotKeys;
   }
 
   private timerKeyFromGroup(group: string): string {
@@ -216,69 +199,81 @@ export class DeterminismModel {
   }
 
   // ---------------------------------------------------------------------------
-  // 实体
+  // 实体：LogicWorld 权威 + LogicState 自动追踪
   // ---------------------------------------------------------------------------
 
-  private captureEntity(entity: ModelEntity): EntityLogicState {
-    return {
-      kind: "entity",
-      id: entity.id,
-      col: null,
-      row: null,
-      x: entity.x,
-      y: entity.y,
-      hp: entity.hp,
-      maxHp: entity.maxHp,
-      speed: entity.speed ?? null,
-      registers: entity.reg.capture(),
-      registerVersion: entity.reg.schema.fingerprint,
-      flags: {},
-      timers: [],
-      extra: { modelKind: entity.kind },
-    };
+  /** 把逻辑世界（含已销毁但可回滚的实体）转换成可哈希的实体快照。 */
+  private captureEntities(): EntityLogicState[] {
+    return this.world.capture().entities.map((item) => {
+      const state = item.state as Record<string, JsonValue>;
+      return {
+        kind: "entity",
+        id: item.id,
+        col: null,
+        row: null,
+        x: Number(state.x ?? 0),
+        y: Number(state.y ?? 0),
+        hp: Number(state.hp ?? 0),
+        maxHp: Number(state.maxHp ?? 0),
+        speed: typeof state.speed === "number" ? state.speed : null,
+        flags: {
+          logic: state,
+          modelKind: item.kind,
+          alive: item.alive,
+        },
+        timers: [],
+        extra: {
+          modelKind: item.kind,
+          generation: item.generation,
+          alive: item.alive,
+        },
+      };
+    });
   }
 
   private restoreEntities(snapshots: EntityLogicState[], context: RestoreContext): void {
-    const snapshotIds = new Set(snapshots.map((snapshot) => String(snapshot.id)));
-    for (const [id, entity] of [...this.entities]) {
-      if (!snapshotIds.has(id)) this.entities.delete(id);
-    }
-    for (const snapshot of snapshots) {
-      let entity = this.entities.get(String(snapshot.id));
-      if (!entity) {
-        entity = this.recreateEntity(snapshot);
-        if (!entity) {
-          context.report.missing.push(`model-entity:${snapshot.id}`);
-          continue;
-        }
-        this.entities.set(entity.id, entity);
-      }
-      entity.x = snapshot.x;
-      entity.y = snapshot.y;
-      if (snapshot.registers && snapshot.registerVersion === entity.reg.schema.fingerprint) {
-        if (!entity.reg.restore(snapshot.registers as Array<number | boolean | string>)) {
-          context.report.errors.push(`register-length-mismatch:${snapshot.id}`);
-        }
-      } else {
-        context.report.missing.push(`registers:${snapshot.id}`);
-      }
+    let maxGeneration = 0;
+    const worldEntities: LogicWorldSnapshot["entities"] = snapshots.map((snapshot) => {
+      const generation = Number(snapshot.extra.generation ?? 0);
+      maxGeneration = Math.max(maxGeneration, generation);
+      return {
+        id: String(snapshot.id),
+        generation,
+        kind: String(snapshot.flags.modelKind ?? "plant"),
+        state: (snapshot.flags.logic ?? {}) as JsonValue,
+        alive: snapshot.extra.alive !== false,
+      };
+    });
+
+    this.world.restore({
+      version: LOGIC_WORLD_SNAPSHOT_VERSION,
+      frame: context.frameId,
+      nextGeneration: maxGeneration + 1,
+      nextEventId: 1,
+      entities: worldEntities,
+      events: [],
+    });
+    this.syncEntityView();
+  }
+
+  /** 从逻辑世界重建存活实体视图。 */
+  private syncEntityView(): void {
+    this.entities.clear();
+    for (const entity of this.world.active<ModelEntity>()) {
+      this.entities.set(entity.id, entity.state as ModelEntity);
     }
   }
 
-  private recreateEntity(snapshot: EntityLogicState): ModelEntity | undefined {
-    const kind = snapshot.extra.modelKind;
-    if (kind !== "plant" && kind !== "mob" && kind !== "projectile") return undefined;
-    const entity: ModelEntity = {
-      id: String(snapshot.id),
-      kind,
-      x: snapshot.x,
-      y: snapshot.y,
-      reg: MODEL_SCHEMA.createBank(),
-      hp: 0,
-      maxHp: 0,
-    };
-    bindRegistersToEntity(entity, entity.reg);
-    return entity;
+  private spawnEntity(kind: ModelKind, id: string, initial: ModelEntity): ModelEntity {
+    const entity = this.world.spawn(kind, initial, id);
+    const state = entity.state as ModelEntity;
+    this.entities.set(id, state);
+    return state;
+  }
+
+  private destroyEntity(id: string): void {
+    this.world.destroy(id);
+    this.entities.delete(id);
   }
 
   // ---------------------------------------------------------------------------
@@ -287,15 +282,13 @@ export class DeterminismModel {
 
   public addPlant(pid: number, col: number, row: number, level = 1): ModelEntity {
     const id = `plant:${col}:${row}:${pid}`;
-    const entity: ModelEntity = {
-      id, kind: "plant", reg: MODEL_SCHEMA.createBank(), pid, level, x: col * 100, y: row * 50,
+    const entity = this.spawnEntity("plant", id, {
+      id, kind: "plant", pid, level, x: col * 100, y: row * 50,
       hp: 100, maxHp: 100, cooldown: 0,
-    };
+    } as ModelEntity);
     if (pid === 3) { entity.shield = 200; entity.maxHp = 100; }
     if (pid === 4) { entity.fuse = 200; }
     if (pid === 5) { entity.isLightning = 0; }
-    bindRegistersToEntity(entity, entity.reg);
-    this.entities.set(id, entity);
     if (pid === 1 || pid === 3) this.setTimer(`attack:${id}`, `attack:${id}`, 20, -1);
     if (pid === 2) this.setTimer(`energy:${id}`, `energy:${id}`, 30, -1);
     if (pid === 4) this.setTimer(`fuse:${id}`, `fuse:${id}`, 200, 0);
@@ -305,27 +298,22 @@ export class DeterminismModel {
   public addMob(mid: number, row: number): ModelEntity {
     this.spawned += 1;
     const id = `mob:${this.spawned}`;
-    const entity: ModelEntity = {
-      id, kind: "mob", reg: MODEL_SCHEMA.createBank(), mid, x: 900, y: row * 50,
+    const entity = this.spawnEntity("mob", id, {
+      id, kind: "mob", mid, x: 900, y: row * 50,
       hp: 100, maxHp: 100, speed: 2, armor: 0, stage: 0, shell: mid === 4 ? 50 : 0,
-    };
+    } as ModelEntity);
     if (mid === 2) entity.armor = 100;
     if (mid === 3) entity.stage = 2;
-    bindRegistersToEntity(entity, entity.reg);
-    this.entities.set(id, entity);
     this.setTimer(`move:${id}`, `move:${id}`, 1, -1);
     return entity;
   }
 
   public addProjectile(x: number, row: number, damage: number, penetrate = 1): ModelEntity {
     const id = `projectile:${this.nextTimerId}`;
-    const entity: ModelEntity = {
-      id, kind: "projectile", reg: MODEL_SCHEMA.createBank(), x, y: row * 50,
+    return this.spawnEntity("projectile", id, {
+      id, kind: "projectile", x, y: row * 50,
       hp: 1, maxHp: 1, damage, penetrate, traveled: 0, maxDistance: 800,
-    };
-    bindRegistersToEntity(entity, entity.reg);
-    this.entities.set(id, entity);
-    return entity;
+    } as ModelEntity);
   }
 
   public applyStarshards(pid: number, targetId?: string): void {
@@ -334,19 +322,19 @@ export class DeterminismModel {
     const target = targetId ? this.entities.get(targetId) : undefined;
 
     switch (pid) {
-      case 3: // obsidian：回满护盾
+      case 3:
         if (target) target.shield = 200;
         break;
-      case 4: // tnt：立即引爆
+      case 4:
         if (target) target.fuse = 0;
         break;
-      case 5: // elastic：闪电窗口
+      case 5:
         if (target) target.isLightning = 5000;
         break;
-      case 1: // dispenser：爆发射击
+      case 1:
         if (target) target.inBruteShoot = true;
         break;
-      case 2: // furnace：能量
+      case 2:
         this.energy += 450;
         break;
       default:
@@ -354,7 +342,7 @@ export class DeterminismModel {
     }
   }
 
-  /** 冻结 / 减速 / 即时伤害等效果，走计时器而非瞬时字段。 */
+  /** 冻结 / 减速 / 即时伤害等效果，走帧号而非回调。 */
   public castFreeze(targetId: string, durationFrames: number): void {
     const target = this.entities.get(targetId);
     if (!target) return;
@@ -387,7 +375,7 @@ export class DeterminismModel {
     }
     target.hp -= remaining;
     if (target.hp <= 0) {
-      this.entities.delete(target.id);
+      this.destroyEntity(target.id);
       if (target.kind === "mob") this.kills += 1;
     }
   }
@@ -396,8 +384,8 @@ export class DeterminismModel {
   public step(): void {
     this.frame += 1;
     this.tickerFrame += 1;
+    this.world.setFrame(this.frame);
 
-    // 1. 到点计时器（按 id 稳定顺序）
     const due = [...this.timers.values()]
       .filter((timer) => timer.targetFrame <= this.tickerFrame)
       .sort((a, b) => a.id - b.id);
@@ -411,7 +399,6 @@ export class DeterminismModel {
       }
     }
 
-    // 2. 脚本化出怪 / 星碎 / 冻结，按帧号固定触发
     if (this.frame === 5) this.addPlant(1, 2, 1);
     if (this.frame === 10) this.addMob(1, 1);
     if (this.frame === 20) this.addPlant(2, 3, 2);
@@ -428,7 +415,6 @@ export class DeterminismModel {
     if (this.frame === 120) this.applyStarshards(1, "plant:2:1:1");
     if (this.frame === 130) this.castDamage("mob:1", 60);
 
-    // 3. 僵尸移动 / 攻击
     for (const entity of [...this.entities.values()]) {
       if (entity.kind !== "mob") continue;
       if ((entity.freeze ?? 0) > 0) continue;
@@ -436,7 +422,6 @@ export class DeterminismModel {
       if (entity.x < 100) this.applyDamage(entity, 999);
     }
 
-    // 4. 投射物前进 / 命中
     for (const entity of [...this.entities.values()]) {
       if (entity.kind !== "projectile") continue;
       entity.x -= 12;
@@ -447,12 +432,12 @@ export class DeterminismModel {
           this.applyDamage(target, entity.damage ?? 0);
           entity.penetrate = (entity.penetrate ?? 1) - 1;
           if ((entity.penetrate ?? 0) <= 0) {
-            this.entities.delete(entity.id);
+            this.destroyEntity(entity.id);
           }
           break;
         }
       }
-      if ((entity.traveled ?? 0) > (entity.maxDistance ?? 0)) this.entities.delete(entity.id);
+      if ((entity.traveled ?? 0) > (entity.maxDistance ?? 0)) this.destroyEntity(entity.id);
     }
   }
 

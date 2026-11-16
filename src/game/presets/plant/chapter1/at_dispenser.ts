@@ -13,51 +13,48 @@ import ShootHeadAnimationHelper from "../../../utils/helper/ShootHeadAnimationHe
 import { SightLineEntity } from "../../../models/entities/SightLineEntity";
 import { HFireWorkConfig, HFireWorkEntity, HFireWorkModel } from "../../bullet/firework";
 import { DispenserData } from "./dispenser";
+import type { ModelHost } from "../../../core/logic/LogicModel";
 
 // 特殊的星辰碎片烟花模型
 export class ATAirHFireWorkModel extends HFireWorkModel {
+  /** 十字爆炸伤害直接定义在 Model。 */
+  public customExplodeDamage: number = 0;
+
+  public override onModelDestroy(host: ModelHost): void {
+    if (this.customExplodeDamage <= 0) return;
+    const gridGap = host.gridSizeX * 1.5;
+    const offsets = [
+      { dx: 0, dr: 0 },
+      { dx: gridGap, dr: 2 },
+      { dx: -gridGap, dr: 2 },
+      { dx: gridGap, dr: -2 },
+      { dx: -gridGap, dr: -2 },
+    ];
+
+    for (const offset of offsets) {
+      host.createExplosion({
+        damage: this.customExplodeDamage,
+        rightGrid: 1.5,
+        leftGrid: 1.5,
+        upGrid: 1,
+        faction: host.faction,
+        dealer: host.dealer ?? null,
+      }, host.x + offset.dx, host.y, (host.row ?? 0) + offset.dr);
+    }
+  }
+
   public override createEntity(scene: Game, x: number, row: number, config: HFireWorkConfig): ATAirHFireWorkEntity {
     return new ATAirHFireWorkEntity(scene, x, row, this, config);
   }
 }
 
 export class ATAirHFireWorkEntity extends HFireWorkEntity {
-  private customExplodeDamage: number;
+  public declare model: ATAirHFireWorkModel;
 
   constructor(scene: Game, x: number, row: number, model: ATAirHFireWorkModel, cfg: HFireWorkConfig) {
     // 传入 explodeDamage: 0 来阻止基类触发默认的单次爆炸
     super(scene, x, row, model, { ...cfg, explodeDamage: 0 });
-    this.customExplodeDamage = cfg.explodeDamage ?? 0;
-  }
-
-  public override destroy(): void {
-    const scene = this.scene;
-
-    if (scene && this.customExplodeDamage > 0) {
-      const row = PositionManager.Instance.getRowByY(this.y);
-      const gridGap = PositionManager.Instance.GRID_SIZEX * 1.5;
-
-      const offsets = [
-        { dx: 0, dr: 0 },
-        { dx: gridGap, dr: 2 },
-        { dx: -gridGap, dr: 2 },
-        { dx: gridGap, dr: -2 },
-        { dx: -gridGap, dr: -2 },
-      ];
-
-      for (const offset of offsets) {
-        ProjectileCmd.CreateExplosion(scene, this.x + offset.dx, row + offset.dr, {
-          damage: this.customExplodeDamage,
-          rightGrid: 1.5,
-          leftGrid: 1.5,
-          upGrid: 1,
-          faction: this.faction,
-          dealer: this.dealer,
-        });
-      }
-    }
-
-    super.destroy();
+    this.model.customExplodeDamage = cfg.explodeDamage ?? 0;
   }
 }
 

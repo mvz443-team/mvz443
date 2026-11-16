@@ -8,15 +8,29 @@ import { Faction } from "../Enum";
 import { BulletEntity } from "./BulletEntity";
 import { ExplosionEntity } from "./ExplosionEntity";
 import { LaserEntity } from "./LaserEntity";
-import { RegisterSchema } from "../../core/LogicRegister";
-import { PROJECTILE_LOGIC_SCHEMA } from "../../core/LogicSchemas";
+import { LogicModel, type ModelHost } from "../../core/logic/LogicModel";
 
 
-export abstract class ProjectileModel<TConfig, TEntity extends ProjectileEntity<any>> {
-  /** 逻辑寄存器声明表；实体按此分配寄存器并参与快照。 */
-  public readonly logicSchema: RegisterSchema = PROJECTILE_LOGIC_SCHEMA;
-
+export abstract class ProjectileModel<TConfig, TEntity extends ProjectileEntity<any>> extends LogicModel {
+  /** 发射物运行时状态全部定义在 Model，自动进入快照。 */
   public damage: number = 0;
+  public currentDamage: number = 0;
+  public speed: number = 0;
+  public currentPenetrate: number = 1;
+  public penetratePower: number = 1;
+  public penetratedPunish: number = 0.5;
+  public traveledDistanceX: number = 0;
+  public maxDistanceX: number = 0;
+  public prevX: number = 0;
+  public bounceable: boolean = false;
+  public skipTiny: boolean = true;
+
+  /** 通用命中效果；子弹与附魔箭可覆写。 */
+  public applyEffect(host: ModelHost, target: unknown): void {
+    host.markAttacked(target);
+    host.applyDamage(target, this.currentDamage, host.dealer ?? null, host);
+    if (this.debuff) host.applyDebuffTo(target, this.debuff, this.debuffDuration);
+  }
 
   // Buff 效果
   public debuff: _Typedebuffs = null;
@@ -49,10 +63,26 @@ export interface BulletConfig extends ProjectileConfig {
 
 export class BulletModel<TConfig extends BulletConfig = BulletConfig, TEntity extends BulletEntity = BulletEntity> extends ProjectileModel<TConfig, TEntity> {
   public texture: string;
-  public speed: number = legacyRapierVelocityToUnitsPerSecond(500);
+  public override speed: number = legacyRapierVelocityToUnitsPerSecond(500);
   // 穿透能力
   public penetratePower: number = 1;
   public penetratedPunish: number = 0.5; // 穿透后伤害系数
+
+  /** 子弹命中效果：伤害、debuff、穿透衰减全部由 Model 决定。 */
+  public override applyEffect(host: ModelHost, target: unknown): void {
+    this.currentPenetrate += 1;
+    host.markPenetrated(target);
+    host.markAttacked(target);
+    host.applyDamage(target, this.currentDamage, host.dealer ?? null, host);
+
+    if (this.debuff) host.applyDebuffTo(target, this.debuff, this.debuffDuration);
+
+    if (this.currentPenetrate < this.penetratePower) {
+      this.currentDamage = Math.floor(this.currentDamage * this.penetratedPunish);
+    } else {
+      host.destroySelf();
+    }
+  }
 
   createEntity(scene: Game, x: number, row: number, config: TConfig): TEntity {
     return new BulletEntity(scene, x, row, this, config) as TEntity;

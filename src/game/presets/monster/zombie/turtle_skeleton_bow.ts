@@ -45,14 +45,18 @@ export class TurtleSkeletonBowEntity extends BaseSkeletonBowEntity {
       this.arrowDamage = 90;
 
       for (let i = 0; i < 5; i++) {
-        this.scene.time.delayedCall(600 * i, () => {
-          if (this.currentHealth > 0) {
-            ProjectileCmd.Create(ArrowModel, this.scene, this.x, this.row, {
-              damage: this.arrowDamage,
-              faction: Faction.ZOMBIE,
-              speed: -legacyRapierVelocityToUnitsPerSecond(320),
-            });
-          }
+        // 发箭顺序影响战斗结果，必须用可快照的定时系统。
+        this.tickmanager.delayedCall({
+          delay: 600 * i,
+          callback: () => {
+            if (this.currentHealth > 0) {
+              ProjectileCmd.Create(ArrowModel, this.scene, this.x, this.row, {
+                damage: this.arrowDamage,
+                faction: Faction.ZOMBIE,
+                speed: -legacyRapierVelocityToUnitsPerSecond(320),
+              });
+            }
+          },
         });
       }
     }

@@ -4,8 +4,19 @@ import TickerManager, { TickerManagerProxy } from "../../managers/combat/TickerM
 import RAPIER, { Vector } from "@dimforge/rapier2d-deterministic-compat";
 import { CollisionContext } from "../../types";
 import { DeferredManager } from "../../managers/DeferredManager";
+import { PositionManager } from "../../managers/view/PositionManager";
 import type { EntityLogicState, JsonValue } from "../../core/SimulationState";
 import type { RestoreContext, Restorable } from "../../core/Restorable";
+import { logicEvents, type LogicEventRecord } from "../../core/logic/LogicEvents";
+import {
+  LogicModel,
+  attachModelAccessors,
+  cloneLogicModel,
+  restoreModel,
+  snapshotModel,
+  setModelFrame,
+  type ModelHost,
+} from "../../core/logic/LogicModel";
 import {
   capturePrngs,
   captureRelations,
@@ -13,29 +24,24 @@ import {
   restoreRelations,
 } from "../../core/EntitySnapshot";
 import { forgetRigidBody, rememberRigidBody } from "../../core/PhysicsSnapshot";
-import { RegisterBank, RegisterSchema, bindRegistersToEntity } from "../../core/LogicRegister";
-import {
-  DEFAULT_RELATION_FIELDS,
-  EMPTY_LOGIC_SCHEMA,
-} from "../../core/LogicSchemas";
 
-// All entities share world position, visual state, and destruction lifecycle.
-export abstract class BaseEntity implements Restorable<EntityLogicState> {
+const NO_RELATION_FIELDS: readonly string[] = [];
+
+// Entity 只负责视图与物理胶水；确定性状态与战斗逻辑全部在 Model。
+export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelHost {
+  /** Model 字段在运行时通过访问器挂到实体上，TS 侧用索引签名兼容。 */
+  [key: string]: any;
   public scene: Game;
   public x: number;
   public y: number;
 
   public abstract baseDepth: number;
-  /** 快照中的稳定标识；同进程内等于 TimerKey。 */
   public get SnapshotId(): string { return this.TimerKey; }
+  public get id(): string { return this.SnapshotId; }
   public get snapshotKey(): string { return this.TimerKey; }
   public get TimerGroupKey(): string { return this.TimerKey; }
   public get IsAlive(): boolean { return !this.isDestroyQueued && !this.isDestroyed; }
 
-  /**
-   * 采用稳定的计时器 key（例如 plant:col:row:pid）。
-   * 重建实体时使用同一 key，才能使快照中的计时器组对齐。
-   */
   public adoptStableTimerKey(key: string): void {
     if (!key || key === this.TimerKey) return;
     TickerManager.Instance.RenameGroup(this.TimerKey, key);
@@ -43,47 +49,82 @@ export abstract class BaseEntity implements Restorable<EntityLogicState> {
     this.tickmanager = new TickerManagerProxy(key);
   }
 
-  // Timer key
   private TimerKey: string;
-  // Timer proxy
   public tickmanager: TickerManagerProxy;
 
   public rigidBody: RAPIER.RigidBody | null = null;
-  // Shared render container
   public viewGroup: Phaser.GameObjects.Group;
   private isDestroyQueued = false;
   private isDestroyed = false;
 
-  /** Model 声明的逻辑寄存器组；实体状态快照的唯一数值来源。 */
-  public readonly reg: RegisterBank;
-  private registersBound = false;
+  /** 唯一参与快照的对象。 */
+  public readonly model: LogicModel | null;
+  private modelBound = false;
+  private lastConsumedEventId = 0;
 
-  constructor(scene: Game, x: number, y: number, schema: RegisterSchema = EMPTY_LOGIC_SCHEMA) {
+  constructor(scene: Game, x: number, y: number, model: LogicModel | null = null) {
     this.scene = scene;
     this.x = x;
     this.y = y;
     this.viewGroup = scene.add.group();
     this.TimerKey = uniqueId("entity_");
     this.tickmanager = new TickerManagerProxy(this.TimerKey);
-    this.reg = schema.createBank();
+    // 每个实体持有独立 Model 副本；Library 里的实例只当模板。
+    this.model = model ? cloneLogicModel(model) : null;
+    if (this.model) {
+      attachModelAccessors(this, this.model);
+      this.modelBound = true;
+    }
   }
 
-  /**
-   * 在子类字段初始化完成后调用：把同名数据字段迁移进寄存器，
-   * 并安装同名访问器，使既有业务代码继续读写 this.xxx 时实际走寄存器。
-   */
-  public bindLogicRegisters(): void {
-    if (this.registersBound) return;
-    this.registersBound = true;
-    bindRegistersToEntity(this, this.reg);
+  /** 由子类的 Model 在构造完成后调用，安装字段访问器（存储仍在 Model）。 */
+  public bindModel(): void {
+    if (this.modelBound || !this.model) return;
+    this.modelBound = true;
+    attachModelAccessors(this, this.model);
   }
 
-  public setVisible(visible: boolean) {
-    // Toggle visibility for the whole entity view.
-    this.viewGroup.setVisible(visible);
+  public setLogicFrame(frame: number): void {
+    if (this.model) setModelFrame(this.model, frame, logicEvents);
+    else logicEvents.setFrame(frame);
   }
 
-  // Subclasses decide how to build their own visuals and physics.
+  public onRenderUpdate(_renderDt: number): void { }
+
+  public consumeLogicEvents(handler: (event: LogicEventRecord) => void): void {
+    const events = logicEvents.consume(this.lastConsumedEventId, this.SnapshotId);
+    for (const event of events) {
+      this.lastConsumedEventId = Math.max(this.lastConsumedEventId, event.eventId);
+      handler(event);
+    }
+  }
+
+  // --- ModelHost ------------------------------------------------------------
+
+  public get gridSizeX(): number { return PositionManager.Instance.GRID_SIZEX; }
+
+  public emit(type: string, data: JsonValue = null): void {
+    logicEvents.emit(type, this.SnapshotId, data);
+  }
+
+  public createExplosion(_config: Record<string, unknown>, _x?: number, _y?: number, _row?: number): void { /* 由投射物 Entity 覆写 */ }
+  public createProjectile(_model: unknown, _config: Record<string, unknown>): void { /* 由投射物 Entity 覆写 */ }
+  public applyDebuffTo(target: unknown, name: string, durationMs: number): void {
+    (target as { addDebuff?: (debuff: string, duration: number) => void })?.addDebuff?.(name, durationMs);
+  }
+  public applyDamage(target: unknown, amount: number, dealer: unknown, source: unknown): void {
+    (target as { takeDamage?: (amount: number, dealer?: unknown, source?: unknown) => void })
+      ?.takeDamage?.(amount, dealer, source);
+  }
+  public hasAttacked(_target: unknown): boolean { return false; }
+  public markAttacked(_target: unknown): void { }
+  public hasPenetrated(_target: unknown): boolean { return false; }
+  public markPenetrated(_target: unknown): void { }
+  public destroySelf(): void { this.destroy(); }
+  public setEnhancement(_value: string): void { }
+
+  public setVisible(visible: boolean) { this.viewGroup.setVisible(visible); }
+
   protected abstract buildView(): void;
 
   public updateView(vec: Vector, rotation?: number): void {
@@ -96,29 +137,24 @@ export abstract class BaseEntity implements Restorable<EntityLogicState> {
       if (child.x !== undefined) {
         child.x += dx;
         child.y += dy;
-        if (rotation !== undefined && child.setRotation) {
-          child.setRotation(rotation);
-        }
+        if (rotation !== undefined && child.setRotation) child.setRotation(rotation);
       }
     });
   }
 
-  // Logic-step hook.
-  public stepUpdate(): void { }
+  public stepUpdate(): void {
+    this.model?.onModelStep?.(this);
+  }
 
-  // Render-step hook for interpolation.
   public stepMove(_alpha: number): void { }
 
-  // Shared destruction flow.
   public destroy(): void {
-    if (this.isDestroyQueued || this.isDestroyed) {
-      return;
-    }
+    if (this.isDestroyQueued || this.isDestroyed) return;
     this.isDestroyQueued = true;
+    // 死亡效果由 Model 定义，Entity 只负责调度。
+    this.model?.onModelDestroy?.(this);
     DeferredManager.Instance.defer(() => {
-      if (this.isDestroyed) {
-        return;
-      }
+      if (this.isDestroyed) return;
       if (this.rigidBody) {
         forgetRigidBody(this);
         this.scene.rapierWorld.removeRigidBody(this.rigidBody);
@@ -132,38 +168,18 @@ export abstract class BaseEntity implements Restorable<EntityLogicState> {
 
   public abstract onCollision(ctx: CollisionContext): void;
 
-  // ---------------------------------------------------------------------------
-  // 统一快照接口
-  // ---------------------------------------------------------------------------
+  // --- 快照 -----------------------------------------------------------------
 
-  /** 子类声明需要显式序列化的关系字段（实体引用/Set）。 */
-  protected getRelationFields(): readonly string[] {
-    return DEFAULT_RELATION_FIELDS;
-  }
-
-  /** 子类声明带 state() 的 PRNG 字段。 */
-  protected getPrngFields(): readonly string[] {
-    return [];
-  }
-
-  /** 子类可覆盖：导出非寄存器、非关系的纯数据逻辑字段。 */
-  protected captureLogicState(): Record<string, JsonValue> {
-    return {};
-  }
-
-  /** 子类可覆盖：恢复非寄存器、非关系的纯数据逻辑字段。 */
+  protected getRelationFields(): readonly string[] { return NO_RELATION_FIELDS; }
+  protected getPrngFields(): readonly string[] { return []; }
+  protected captureLogicState(): Record<string, JsonValue> { return {}; }
   protected restoreLogicState(_state: Record<string, JsonValue>, _context: RestoreContext): void { }
+  protected captureExtraState(): Record<string, JsonValue> { return {}; }
 
-  /** 子类可覆盖：导出非字段形式的运行时信息（例如生成序号）。 */
-  protected captureExtraState(): Record<string, JsonValue> {
-    return {};
-  }
-
-  private readRegisterNumber(name: string, fallback: unknown): number | null {
-    if (this.reg.has(name)) {
-      const value = this.reg.get(name);
-      if (typeof value === "number") return value;
-    }
+  private readModelNumber(name: string, fallback: unknown): number | null {
+    const state = this.model ? snapshotModel(this.model) : {};
+    const value = state[name];
+    if (typeof value === "number") return value;
     return typeof fallback === "number" ? fallback : null;
   }
 
@@ -180,15 +196,14 @@ export abstract class BaseEntity implements Restorable<EntityLogicState> {
       row: typeof obj.row === "number" ? obj.row : null,
       x: translation?.x ?? this.x,
       y: translation?.y ?? this.y,
-      hp: this.readRegisterNumber("currentHealth", obj.health),
-      maxHp: this.readRegisterNumber("maxHealth", obj.maxHealth),
-      speed: this.readRegisterNumber("speed", obj.speed),
-      registers: this.reg.capture(),
-      registerVersion: this.reg.schema.fingerprint,
+      hp: this.readModelNumber("health", obj.health),
+      maxHp: this.readModelNumber("healthMax", obj.maxHealth),
+      speed: this.readModelNumber("speed", obj.speed),
       flags: {
         ...captureRelations(this, this.getRelationFields()),
         ...capturePrngs(this, this.getPrngFields()),
         ...this.captureLogicState(),
+        model: this.model ? snapshotModel(this.model) : {},
       },
       timers: TickerManager.Instance.GetTimerStates().filter((timer) => timer.group === this.TimerKey),
       extra: {
@@ -200,30 +215,26 @@ export abstract class BaseEntity implements Restorable<EntityLogicState> {
   }
 
   public restoreSnapshot(state: EntityLogicState, context: RestoreContext): void {
-    if (state.registers) {
-      if (state.registerVersion === this.reg.schema.fingerprint) {
-        if (!this.reg.restore(state.registers as Array<number | boolean | string>)) {
-          context.report.errors.push(`register-length-mismatch:${this.SnapshotId}`);
-        }
-      } else {
-        context.report.missing.push(
-          `registers:${this.SnapshotId}(schema ${state.registerVersion ?? "?"} != ${this.reg.schema.fingerprint})`,
-        );
-      }
-    } else {
-      // 兼容旧快照：只回写通用数值
-      if (state.hp !== null && this.reg.has("currentHealth")) this.reg.set("currentHealth", state.hp);
-      if (state.maxHp !== null && this.reg.has("maxHealth")) this.reg.set("maxHealth", state.maxHp);
-      if (state.speed !== null && this.reg.has("speed")) this.reg.set("speed", state.speed);
-    }
-
     restoreRelations(this, state.flags, context, this.getRelationFields());
     restorePrngs(this, state.flags, this.getPrngFields(), context);
     this.restoreLogicState(state.flags, context);
+
+    const modelState = state.flags.model;
+    if (this.model && modelState && typeof modelState === "object" && !Array.isArray(modelState)) {
+      restoreModel(this.model, modelState as Record<string, JsonValue>);
+    }
+    if (state.hp !== null) this.writeModelNumber("health", state.hp);
+    if (state.maxHp !== null) this.writeModelNumber("healthMax", state.maxHp);
+    if (state.speed !== null) this.writeModelNumber("speed", state.speed);
     this.applySnapshotPosition(state.x, state.y);
   }
 
-  /** 把逻辑坐标写回自身、视图容器与刚体。 */
+  private writeModelNumber(name: string, value: number): void {
+    if (!this.model) return;
+    const state = snapshotModel(this.model);
+    if (name in state) restoreModel(this.model, { ...state, [name]: value });
+  }
+
   protected applySnapshotPosition(x: number, y: number): void {
     const dx = x - this.x;
     const dy = y - this.y;
@@ -238,9 +249,6 @@ export abstract class BaseEntity implements Restorable<EntityLogicState> {
         }
       });
     }
-
-    if (this.rigidBody) {
-      this.rigidBody.setTranslation({ x, y }, true);
-    }
+    if (this.rigidBody) this.rigidBody.setTranslation({ x, y }, true);
   }
 }

@@ -14,6 +14,7 @@ import BackendWS from "../../utils/net/sync";
 import CardpileManager from "./combat/CardpileManager";
 import { simulationState, SimulationState, serializeSimulationState } from "../core/SimulationState";
 import { resolveEntityBySnapshotId } from "../core/EntityLookup";
+import { logicEvents } from "../core/logic/LogicEvents";
 
 // 单次 update 允许接受的最大 delta（切后台/断点会产生数秒级 delta）
 const MAX_FRAME_DELTA_MS = 250;
@@ -255,6 +256,8 @@ export default class CombatManager extends BaseManager {
         break;
       }
       this.elapsedFrameTime -= SyncManager.Instance.frameIntervalMs;
+      // 一次性表现事件绑定逻辑帧号；回滚后由快照恢复队列与 eventId。
+      logicEvents.setFrame(SyncManager.Instance.recvQueue.currentFrameId);
       // Tick-based systems.
       if (!this.isPaused) {
         TickerManager.Instance.Update();

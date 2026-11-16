@@ -55,10 +55,12 @@ export function spawnObsidianObstacle(entity: BaseGolemEntity, col: number, row:
 }
 
 export class ObsidianGolemEntity extends BaseGolemEntity {
-  private skill1LastRow = -1;
+  /** 技能交替行由 MONSTER_LOGIC_SCHEMA 追踪，回滚后技能序列保持一致。 */
+  private declare skill1LastRow: number;
 
   public constructor(scene: Phaser.Scene & any, col: number, row: number, model: PresetMonsterModel, waveID: number) {
     super(scene, col, row, model, waveID, 7);
+    this.skill1LastRow = -1;
   }
 
   protected createProps() {

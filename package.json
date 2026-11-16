@@ -27,7 +27,7 @@
     "build": "node log.js build & vite build --config vite/config.prod.mjs",
     "dev-nolog": "vite --config vite/config.dev.mjs",
     "build-nolog": "vite build --config vite/config.prod.mjs",
-    "test:core": "node --experimental-strip-types --test src/game/core/SimulationState.test.mjs src/utils/net/loadout.test.mjs src/game/core/Determinism.test.mjs src/game/core/LogicRegister.test.mjs",
+    "test:core": "node --experimental-strip-types --test src/game/core/SimulationState.test.mjs src/utils/net/loadout.test.mjs src/game/core/Determinism.test.mjs src/game/core/logic/LogicState.test.mjs src/game/core/logic/LogicModel.test.mjs",
     "doctor:deps": "node scripts/doctor-deps.mjs",
     "doctor:deps:fix": "node scripts/doctor-deps.mjs --fix",
     "prepare:protos": "node scripts/prepare-protos.mjs --repo https://github.com/mvz443-team/protos"

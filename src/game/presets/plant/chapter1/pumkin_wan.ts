@@ -184,12 +184,7 @@ export class PumpkinWanModel extends PlantModel {
             rightGrid: 1.5,
           };
 
-          ProjectileCmd.CreateExplosion(
-            scene,
-            entity.x,
-            entity.row,
-            explosionConfig
-          );
+          entity.createExplosion(explosionConfig as unknown as Record<string, unknown>);
         }
       }
     });

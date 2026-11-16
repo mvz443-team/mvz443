@@ -45,7 +45,8 @@ export class ElasticPutinModel extends PlantModel {
 export const ElasticPutinData = new ElasticPutinModel();
 
 export class ElasticPutinEntity extends PlantEntity {
-  private isLightning: boolean = false;
+  /** 闪电窗口影响命中结果，字段由 PLANT_LOGIC_SCHEMA 追踪。 */
+  private declare isLightning: boolean;
 
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, ElasticPutinData, level);
@@ -92,13 +93,15 @@ export class ElasticPutinEntity extends PlantEntity {
    */
   public activateLightning(duration: number): void {
     this.isLightning = true;
-    // TODO: 可在此处添加动画效果
-
-    this.scene.time.delayedCall(duration, () => {
-      if (this.currentHealth > 0) {
-        this.isLightning = false;
-        // TODO: 移除动画效果
-      }
+    // 逻辑窗口必须用可快照的定时系统，不能用 scene.time：
+    // scene.time 不进入快照，回滚后会出现"幽灵闪电"。
+    this.tickmanager.delayedCall({
+      delay: duration,
+      callback: () => {
+        if (this.currentHealth > 0) {
+          this.isLightning = false;
+        }
+      },
     });
   }
 
