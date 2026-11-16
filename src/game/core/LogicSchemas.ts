@@ -13,6 +13,7 @@ import { LogicRegisterDecl, RegisterSchema } from "./LogicRegister";
 const f64 = (name: string, defaultValue = 0): LogicRegisterDecl => ({ name, type: "f64", default: defaultValue });
 const i32 = (name: string, defaultValue = 0): LogicRegisterDecl => ({ name, type: "i32", default: defaultValue });
 const bool = (name: string, defaultValue = false): LogicRegisterDecl => ({ name, type: "bool", default: defaultValue });
+const str = (name: string, defaultValue = ""): LogicRegisterDecl => ({ name, type: "str", default: defaultValue });
 
 const COMBAT_COMMON: LogicRegisterDecl[] = [
   f64("currentHealth"),
@@ -53,6 +54,7 @@ const MONSTER_SPECIFIC: LogicRegisterDecl[] = [
   i32("currentStage"),
   f64("armorHealth"),
   bool("armorBroken"),
+  str("armorKey"),
   bool("hasTriggered"),
   f64("lastSkill"),
   i32("callCount"),
@@ -105,7 +107,7 @@ export const MONSTER_RELATION_FIELDS = [
   "vaultCollisionTarget",
 ] as const;
 export const OBSTACLE_RELATION_FIELDS = ["summoner", "underAttackBy"] as const;
-export const PROJECTILE_RELATION_FIELDS = ["dealer", "hasAttacked"] as const;
+export const PROJECTILE_RELATION_FIELDS = ["dealer", "hasAttacked", "hasPenetrated"] as const;
 export const DEFAULT_RELATION_FIELDS = ["underAttackBy"] as const;
 
 /** 具备可快照 PRNG 状态的字段（seedrandom state() 接口）。 */
