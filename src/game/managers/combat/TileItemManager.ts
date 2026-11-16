@@ -58,6 +58,33 @@ export default class TileItemManager extends BaseManager {
     return this.minecartLostWaveByRow;
   }
 
+  /** 地块道具状态（影响后续出怪行选择）。 */
+  public CaptureTileItemState(): Record<string, unknown> {
+    return {
+      currentWaveId: this.currentWaveId,
+      slots: [...this.slotsByRow.values()]
+        .map((slot) => ({ row: slot.row, kind: slot.kind }))
+        .sort((a, b) => a.row - b.row),
+      lost: [...this.minecartLostWaveByRow.entries()]
+        .map(([row, waveId]) => ({ row, waveId }))
+        .sort((a, b) => a.row - b.row),
+    };
+  }
+
+  public RestoreTileItemState(state: Record<string, unknown>): void {
+    this.currentWaveId = Number(state.currentWaveId) || -1;
+    this.slotsByRow.clear();
+    const slots = Array.isArray(state.slots) ? (state.slots as Array<{ row: number; kind: string }>) : [];
+    for (const slot of slots) {
+      this.slotsByRow.set(Number(slot.row), { kind: "minecart", row: Number(slot.row) });
+    }
+    this.minecartLostWaveByRow.clear();
+    const lost = Array.isArray(state.lost) ? (state.lost as Array<{ row: number; waveId: number }>) : [];
+    for (const entry of lost) {
+      this.minecartLostWaveByRow.set(Number(entry.row), Number(entry.waveId));
+    }
+  }
+
   private readonly handleNewWave = (waveId: number) => {
     this.currentWaveId = waveId;
     if (waveId === 0) {

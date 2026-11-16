@@ -76,6 +76,39 @@ export default class PlantsManager extends BaseManager {
     return this._instance;
   }
 
+  /** 快照对账：从容器移除植物（不重复扣资源/冷却）。 */
+  public UnregisterPlant(plant: PlantEntity): void {
+    const key = `${plant.col}-${plant.row}`;
+    const list = this.PlantsMap.get(key);
+    if (list) {
+      const index = list.indexOf(plant);
+      if (index >= 0) list.splice(index, 1);
+      if (list.length === 0) this.PlantsMap.delete(key);
+    }
+
+    const lane = this.PlantsByLane.get(plant.row);
+    if (lane) {
+      const index = lane.indexOf(plant);
+      if (index >= 0) lane.splice(index, 1);
+      if (lane.length === 0) this.PlantsByLane.delete(plant.row);
+    }
+
+    const reflectors = this.SightLineReflectorsByLane.get(plant.row);
+    if (reflectors) {
+      const index = reflectors.indexOf(plant as unknown as typeof reflectors[number]);
+      if (index >= 0) reflectors.splice(index, 1);
+      if (reflectors.length === 0) this.SightLineReflectorsByLane.delete(plant.row);
+    }
+  }
+
+  /** 快照恢复：用同一 pid/坐标重建植物，使其计时器组与快照对齐。 */
+  public RebuildPlant(pid: number, col: number, row: number, level: number): PlantEntity | null {
+    if (!this.scene) return null;
+    const model = PlantLibrary.GetModel(pid);
+    if (!model) return null;
+    return model.createEntity(this.scene, col, row, level);
+  }
+
   // 从管理器注册植物
   public RegisterPlant(plant: PlantEntity) {
     const key = `${plant.col}-${plant.row}`;

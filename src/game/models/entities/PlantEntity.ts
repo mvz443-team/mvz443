@@ -14,6 +14,7 @@ import SoundCmd from "../../utils/cmd/SoundCmd";
 import { StarShardsBurstSfx } from "../../sfx/star/StarShardsBurstSfx";
 import { MonsterEntity } from "./MonsterEntity";
 import { getLevelBadgeTextureKey } from "../../ui/levelBadgeSvg";
+import type { JsonValue } from "../../core/SimulationState";
 
 // entities/PlantEntity.ts
 export abstract class PlantEntity extends CombatEntity {
@@ -80,6 +81,11 @@ export abstract class PlantEntity extends CombatEntity {
 
   // 由具体子类覆盖，或者根据 Model 决定如何构建图像
   protected abstract buildView(): void;
+
+  /** 快照中记录 pid，供断线恢复时重建实体。 */
+  protected override captureLogicState(): Record<string, JsonValue> {
+    return { pid: this.model.pid };
+  }
 
   private AttachBadgeView(): void {
     if (this.scene.params?.gameSettings?.showCardLevelInGame === false) {
@@ -154,6 +160,9 @@ export abstract class PlantEntity extends CombatEntity {
   public initializeEntity(): this {
     if (this.initialized) return this;
     this.initialized = true;
+
+    // 稳定 key 让快照恢复后计时器组仍能对齐（重建实体得到同一 group）。
+    this.adoptStableTimerKey(`plant:${this.col}:${this.row}:${this.model.pid}`);
 
     this.buildView();
     this.AttachBadgeView();

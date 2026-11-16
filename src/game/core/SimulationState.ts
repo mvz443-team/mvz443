@@ -18,6 +18,10 @@ export interface TimerState {
   repeat: number;
   interval: number;
   group: string;
+  /** 可重建模式下的语义类型；未标记的计时器只能在同进程内回滚。 */
+  kind?: string;
+  /** 重建该计时器所需的纯数据参数。 */
+  args?: JsonValue;
 }
 
 export interface PrngState {
@@ -62,12 +66,24 @@ export interface RestoreReport {
   errors: string[];
 }
 
+export type RestoreMode = "in-place" | "rebuild";
+
+export interface RestoreContext {
+  /** 恢复到的逻辑帧号。 */
+  frameId: number;
+  mode: RestoreMode;
+  /** 恢复诊断信息。 */
+  report: RestoreReport;
+  /** 按快照 id 解析仍然存活的实体引用。 */
+  resolveEntity?: (snapshotId: string) => unknown;
+}
+
 type ValueProvider = () => JsonValue;
 type ValueRestorer = (value: JsonValue) => void;
 type TimerProvider = () => TimerState[];
-type TimerRestorer = (timers: TimerState[]) => void;
+type TimerRestorer = (timers: TimerState[], context: RestoreContext) => void;
 type EntityProvider = () => EntityLogicState[];
-type EntityRestorer = (entities: EntityLogicState[]) => void;
+type EntityRestorer = (entities: EntityLogicState[], context: RestoreContext) => void;
 
 interface PrngBinding {
   capture: () => PrngState;
@@ -371,8 +387,17 @@ export class StateRegistry {
     return hashSimulationState(state);
   }
 
-  restore(state: SimulationState): RestoreReport {
+  restore(
+    state: SimulationState,
+    options?: { mode?: RestoreMode; resolveEntity?: RestoreContext["resolveEntity"] },
+  ): RestoreReport {
     const report: RestoreReport = { ok: true, restored: [], missing: [], errors: [] };
+    const context: RestoreContext = {
+      frameId: state.frameId,
+      mode: options?.mode ?? "in-place",
+      report,
+      resolveEntity: options?.resolveEntity,
+    };
 
     if (state.version !== SIMULATION_STATE_VERSION) {
       report.ok = false;
@@ -425,6 +450,25 @@ export class StateRegistry {
       }
     }
 
+    for (const [key, binding] of this.entities) {
+      const entities = state.entities.filter((entity) => entity.kind === key);
+      if (entities.length === 0 && this.entities.size > 0 && state.entities.length > 0) {
+        report.missing.push(`entities:${key}`);
+      }
+      if (!binding.restore) {
+        report.missing.push(`entities:${key}(只读)`);
+        continue;
+      }
+      try {
+        binding.restore(entities, context);
+        report.restored.push(`entities:${key}`);
+      } catch (error) {
+        report.ok = false;
+        report.errors.push(`entities:${key}: ${String(error)}`);
+      }
+    }
+
+    // 计时器最后恢复：实体重建可能注册默认计时器，这里用快照完整覆盖。
     for (const [key, binding] of this.timers) {
       const timers = state.timers[key];
       if (!timers) {
@@ -436,29 +480,11 @@ export class StateRegistry {
         continue;
       }
       try {
-        binding.restore(timers);
+        binding.restore(timers, context);
         report.restored.push(`timers:${key}`);
       } catch (error) {
         report.ok = false;
         report.errors.push(`timers:${key}: ${String(error)}`);
-      }
-    }
-
-    for (const [key, binding] of this.entities) {
-      const entities = state.entities.filter((entity) => entity.kind === key);
-      if (entities.length === 0 && this.entities.size > 0 && state.entities.length > 0) {
-        report.missing.push(`entities:${key}`);
-      }
-      if (!binding.restore) {
-        report.missing.push(`entities:${key}(只读)`);
-        continue;
-      }
-      try {
-        binding.restore(entities);
-        report.restored.push(`entities:${key}`);
-      } catch (error) {
-        report.ok = false;
-        report.errors.push(`entities:${key}: ${String(error)}`);
       }
     }
 
@@ -492,6 +518,8 @@ function sortTimerFields(timer: TimerState): TimerState {
     repeat: timer.repeat,
     interval: timer.interval,
     group: timer.group,
+    ...(timer.kind !== undefined ? { kind: timer.kind } : {}),
+    ...(timer.args !== undefined ? { args: canonicalize(timer.args) } : {}),
   };
 }
 

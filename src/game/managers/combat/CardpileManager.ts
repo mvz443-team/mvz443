@@ -169,6 +169,30 @@ export default class CardpileManager extends BaseManager {
     }
   }
 
+  /** 卡槽冷却状态（含表现层预演值），用于精确回滚。 */
+  public CaptureCardpileState(): Record<string, unknown> {
+    return {
+      cards: [...this.cardpileStatus.entries()]
+        .map(([pid, status]) => ({ pid, ...status }))
+        .sort((a, b) => a.pid - b.pid),
+    };
+  }
+
+  public RestoreCardpileState(state: Record<string, unknown>): void {
+    this.cardpileStatus.clear();
+    const cards = Array.isArray(state.cards)
+      ? (state.cards as Array<{ pid: number; level: number; leftMs: number; previewLeftMs: number; totalMs: number }>)
+      : [];
+    for (const card of cards) {
+      this.cardpileStatus.set(Number(card.pid), {
+        level: Number(card.level) || 1,
+        leftMs: Number(card.leftMs) || 0,
+        previewLeftMs: Number(card.previewLeftMs) || 0,
+        totalMs: Number(card.totalMs) || 0,
+      });
+    }
+  }
+
   isCardDisplayReloaded(pid: number): boolean {
     const status = this.cardpileStatus.get(pid);
     if (!status) {

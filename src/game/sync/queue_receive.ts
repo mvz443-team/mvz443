@@ -45,6 +45,9 @@ export default class QueueReceive {
   // 只保留 lastAckFrameId 即可判断重复帧，无需整局累积 Set
   private readonly maxBufferedResponses: number = 64;
   bufferedResponses: Map<number, InGameResponse> = new Map<number, InGameResponse>();
+  /** 已消费帧的回放日志：回滚到旧帧后可重新推进到当前帧。 */
+  private readonly replayLog: Map<number, InGameResponse> = new Map<number, InGameResponse>();
+  private readonly maxReplayFrames: number = 300;
 
   constructor() {
     this.queues = new Denque();
@@ -54,8 +57,39 @@ export default class QueueReceive {
   Reset() {
     this.queues.clear();
     this.bufferedResponses.clear();
+    this.replayLog.clear();
     this.currentFrameId = 0;
     this.lastAckFrameId = 0;
+  }
+
+  /**
+   * 回滚到指定帧并重新注入之后的已消费帧。
+   * 配合状态快照使用，可在原地重放历史操作以验证/恢复到当前进度。
+   */
+  public restoreToFrame(frameId: number): void {
+    this.queues.clear();
+    this.bufferedResponses.clear();
+    this.currentFrameId = frameId;
+    this.lastAckFrameId = frameId;
+
+    const frames = [...this.replayLog.keys()].filter((id) => id > frameId).sort((a, b) => a - b);
+    for (const id of frames) {
+      const response = this.replayLog.get(id);
+      if (response) this.queues.push(response);
+    }
+  }
+
+  /** 只保留最近 N 帧的回放日志，避免长期增长。 */
+  private trimReplayLog(currentFrameId: number): void {
+    if (this.replayLog.size <= this.maxReplayFrames) return;
+    const threshold = currentFrameId - this.maxReplayFrames;
+    for (const id of [...this.replayLog.keys()]) {
+      if (id < threshold) this.replayLog.delete(id);
+    }
+  }
+
+  public getReplayFrameIds(): number[] {
+    return [...this.replayLog.keys()].sort((a, b) => a - b);
   }
 
   handleInGameResponse(response: InGameResponse) {
@@ -231,6 +265,8 @@ export default class QueueReceive {
     }
 
     this.bufferedResponses.delete(nextFrameID);
+    // 记录已消费帧，供回滚后原地重放；服务端补发的同帧会覆盖旧值。
+    this.replayLog.set(nextFrameID, response);
 
     const operations = [...response.operations].sort((a, b) => this.compareInGameOperations(a, b));
 
@@ -248,6 +284,7 @@ export default class QueueReceive {
 
     this.currentFrameId = nextFrameID;
     this.lastAckFrameId = nextFrameID;
+    this.trimReplayLog(nextFrameID);
     // console.log("[QueueReceive] consumed frame", {
     //   frameId: nextFrameID,
     //   operationCount: operations.length,

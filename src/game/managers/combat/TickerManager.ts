@@ -4,7 +4,7 @@ import {
 } from "../../../constants/physics";
 import { PhaserEventBus, PhaserEvents } from "../../EventBus";
 import { BaseManager } from "../BaseManager";
-import type { TimerState } from "../../core/SimulationState";
+import type { JsonValue, RestoreContext, TimerState } from "../../core/SimulationState";
 
 export function timerToState(timer: FrameTimer): TimerState {
   return {
@@ -13,8 +13,17 @@ export function timerToState(timer: FrameTimer): TimerState {
     repeat: timer.repeat,
     interval: timer.interval,
     group: timer.group,
+    ...(timer.snapshotKind !== undefined ? { kind: timer.snapshotKind } : {}),
+    ...(timer.snapshotArgs !== undefined ? { args: timer.snapshotArgs } : {}),
   };
 }
+
+/** 可重建计时器的回调工厂：用纯数据参数重建闭包。 */
+export type TimerFactory = (args: JsonValue, group: string) => {
+  callback: (...args: any[]) => void;
+  args?: any[];
+  context?: any;
+} | null;
 
 export class FrameTimer {
   public id: number = 0;        // 定时器唯一ID
@@ -27,6 +36,9 @@ export class FrameTimer {
   public interval: number;           // 循环定时任务的帧间隔
 
   public group: string;
+  /** 可重建语义类型 / 参数；仅在需要跨会话重建时设置。 */
+  public snapshotKind?: string;
+  public snapshotArgs?: JsonValue;
   private ticker: TickerManager;
 
   constructor(options: {
@@ -39,6 +51,8 @@ export class FrameTimer {
     interval: number;
     group: string;
     ticker: TickerManager;
+    snapshotKind?: string;
+    snapshotArgs?: JsonValue;
   }) {
     this.id = options.id;
     this.targetFrame = options.targetFrame;
@@ -49,6 +63,8 @@ export class FrameTimer {
     this.interval = options.interval;
     this.group = options.group;
     this.ticker = options.ticker;
+    this.snapshotKind = options.snapshotKind;
+    this.snapshotArgs = options.snapshotArgs;
   }
 
   // 计算剩余时间(frame)
@@ -66,12 +82,19 @@ export class FrameTimer {
   }
 }
 
+export interface TimerSnapshotTag {
+  kind: string;
+  args?: JsonValue;
+}
+
 export type DelayedCallConfigType = {
   callback: (...args: any[]) => void;
   delay: number;
   args?: any[];
   context?: any;
   group?: string;
+  /** 需要跨会话重建时提供语义描述。 */
+  snapshot?: TimerSnapshotTag;
 };
 
 export type AddEventConfigType = {
@@ -83,6 +106,7 @@ export type AddEventConfigType = {
   startAt?: number;
   loop?: boolean;
   group?: string;
+  snapshot?: TimerSnapshotTag;
 };
 
 export default class TickerManager extends BaseManager {
@@ -94,6 +118,7 @@ export default class TickerManager extends BaseManager {
   private timers: Map<number, FrameTimer> = new Map();
   private nextTimerId: number = 1;
   private startTime: number = 0;
+  private readonly timerFactories = new Map<string, TimerFactory>();
 
   constructor() {
     super();
@@ -161,7 +186,8 @@ export default class TickerManager extends BaseManager {
     args: any[] = [],
     context: any = null,
     repeat: number = 0,
-    group: string = 'default'
+    group: string = 'default',
+    snapshot?: TimerSnapshotTag
   ): FrameTimer {
     const frameDelay = Math.ceil(delay / this.frameInterval);
     const targetFrame = this.currentFrame + frameDelay;
@@ -176,10 +202,38 @@ export default class TickerManager extends BaseManager {
       interval: frameDelay,
       group: group,
       ticker: this,
+      snapshotKind: snapshot?.kind,
+      snapshotArgs: snapshot?.args,
     });
 
     this.timers.set(timer.id, timer);
     return timer;
+  }
+
+  /** 注册可重建计时器的工厂。重复注册会覆盖。 */
+  public registerTimerFactory(kind: string, factory: TimerFactory): void {
+    this.timerFactories.set(kind, factory);
+  }
+
+  public getNextTimerId(): number {
+    return this.nextTimerId;
+  }
+
+  public setNextTimerId(nextTimerId: number): void {
+    this.nextTimerId = Math.max(1, nextTimerId);
+  }
+
+  /** 导出当前全部计时器（用于诊断/测试）。 */
+  public getTimers(): readonly FrameTimer[] {
+    return [...this.timers.values()];
+  }
+
+  /** 把某个 group 的计时器整体迁移到新的稳定 key（实体重建时使用）。 */
+  public RenameGroup(oldGroup: string, newGroup: string): void {
+    if (oldGroup === newGroup) return;
+    this.timers.forEach((timer) => {
+      if (timer.group === oldGroup) timer.group = newGroup;
+    });
   }
 
   /**
@@ -201,8 +255,9 @@ export default class TickerManager extends BaseManager {
       args = [],
       context = null,
       group = 'default',
+      snapshot,
     } = config;
-    return this.Register(callback, delay, args, context, 0, group);
+    return this.Register(callback, delay, args, context, 0, group, snapshot);
   }
 
   /**
@@ -219,6 +274,7 @@ export default class TickerManager extends BaseManager {
       repeat = -1,
       loop = false,
       group = 'default',
+      snapshot,
     } = config;
 
     const finalRepeat = loop ? -1 : repeat;
@@ -248,12 +304,13 @@ export default class TickerManager extends BaseManager {
         args,
         context,
         1,
-        group
+        group,
+        snapshot
       );
 
       return ret;
     } else {
-      return this.Register(callback, delay, args, context, finalRepeat, group);
+      return this.Register(callback, delay, args, context, finalRepeat, group, snapshot);
     }
   }
 
@@ -312,19 +369,74 @@ export default class TickerManager extends BaseManager {
     return states.sort((a, b) => a.id - b.id);
   }
 
-  /** 就地恢复定时器数值；无法重建回调，只更新仍存活的同 id 定时器。 */
-  public RestoreTimerStates(states: TimerState[], currentFrame: number): void {
-    this.currentFrame = currentFrame;
-    const byId = new Map(states.map((timer) => [timer.id, timer]));
-    this.timers.forEach((timer) => {
-      const snapshot = byId.get(timer.id);
-      if (!snapshot) return;
-      timer.targetFrame = snapshot.targetFrame;
-      timer.repeat = snapshot.repeat;
-      timer.interval = snapshot.interval;
-      timer.group = snapshot.group;
-    });
+  /**
+   * 恢复计时器。
+   * - in-place：删除快照之后新增的计时器，并把存活计时器回退到快照帧；
+   * - rebuild：清空后按 kind/args 通过工厂重建。
+   */
+  public RestoreTimerStates(states: TimerState[], context: RestoreContext): void {
+    this.currentFrame = context.frameId;
+
+    if (context.mode === "rebuild") {
+      this.timers.clear();
+      for (const snapshot of states) {
+        if (!this.rebuildTimer(snapshot, context)) {
+          context.report.missing.push(`timer:${snapshot.id}(${snapshot.kind ?? "untagged"})`);
+        }
+      }
+      this.nextTimerId = Math.max(this.nextTimerId, ...states.map((timer) => timer.id + 1), 1);
+      return;
+    }
+
+    const snapshotIds = new Set(states.map((timer) => timer.id));
+    // 关键：回滚必须删除“快照之后才创建”的计时器，否则会重复触发。
+    for (const id of [...this.timers.keys()]) {
+      if (!snapshotIds.has(id)) this.timers.delete(id);
+    }
+
+    for (const snapshot of states) {
+      const timer = this.timers.get(snapshot.id);
+      if (timer) {
+        timer.targetFrame = snapshot.targetFrame;
+        timer.repeat = snapshot.repeat;
+        timer.interval = snapshot.interval;
+        timer.group = snapshot.group;
+        timer.snapshotKind = snapshot.kind;
+        timer.snapshotArgs = snapshot.args;
+        continue;
+      }
+      if (!this.rebuildTimer(snapshot, context)) {
+        context.report.missing.push(`timer:${snapshot.id}(${snapshot.kind ?? "untagged"})`);
+      }
+    }
+
     this.nextTimerId = Math.max(this.nextTimerId, ...states.map((timer) => timer.id + 1), 1);
+  }
+
+  private rebuildTimer(snapshot: TimerState, context: RestoreContext): boolean {
+    if (!snapshot.kind) return false;
+    const factory = this.timerFactories.get(snapshot.kind);
+    if (!factory) return false;
+
+    const built = factory(snapshot.args ?? null, snapshot.group);
+    if (!built) return false;
+
+    const timer = new FrameTimer({
+      id: snapshot.id,
+      targetFrame: snapshot.targetFrame,
+      callback: built.callback,
+      args: built.args ?? [],
+      context: built.context ?? null,
+      repeat: snapshot.repeat,
+      interval: snapshot.interval,
+      group: snapshot.group,
+      ticker: this,
+      snapshotKind: snapshot.kind,
+      snapshotArgs: snapshot.args,
+    });
+    this.timers.set(timer.id, timer);
+    context.report.restored.push(`timer.rebuilt:${snapshot.kind}`);
+    return true;
   }
 
   /**
@@ -363,7 +475,8 @@ export class TickerManagerProxy {
     delay: number,
     args: any[] = [],
     context: any = null,
-    repeat: number = 0
+    repeat: number = 0,
+    snapshot?: TimerSnapshotTag
   ): FrameTimer {
     return TickerManager.Instance.Register(
       callback,
@@ -371,7 +484,8 @@ export class TickerManagerProxy {
       args,
       context,
       repeat,
-      this.timerKey
+      this.timerKey,
+      snapshot
     );
   }
 }

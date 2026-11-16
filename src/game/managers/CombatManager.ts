@@ -13,6 +13,7 @@ import { RoomAllReadyEvent } from "../../types/online";
 import BackendWS from "../../utils/net/sync";
 import CardpileManager from "./combat/CardpileManager";
 import { simulationState, SimulationState, serializeSimulationState } from "../core/SimulationState";
+import { resolveEntityBySnapshotId } from "../core/EntityLookup";
 
 // 单次 update 允许接受的最大 delta（切后台/断点会产生数秒级 delta）
 const MAX_FRAME_DELTA_MS = 250;
@@ -60,6 +61,13 @@ export default class CombatManager extends BaseManager {
   public static readonly STATE_HASH_INTERVAL_FRAMES = 20;
   public lastStateHash: string | null = null;
   public lastStateHashFrame: number = 0;
+
+  /** 环形快照：用于分叉恢复、断线恢复与确定性自检。 */
+  public static readonly SNAPSHOT_INTERVAL_FRAMES = 10;
+  public static readonly SNAPSHOT_RING_SIZE = 20;
+  private snapshotRing: Array<{ frameId: number; state: SimulationState }> = [];
+  /** 进行中的确定性自检（回滚-重放）任务。 */
+  private pendingDeterminismCheck: { targetFrame: number; expectedHash: string; restoreFrame: number } | null = null;
 
   constructor() {
     super();
@@ -146,6 +154,8 @@ export default class CombatManager extends BaseManager {
     this.isEndGameRequested = false;
     this.lastStateHash = null;
     this.lastStateHashFrame = 0;
+    this.snapshotRing = [];
+    this.pendingDeterminismCheck = null;
     this.Eventbus.removeAllListeners();
     this.combatStatus = {
       dayOrNight: true,
@@ -182,6 +192,10 @@ export default class CombatManager extends BaseManager {
     this.isGameEnd = false;
     this.isEndGameRequested = false;
     this.isPaused = false;
+    this.snapshotRing = [];
+    this.pendingDeterminismCheck = null;
+    this.lastStateHash = null;
+    this.lastStateHashFrame = 0;
   }
 
   private handleRoomGameEnd({ isWin }: { isWin: boolean }) {
@@ -270,6 +284,8 @@ export default class CombatManager extends BaseManager {
 
       this.isInFixedStep = false;
       this.sampleStateHash();
+      this.recordSnapshotIfNeeded();
+      this.finishDeterminismCheckIfNeeded();
       this.commitPendingPausedState();
       if (this.isPaused) {
         this.elapsedFrameTime = 0;
@@ -306,11 +322,103 @@ export default class CombatManager extends BaseManager {
   }
 
   /** 供断线重连 / 分叉恢复使用：恢复收集器覆盖的全部状态源。 */
-  public restoreState(state: SimulationState) {
-    const report = simulationState.restore(state);
+  public restoreState(state: SimulationState, mode: "in-place" | "rebuild" = "in-place") {
+    const report = simulationState.restore(state, {
+      mode,
+      resolveEntity: resolveEntityBySnapshotId,
+    });
     this.lastStateHash = null;
     this.lastStateHashFrame = 0;
     return report;
+  }
+
+  /** 每个逻辑帧结束后按固定间隔记录快照。 */
+  private recordSnapshotIfNeeded(): void {
+    const frameId = SyncManager.Instance.recvQueue.currentFrameId;
+    if (frameId <= 0 || frameId % CombatManager.SNAPSHOT_INTERVAL_FRAMES !== 0) return;
+    const latest = this.snapshotRing[this.snapshotRing.length - 1];
+    if (latest?.frameId === frameId) return;
+
+    // 快照必须落在干净的帧边界：先执行完延迟创建/销毁。
+    DeferredManager.Instance.flush();
+    this.snapshotRing.push({ frameId, state: this.captureState() });
+    if (this.snapshotRing.length > CombatManager.SNAPSHOT_RING_SIZE) {
+      this.snapshotRing.shift();
+    }
+  }
+
+  public getSnapshotAtOrBefore(frameId: number): { frameId: number; state: SimulationState } | null {
+    for (let i = this.snapshotRing.length - 1; i >= 0; i--) {
+      if (this.snapshotRing[i].frameId <= frameId) return this.snapshotRing[i];
+    }
+    return null;
+  }
+
+  public getSnapshotRingFrameIds(): number[] {
+    return this.snapshotRing.map((entry) => entry.frameId);
+  }
+
+  /**
+   * 回滚到指定帧（取不晚于该帧的最近快照），并重新注入之后的已消费帧。
+   * 返回 null 表示环内没有可用快照。
+   */
+  public rollbackToFrame(frameId: number) {
+    const entry = this.getSnapshotAtOrBefore(frameId);
+    if (!entry) return null;
+    const report = this.restoreState(entry.state, "in-place");
+    SyncManager.Instance.recvQueue.restoreToFrame(entry.frameId);
+    return { frameId: entry.frameId, report };
+  }
+
+  public clearSnapshotRing(): void {
+    this.snapshotRing = [];
+  }
+
+  /** 当前完整状态的 64 位摘要。 */
+  public hashState(): string {
+    return simulationState.hash().h64;
+  }
+
+  /**
+   * 确定性自检：回滚到最近的旧快照，再依靠回放日志重放到当前帧，
+   * 最后比对哈希。用于在真实战局中验证所有实体/计时器是否可完整恢复。
+   * @returns 是否成功启动；结果通过 PhaserEvents.DeterminismSelfCheckResult 异步返回。
+   */
+  public startDeterminismSelfCheck(): boolean {
+    if (this.pendingDeterminismCheck) return false;
+    const currentFrame = SyncManager.Instance.recvQueue.currentFrameId;
+    const entry = this.getSnapshotAtOrBefore(currentFrame - 1);
+    if (!entry) return false;
+
+    const distance = currentFrame - entry.frameId;
+    if (distance < 5 || distance > CombatManager.SNAPSHOT_INTERVAL_FRAMES * CombatManager.SNAPSHOT_RING_SIZE) {
+      return false;
+    }
+
+    this.pendingDeterminismCheck = {
+      targetFrame: currentFrame,
+      expectedHash: this.hashState(),
+      restoreFrame: entry.frameId,
+    };
+    this.rollbackToFrame(entry.frameId);
+    return true;
+  }
+
+  private finishDeterminismCheckIfNeeded(): void {
+    const check = this.pendingDeterminismCheck;
+    if (!check) return;
+    const currentFrame = SyncManager.Instance.recvQueue.currentFrameId;
+    if (currentFrame < check.targetFrame) return;
+
+    this.pendingDeterminismCheck = null;
+    const actualHash = this.hashState();
+    PhaserEventBus.emit(PhaserEvents.DeterminismSelfCheckResult, {
+      ok: actualHash === check.expectedHash,
+      restoreFrame: check.restoreFrame,
+      targetFrame: check.targetFrame,
+      expectedHash: check.expectedHash,
+      actualHash,
+    });
   }
 
   private sampleStateHash(): void {

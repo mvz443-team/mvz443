@@ -383,6 +383,25 @@ export class Game extends Scene {
     });
   }
 
+  /**
+   * 用 Rapier 快照替换物理世界。
+   * 句柄索引会被保留，但旧 World 的 JS 引用全部失效，
+   * 调用方必须紧接着调用 rebindPhysicsEntities 重绑实体。
+   */
+  public restorePhysicsWorld(snapshot: Uint8Array): void {
+    const previousWorld = this.rapierWorld;
+    const timestep = previousWorld?.timestep ?? getRapierTimestepSeconds(SyncManager.Instance.frameIntervalMs);
+    const nextWorld = RAPIER.World.restoreSnapshot(snapshot);
+    nextWorld.timestep = timestep;
+    this.rapierWorld = nextWorld;
+    this.rapierEventQueue = new RAPIER.EventQueue(true);
+    try {
+      previousWorld?.free();
+    } catch {
+      // 旧世界可能已被释放，忽略。
+    }
+  }
+
   update(time: number, delta: number): void {
     CombatManager.Instance.update(time, delta);
     DebugManager.Instance.update();

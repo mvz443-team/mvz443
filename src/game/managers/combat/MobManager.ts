@@ -75,11 +75,23 @@ export default class MobManager extends BaseManager {
 
   private SpawnTimer: FrameTimer; // 出怪
   private Timer: FrameTimer | null = null; // 波数使用帧驱动定时器，类型为 FrameTimer
+  /** 当前出怪序列的可快照状态（避免关键进度只存在于闭包里）。 */
+  private spawnState: {
+    waveId: number;
+    monsterIndex: number;
+    totalMonsters: Array<{ mid: number }>;
+    rowWeights: number[];
+    rowPickSmoothingState: any;
+    carryingMonsters: Set<number>;
+    interval: number;
+  } | null = null;
   private prev_wave_frame: number = 0;
 
   private tmpKilled_count = 0;// 两波之间存击杀数
   private killed_count = 0; // 怪物击杀数
   private total_count = 0; // 怪物总数
+  /** 确定性出怪序号，用于生成稳定的实体快照 key。 */
+  private spawnSeq = 0;
 
   // 进度, 由wave定，
   // FUTURE： 如果存在多boss，或占比不同，还要再微调
@@ -151,6 +163,8 @@ export default class MobManager extends BaseManager {
     this.total_count = 0;
     this.bossObj = null;
     this.hasRequestedWin = false;
+    this.spawnState = null;
+    this.spawnSeq = 0;
     this.EventBus.removeAllListeners();
     this.scene = null;
   }
@@ -186,6 +200,7 @@ export default class MobManager extends BaseManager {
       total_count: this.total_count,
       progress: this.progress,
       hasRequestedWin: this.hasRequestedWin,
+      spawnSeq: this.spawnSeq,
     };
   }
 
@@ -197,6 +212,41 @@ export default class MobManager extends BaseManager {
     this.total_count = Number(state.total_count) || 0;
     this.progress = Number(state.progress) || 0;
     this.hasRequestedWin = Boolean(state.hasRequestedWin);
+    this.spawnSeq = Number(state.spawnSeq) || 0;
+  }
+
+  /** 出怪序列（spawn plan + 游标）的确定性状态。 */
+  public CaptureSpawnState(): Record<string, unknown> | null {
+    if (!this.spawnState) return null;
+    return {
+      waveId: this.spawnState.waveId,
+      monsterIndex: this.spawnState.monsterIndex,
+      totalMonsters: this.spawnState.totalMonsters.map((entry) => ({ mid: entry.mid })),
+      rowWeights: [...this.spawnState.rowWeights],
+      rowPickSmoothingState: this.spawnState.rowPickSmoothingState,
+      carryingMonsters: [...this.spawnState.carryingMonsters].sort((a, b) => a - b),
+      interval: this.spawnState.interval,
+    };
+  }
+
+  public RestoreSpawnState(state: Record<string, unknown> | null): void {
+    if (!state) {
+      this.spawnState = null;
+      return;
+    }
+    this.spawnState = {
+      waveId: Number(state.waveId) || 0,
+      monsterIndex: Number(state.monsterIndex) || 0,
+      totalMonsters: Array.isArray(state.totalMonsters)
+        ? (state.totalMonsters as Array<{ mid: number }>).map((entry) => ({ mid: Number(entry.mid) || 0 }))
+        : [],
+      rowWeights: Array.isArray(state.rowWeights) ? [...(state.rowWeights as number[])] : [],
+      rowPickSmoothingState: state.rowPickSmoothingState,
+      carryingMonsters: new Set(
+        Array.isArray(state.carryingMonsters) ? (state.carryingMonsters as number[]) : [],
+      ),
+      interval: Number(state.interval) || 0,
+    };
   }
 
   currentWave() {
@@ -341,26 +391,34 @@ export default class MobManager extends BaseManager {
       rng: this.SeedRandom,
       canCarryStarShards: (mid) => MonsterLibrary.GetModel(mid)?.couldCarryStarShards ?? false,
     });
-    let rowWeights = spawnPlan.rowWeights;
-    let rowPickSmoothingState = spawnPlan.rowPickSmoothingState;
-    const totalMonsters = spawnPlan.totalMonsters;
-    const carryingMonsters = spawnPlan.carryingMonsterIndexes;
+    this.spawnState = {
+      waveId: wave.waveId,
+      monsterIndex: 0,
+      totalMonsters: spawnPlan.totalMonsters,
+      rowWeights: spawnPlan.rowWeights,
+      rowPickSmoothingState: spawnPlan.rowPickSmoothingState,
+      carryingMonsters: spawnPlan.carryingMonsterIndexes,
+      interval: spawnPlan.interval,
+    };
     console.log('interval', spawnPlan.interval, 'duration', wave.duration * 1000);
 
-    let monsterIndex = 0;
     if (this.SpawnTimer) this.SpawnTimer.remove();
 
     this.SpawnTimer = TickerManager.Instance.addEvent({
       delay: spawnPlan.interval,
-      repeat: totalMonsters.length - 1,
+      repeat: spawnPlan.totalMonsters.length - 1,
+      snapshot: { kind: "mob.spawn" },
       callback: () => {
-        if (this.scene == null) return;
-        const monsterData = totalMonsters[monsterIndex];
+        const state = this.spawnState;
+        if (this.scene == null || !state) return;
+        const monsterData = state.totalMonsters[state.monsterIndex];
+        if (!monsterData) return;
+
         const rowResult = MobHelper.selectSpawnRow({
           wave,
           stageScript: this.scene.stageData.stageScript,
-          rowWeights,
-          rowPickSmoothingState,
+          rowWeights: state.rowWeights,
+          rowPickSmoothingState: state.rowPickSmoothingState,
           currentWaveId: wave.waveId,
           minecartLostWaveByRow: TileItemManager.Instance.getMinecartLostWaveByRow(),
           mid: monsterData.mid,
@@ -377,21 +435,24 @@ export default class MobManager extends BaseManager {
           return;
         }
 
-        const currentMonsterIndex = monsterIndex;
+        const currentMonsterIndex = state.monsterIndex;
         DeferredManager.Instance.defer(() => {
           if (!this.scene) return;
           const zomb = model.createEntity(this.scene, colMax, row, wave.waveId);
+          this.spawnSeq += 1;
+          zomb.adoptStableTimerKey(`mob:${wave.waveId}:${this.spawnSeq}`);
+          zomb.ExtraData.spawnSeq = this.spawnSeq;
           this.attachLifecycle(zomb);
 
           // 2. 如果当前怪物索引在carryingMonsters中，则设置携带starShards
-          if (zomb && carryingMonsters.has(currentMonsterIndex) && model.couldCarryStarShards) {
+          if (zomb && state.carryingMonsters.has(currentMonsterIndex) && model.couldCarryStarShards) {
             zomb.addStarShards();
           }
         });
 
-        monsterIndex++;
-        rowWeights = rowResult.rowWeights;
-        rowPickSmoothingState = rowResult.rowPickSmoothingState;
+        state.monsterIndex++;
+        state.rowWeights = rowResult.rowWeights;
+        state.rowPickSmoothingState = rowResult.rowPickSmoothingState;
       }
     });
   }
@@ -404,6 +465,28 @@ export default class MobManager extends BaseManager {
     } else {
       this.MobsByLane.get(key)?.push(monster);
     }
+  }
+
+  /** 快照恢复：按 mid/坐标/波次重建怪物，并复用稳定计时器 key。 */
+  public RebuildMonster(mid: number, col: number, row: number, waveID: number, spawnSeq: number): MonsterEntity | null {
+    if (!this.scene) return null;
+    const model = MonsterLibrary.GetModel(mid);
+    if (!model) return null;
+    const monster = model.createEntity(this.scene, col, row, waveID);
+    monster.adoptStableTimerKey(`mob:${waveID}:${spawnSeq}`);
+    monster.ExtraData.spawnSeq = spawnSeq;
+    this.attachLifecycle(monster);
+    return monster;
+  }
+
+  /** 快照对账时移除实体：只从容器移除，不增加击杀计数。 */
+  public RemoveMonsterSilently(monster: CombatEntity) {
+    const key = monster.GetRow();
+    const mobsInLane = this.MobsByLane.get(key);
+    if (!mobsInLane) return;
+    const index = mobsInLane.indexOf(monster);
+    if (index >= 0) mobsInLane.splice(index, 1);
+    if (mobsInLane.length === 0) this.MobsByLane.delete(key);
   }
 
   // 怪物注册销毁

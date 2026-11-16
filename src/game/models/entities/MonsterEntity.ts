@@ -37,6 +37,11 @@ export abstract class MonsterEntity extends CombatEntity {
   public model: MonsterModel;
   public waveID: number;
 
+  /** 快照中记录 mid，供断线恢复时重建实体。 */
+  protected override captureLogicState(): Record<string, import("../../../game/core/SimulationState").JsonValue> {
+    return { mid: this.model.mid };
+  }
+
   public col: number;
   public row: number;
   declare public x: number;

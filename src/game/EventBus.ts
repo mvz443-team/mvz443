@@ -87,6 +87,9 @@ export namespace PhaserEvents {
    */
   export const InGameOperationRejected = 'in-game-operation-rejected';
 
+  /** 确定性自检：回滚到旧快照并重放到当前帧，比对哈希 */
+  export const DeterminismSelfCheckResult = 'determinism-self-check-result';
+
   /**
    * @deprecated 使用MobManager的事件来替代
    * 游戏进度更新
