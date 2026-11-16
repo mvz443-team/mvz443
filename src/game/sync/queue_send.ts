@@ -14,6 +14,7 @@ import { LEGACY_BALANCE_FRAME_INTERVAL_MS } from "../../constants/physics";
 
 export default class QueueSend {
   queues: Denque<Request>;
+  private readonly pendingStateHashes: Denque<{ frameId: number; hash: number }> = new Denque();
   private readonly commandBaseDeltaFrames: number = 2;
   private readonly frameIntervalMsProvider: () => number;
   private lastBlankAckFrameIdSent: number = -1;
@@ -29,6 +30,7 @@ export default class QueueSend {
 
   Reset() {
     this.queues.clear();
+    this.pendingStateHashes.clear();
     this.lastBlankAckFrameIdSent = -1;
     this.lastBlankAckFrameIdQueued = -1;
     this.lastBlankSentAt = 0;
@@ -40,6 +42,7 @@ export default class QueueSend {
     if (!BackendWS.isRoomSessionMode()) {
       return;
     }
+    this.flushStateHashes();
     while (!this.queues.isEmpty()) {
       const request = this.queues.shift();
       if (request) {
@@ -75,6 +78,33 @@ export default class QueueSend {
     });
   }
 
+  /** 上报某一逻辑帧的确定性状态摘要，供服务端跨端比对。 */
+  public sendStateHash(frameId: number, hash: number) {
+    if (frameId <= 0 || !Number.isFinite(hash)) {
+      return;
+    }
+    this.pendingStateHashes.push({ frameId, hash: hash >>> 0 });
+    if (this.pendingStateHashes.length > 8) {
+      this.pendingStateHashes.shift();
+    }
+  }
+
+  private flushStateHashes() {
+    while (!this.pendingStateHashes.isEmpty()) {
+      const entry = this.pendingStateHashes.shift();
+      if (!entry) continue;
+      const request: RequestBlank = {
+        frameId: entry.frameId,
+        ackFrameId: BackendWS.AckFrameID,
+        stateHash: entry.hash,
+        hashFrameId: entry.frameId,
+      };
+      BackendWS.send(Request.toBinary({
+        payload: { blank: request, oneofKind: "blank" }
+      }));
+    }
+  }
+
   private createOperationBase(col: number, row: number): RequestGridOperation {
     const currentFrameId = BackendWS.GetFrameID();
     const processFrameId = currentFrameId + this.getCommandDelayFrames();
@@ -82,7 +112,9 @@ export default class QueueSend {
     return {
       base: {
         frameId: currentFrameId,
-        ackFrameId: BackendWS.AckFrameID
+        ackFrameId: BackendWS.AckFrameID,
+        stateHash: 0,
+        hashFrameId: 0
       },
       col,
       row,
@@ -157,7 +189,9 @@ export default class QueueSend {
     const now = Date.now();
     const request: RequestBlank = {
       frameId,
-      ackFrameId: BackendWS.AckFrameID
+      ackFrameId: BackendWS.AckFrameID,
+      stateHash: 0,
+      hashFrameId: 0
     };
     // console.log("[QueueSend] queue blank frame", {
     //   frameId,

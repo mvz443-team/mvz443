@@ -14,6 +14,13 @@ import BackendWS, { HasConnected } from "../../utils/net/sync";
 import CardpileManager from "./combat/CardpileManager";
 import { simulationState, SimulationState, serializeSimulationState } from "../core/SimulationState";
 
+// 单次 update 允许接受的最大 delta（切后台/断点会产生数秒级 delta）
+const MAX_FRAME_DELTA_MS = 250;
+// 累积时间上限：超出视为网络或后台积压，丢弃多余部分，避免长时间追帧
+const MAX_ELAPSED_FRAME_TIME_MS = 1000;
+// 单个渲染帧内最多推进的逻辑步数，防止主线程假死
+const MAX_STEPS_PER_UPDATE = 4;
+
 export type CombatStatus = {
   dayOrNight: boolean; // day = true
 }
@@ -206,12 +213,22 @@ export default class CombatManager extends BaseManager {
       return;
     }
 
-    // 物理与逻辑推进只依赖 update 的 delta，这里用 GameScene 的时钟倍率驱动时间流速。
+    // 浏览器切后台/断点调试会产生超大 delta，直接全量塞入会引发追帧风暴。
+    // 这里同时限制单次接受的 delta 与总积压，超出部分丢弃并依靠补帧追赶。
     const timeScale = this.scene?.time?.timeScale ?? 1;
-    this.elapsedFrameTime += delta * timeScale;
+    const clampedDelta = Math.min(delta * timeScale, MAX_FRAME_DELTA_MS);
+    this.elapsedFrameTime = Math.min(
+      this.elapsedFrameTime + clampedDelta,
+      MAX_ELAPSED_FRAME_TIME_MS,
+    );
 
+    let steps = 0;
     // Fixed-step physics update.
-    while (this.elapsedFrameTime >= SyncManager.Instance.frameIntervalMs) {
+    while (
+      this.elapsedFrameTime >= SyncManager.Instance.frameIntervalMs &&
+      steps < MAX_STEPS_PER_UPDATE
+    ) {
+      steps += 1;
       this.isInFixedStep = true;
       // 在进入下一次 Rapier step 前再执行延迟创建/销毁，
       // 避免在 world.step / bodies.forEach 相关借用期间修改物理世界。
@@ -260,7 +277,9 @@ export default class CombatManager extends BaseManager {
       }
     }
 
-    if (!this.isPaused) {
+    // 仍有积压时处于追帧模式：跳过渲染插值，优先把逻辑帧追平。
+    const hasBacklog = this.elapsedFrameTime >= SyncManager.Instance.frameIntervalMs;
+    if (!this.isPaused && !hasBacklog) {
       const interpolationAlpha = Math.min(
         this.elapsedFrameTime / SyncManager.Instance.frameIntervalMs,
         1,
@@ -299,12 +318,18 @@ export default class CombatManager extends BaseManager {
     if (frameId <= 0 || frameId % CombatManager.STATE_HASH_INTERVAL_FRAMES !== 0) return;
     if (frameId === this.lastStateHashFrame) return;
     try {
-      this.lastStateHash = simulationState.hash().h64;
+      const hash = simulationState.hash();
+      this.lastStateHash = hash.h64;
       this.lastStateHashFrame = frameId;
       PhaserEventBus.emit(PhaserEvents.SimulationHashSampled, {
         frameId,
         hash: this.lastStateHash,
       });
+      // 房间会话下把 32 位摘要随心跳上报，服务端跨端比对以发现分叉
+      const hash32 = Number.parseInt(hash.h32, 16) >>> 0;
+      if (BackendWS.isRoomSessionMode() && hash32 !== 0) {
+        SyncManager.Instance.sendQueue?.sendStateHash(frameId, hash32);
+      }
     } catch {
       // 状态采样失败不应中断锁步推进；后续按周期重试。
     }
