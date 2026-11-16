@@ -13,6 +13,9 @@ export namespace ProjectileCmd {
    * 投射物不进入 Manager 的 Map，但会参与碰撞与伤害，因此必须可快照/可恢复。
    */
   const activeProjectiles = new Set<ProjectileEntity<any>>();
+  /** 快照 id -> 重建工厂；仅保留最近一批，支持回滚复活刚销毁的投射物。 */
+  const rebuildFactories = new Map<string, () => ProjectileEntity<any>>();
+  const MAX_REBUILD_FACTORIES = 512;
 
   export function getActiveProjectiles(): readonly ProjectileEntity<any>[] {
     // 顺手裁剪已销毁实体
@@ -46,10 +49,16 @@ export namespace ProjectileCmd {
       }
     }
     for (const snapshot of snapshots) {
-      const target = getActiveProjectiles().find((entity) => entity.SnapshotId === String(snapshot.id));
+      let target = getActiveProjectiles().find((entity) => entity.SnapshotId === String(snapshot.id));
       if (!target) {
-        context.report.missing.push(`projectile:${snapshot.id}`);
-        continue;
+        const factory = rebuildFactories.get(String(snapshot.id));
+        if (!factory) {
+          context.report.missing.push(`projectile:${snapshot.id}`);
+          continue;
+        }
+        target = factory();
+        activeProjectiles.add(target);
+        context.report.restored.push(`projectile.rebuilt:${snapshot.id}`);
       }
       target.restoreSnapshot(snapshot, context);
     }
@@ -60,6 +69,7 @@ export namespace ProjectileCmd {
       entity.destroy();
     }
     activeProjectiles.clear();
+    rebuildFactories.clear();
   }
 
   /**
@@ -82,8 +92,19 @@ export namespace ProjectileCmd {
     cfg: ConfigOf<TModel>
   ) {
     DeferredManager.Instance.defer(() => {
-      const entity = model.createEntity(scene, x, row, cfg);
-      activeProjectiles.add(entity as ProjectileEntity<any>);
+      const entity = model.createEntity(scene, x, row, cfg) as ProjectileEntity<any>;
+      activeProjectiles.add(entity);
+      // 保存重建所需上下文（同进程回滚/重放使用），并用稳定 key 对齐快照计时器组。
+      const snapshotId = entity.SnapshotId;
+      rebuildFactories.set(snapshotId, () => {
+        const rebuilt = model.createEntity(scene, x, row, cfg) as ProjectileEntity<any>;
+        rebuilt.adoptStableTimerKey(snapshotId);
+        return rebuilt;
+      });
+      if (rebuildFactories.size > MAX_REBUILD_FACTORIES) {
+        const oldest = rebuildFactories.keys().next().value;
+        if (oldest !== undefined) rebuildFactories.delete(oldest);
+      }
     });
   }
 
