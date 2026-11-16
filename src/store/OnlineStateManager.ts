@@ -80,7 +80,8 @@ export class OnlineStateManager {
             allPlayerCount: data.allPlayerCount,
             seed: data.seed,
             myId: data.myId,
-            playerIds: [...data.playerIds]
+            playerIds: [...data.playerIds],
+            loadouts: data.loadouts ? [...data.loadouts] : undefined
         };
     }
 
@@ -93,8 +94,19 @@ export class OnlineStateManager {
             allPlayerCount: this.latestRoomAllReady.allPlayerCount,
             seed: this.latestRoomAllReady.seed,
             myId: this.latestRoomAllReady.myId,
-            playerIds: [...this.latestRoomAllReady.playerIds]
+            playerIds: [...this.latestRoomAllReady.playerIds],
+            loadouts: this.latestRoomAllReady.loadouts ? [...this.latestRoomAllReady.loadouts] : undefined
         };
+    }
+
+    /** 获取服务端下发的全员开局配置（只读副本）。 */
+    public getCanonicalLoadouts(): import("../pb/common").PlayerLoadout[] | undefined {
+        return this.latestRoomAllReady?.loadouts ? [...this.latestRoomAllReady.loadouts] : undefined;
+    }
+
+    /** 获取当前玩家应使用的开局配置。 */
+    public getOwnCanonicalLoadout(): import("../pb/common").PlayerLoadout | undefined {
+        return this.getCanonicalLoadouts()?.find((entry) => entry.playerId === this.myId);
     }
 
     public getRoomPeers(): string {

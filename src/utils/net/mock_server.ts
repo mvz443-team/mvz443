@@ -10,6 +10,8 @@ import {
   InGameResponse,
   RoomResponse
 } from "../../pb/response";
+import type { LoadoutSnapshot } from "../../pb/common";
+import { toPlayerLoadout } from "./loadout";
 
 export type MockPacketChannel = "lobby" | "room" | "ingame";
 
@@ -25,6 +27,7 @@ interface ClientSession {
   highestSubmittedFrame: number;
   isReady: boolean;
   isLoaded: boolean;
+  loadout?: LoadoutSnapshot;
 }
 
 interface FrameSubmission {
@@ -134,7 +137,7 @@ class MockServer {
         case "leaveChooseMap":
           return [this.makeQuitChooseMapPacket()];
         case "ready":
-          return this.handleReadyRequest(this.myId, request.payload.ready.isReady, now);
+          return this.handleReadyRequest(this.myId, request.payload.ready.isReady, now, request.payload.ready.loadout);
         case "loaded":
           return this.handleLoadedRequest(this.myId, request.payload.loaded.isLoaded, now);
         case "endGame":
@@ -153,10 +156,13 @@ class MockServer {
     }
   }
 
-  private handleReadyRequest(clientId: number, isReady: boolean, now: number): MockPacket[] {
+  private handleReadyRequest(clientId: number, isReady: boolean, now: number, loadout?: LoadoutSnapshot): MockPacket[] {
     const client = this.ensureClient(clientId, now);
     client.lastSeenAt = now;
     client.isReady = isReady;
+    if (isReady) {
+      client.loadout = loadout;
+    }
 
     const readyCount = this.getReadyCount();
     const packets: MockPacket[] = [this.makeUpdateReadyCountPacket(readyCount, this.clients.size)];
@@ -733,6 +739,10 @@ class MockServer {
 
   private makeAllReadyPacket(): MockPacket {
     const playerIds = [...this.clients.keys()].sort((a, b) => a - b);
+    const loadouts = playerIds.map((playerId) => {
+      const loadout = this.clients.get(playerId)?.loadout;
+      return toPlayerLoadout(playerId, loadout);
+    });
     return {
       channel: "room",
       data: RoomResponse.toBinary({
@@ -742,7 +752,8 @@ class MockServer {
             allPlayerCount: playerIds.length,
             seed: this.seed,
             myId: this.myId,
-            playerIds
+            playerIds,
+            loadouts
           }
         }
       })

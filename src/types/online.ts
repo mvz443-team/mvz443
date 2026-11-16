@@ -52,6 +52,8 @@ export interface RoomAllReadyEvent {
     seed: number;
     myId: number;
     playerIds: number[];
+    /** 服务端规范化后的全员开局配置 */
+    loadouts?: import("../pb/common").PlayerLoadout[];
 }
 
 export interface RoomGameStartEvent {

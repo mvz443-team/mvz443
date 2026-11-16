@@ -1,4 +1,5 @@
 import { EventBus } from "../../../utils/eventBus";
+import { onlineStateManager } from "../../../store/OnlineStateManager";
 import BackendWS from "../../../utils/net/sync";
 import type { Game } from "../../scenes/Game";
 import { BaseManager } from "../BaseManager";
@@ -54,12 +55,26 @@ export default class CardpileManager extends BaseManager {
     this.EventBus = new EventBus<CardpileManagerEvent>();
   }
 
+  /**
+   * 房间会话下，服务端 AllReady 会下发 canonical loadout。
+   * 两端必须使用同一份卡组与等级，否则首次种植就会产生属性分叉。
+   */
+  private resolveChosenPlants(): Array<{ pid: number; level: number }> {
+    if (BackendWS.isRoomSessionMode()) {
+      const canonicalCards = onlineStateManager.getOwnCanonicalLoadout()?.loadout?.cards;
+      if (canonicalCards && canonicalCards.length > 0) {
+        return canonicalCards.map((card) => ({ pid: card.pid, level: card.level }));
+      }
+    }
+    return this.scene?.params.plants || [];
+  }
+
   public Load(): void {
     // FUTURE: 当前版本卡片槽位依然是外置的，因此先监听这些全局事件用来发送 选择卡片的消息，
     // 后续版本如果卡片槽位组件化了，这些事件就可以直接在组件内发出，不需要通过全局事件总线了
 
-    // 获取本用户选择的卡组并更新
-    const chosenPlants = this.scene?.params.plants || [];
+    // 获取本用户选择的卡组并更新；联机/房间会话优先使用服务端下发的 canonical loadout
+    const chosenPlants = this.resolveChosenPlants();
     chosenPlants.forEach(({ pid, level }) => {
       const plantModel = PlantLibrary.GetModel(pid);
       if (plantModel) {

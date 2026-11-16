@@ -30,8 +30,9 @@ export default class ResourceManager extends BaseManager {
     this.EnergyMaps.clear();
     this.StarShardsMaps.clear();
     for (const playerId of data.playerIds) {
-      this.EnergyMaps.set(playerId, 0);
-      this.StarShardsMaps.set(playerId, 0);
+      const loadout = data.loadouts?.find((entry) => entry.playerId === playerId)?.loadout;
+      this.EnergyMaps.set(playerId, loadout?.initialEnergy ?? 0);
+      this.StarShardsMaps.set(playerId, loadout?.initialStarShards ?? 0);
     }
   };
 

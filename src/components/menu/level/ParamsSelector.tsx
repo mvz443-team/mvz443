@@ -269,12 +269,20 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
       clearLevelSelection();
       setGameParams(params);
 
+      const loadout = {
+        cards: chosenPlants,
+        level: stageId,
+        initialEnergy: 0,
+        initialStarShards: 0,
+        globalModifiers: []
+      };
+
       if (islord) {
         console.log("房主发送准备信号");
-        SendReady(true); // 房主发送准备请求
+        SendReady(true, loadout); // 房主发送准备请求
       } else {
         console.log("玩家发送准备信号");
-        SendReady(true); // 发送准备请求到服务器
+        SendReady(true, loadout); // 发送准备请求到服务器
       }
 
       return;

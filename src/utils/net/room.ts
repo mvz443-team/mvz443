@@ -1,6 +1,8 @@
 // Request sender for room lifecycle operations.
 import { Request, RequestChooseMap, RequestEndGame, RequestLeaveChooseMap, RequestLoaded, RequestReady } from "../../pb/request";
+import type { LoadoutSnapshot } from "../../pb/common";
 import BackendWS from "./sync";
+import { canonicalizeLoadout } from "./loadout";
 
 function SendChooseMap(chapterId: number, stageId: number) {
   if (!BackendWS.isRoomSessionMode() || !BackendWS.isLord()) {
@@ -19,9 +21,10 @@ function SendLeaveChooseMap() {
   BackendWS.send(Request.toBinary({ payload: { leaveChooseMap: request, oneofKind: 'leaveChooseMap' } }));
 }
 
-function SendReady(isReady: boolean) {
+function SendReady(isReady: boolean, loadout?: LoadoutSnapshot) {
   const request: RequestReady = {
-    isReady
+    isReady,
+    loadout: isReady && loadout ? canonicalizeLoadout(loadout) : undefined
   };
   BackendWS.send(Request.toBinary({ payload: { ready: request, oneofKind: 'ready' } }));
 }

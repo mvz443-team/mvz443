@@ -11,6 +11,7 @@ import {
 } from "../../game/EventBus";
 import { onlineStateManager } from "../../store/OnlineStateManager";
 import { PeerInfo, RoomAllReadyEvent } from "../../types/online";
+import { computeLoadoutHash } from "./loadout";
 
 export default class WSClientHandlers {
   private ws: WebSocketClient;
@@ -110,8 +111,18 @@ export default class WSClientHandlers {
           allPlayerCount: allReady.allPlayerCount,
           seed: allReady.seed,
           myId: allReady.myId,
-          playerIds: allReady.playerIds
+          playerIds: allReady.playerIds,
+          loadouts: allReady.loadouts
         };
+
+        const ownLoadout = allReady.loadouts.find((entry) => entry.playerId === allReady.myId);
+        if (ownLoadout?.loadout && ownLoadout.hash !== computeLoadoutHash(ownLoadout.loadout)) {
+          const message = "开局配置摘要不匹配，已阻止进入战斗以避免状态分叉";
+          console.error(message, ownLoadout);
+          PhaserEventBus.emit(PhaserEvents.RoomError, { message });
+          return;
+        }
+
         onlineStateManager.updateRoomAllReady(allReadyEvent);
         onlineStateManager.updateGameStage(EnumGameStage.Loading);
         PhaserEventBus.emit(PhaserEvents.RoomAllReady, allReadyEvent);
