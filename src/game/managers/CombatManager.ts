@@ -10,7 +10,7 @@ import { BaseEntity } from "../models/core/BaseEntity";
 import { DeferredManager } from "./DeferredManager";
 import { onlineStateManager } from "../../store/OnlineStateManager";
 import { RoomAllReadyEvent } from "../../types/online";
-import BackendWS, { HasConnected } from "../../utils/net/sync";
+import BackendWS from "../../utils/net/sync";
 import CardpileManager from "./combat/CardpileManager";
 import { simulationState, SimulationState, serializeSimulationState } from "../core/SimulationState";
 
@@ -192,8 +192,8 @@ export default class CombatManager extends BaseManager {
 
   // 切换游戏速度（1速/2速）
   public handleTimespeedToggle(): boolean {
-    // 多人游戏无效 / 暂停时无效 / 结束时无效
-    if (HasConnected() || this.isPaused || this.isGameEnd) return false;
+    // 真实联机无效；单机 mock 会话仍允许本地倍速 / 暂停时无效 / 结束时无效
+    if (BackendWS.isOnlineMode() || this.isPaused || this.isGameEnd) return false;
     if (!this.scene) return false;
 
     const previousTimeScale = this.scene.time.timeScale;

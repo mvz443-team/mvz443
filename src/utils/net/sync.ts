@@ -164,7 +164,9 @@ class WebSocketClient {
       this.trace("send binary via websocket", {
         byteLength: message.byteLength
       });
-      this.ws.send(message.buffer as ArrayBuffer);
+      // slice() 生成只包含当前视图字节的独立 ArrayBuffer，
+      // 避免 message 是更大 buffer 视图时把无关字节一起发送。
+      this.ws.send(message.slice().buffer as ArrayBuffer);
       return;
     }
 

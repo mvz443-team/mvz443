@@ -42,7 +42,8 @@ export default class QueueReceive {
   currentFrameId: number = 0;
   lastAckFrameId: number = 0;
 
-  consumedResponseFrames: Set<number> = new Set<number>();
+  // 只保留 lastAckFrameId 即可判断重复帧，无需整局累积 Set
+  private readonly maxBufferedResponses: number = 64;
   bufferedResponses: Map<number, InGameResponse> = new Map<number, InGameResponse>();
 
   constructor() {
@@ -55,7 +56,6 @@ export default class QueueReceive {
     this.bufferedResponses.clear();
     this.currentFrameId = 0;
     this.lastAckFrameId = 0;
-    this.consumedResponseFrames.clear();
   }
 
   handleInGameResponse(response: InGameResponse) {
@@ -208,31 +208,29 @@ export default class QueueReceive {
       if (!response) {
         continue;
       }
-      if (response.frameId <= this.lastAckFrameId || this.consumedResponseFrames.has(response.frameId)) {
-        console.log("[QueueReceive] drop stale response", {
-          frameId: response.frameId,
-          lastAckFrameId: this.lastAckFrameId,
-          alreadyConsumed: this.consumedResponseFrames.has(response.frameId)
-        });
+      if (response.frameId <= this.lastAckFrameId) {
+        // 重复/过期帧直接丢弃，不再累积 consumed Set
         continue;
       }
       this.bufferedResponses.set(response.frameId, response);
     }
 
+    // 缓冲有界：超出上限时优先丢弃最靠后的帧，它们还能通过 ACK 补发重新获得
+    if (this.bufferedResponses.size > this.maxBufferedResponses) {
+      const frameIds = [...this.bufferedResponses.keys()].sort((a, b) => a - b);
+      for (const frameId of frameIds.slice(this.maxBufferedResponses / 2)) {
+        this.bufferedResponses.delete(frameId);
+      }
+    }
+
     const nextFrameID = this.currentFrameId + 1;
     const response = this.bufferedResponses.get(nextFrameID);
     if (!response) {
-      console.log("[QueueReceive] waiting for next frame", {
-        nextFrameID,
-        currentFrameId: this.currentFrameId,
-        lastAckFrameId: this.lastAckFrameId,
-        bufferedFrameIds: [...this.bufferedResponses.keys()].slice(0, 10)
-      });
+      // 正常等待网络帧，不在热路径打印日志
       return false;
     }
 
     this.bufferedResponses.delete(nextFrameID);
-    this.consumedResponseFrames.add(nextFrameID);
 
     const operations = [...response.operations].sort((a, b) => this.compareInGameOperations(a, b));
 
