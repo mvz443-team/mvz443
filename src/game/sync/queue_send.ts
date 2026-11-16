@@ -131,7 +131,8 @@ export default class QueueSend {
     return networkDelayFrames + this.commandBaseDeltaFrames;
   }
 
-  public sendCardPlant(pid: number, col: number, row: number, level: number, cost: number) {
+  /** @returns 本次操作的 client_op_seq，用于关联服务端失败回包和撤销预测。 */
+  public sendCardPlant(pid: number, col: number, row: number, level: number, cost: number): number {
     const base = this.createOperationBase(col, row);
 
     const request: RequestCardPlant = {
@@ -148,6 +149,7 @@ export default class QueueSend {
         oneofKind: "plant"
       }
     });
+    return base.clientOpSeq;
   }
 
   public sendRemovePlant(pid: number, col: number, row: number) {

@@ -12,6 +12,9 @@ import QueueReceive from "../../sync/queue_receive";
 import QueueSend from "../../sync/queue_send";
 import { BaseManager } from "../BaseManager";
 import CombatManager from "../CombatManager";
+import { PlantLibrary } from "../library/PlantLibrary";
+import { PositionManager } from "../view/PositionManager";
+import DepthHelper from "../../utils/helper/DepthHelper";
 import PlantsManager from "./PlantsManager";
 import { PlayerIdentify } from "./ResourceManager";
 
@@ -32,6 +35,10 @@ export default class SyncManager extends BaseManager {
 
   sendQueue!: QueueSend;
   recvQueue!: QueueReceive;
+
+  // 乐观预测：点击种植后立即显示半透明虚影，服务端确认/拒绝时移除
+  private deployGhosts: Map<number, Phaser.GameObjects.Sprite> = new Map();
+  private deployGhostTweens: Map<number, Phaser.Tweens.Tween> = new Map();
 
   constructor() {
     super();
@@ -70,6 +77,7 @@ export default class SyncManager extends BaseManager {
     this.recvQueue.InGameEventBus.on("onUseStarShards", this.handleRecvUseStarShards);
     this.recvQueue.InGameEventBus.on("onRemovePlant", this.handleRecvRemovePlant);
     this.recvQueue.InGameEventBus.on("onGameEnd", this.handleRecvGameEnd);
+    this.recvQueue.InGameEventBus.on("onOperationRejected", this.handleOperationRejected);
   }
 
   private unbindQueueAndPlantEvents() {
@@ -86,10 +94,15 @@ export default class SyncManager extends BaseManager {
     this.recvQueue?.InGameEventBus.off("onUseStarShards", this.handleRecvUseStarShards);
     this.recvQueue?.InGameEventBus.off("onRemovePlant", this.handleRecvRemovePlant);
     this.recvQueue?.InGameEventBus.off("onGameEnd", this.handleRecvGameEnd);
+    this.recvQueue?.InGameEventBus.off("onOperationRejected", this.handleOperationRejected);
   }
 
   private handleDeterminePlant = (pid: number, level: number, col: number, row: number, cost: number) => {
-    this.sendQueue.sendCardPlant(pid, col, row, level, cost);
+    const clientOpSeq = this.sendQueue.sendCardPlant(pid, col, row, level, cost);
+    // 点击即反馈：先放半透明虚影，等服务端确认帧到达后再由真实实体接管。
+    if (BackendWS.isRoomSessionMode()) {
+      this.spawnDeployGhost(clientOpSeq, pid, col, row);
+    }
   };
 
   private handleDetermineUseStarShards = (pid: number, col: number, row: number, cost: number) => {
@@ -101,7 +114,67 @@ export default class SyncManager extends BaseManager {
   };
 
   private handleRecvCardPlant = (pid: number, col: number, row: number, level: number, uid: number) => {
+    if (uid === BackendWS.my_id) {
+      this.clearGhostsAt(col, row);
+    }
     this.Eventbus.emit("onRequestPlant", uid, pid, level, col, row);
+  };
+
+  private spawnDeployGhost(clientOpSeq: number, pid: number, col: number, row: number) {
+    const scene = this.scene;
+    const model = PlantLibrary.GetModel(pid);
+    if (!scene || !model) {
+      return;
+    }
+    const { x, y } = PositionManager.Instance.getPlantBottomCenter(col, row);
+    const size = PositionManager.Instance.getPlantDisplaySize();
+    const sprite = scene.add.sprite(x, y, model.texturePath, 1)
+      .setOrigin(0.5, 1)
+      .setDisplaySize(size.sizeX, size.sizeY)
+      .setAlpha(0.35)
+      .setTint(0x88ccff)
+      .setDepth(DepthHelper.Plant.base(row));
+
+    const tween = scene.tweens.add({
+      targets: sprite,
+      alpha: { from: 0.2, to: 0.55 },
+      duration: 140,
+      yoyo: true,
+      repeat: -1,
+    });
+
+    this.deployGhosts.set(clientOpSeq, sprite);
+    this.deployGhostTweens.set(clientOpSeq, tween);
+
+    // 网络异常或确认帧长期未到时自动清理，避免虚影永久残留。
+    setTimeout(() => this.removeGhost(clientOpSeq), 2000);
+  }
+
+  private removeGhost(clientOpSeq: number) {
+    this.deployGhostTweens.get(clientOpSeq)?.remove();
+    this.deployGhostTweens.delete(clientOpSeq);
+    this.deployGhosts.get(clientOpSeq)?.destroy();
+    this.deployGhosts.delete(clientOpSeq);
+  }
+
+  private clearGhostsAt(col: number, row: number) {
+    const { x, y } = PositionManager.Instance.getPlantBottomCenter(col, row);
+    for (const [seq, sprite] of this.deployGhosts) {
+      if (Math.abs(sprite.x - x) < 1 && Math.abs(sprite.y - y) < 1) {
+        this.removeGhost(seq);
+      }
+    }
+  }
+
+  private clearAllGhosts() {
+    for (const seq of [...this.deployGhosts.keys()]) {
+      this.removeGhost(seq);
+    }
+  }
+
+  private handleOperationRejected = (rejection: { clientOpSeq: number }) => {
+    // 服务端明确拒绝：仅撤销虚影表现，不触碰物理世界，也不回滚已确认状态。
+    this.removeGhost(rejection.clientOpSeq);
   };
 
   private handleRecvUseStarShards = (pid: number, col: number, row: number, uid: number) => {
@@ -138,6 +211,7 @@ export default class SyncManager extends BaseManager {
 
   public Reset() {
     this.unbindQueueAndPlantEvents();
+    this.clearAllGhosts();
     this.scene = null;
     if (this.recvQueue) {
       this.recvQueue.Reset();
