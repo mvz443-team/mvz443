@@ -1,8 +1,9 @@
-const maxLevel = 9;
+const MAX_LEVEL = 9;
+const LOG_MAX_LEVEL = Math.log(MAX_LEVEL);
 
 export function GetIncValue(origin: number, ratio: number, level: number): number {
   // 计算常数c，公式：c = (ratio - 1) / log(9)
-  const c = (ratio - 1) / Math.log(maxLevel);
+  const c = (ratio - 1) / Math.log(MAX_LEVEL);
 
   // 使用公式计算当前等级的伤害
   const damage = origin * (1 + c * Math.log(level));
@@ -13,7 +14,7 @@ export function GetIncValue(origin: number, ratio: number, level: number): numbe
 
 export function GetDecValue(origin: number, ratio: number, level: number): number {
   // 计算常数c，公式：c = (1 - ratio) / log(maxLevel)
-  const c = (1 - ratio) / Math.log(maxLevel);
+  const c = (1 - ratio) / Math.log(MAX_LEVEL);
 
   // 使用公式计算当前等级的冷却时间
   const cooldown = origin * (1 - c * Math.log(level));
@@ -36,50 +37,75 @@ export class LevelScaledValue {
     this.base = base;
   }
 
+  private _invalidateCache(): void {
+    this._cache = null;
+  }
+
   public setIncRatio(ratio: number): this {
     this.incRatio = ratio;
+    this._invalidateCache();
     return this;
   }
 
   public setDecValue(ratio: number): this {
     this.decRatio = ratio;
+    this._invalidateCache();
     return this;
   }
 
   public setThreshold(level: number, value: number): this {
     this.levelThresholds[level] = value;
+    this._invalidateCache();
     return this;
   }
 
+  /**
+   * ✅ O(1) 访问，无 Math.log，无 toFixed，无对象遍历
+   */
   public getValueAt(level: number): number {
-    let appliedBase = this.base;
-    let effectiveLevel = level;
+    if (!this._cache) this._buildCache();
+    // 边界保护：clamp 到 [0, MAX_LEVEL]
+    const idx = level < 0 ? 0 : level > MAX_LEVEL ? MAX_LEVEL : level;
+    return this._cache![idx];
+  }
 
-    // 查找当前等级对应的最高阈值
-    let maxAppliedLevel = 0;
-    for (const [lvlStr, val] of Object.entries(this.levelThresholds)) {
-      const lvl = parseInt(lvlStr);
-      if (level >= lvl && lvl > maxAppliedLevel) {
-        appliedBase = val;
-        maxAppliedLevel = lvl;
+  private _buildCache(): void {
+    const cache = new Float64Array(MAX_LEVEL + 1);
+
+    // 预处理阈值：按等级排序，便于线性扫描
+    const thresholdLevels = Object.keys(this.levelThresholds)
+      .map(Number)
+      .sort((a, b) => a - b);
+
+    let currentBase = this.base;
+    let nextThresholdIdx = 0;
+    let effectiveLevelOffset = 0;
+
+    for (let lvl = 0; lvl <= MAX_LEVEL; lvl++) {
+      // 检查是否命中阈值点
+      while (
+        nextThresholdIdx < thresholdLevels.length &&
+        thresholdLevels[nextThresholdIdx] === lvl
+      ) {
+        currentBase = this.levelThresholds[lvl];
+        effectiveLevelOffset = lvl - 1; // effectiveLevel = lvl - maxAppliedLevel + 1
+        nextThresholdIdx++;
+      }
+
+      const effectiveLevel = lvl - effectiveLevelOffset;
+
+      if (this.incRatio !== null) {
+        const c = (this.incRatio - 1) / LOG_MAX_LEVEL;
+        cache[lvl] = parseFloat((currentBase * (1 + c * Math.log(effectiveLevel || 1))).toFixed(3));
+      } else if (this.decRatio !== null) {
+        const c = (1 - this.decRatio) / LOG_MAX_LEVEL;
+        cache[lvl] = parseFloat((currentBase * (1 - c * Math.log(effectiveLevel || 1))).toFixed(3));
+      } else {
+        cache[lvl] = currentBase;
       }
     }
 
-    // 如果有阈值，计算距离阈值点的等级差
-    // 若 level == maxAppliedLevel，effectiveLevel 为 1，函数返回 appliedBase
-    if (maxAppliedLevel > 0) {
-      effectiveLevel = level - maxAppliedLevel + 1;
-    }
-
-    if (this.incRatio !== null) {
-      return GetIncValue(appliedBase, this.incRatio, effectiveLevel);
-    }
-
-    if (this.decRatio !== null) {
-      return GetDecValue(appliedBase, this.decRatio, effectiveLevel);
-    }
-
-    return appliedBase;
+    this._cache = cache;
   }
 }
 
