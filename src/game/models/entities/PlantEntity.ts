@@ -15,6 +15,7 @@ import { StarShardsBurstSfx } from "../../sfx/star/StarShardsBurstSfx";
 import { MonsterEntity } from "./MonsterEntity";
 import { getLevelBadgeTextureKey } from "../../ui/levelBadgeSvg";
 import type { JsonValue } from "../../core/SimulationState";
+import { PLANT_PRNG_FIELDS, PLANT_RELATION_FIELDS } from "../../core/LogicSchemas";
 
 // entities/PlantEntity.ts
 export abstract class PlantEntity extends CombatEntity {
@@ -45,7 +46,7 @@ export abstract class PlantEntity extends CombatEntity {
 
     // 传入模型计算出的血量，并指定为 PLANT 阵营
     const hp = model.maxHealth.getValueAt(level);
-    super(scene, x, y, hp, Faction.PLANT);
+    super(scene, x, y, hp, Faction.PLANT, model.logicSchema);
     this.model = model;
     this.baseDepth = DepthHelper.Plant.base(row);
 
@@ -82,9 +83,17 @@ export abstract class PlantEntity extends CombatEntity {
   // 由具体子类覆盖，或者根据 Model 决定如何构建图像
   protected abstract buildView(): void;
 
+  protected override getRelationFields(): readonly string[] {
+    return PLANT_RELATION_FIELDS;
+  }
+
+  protected override getPrngFields(): readonly string[] {
+    return PLANT_PRNG_FIELDS;
+  }
+
   /** 快照中记录 pid，供断线恢复时重建实体。 */
   protected override captureLogicState(): Record<string, JsonValue> {
-    return { pid: this.model.pid };
+    return { pid: this.model.pid, level: Number(this.reg.get("level") ?? 1) };
   }
 
   private AttachBadgeView(): void {
@@ -163,6 +172,8 @@ export abstract class PlantEntity extends CombatEntity {
 
     // 稳定 key 让快照恢复后计时器组仍能对齐（重建实体得到同一 group）。
     this.adoptStableTimerKey(`plant:${this.col}:${this.row}:${this.model.pid}`);
+    // 子类字段初始化完成后，把同名逻辑字段迁入寄存器并安装访问器。
+    this.bindLogicRegisters();
 
     this.buildView();
     this.AttachBadgeView();

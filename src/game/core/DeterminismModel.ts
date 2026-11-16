@@ -13,6 +13,30 @@
 
 import type { EntityLogicState, JsonValue, RestoreContext, SimulationState, TimerState } from "./SimulationState.ts";
 import { StateRegistry, SIMULATION_STATE_VERSION } from "./SimulationState.ts";
+import { RegisterBank, RegisterSchema, bindRegistersToEntity } from "./LogicRegister.ts";
+
+const MODEL_SCHEMA = new RegisterSchema([
+  { name: "hp", type: "f64", default: 0 },
+  { name: "maxHp", type: "f64", default: 0 },
+  { name: "speed", type: "f64", default: 0 },
+  { name: "pid", type: "i32", default: 0 },
+  { name: "mid", type: "i32", default: 0 },
+  { name: "level", type: "i32", default: 0 },
+  { name: "shield", type: "f64", default: 0 },
+  { name: "armor", type: "f64", default: 0 },
+  { name: "stage", type: "i32", default: 0 },
+  { name: "shell", type: "f64", default: 0 },
+  { name: "fuse", type: "f64", default: 0 },
+  { name: "freeze", type: "f64", default: 0 },
+  { name: "damagedSum", type: "f64", default: 0 },
+  { name: "isLightning", type: "f64", default: 0 },
+  { name: "inBruteShoot", type: "bool", default: false },
+  { name: "cooldown", type: "f64", default: 0 },
+  { name: "damage", type: "f64", default: 0 },
+  { name: "penetrate", type: "i32", default: 0 },
+  { name: "traveled", type: "f64", default: 0 },
+  { name: "maxDistance", type: "f64", default: 0 },
+]);
 
 export type ModelKind = "plant" | "mob" | "projectile";
 
@@ -21,6 +45,7 @@ export interface ModelEntity {
   kind: ModelKind;
   x: number;
   y: number;
+  reg: RegisterBank;
   hp: number;
   maxHp: number;
   pid?: number;
@@ -195,13 +220,6 @@ export class DeterminismModel {
   // ---------------------------------------------------------------------------
 
   private captureEntity(entity: ModelEntity): EntityLogicState {
-    const flags: Record<string, JsonValue> = {};
-    for (const [key, value] of Object.entries(entity)) {
-      if (key === "id" || key === "kind" || key === "x" || key === "y"
-        || key === "hp" || key === "maxHp" || value === undefined) continue;
-      if (typeof value === "number" && !Number.isFinite(value)) continue;
-      flags[key] = value as JsonValue;
-    }
     return {
       kind: "entity",
       id: entity.id,
@@ -212,7 +230,9 @@ export class DeterminismModel {
       hp: entity.hp,
       maxHp: entity.maxHp,
       speed: entity.speed ?? null,
-      flags,
+      registers: entity.reg.capture(),
+      registerVersion: entity.reg.schema.fingerprint,
+      flags: {},
       timers: [],
       extra: { modelKind: entity.kind },
     };
@@ -235,20 +255,12 @@ export class DeterminismModel {
       }
       entity.x = snapshot.x;
       entity.y = snapshot.y;
-      entity.hp = snapshot.hp ?? entity.hp;
-      entity.maxHp = snapshot.maxHp ?? entity.maxHp;
-      entity.speed = snapshot.speed ?? entity.speed;
-      // 清除快照中不存在的可选字段（与真实 EntitySnapshot 行为一致）
-      for (const key of Object.keys(entity)) {
-        if (["id", "kind", "x", "y", "hp", "maxHp", "speed"].includes(key)) continue;
-        if (!(key in snapshot.flags)) {
-          delete (entity as unknown as Record<string, unknown>)[key];
+      if (snapshot.registers && snapshot.registerVersion === entity.reg.schema.fingerprint) {
+        if (!entity.reg.restore(snapshot.registers as Array<number | boolean | string>)) {
+          context.report.errors.push(`register-length-mismatch:${snapshot.id}`);
         }
-      }
-      for (const [key, value] of Object.entries(snapshot.flags)) {
-        if (typeof value === "number" || typeof value === "boolean" || typeof value === "string") {
-          (entity as unknown as Record<string, unknown>)[key] = value;
-        }
+      } else {
+        context.report.missing.push(`registers:${snapshot.id}`);
       }
     }
   }
@@ -261,15 +273,11 @@ export class DeterminismModel {
       kind,
       x: snapshot.x,
       y: snapshot.y,
-      hp: snapshot.hp ?? 0,
-      maxHp: snapshot.maxHp ?? 0,
-      speed: snapshot.speed ?? undefined,
+      reg: MODEL_SCHEMA.createBank(),
+      hp: 0,
+      maxHp: 0,
     };
-    for (const [key, value] of Object.entries(snapshot.flags)) {
-      if (typeof value === "number" || typeof value === "boolean" || typeof value === "string") {
-        (entity as unknown as Record<string, unknown>)[key] = value;
-      }
-    }
+    bindRegistersToEntity(entity, entity.reg);
     return entity;
   }
 
@@ -280,12 +288,13 @@ export class DeterminismModel {
   public addPlant(pid: number, col: number, row: number, level = 1): ModelEntity {
     const id = `plant:${col}:${row}:${pid}`;
     const entity: ModelEntity = {
-      id, kind: "plant", pid, level, x: col * 100, y: row * 50,
+      id, kind: "plant", reg: MODEL_SCHEMA.createBank(), pid, level, x: col * 100, y: row * 50,
       hp: 100, maxHp: 100, cooldown: 0,
     };
     if (pid === 3) { entity.shield = 200; entity.maxHp = 100; }
     if (pid === 4) { entity.fuse = 200; }
     if (pid === 5) { entity.isLightning = 0; }
+    bindRegistersToEntity(entity, entity.reg);
     this.entities.set(id, entity);
     if (pid === 1 || pid === 3) this.setTimer(`attack:${id}`, `attack:${id}`, 20, -1);
     if (pid === 2) this.setTimer(`energy:${id}`, `energy:${id}`, 30, -1);
@@ -297,11 +306,12 @@ export class DeterminismModel {
     this.spawned += 1;
     const id = `mob:${this.spawned}`;
     const entity: ModelEntity = {
-      id, kind: "mob", mid, x: 900, y: row * 50,
+      id, kind: "mob", reg: MODEL_SCHEMA.createBank(), mid, x: 900, y: row * 50,
       hp: 100, maxHp: 100, speed: 2, armor: 0, stage: 0, shell: mid === 4 ? 50 : 0,
     };
     if (mid === 2) entity.armor = 100;
     if (mid === 3) entity.stage = 2;
+    bindRegistersToEntity(entity, entity.reg);
     this.entities.set(id, entity);
     this.setTimer(`move:${id}`, `move:${id}`, 1, -1);
     return entity;
@@ -310,9 +320,10 @@ export class DeterminismModel {
   public addProjectile(x: number, row: number, damage: number, penetrate = 1): ModelEntity {
     const id = `projectile:${this.nextTimerId}`;
     const entity: ModelEntity = {
-      id, kind: "projectile", x, y: row * 50,
+      id, kind: "projectile", reg: MODEL_SCHEMA.createBank(), x, y: row * 50,
       hp: 1, maxHp: 1, damage, penetrate, traveled: 0, maxDistance: 800,
     };
+    bindRegistersToEntity(entity, entity.reg);
     this.entities.set(id, entity);
     return entity;
   }

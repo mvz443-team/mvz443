@@ -1,8 +1,13 @@
 import type { Game } from "../scenes/Game";
 import type { BaseEntity } from "./core/BaseEntity";
 import type { MonsterEntity } from "./entities/MonsterEntity";
+import { RegisterSchema } from "../core/LogicRegister";
+import { MONSTER_LOGIC_SCHEMA } from "../core/LogicSchemas";
 
 export abstract class MonsterModel {
+  /** 逻辑寄存器声明表；实体按此分配寄存器并参与快照。 */
+  public readonly logicSchema: RegisterSchema = MONSTER_LOGIC_SCHEMA;
+
   public abstract readonly mid: number;
   public abstract readonly nameKey: string;
   public abstract readonly texturePath: string;

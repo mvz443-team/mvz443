@@ -7,11 +7,17 @@ import { DeferredManager } from "../../managers/DeferredManager";
 import type { EntityLogicState, JsonValue } from "../../core/SimulationState";
 import type { RestoreContext, Restorable } from "../../core/Restorable";
 import {
-  DEFAULT_ENTITY_SNAPSHOT_FIELDS,
-  captureEntityFields,
-  restoreEntityFields,
+  capturePrngs,
+  captureRelations,
+  restorePrngs,
+  restoreRelations,
 } from "../../core/EntitySnapshot";
 import { forgetRigidBody, rememberRigidBody } from "../../core/PhysicsSnapshot";
+import { RegisterBank, RegisterSchema, bindRegistersToEntity } from "../../core/LogicRegister";
+import {
+  DEFAULT_RELATION_FIELDS,
+  EMPTY_LOGIC_SCHEMA,
+} from "../../core/LogicSchemas";
 
 // All entities share world position, visual state, and destruction lifecycle.
 export abstract class BaseEntity implements Restorable<EntityLogicState> {
@@ -48,13 +54,28 @@ export abstract class BaseEntity implements Restorable<EntityLogicState> {
   private isDestroyQueued = false;
   private isDestroyed = false;
 
-  constructor(scene: Game, x: number, y: number) {
+  /** Model 声明的逻辑寄存器组；实体状态快照的唯一数值来源。 */
+  public readonly reg: RegisterBank;
+  private registersBound = false;
+
+  constructor(scene: Game, x: number, y: number, schema: RegisterSchema = EMPTY_LOGIC_SCHEMA) {
     this.scene = scene;
     this.x = x;
     this.y = y;
     this.viewGroup = scene.add.group();
     this.TimerKey = uniqueId("entity_");
     this.tickmanager = new TickerManagerProxy(this.TimerKey);
+    this.reg = schema.createBank();
+  }
+
+  /**
+   * 在子类字段初始化完成后调用：把同名数据字段迁移进寄存器，
+   * 并安装同名访问器，使既有业务代码继续读写 this.xxx 时实际走寄存器。
+   */
+  public bindLogicRegisters(): void {
+    if (this.registersBound) return;
+    this.registersBound = true;
+    bindRegistersToEntity(this, this.reg);
   }
 
   public setVisible(visible: boolean) {
@@ -115,17 +136,22 @@ export abstract class BaseEntity implements Restorable<EntityLogicState> {
   // 统一快照接口
   // ---------------------------------------------------------------------------
 
-  /** 子类追加需要采集的字段名。 */
-  protected getSnapshotFields(): readonly string[] {
-    return DEFAULT_ENTITY_SNAPSHOT_FIELDS;
+  /** 子类声明需要显式序列化的关系字段（实体引用/Set）。 */
+  protected getRelationFields(): readonly string[] {
+    return DEFAULT_RELATION_FIELDS;
   }
 
-  /** 子类可覆盖：导出额外的纯数据逻辑字段。 */
+  /** 子类声明带 state() 的 PRNG 字段。 */
+  protected getPrngFields(): readonly string[] {
+    return [];
+  }
+
+  /** 子类可覆盖：导出非寄存器、非关系的纯数据逻辑字段。 */
   protected captureLogicState(): Record<string, JsonValue> {
     return {};
   }
 
-  /** 子类可覆盖：恢复额外的纯数据逻辑字段。 */
+  /** 子类可覆盖：恢复非寄存器、非关系的纯数据逻辑字段。 */
   protected restoreLogicState(_state: Record<string, JsonValue>, _context: RestoreContext): void { }
 
   /** 子类可覆盖：导出非字段形式的运行时信息（例如生成序号）。 */
@@ -133,14 +159,19 @@ export abstract class BaseEntity implements Restorable<EntityLogicState> {
     return {};
   }
 
+  private readRegisterNumber(name: string, fallback: unknown): number | null {
+    if (this.reg.has(name)) {
+      const value = this.reg.get(name);
+      if (typeof value === "number") return value;
+    }
+    return typeof fallback === "number" ? fallback : null;
+  }
+
   public captureSnapshot(): EntityLogicState {
     rememberRigidBody(this);
     const obj = this as unknown as Record<string, unknown>;
     const rigidBody = this.rigidBody;
     const translation = rigidBody?.translation?.();
-    const hp = (obj.currentHealth ?? obj.health) as number | undefined;
-    const maxHp = obj.maxHealth as number | undefined;
-    const speed = obj.speed as number | undefined;
 
     return {
       kind: "entity",
@@ -149,10 +180,16 @@ export abstract class BaseEntity implements Restorable<EntityLogicState> {
       row: typeof obj.row === "number" ? obj.row : null,
       x: translation?.x ?? this.x,
       y: translation?.y ?? this.y,
-      hp: typeof hp === "number" ? hp : null,
-      maxHp: typeof maxHp === "number" ? maxHp : null,
-      speed: typeof speed === "number" ? speed : null,
-      flags: captureEntityFields(this, this.getSnapshotFields(), this.captureLogicState()),
+      hp: this.readRegisterNumber("currentHealth", obj.health),
+      maxHp: this.readRegisterNumber("maxHealth", obj.maxHealth),
+      speed: this.readRegisterNumber("speed", obj.speed),
+      registers: this.reg.capture(),
+      registerVersion: this.reg.schema.fingerprint,
+      flags: {
+        ...captureRelations(this, this.getRelationFields()),
+        ...capturePrngs(this, this.getPrngFields()),
+        ...this.captureLogicState(),
+      },
       timers: TickerManager.Instance.GetTimerStates().filter((timer) => timer.group === this.TimerKey),
       extra: {
         rigidBodyHandle: rigidBody ? rigidBody.handle : null,
@@ -163,22 +200,27 @@ export abstract class BaseEntity implements Restorable<EntityLogicState> {
   }
 
   public restoreSnapshot(state: EntityLogicState, context: RestoreContext): void {
-    restoreEntityFields(this, state.flags, context, this.getSnapshotFields());
+    if (state.registers) {
+      if (state.registerVersion === this.reg.schema.fingerprint) {
+        if (!this.reg.restore(state.registers as Array<number | boolean | string>)) {
+          context.report.errors.push(`register-length-mismatch:${this.SnapshotId}`);
+        }
+      } else {
+        context.report.missing.push(
+          `registers:${this.SnapshotId}(schema ${state.registerVersion ?? "?"} != ${this.reg.schema.fingerprint})`,
+        );
+      }
+    } else {
+      // 兼容旧快照：只回写通用数值
+      if (state.hp !== null && this.reg.has("currentHealth")) this.reg.set("currentHealth", state.hp);
+      if (state.maxHp !== null && this.reg.has("maxHealth")) this.reg.set("maxHealth", state.maxHp);
+      if (state.speed !== null && this.reg.has("speed")) this.reg.set("speed", state.speed);
+    }
 
-    if (state.hp !== null) {
-      const obj = this as unknown as Record<string, unknown>;
-      if (typeof obj.currentHealth === "number") obj.currentHealth = state.hp;
-      if (typeof obj.health === "number") obj.health = state.hp;
-    }
-    if (state.maxHp !== null && typeof (this as unknown as Record<string, unknown>).maxHealth === "number") {
-      (this as unknown as Record<string, number>).maxHealth = state.maxHp;
-    }
-    if (state.speed !== null && typeof (this as unknown as Record<string, unknown>).speed === "number") {
-      (this as unknown as Record<string, number>).speed = state.speed;
-    }
-
-    this.applySnapshotPosition(state.x, state.y);
+    restoreRelations(this, state.flags, context, this.getRelationFields());
+    restorePrngs(this, state.flags, this.getPrngFields(), context);
     this.restoreLogicState(state.flags, context);
+    this.applySnapshotPosition(state.x, state.y);
   }
 
   /** 把逻辑坐标写回自身、视图容器与刚体。 */

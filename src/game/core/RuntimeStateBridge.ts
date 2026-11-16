@@ -127,7 +127,7 @@ function reconcileMobs(snapshots: EntityLogicState[], context: RestoreContext): 
     if (liveIds.has(String(snapshot.id))) continue;
     const mid = Number(snapshot.flags.mid);
     const waveId = Number(snapshot.flags.waveID) || 0;
-    const spawnSeq = Number((snapshot.flags.ExtraData as Record<string, unknown> | undefined)?.spawnSeq) || 0;
+    const spawnSeq = Number(snapshot.flags.spawnSeq) || 0;
     if (!mid || !spawnSeq) {
       context.report.missing.push(`mob:${snapshot.id}`);
       continue;

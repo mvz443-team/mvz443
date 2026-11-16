@@ -5,6 +5,7 @@ import type { Game } from "../../scenes/Game";
 import { Faction } from "../Enum";
 import { IDamageable } from "../Interface";
 import { BaseEntity } from "./BaseEntity";
+import type { RegisterSchema } from "../../core/LogicRegister";
 
 export abstract class CombatEntity extends BaseEntity implements IDamageable {
   public currentHealth: number;
@@ -22,8 +23,8 @@ export abstract class CombatEntity extends BaseEntity implements IDamageable {
   // 额外状态
   public isTiny = false; // 是否为小型单位，可能会被某些效果忽略
 
-  constructor(scene: Game, x: number, y: number, maxHealth: number, faction: Faction) {
-    super(scene, x, y);
+  constructor(scene: Game, x: number, y: number, maxHealth: number, faction: Faction, schema?: RegisterSchema) {
+    super(scene, x, y, schema);
     this.maxHealth = maxHealth;
     this.currentHealth = maxHealth;
     this.faction = faction;

@@ -7,6 +7,7 @@ import { ProjectileConfig, ProjectileModel } from "../projectiles/ProjectileMode
 import { Faction } from "../Enum";
 import { MonsterEntity } from "./MonsterEntity";
 import { _Typedebuffs } from "../../../constants/game";
+import { PROJECTILE_RELATION_FIELDS } from "../../core/LogicSchemas";
 
 export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> extends BaseEntity {
   public model: T;
@@ -23,7 +24,7 @@ export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> exte
   debuffDuration: number = 0;
 
   constructor(scene: Game, x: number, y: number, model: T, cfg: ProjectileConfig) {
-    super(scene, x, y);
+    super(scene, x, y, model.logicSchema);
     this.model = model;
     this.currentDamage = model.damage;
     this.faction = cfg.faction;
@@ -32,6 +33,16 @@ export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> exte
     this.couldAttackFlying = cfg.couldAttackFlying ?? model.couldAttackFlying;
     this.debuff = cfg.debuff ?? model.debuff;
     this.debuffDuration = cfg.debuffDuration ?? model.debuffDuration;
+  }
+
+  /** 子类构造完成后调用，把逻辑字段接入寄存器。 */
+  public initializeEntity(): this {
+    this.bindLogicRegisters();
+    return this;
+  }
+
+  protected override getRelationFields(): readonly string[] {
+    return PROJECTILE_RELATION_FIELDS;
   }
 
   // 通用的碰撞分发器

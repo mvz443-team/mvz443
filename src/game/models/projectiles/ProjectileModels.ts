@@ -8,9 +8,14 @@ import { Faction } from "../Enum";
 import { BulletEntity } from "./BulletEntity";
 import { ExplosionEntity } from "./ExplosionEntity";
 import { LaserEntity } from "./LaserEntity";
+import { RegisterSchema } from "../../core/LogicRegister";
+import { PROJECTILE_LOGIC_SCHEMA } from "../../core/LogicSchemas";
 
 
 export abstract class ProjectileModel<TConfig, TEntity extends ProjectileEntity<any>> {
+  /** 逻辑寄存器声明表；实体按此分配寄存器并参与快照。 */
+  public readonly logicSchema: RegisterSchema = PROJECTILE_LOGIC_SCHEMA;
+
   public damage: number = 0;
 
   // Buff 效果

@@ -1,6 +1,6 @@
 import RAPIER from "@dimforge/rapier2d-deterministic-compat";
+import seedrandom from "seedrandom";
 import DepthHelper from "../../utils/helper/DepthHelper";
-import { defaultRandom } from "../../../utils/random";
 import { FrameTimer } from "../../managers/combat/TickerManager";
 import type { Game } from "../../scenes/Game";
 import { CollisionContext } from "../../types";
@@ -21,6 +21,7 @@ import { StarShardsOrbitSfx } from "../../sfx/star/StarShardsOrbitSfx";
 import { DeathRotateSfx } from "../../sfx/death/DeathRotateSfx";
 import { DeathSmokeSfx } from "../../sfx/death/DeathSmokeSfx";
 import SoundCmd from "../../utils/cmd/SoundCmd";
+import { MONSTER_PRNG_FIELDS, MONSTER_RELATION_FIELDS } from "../../core/LogicSchemas";
 
 type DeathSmokeSpawn = {
   x: number;
@@ -37,9 +38,21 @@ export abstract class MonsterEntity extends CombatEntity {
   public model: MonsterModel;
   public waveID: number;
 
+  protected override getRelationFields(): readonly string[] {
+    return MONSTER_RELATION_FIELDS;
+  }
+
+  protected override getPrngFields(): readonly string[] {
+    return MONSTER_PRNG_FIELDS;
+  }
+
   /** 快照中记录 mid，供断线恢复时重建实体。 */
   protected override captureLogicState(): Record<string, import("../../../game/core/SimulationState").JsonValue> {
-    return { mid: this.model.mid };
+    return {
+      mid: this.model.mid,
+      waveID: Number(this.reg.get("waveID") ?? -1),
+      spawnSeq: Number(this.ExtraData?.spawnSeq ?? 0),
+    };
   }
 
   public col: number;
@@ -76,14 +89,15 @@ export abstract class MonsterEntity extends CombatEntity {
 
   constructor(scene: Game, col: number, row: number, model: MonsterModel, waveID: number) {
     const pos = PositionManager.Instance.getZombieBottomCenter(col, row);
-    super(scene, pos.x, pos.y, model.maxHealth, Faction.ZOMBIE);
+    super(scene, pos.x, pos.y, model.maxHealth, Faction.ZOMBIE, model.logicSchema);
     this.model = model;
     this.col = col;
     this.row = row;
     this.waveID = waveID;
 
-    this.offsetX = defaultRandom() * PositionManager.Instance.GRID_SIZEX / 5;
-    this.offsetY = defaultRandom() * PositionManager.Instance.GRID_SIZEY / 10;
+    // 出生偏移必须由 seed 决定（见 applySpawnSeed），不能使用未播种的随机源。
+    this.offsetX = 0;
+    this.offsetY = 0;
     this.baseDepth = DepthHelper.Mob.base(row, this.offsetY);
 
     this.health = model.maxHealth;
@@ -92,6 +106,19 @@ export abstract class MonsterEntity extends CombatEntity {
     this.isFlying = model.isDefaultFlying;
     this.isInVoid = model.isDefaultInVoid;
     this.viewGroup = scene.add.group();
+  }
+
+  /**
+   * 用确定性种子计算出生偏移；spawnSeq 由 MobManager 单调分配，
+   * 保证同一局同一出怪序号的偏移在所有端一致。
+   */
+  public applySpawnSeed(spawnSeq: number): void {
+    const rng = seedrandom.alea(
+      `${CombatManager.Instance.seed}:${this.waveID}:${this.col}:${this.row}:${spawnSeq}`,
+    );
+    this.offsetX = rng() * PositionManager.Instance.GRID_SIZEX / 5;
+    this.offsetY = rng() * PositionManager.Instance.GRID_SIZEY / 10;
+    this.baseDepth = DepthHelper.Mob.base(this.row, this.offsetY);
   }
 
   public addDestroyListener(listener: (entity: MonsterEntity) => void) {
@@ -111,6 +138,7 @@ export abstract class MonsterEntity extends CombatEntity {
     if (this.initialized) return this;
     this.initialized = true;
 
+    this.bindLogicRegisters();
     this.buildView();
     this.checkAndAddBoat();
     this.buildPhysics();

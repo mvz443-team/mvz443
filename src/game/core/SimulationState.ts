@@ -42,6 +42,10 @@ export interface EntityLogicState {
   speed: number | null;
   /** 影响模拟的布尔/枚举/计数标志（isDying、attackTimer 剩余帧等） */
   flags: Record<string, JsonValue>;
+  /** Model 声明的逻辑寄存器值，按声明顺序排列 */
+  registers?: JsonValue[];
+  /** 寄存器 schema 指纹，用于检测快照与代码版本是否兼容 */
+  registerVersion?: string;
   /** 该实体的 FrameTimer 逻辑字段 */
   timers: TimerState[];
   extra: Record<string, JsonValue>;
@@ -535,6 +539,8 @@ function normalizeEntity(source: string, entity: EntityLogicState): EntityLogicS
     maxHp: entity.maxHp ?? null,
     speed: entity.speed ?? null,
     flags: canonicalize(entity.flags ?? {}) as Record<string, JsonValue>,
+    registers: entity.registers ? (canonicalize(entity.registers) as JsonValue[]) : undefined,
+    registerVersion: entity.registerVersion,
     timers: (entity.timers ?? []).map(sortTimerFields).sort((a, b) => a.id - b.id),
     extra: canonicalize(entity.extra ?? {}) as Record<string, JsonValue>,
   };

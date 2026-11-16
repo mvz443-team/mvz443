@@ -93,11 +93,13 @@ export namespace ProjectileCmd {
   ) {
     DeferredManager.Instance.defer(() => {
       const entity = model.createEntity(scene, x, row, cfg) as ProjectileEntity<any>;
+      entity.initializeEntity();
       activeProjectiles.add(entity);
       // 保存重建所需上下文（同进程回滚/重放使用），并用稳定 key 对齐快照计时器组。
       const snapshotId = entity.SnapshotId;
       rebuildFactories.set(snapshotId, () => {
         const rebuilt = model.createEntity(scene, x, row, cfg) as ProjectileEntity<any>;
+        rebuilt.initializeEntity();
         rebuilt.adoptStableTimerKey(snapshotId);
         return rebuilt;
       });

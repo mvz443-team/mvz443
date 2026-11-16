@@ -3,8 +3,13 @@ import { PlantStat } from "../../utils/numbervalue";
 import { Game } from "../scenes/Game";
 import { BaseEntity } from "./core/BaseEntity";
 import { PlantEntity } from "./entities/PlantEntity";
+import { RegisterSchema } from "../core/LogicRegister";
+import { PLANT_LOGIC_SCHEMA } from "../core/LogicSchemas";
 
 export abstract class PlantModel {
+  /** 逻辑寄存器声明表；实体按此分配寄存器并参与快照。 */
+  public readonly logicSchema: RegisterSchema = PLANT_LOGIC_SCHEMA;
+
   public abstract readonly pid: number;
   public abstract readonly nameKey: string;
   public abstract readonly descriptionKey: string;
