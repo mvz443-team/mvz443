@@ -81,6 +81,13 @@ export namespace PhaserEvents {
   export const SimulationHashSampled = 'simulation-hash-sampled';
 
   /**
+   * 服务端拒绝本地操作（含失败原因与原始请求定位信息）
+   * @param { message, uid, clientOpSeq, col, row, processFrameId }
+   * 触发时机：服务端帧中消费到 error 操作且 uid 为自己
+   */
+  export const InGameOperationRejected = 'in-game-operation-rejected';
+
+  /**
    * @deprecated 使用MobManager的事件来替代
    * 游戏进度更新
    * @param { progress: number } - 进度百分比（0-100）

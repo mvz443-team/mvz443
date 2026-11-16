@@ -20,6 +20,7 @@ export default class QueueSend {
   private lastBlankAckFrameIdQueued: number = -1;
   private lastBlankSentAt: number = 0;
   private lastBlankQueuedAt: number = 0;
+  private clientOpSeq: number = 0;
 
   constructor(frameIntervalMsProvider: () => number = () => LEGACY_BALANCE_FRAME_INTERVAL_MS) {
     this.queues = new Denque();
@@ -32,6 +33,7 @@ export default class QueueSend {
     this.lastBlankAckFrameIdQueued = -1;
     this.lastBlankSentAt = 0;
     this.lastBlankQueuedAt = 0;
+    this.clientOpSeq = 0;
   }
 
   Consume() {
@@ -84,7 +86,8 @@ export default class QueueSend {
       },
       col,
       row,
-      processFrameId
+      processFrameId,
+      clientOpSeq: ++this.clientOpSeq
     };
   }
 

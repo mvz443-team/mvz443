@@ -5,6 +5,7 @@ import {
 } from "../../pb/response";
 import { EventBus } from "../../utils/eventBus";
 import BackendWS from "../../utils/net/sync";
+import { PhaserEventBus, PhaserEvents } from "../EventBus";
 
 type InGameEvent = {
   onCardPlant: (pid: number, col: number, row: number, level: number, uid: number) => void;
@@ -13,6 +14,14 @@ type InGameEvent = {
   onGameEvent: (eventType: number, message: string) => void;
   onGameEnd: (isWin: boolean) => void;
   onError: (message: string) => void;
+  onOperationRejected: (error: {
+    message: string;
+    uid: number;
+    clientOpSeq: number;
+    col: number;
+    row: number;
+    processFrameId: number;
+  }) => void;
 };
 
 const GameEndEventType = 0x4000;
@@ -132,8 +141,19 @@ export default class QueueReceive {
       case "error": {
         const error = operation.payload.error;
         if (error) {
-          this.InGameEventBus.emit("onError", error.message);
-          console.error("Game error:", error.message);
+          const rejection = {
+            message: error.message,
+            uid: error.uid,
+            clientOpSeq: error.clientOpSeq,
+            col: error.col,
+            row: error.row,
+            processFrameId: error.processFrameId,
+          };
+          this.InGameEventBus.emit("onOperationRejected", rejection);
+          // 只有操作者需要撤销预测，其他客户端仅记录日志。
+          if (rejection.uid === BackendWS.my_id) {
+            PhaserEventBus.emit(PhaserEvents.InGameOperationRejected, rejection);
+          }
           return;
         }
         break;
