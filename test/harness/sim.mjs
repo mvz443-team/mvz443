@@ -17,6 +17,7 @@ import { PositionManager } from "../../src/game/managers/view/PositionManager.ts
 import manager, {
   flushDeferred,
   getObstaclesMap,
+  getMobsByLane,
   getPlantsMap,
   getResourceState,
   resetWorld,
@@ -413,6 +414,7 @@ export {
   ObstacleCmd,
   SfxCmd,
   getPlantsMap,
+  getMobsByLane,
   getObstaclesMap,
   getResourceState,
   setGridType,

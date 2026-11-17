@@ -1,5 +1,6 @@
 import { PlantModel } from "../../../models/PlantModel";
 import { ATDispenserData } from "./at_dispenser";
+import { BouncingAnvilData } from "./bouncing_anvil";
 import { DispenserData } from "./dispenser";
 import { FurnaceData } from "./furnace";
 import { GeneratorData } from "./generator";
@@ -15,6 +16,7 @@ import TntData from "./tnt";
 import { TripleDispenserData } from "./triple_dispenser";
 
 export const Chapter1Plants: PlantModel[] = [
+  BouncingAnvilData,
   ATDispenserData,
   DispenserData,
   FurnaceData,

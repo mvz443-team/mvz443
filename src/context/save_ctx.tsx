@@ -310,7 +310,8 @@ export class GameManager {
                 { pid: 1, level: 1 }, 
                 { pid: 2, level: 1 }, 
                 { pid: 3, level: 1 }, 
-                { pid: 4, level: 1 }
+                { pid: 4, level: 1 },
+                { pid: 18, level: 1 }
             ],
             zombies: [],
             items: new Map<number, Item>(),
@@ -325,6 +326,9 @@ export class GameManager {
             const savedProgress = await this.saveManager.loadGameProgress();
             if (savedProgress) {
                 this._currentProgress = savedProgress;
+                if (this.ensureInitialPlants(savedProgress)) {
+                    await this.saveManager.saveGameProgress(savedProgress);
+                }
                 console.log("成功加载存档");
             } else {
                 // 如果没有存档，保存默认进度
@@ -337,6 +341,18 @@ export class GameManager {
             // 即使失败也要标记为已初始化，避免无限重试
             this._isInitialized = true;
         }
+    }
+
+    // 新版本新增的初始植物需要补进旧存档，否则老玩家看不到这张卡。
+    private ensureInitialPlants(progress: GameProgress): boolean {
+        if (!Array.isArray(progress.plants)) {
+            progress.plants = [];
+        }
+        if (progress.plants.some((plant) => plant.pid === 18)) {
+            return false;
+        }
+        progress.plants.push({ pid: 18, level: 1 });
+        return true;
     }
 
     // 等待初始化完成
