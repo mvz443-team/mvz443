@@ -20,6 +20,7 @@ import {
   LOGICAL_BATTLE_WIDTH,
   LOGICAL_BATTLE_WORLD_WIDTH,
 } from './constants/gameLayout';
+import { isUnlockAllCardsEnabled, toggleUnlockAllCards } from './utils/debugFlags';
 
 interface GameMainWindowProps {
   width: number;
@@ -354,6 +355,25 @@ function App() {
   const forceLandscape = deviceType === 'mobile'
     && showGameScreen
     && viewportSize.height > viewportSize.width;
+
+  useEffect(() => {
+    isUnlockAllCardsEnabled();
+  }, []);
+
+  useEffect(() => {
+    const handleUnlockShortcut = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || !event.shiftKey || event.code !== 'KeyU') {
+        return;
+      }
+      event.preventDefault();
+      toggleUnlockAllCards();
+      const url = new URL(window.location.href);
+      url.searchParams.delete('unlockAllCards');
+      window.location.replace(url.toString());
+    };
+    window.addEventListener('keydown', handleUnlockShortcut);
+    return () => window.removeEventListener('keydown', handleUnlockShortcut);
+  }, []);
 
   useEffect(() => {
     let isCancelled = false;

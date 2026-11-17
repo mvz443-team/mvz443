@@ -17,6 +17,8 @@ import BackendWS from '../../../utils/net/sync';
 import { Request, RequestChooseMap, RequestReady } from '../../../pb/request';
 import { SendReady } from '../../../utils/net/room';
 import type { StageData } from '../../../types/stage';
+import { isUnlockAllCardsEnabled } from '../../../utils/debugFlags';
+import { MAX_CARD_SLOTS } from '../../../constants/cardSlotLayout';
 
 interface ParamsSelectorProps {
   chapterId: number;
@@ -129,6 +131,20 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
   // 计算可用植物
   const calculateAvailablePlants = useMemoizedFn(() => {
     const plantProgress = saveManager.currentProgress.plants;
+    if (isUnlockAllCardsEnabled()) {
+      const plantLevelByPid = new Map<number, number>();
+      for (const plant of plantProgress ?? []) {
+        plantLevelByPid.set(plant.pid, Math.max(plantLevelByPid.get(plant.pid) ?? 0, plant.level));
+      }
+      return PlantLibrary.GetAllModels()
+        .map((plantModel) => ({
+          pid: plantModel.pid,
+          name: plantModel.nameKey,
+          imgUrl: `${publicUrl}/assets/card/${plantModel.texturePath}.png`,
+          level: plantLevelByPid.get(plantModel.pid) ?? 1,
+        }))
+        .sort((left, right) => left.pid - right.pid);
+    }
     if (!plantProgress || plantProgress.length < 1) {
       console.log("No plant progress available:", saveManager.currentProgress);
       return [];
@@ -163,12 +179,12 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
   // 初始化植物选择（不立即加载 localStorage）
   useMount(() => {
     const plants = calculateAvailablePlants();
-    const rawSlotNum = saveManager.currentProgress.slotNum ?? 0;
-    const upperLimit = rawSlotNum >= 16 ? 15 : rawSlotNum;
-
+    const unlockedSlots = Math.floor(saveManager.currentProgress.slotNum ?? 0);
     setState({
       availablePlants: plants,
-      selectUpperLimit: upperLimit
+      selectUpperLimit: isUnlockAllCardsEnabled()
+        ? MAX_CARD_SLOTS
+        : Math.max(0, Math.min(MAX_CARD_SLOTS, unlockedSlots)),
     });
 
     // 不立即恢复上次选择的植物，让用户手动选择

@@ -2,13 +2,10 @@ import DepthHelper from "../utils/helper/DepthHelper";
 import i18n, { translate } from "../../i18n";
 import BackendWS from "../../utils/net/sync";
 import { PhaserEventBus, PhaserEvents } from "../EventBus";
-import CardpileManager from "../managers/combat/CardpileManager";
 import MobManager, { ProgressMode, ProgressUpdateEvent } from "../managers/combat/MobManager";
-import PlantsManager from "../managers/combat/PlantsManager";
-import ResourceManager from "../managers/combat/ResourceManager";
 import type { Game } from "../scenes/Game";
-import { UI_CHROME_DEPTH } from "./cardslots";
 import { getMobileSideBarLayout } from "./mobileSideBarLayout";
+import { StarShardsPanelView } from "./StarShardsPanelView";
 
 const BAR_BG = 0x333333;
 const PANEL_LINE = 0x111111;
@@ -49,15 +46,12 @@ export class MobileBottomBar {
   private readonly scene: Game;
   private readonly container: Phaser.GameObjects.Container;
   private readonly bg: Phaser.GameObjects.Graphics;
-  private readonly starsContainer: Phaser.GameObjects.Container;
-  private readonly starsBg: Phaser.GameObjects.Graphics;
+  private readonly starShardsPanel: StarShardsPanelView;
   private readonly progressBg: Phaser.GameObjects.Graphics;
   private readonly progressFill: Phaser.GameObjects.Graphics;
   private readonly flagGraphics: Phaser.GameObjects.Graphics;
-  private readonly starCountText: Phaser.GameObjects.Text;
   private readonly pauseText: Phaser.GameObjects.Text;
   private readonly unsubs: Array<() => void> = [];
-  private readonly starObjects: Phaser.GameObjects.GameObject[] = [];
   private readonly layout = getMobileSideBarLayout();
   private progressState: ProgressUpdateEvent = {
     mode: ProgressMode.Normal,
@@ -65,10 +59,6 @@ export class MobileBottomBar {
     currentWave: 0,
     flagWaves: [],
   };
-  private starShards = 0;
-  private starSelected = false;
-  private starFlashTimer: Phaser.Time.TimerEvent | null = null;
-
   constructor(scene: Game) {
     this.scene = scene;
     const bounds = this.layout.bounds;
@@ -78,41 +68,18 @@ export class MobileBottomBar {
     this.container.add(this.bg);
     this.drawBackground();
 
-    this.starsContainer = this.scene.add.container(this.layout.actionSection.x, this.layout.actionSection.y);
-    this.starsBg = this.scene.add.graphics();
-    this.starsContainer.add(this.starsBg);
-    this.container.add(this.starsContainer);
-
-    const starsHit = this.scene.add.zone(0, 0, this.getStarsControlWidth(), this.layout.actionSection.height)
-      .setOrigin(0)
-      .setInteractive({ useHandCursor: true });
-    this.starsContainer.add(starsHit);
-    starsHit.on("pointerup", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
-      stopInput(event);
-      this.handleStarClick();
-    });
-    starsHit.on("pointerdown", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
-      stopInput(event);
-    });
+    this.starShardsPanel = new StarShardsPanelView(
+      this.scene,
+      bounds.x + this.layout.actionSection.x,
+      bounds.y + this.layout.actionSection.y,
+      this.getStarsControlWidth(),
+      this.layout.actionSection.height,
+    );
 
     this.progressBg = this.scene.add.graphics();
     this.progressFill = this.scene.add.graphics();
     this.flagGraphics = this.scene.add.graphics();
     this.container.add([this.progressBg, this.progressFill, this.flagGraphics]);
-
-    this.starCountText = this.scene.add.text(
-      0,
-      0,
-      "X0",
-      {
-        fontFamily: "Arial, sans-serif",
-        fontSize: `${Math.max(10, Math.round(bounds.width * 0.11))}px`,
-        color: "#ffffff",
-        fontStyle: "bold",
-        align: "center",
-      },
-    ).setOrigin(0.5);
-    this.starsContainer.add(this.starCountText);
 
     this.pauseText = this.scene.add.text(
       this.layout.actionSection.width * 0.82,
@@ -155,7 +122,6 @@ export class MobileBottomBar {
     });
 
     this.refreshLabels();
-    this.updateStars();
     this.updateProgress();
     this.bindEvents();
     this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, this.destroy, this);
@@ -168,7 +134,7 @@ export class MobileBottomBar {
     PhaserEventBus.off(PhaserEvents.BossHealth, this.handleBossHealth);
     PhaserEventBus.off(PhaserEvents.BossDead, this.handleBossDead);
     i18n.off("languageChanged", this.refreshLabels);
-    this.starFlashTimer?.remove(false);
+    this.starShardsPanel.destroy();
     this.container.destroy(true);
     this.scene.events.off(Phaser.Scenes.Events.SHUTDOWN, this.destroy, this);
   };
@@ -187,34 +153,9 @@ export class MobileBottomBar {
   }
 
   private bindEvents() {
-    this.unsubs.push(ResourceManager.Instance.Eventbus.on("onStarShardsUpdate", (starShards, playerId) => {
-      if (playerId === ResourceManager.Instance.mineId) {
-        this.starShards = starShards;
-        this.updateStars();
-      }
-    }));
     this.unsubs.push(MobManager.Instance.EventBus.on("onProgressUpdate", (progress) => {
       this.progressState = progress;
       this.updateProgress();
-    }));
-    this.unsubs.push(PlantsManager.Instance.EventBus.on("onStarshardsInsufficient", () => {
-      this.flashStars();
-    }));
-    this.unsubs.push(CardpileManager.Instance.EventBus.on("onChosenStarShards", () => {
-      this.starSelected = true;
-      this.updateStars();
-    }));
-    this.unsubs.push(CardpileManager.Instance.EventBus.on("onChosenCard", () => {
-      this.starSelected = false;
-      this.updateStars();
-    }));
-    this.unsubs.push(CardpileManager.Instance.EventBus.on("onChosenPickaxe", () => {
-      this.starSelected = false;
-      this.updateStars();
-    }));
-    this.unsubs.push(CardpileManager.Instance.EventBus.on("onCancelChosen", () => {
-      this.starSelected = false;
-      this.updateStars();
     }));
 
     PhaserEventBus.on(PhaserEvents.BossHealth, this.handleBossHealth);
@@ -222,57 +163,13 @@ export class MobileBottomBar {
     i18n.on("languageChanged", this.refreshLabels);
   }
 
-  private handleStarClick() {
-    if (this.starShards <= 0) {
-      PlantsManager.Instance.EventBus.emit("onStarshardsInsufficient");
-      return;
-    }
-    CardpileManager.Instance.ClickStarShards();
-  }
-
   private refreshLabels = () => {
     this.pauseText.setText(translate("game.pause"));
     fitText(this.pauseText, this.layout.actionSection.width * 0.24, Math.max(10, Math.round(this.layout.bounds.width * 0.1)), 8);
-    this.updateStars();
   };
 
   private getStarsControlWidth() {
     return this.layout.actionSection.width * 0.58;
-  }
-
-  private updateStars() {
-    for (const object of this.starObjects.splice(0)) {
-      object.destroy();
-    }
-
-    const width = this.getStarsControlWidth();
-    const height = this.layout.actionSection.height;
-    this.starsBg.clear();
-    if (this.starSelected) {
-      this.starsBg.lineStyle(2, 0xffee22, 1);
-      this.starsBg.strokeRoundedRect(4, 4, width - 8, height - 8, 5);
-    }
-
-    const iconSize = Math.min(height * 0.58, width * 0.26);
-    const centerY = height / 2;
-    const icon = this.scene.add.image(width * 0.35, centerY, "starshards");
-    icon.setDisplaySize(iconSize, iconSize);
-    this.starCountText
-      .setText(`X${this.starShards}`)
-      .setPosition(width * 0.55, centerY);
-    fitText(this.starCountText, width * 0.36, Math.max(10, Math.round(height * 0.34)), 8);
-    this.starsContainer.add(icon);
-    this.starObjects.push(icon);
-  }
-
-  private flashStars() {
-    this.starFlashTimer?.remove(false);
-    this.starsBg.lineStyle(2, 0xff3c3c, 1);
-    this.starsBg.strokeRoundedRect(4, 4, this.getStarsControlWidth() - 8, this.layout.actionSection.height - 8, 5);
-    this.starFlashTimer = this.scene.time.delayedCall(450, () => {
-      this.starFlashTimer = null;
-      this.updateStars();
-    });
   }
 
   private updateProgress() {

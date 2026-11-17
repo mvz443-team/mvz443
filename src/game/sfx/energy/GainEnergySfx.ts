@@ -162,19 +162,10 @@ export class GainEnergySfx extends BaseSfx<GainEnergySfxArgs> {
       const layout = getMobileSideBarLayout();
       const bounds = layout.bounds;
       const cardSection = layout.cardSection;
-      const gap = Math.max(3, Math.round(layout.laneGap));
-      const rowCount = Math.max(2, Math.ceil((this.scene.params.plants.length + 2) / 3));
-      const itemGap = Math.max(3, Math.round(cardSection.height * 0.018));
-      const itemHeight = Math.max(
-        28,
-        Math.min(58, (cardSection.height - layout.padding * 2 - itemGap * Math.max(0, rowCount - 1)) / rowCount),
-      );
-      const laneX = bounds.x + layout.padding + 2 * (layout.laneWidth + gap);
-      const panelY = bounds.y + cardSection.y + layout.padding;
 
       return {
-        x: laneX + layout.laneWidth * 0.28,
-        y: panelY + itemHeight / 2,
+        x: bounds.x + layout.padding + layout.slotWidth / 2,
+        y: bounds.y + cardSection.y + layout.padding + layout.slotHeight / 2,
       };
     }
 

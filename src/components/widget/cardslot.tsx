@@ -34,7 +34,7 @@ export function VerticalEnergySlot() {
 export function CardSlotHorizontal({ gameParams }: slotProps) {
   const isDarkMode = useDarkMode();
   // PC 用主要卡槽
-  const MaxCardNumber = 10;
+  const MaxCardNumber = 15;
 
   // 使用 useCreation 优化 Map 创建，避免每次渲染都创建新的 Map
   const [plants, setPlants] = useState<Array<PlantModel>>([]);
@@ -101,7 +101,7 @@ export function CardSlotHorizontal({ gameParams }: slotProps) {
 export function CardSlotVertical({ gameParams }: slotProps) {
   const isDarkMode = useDarkMode();
   // Mobile 用主要卡槽
-  const MaxCardNumber = 9;
+  const MaxCardNumber = 15;
   const [plants, setPlants] = useState<Array<PlantModel>>([]);
   const [pidToLevelMap, setPidToLevelMap] = useState(() => new Map<number, number>());
 
@@ -167,7 +167,7 @@ export function CardSlotVertical({ gameParams }: slotProps) {
 export function ViceCardSlot({ gameParams }: slotProps) {
   const isDarkMode = useDarkMode();
   const deviceType = useDeviceType();
-  const ExistedCards = deviceType === 'pc' ? 10 : 9;
+  const ExistedCards = 15;
   const [plants, setPlants] = useState<Array<PlantModel>>([]);
   const [pidToLevelMap, setPidToLevelMap] = useState(() => new Map<number, number>());
 

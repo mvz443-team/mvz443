@@ -19,6 +19,9 @@ export class ThrottledAudio {
   ) { }
 
   play(key: string, config?: Phaser.Types.Sound.SoundConfig) {
+    if (!this.scene.cache.audio.exists("sfx")) {
+      return;
+    }
     const now = this.scene.time.now;
     const last = this.lastPlayTime.get(key) ?? Number.NEGATIVE_INFINITY;
     if (now - last < this.throttleDelay) return;
@@ -135,21 +138,32 @@ export default class SoundManager extends BaseManager {
       this.scene.params.gameSettings.soundAudioVolume ?? (this.scene.params.gameSettings.isSoundAudio ? 1 : 0)
     );
 
-    this.music = this.scene.sound.add("bgm", { loop: true, volume: this.bgmVolume });
+    const hasBgm = this.scene.cache.audio.exists("bgm");
+    const hasSfx = this.scene.cache.audio.exists("sfx");
+    if (hasBgm) {
+      this.music = this.scene.sound.add("bgm", { loop: true, volume: this.bgmVolume });
+    }
+    if (!hasSfx) {
+      // Safari/WebKit does not decode OGG audio sprites. Keep the battle
+      // playable instead of aborting the whole Game scene on missing cache.
+      console.warn("[SoundManager] sfx audio sprite is unavailable; continuing without sound effects.");
+    }
 
-    this.unlimitAudio = new ThrottledAudio(this.scene, 50, () => this.soundAudioVolume);
-    this.plantAudio = new ThrottledAudio(this.scene, 200, () => this.soundAudioVolume);
-    this.zombieSpawnAudio = new ThrottledAudio(this.scene, 1500, () => this.soundAudioVolume);
-    this.generalHitAudio = new ThrottledAudio(this.scene, 200, () => this.soundAudioVolume);
-    this.shieldHitAudio = new ThrottledAudio(this.scene, 200, () => this.soundAudioVolume);
-    this.explodeAudio = new ThrottledAudio(this.scene, 500, () => this.soundAudioVolume);
+    if (hasSfx) {
+      this.unlimitAudio = new ThrottledAudio(this.scene, 50, () => this.soundAudioVolume);
+      this.plantAudio = new ThrottledAudio(this.scene, 200, () => this.soundAudioVolume);
+      this.zombieSpawnAudio = new ThrottledAudio(this.scene, 1500, () => this.soundAudioVolume);
+      this.generalHitAudio = new ThrottledAudio(this.scene, 200, () => this.soundAudioVolume);
+      this.shieldHitAudio = new ThrottledAudio(this.scene, 200, () => this.soundAudioVolume);
+      this.explodeAudio = new ThrottledAudio(this.scene, 500, () => this.soundAudioVolume);
 
-    this.shootArrowPool = new AudioPool(this.scene, "sfx", "shootArrow", 4, () => this.soundAudioVolume, 50);
-    this.shootFireworkPool = new AudioPool(this.scene, "sfx", "shootFirework", 4, () => this.soundAudioVolume, 50);
-    this.shootLaserPool = new AudioPool(this.scene, "sfx", "shootLaser", 2, () => this.soundAudioVolume, 50);
-    this.shootFireballPool = new AudioPool(this.scene, "sfx", "shootFireball", 3, () => this.soundAudioVolume, 50);
-    this.zombieDeathPool = new AudioPool(this.scene, "sfx", "zombieDeath", 4, () => this.soundAudioVolume);
-    this.skeletonDeathPool = new AudioPool(this.scene, "sfx", "skeletonDeath", 4, () => this.soundAudioVolume);
+      this.shootArrowPool = new AudioPool(this.scene, "sfx", "shootArrow", 4, () => this.soundAudioVolume, 50);
+      this.shootFireworkPool = new AudioPool(this.scene, "sfx", "shootFirework", 4, () => this.soundAudioVolume, 50);
+      this.shootLaserPool = new AudioPool(this.scene, "sfx", "shootLaser", 2, () => this.soundAudioVolume, 50);
+      this.shootFireballPool = new AudioPool(this.scene, "sfx", "shootFireball", 3, () => this.soundAudioVolume, 50);
+      this.zombieDeathPool = new AudioPool(this.scene, "sfx", "zombieDeath", 4, () => this.soundAudioVolume);
+      this.skeletonDeathPool = new AudioPool(this.scene, "sfx", "skeletonDeath", 4, () => this.soundAudioVolume);
+    }
 
     PhaserEventBus.on(PhaserEvents.RoomGameStart, this.handleRoomGameStart, this);
     this.loaded = true;

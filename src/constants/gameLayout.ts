@@ -33,11 +33,13 @@ export const GAME_ASPECT_RATIO = LOGICAL_BATTLE_HEIGHT / LOGICAL_BATTLE_WIDTH;
 export const PC_TOP_CARD_SLOT_RATIO = PC_TOP_CARD_SLOT_HEIGHT / LOGICAL_BATTLE_HEIGHT;
 export const PC_SIDE_CARD_SLOT_RATIO = PC_SIDE_CARD_SLOT_WIDTH / LOGICAL_BATTLE_HEIGHT;
 export const PC_BOTTOM_TOOLBAR_OVERLAP_RATIO = PC_BOTTOM_TOOLBAR_OVERLAP_HEIGHT / LOGICAL_BATTLE_HEIGHT;
-export const MOBILE_TOOL_WIDTH_RATIO_BY_HEIGHT = 1 / 7;
-export const MOBILE_TOOL_MIN_WIDTH = 46;
-export const MOBILE_TOOL_MAX_WIDTH = 68;
+export const MOBILE_TOOL_WIDTH_RATIO_BY_HEIGHT = 1 / 12;
+export const MOBILE_TOOL_MIN_WIDTH = 32;
+export const MOBILE_TOOL_MAX_WIDTH = 40;
 export const MOBILE_BATTLE_RIGHT_EXTRA_COL_RATIO = 0.25;
 export const MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO = 0.25;
+export const MOBILE_BATTLE_LEFT_CART_OVERSCAN_COLS = 1.7;
+export const MOBILE_BATTLE_RIGHT_OVERSCAN_COLS = 0.15;
 export const BOTTOM_TOOLBAR_RATIO = PC_BOTTOM_TOOLBAR_HEIGHT / LOGICAL_BATTLE_HEIGHT;
 
 export type GameDeviceType = 'pc' | 'mobile' | string;
@@ -213,6 +215,32 @@ export function getGameSceneChromeLayout(
     width: mainWidth,
     height: mainHeight,
   };
+  const sceneWidth = Math.max(1, metrics.totalWidth);
+  const sceneHeight = Math.max(1, metrics.totalHeight);
+  if (deviceType !== 'mobile') {
+    return {
+      ...metrics,
+      sceneBounds: { x: 0, y: 0, width: sceneWidth, height: sceneHeight },
+      mainViewport: { x: 0, y: metrics.topCardSlotHeight, width: sceneWidth, height: mainHeight },
+      topCardSlot: { x: 0, y: 0, width: sceneWidth, height: metrics.topCardSlotHeight },
+      bottomToolbar: {
+        x: 0,
+        y: metrics.topCardSlotHeight + mainHeight - metrics.bottomToolbarOverlapHeight,
+        width: sceneWidth,
+        height: metrics.bottomToolbarHeight,
+      },
+      mobileBottomToolbar: { x: 0, y: metrics.topCardSlotHeight, width: 0, height: mainHeight },
+      leftCardSlot: { x: 0, y: metrics.topCardSlotHeight, width: 0, height: metrics.mainTotalHeight },
+      mobileLeftCardSlot: { x: 0, y: metrics.topCardSlotHeight, width: 0, height: metrics.mainTotalHeight },
+      mobileRightCardSlot: { x: 0, y: metrics.topCardSlotHeight, width: 0, height: metrics.mainTotalHeight },
+      rightCardSlot: {
+        x: sceneWidth - metrics.rightCardSlotWidth,
+        y: 0,
+        width: metrics.rightCardSlotWidth,
+        height: metrics.rightCardSlotHeight,
+      },
+    };
+  }
 
   return {
     ...metrics,

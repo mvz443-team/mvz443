@@ -38,14 +38,15 @@ import {
   BATTLE_GRID_COLS,
   LOGICAL_BATTLE_HEIGHT,
   LOGICAL_BATTLE_WIDTH,
+  MOBILE_BATTLE_LEFT_CART_OVERSCAN_COLS,
   MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO,
+  MOBILE_BATTLE_RIGHT_OVERSCAN_COLS,
 } from '../../constants/gameLayout';
 import {
   LEGACY_BALANCE_FRAME_INTERVAL_MS,
   getRapierTimestepSeconds
 } from '../../constants/physics';
 import { CardSlots } from '../ui/cardslots';
-import { MobileCardSlots } from '../ui/cardslots_mobile';
 import { BottomBar } from '../ui/bottom';
 import { MobileBottomBar } from '../ui/bottom_mobile';
 import { installRuntimeStateSources, registerPhysicsSource } from '../core/RuntimeStateBridge';
@@ -75,7 +76,7 @@ export class Game extends Scene {
   debugFrameText: Phaser.GameObjects.Text | null = null;
   netStatusText: Phaser.GameObjects.Text | null = null;
   private waitTextVisibleTarget: boolean = false;
-  private cardSlotsUi: CardSlots | MobileCardSlots | null = null;
+  private cardSlotsUi: CardSlots | null = null;
   private bottomBarUi: BottomBar | MobileBottomBar | null = null;
 
   params: GameParams;
@@ -175,13 +176,15 @@ export class Game extends Scene {
 
     if (deviceType === 'mobile') {
       this.bottomBarUi = new MobileBottomBar(this);
-      this.cardSlotsUi = new MobileCardSlots(this);
     } else {
-      this.cardSlotsUi = new CardSlots(this);
       this.bottomBarUi = new BottomBar(this);
     }
+    this.cardSlotsUi = new CardSlots(this);
 
     this.configureBattleViewCameras(deviceType);
+    if (import.meta.env.DEV) {
+      (window as unknown as { __MVZ443_GAME__?: Game }).__MVZ443_GAME__ = this;
+    }
 
     // 创建一个waiting text
     this.waitText = this.add.text(
@@ -270,11 +273,12 @@ export class Game extends Scene {
     const audioCache = this.cache.audio;
     const keys = audioCache.getKeys();
     const waits: Array<Promise<void>> = [];
+    const supportsAudioBuffer = typeof AudioBuffer !== "undefined";
 
     for (const key of keys) {
       const data = audioCache.get(key);
 
-      if (data instanceof AudioBuffer) {
+      if (supportsAudioBuffer && data instanceof AudioBuffer) {
         if (data.duration <= 0) {
           throw new Error(`Decoded audio "${key}" has invalid duration.`);
         }
@@ -591,14 +595,25 @@ export class Game extends Scene {
     );
     const bottomOverscan = BATTLE_GRID_CELL_HEIGHT * bottomOverscanRatio;
     const targetHeight = gridBounds.height - topCrop + bottomOverscan;
-    const zoom = viewport.height / targetHeight * rowTuning.zoomScale;
-    const horizontalShift = BATTLE_GRID_CELL_WIDTH * rowTuning.horizontalShiftCols;
+    const verticalZoom = viewport.height / targetHeight * rowTuning.zoomScale;
+    const worldViewX = gridBounds.x
+      - BATTLE_GRID_CELL_WIDTH * MOBILE_BATTLE_LEFT_CART_OVERSCAN_COLS;
+    const worldViewRight = gridBounds.x
+      + gridBounds.width
+      + BATTLE_GRID_CELL_WIDTH * MOBILE_BATTLE_RIGHT_OVERSCAN_COLS;
+    const targetWorldWidth = Math.max(1, worldViewRight - worldViewX);
+    const widthZoom = viewport.width / targetWorldWidth;
+    const zoom = Math.min(verticalZoom, widthZoom);
 
-    return {
+    const scroll = this.getCameraScrollForWorldView(
+      worldViewX,
+      gridBounds.y + topCrop,
+      viewport.width,
+      viewport.height,
       zoom,
-      scrollX: gridBounds.x + horizontalShift,
-      scrollY: gridBounds.y + topCrop,
-    };
+    );
+
+    return { zoom, ...scroll };
   }
 
   /**
@@ -610,14 +625,9 @@ export class Game extends Scene {
   horizontalShiftCols: 横向左移量，单位是网格列宽。值越大，战斗画面越向左贴近卡槽，右侧显示越多。
 */
   private getMobileCameraRowTuning(rowCount: number): { topCropRows: number; bottomOverscanRows: number; zoomScale: number; horizontalShiftCols: number } {
-    if (rowCount >= 7) {
-      return { topCropRows: 1.14, bottomOverscanRows: 0.55, zoomScale: 0.90, horizontalShiftCols: 1.3 };
-    }
-    if (rowCount >= 6) {
-      return { topCropRows: 0.58, bottomOverscanRows: 0.55, zoomScale: 0.95, horizontalShiftCols: 0.45 };
-    }
     if (rowCount >= 5) {
-      return { topCropRows: 0.1, bottomOverscanRows: 0.1, zoomScale: 0.97, horizontalShiftCols: 0 };
+      // Negative crop keeps the top minecart above row 0 fully visible.
+      return { topCropRows: -0.15, bottomOverscanRows: 0.1, zoomScale: 1, horizontalShiftCols: 0 };
     }
     return { topCropRows: -0.5, bottomOverscanRows: 0.5, zoomScale: 0.95, horizontalShiftCols: 0 };
 
@@ -625,17 +635,40 @@ export class Game extends Scene {
   }
 
   private getDesktopBattleCameraView(viewport: Phaser.Geom.Rectangle | { width: number; height: number }) {
-    const zoom = Math.min(
+    const zoom = Math.max(
       viewport.width / LOGICAL_BATTLE_WIDTH,
       viewport.height / LOGICAL_BATTLE_HEIGHT,
     );
     const visibleWidth = viewport.width / zoom;
     const visibleHeight = viewport.height / zoom;
-
-    return {
+    const worldViewX = (LOGICAL_BATTLE_WIDTH - visibleWidth) / 2;
+    const worldViewY = (LOGICAL_BATTLE_HEIGHT - visibleHeight) / 2;
+    const scroll = this.getCameraScrollForWorldView(
+      worldViewX,
+      worldViewY,
+      viewport.width,
+      viewport.height,
       zoom,
-      scrollX: (LOGICAL_BATTLE_WIDTH - visibleWidth) / 2,
-      scrollY: (LOGICAL_BATTLE_HEIGHT - visibleHeight) / 2,
+    );
+
+    return { zoom, ...scroll };
+  }
+
+  /**
+   * Phaser's camera scroll is the center anchor, while worldView describes the
+   * top-left of the visible world. Convert one to the other so FIT scaling never
+   * leaves an off-center gap next to the UI chrome.
+   */
+  private getCameraScrollForWorldView(
+    worldViewX: number,
+    worldViewY: number,
+    viewportWidth: number,
+    viewportHeight: number,
+    zoom: number,
+  ) {
+    return {
+      scrollX: worldViewX + (viewportWidth / zoom - viewportWidth) / 2,
+      scrollY: worldViewY + (viewportHeight / zoom - viewportHeight) / 2,
     };
   }
 

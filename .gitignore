@@ -35,3 +35,6 @@ contracts/
 # Generated protocol contracts
 ../proto-repo-temp/
 src/pb/
+
+# screenshots
+artifacts/cardslots/

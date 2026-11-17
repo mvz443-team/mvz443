@@ -3,14 +3,11 @@ import { commonKey, stageKey } from "../../i18n/keys";
 import DepthHelper from "../utils/helper/DepthHelper";
 import BackendWS from "../../utils/net/sync";
 import { PhaserEventBus, PhaserEvents } from "../EventBus";
-import CardpileManager from "../managers/combat/CardpileManager";
 import MobManager, { ProgressMode, ProgressUpdateEvent } from "../managers/combat/MobManager";
-import PlantsManager from "../managers/combat/PlantsManager";
-import ResourceManager from "../managers/combat/ResourceManager";
 import { PositionManager } from "../managers/view/PositionManager";
 import type { Game } from "../scenes/Game";
 import { StageDataRecords } from "../managers/library/ChapterLibrary";
-import { UI_CHROME_DEPTH } from "./cardslots";
+import { StarShardsPanelView } from "./StarShardsPanelView";
 
 const BAR_BG = 0x333333;
 const PROGRESS_BG = 0x555555;
@@ -51,15 +48,13 @@ export class BottomBar {
   private readonly container: Phaser.GameObjects.Container;
   private readonly bg: Phaser.GameObjects.Graphics;
   private readonly moneyText: Phaser.GameObjects.Text;
-  private readonly starsContainer: Phaser.GameObjects.Container;
-  private readonly starsBg: Phaser.GameObjects.Graphics;
+  private readonly starShardsPanel: StarShardsPanelView;
   private readonly progressBg: Phaser.GameObjects.Graphics;
   private readonly progressFill: Phaser.GameObjects.Graphics;
   private readonly flagGraphics: Phaser.GameObjects.Graphics;
   private readonly stageText: Phaser.GameObjects.Text;
   private readonly pauseText: Phaser.GameObjects.Text;
   private readonly unsubs: Array<() => void> = [];
-  private readonly starObjects: Phaser.GameObjects.GameObject[] = [];
   private readonly bounds: { x: number; y: number; width: number; height: number };
   private progressState: ProgressUpdateEvent = {
     mode: ProgressMode.Normal,
@@ -67,9 +62,6 @@ export class BottomBar {
     currentWave: 0,
     flagWaves: [],
   };
-  private starShards = 0;
-  private starSelected = false;
-  private starFlashTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor(scene: Game) {
     this.scene = scene;
@@ -96,22 +88,13 @@ export class BottomBar {
     fitText(this.moneyText, this.bounds.width * 0.1, fontSize, 9);
     this.container.add(this.moneyText);
 
-    this.starsContainer = this.scene.add.container(this.bounds.width * 0.13, 0);
-    this.starsBg = this.scene.add.graphics();
-    this.starsContainer.add(this.starsBg);
-    this.container.add(this.starsContainer);
-
-    const starsHit = this.scene.add.zone(0, 0, this.bounds.width * 0.27, this.bounds.height)
-      .setOrigin(0)
-      .setInteractive({ useHandCursor: true });
-    this.starsContainer.add(starsHit);
-    starsHit.on("pointerup", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
-      stopInput(event);
-      this.handleStarClick();
-    });
-    starsHit.on("pointerdown", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
-      stopInput(event);
-    });
+    this.starShardsPanel = new StarShardsPanelView(
+      this.scene,
+      this.bounds.x + this.bounds.width * 0.13,
+      this.bounds.y,
+      Math.max(this.bounds.width * 0.1, this.bounds.height * 2.4),
+      this.bounds.height,
+    );
 
     this.progressBg = this.scene.add.graphics();
     this.progressFill = this.scene.add.graphics();
@@ -172,7 +155,6 @@ export class BottomBar {
     });
 
     this.refreshStageText();
-    this.updateStars();
     this.updateProgress();
     this.bindEvents();
     this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, this.destroy, this);
@@ -185,53 +167,20 @@ export class BottomBar {
     PhaserEventBus.off(PhaserEvents.BossHealth, this.handleBossHealth);
     PhaserEventBus.off(PhaserEvents.BossDead, this.handleBossDead);
     i18n.off("languageChanged", this.refreshStageText);
-    this.starFlashTimer?.remove(false);
+    this.starShardsPanel.destroy();
     this.container.destroy(true);
     this.scene.events.off(Phaser.Scenes.Events.SHUTDOWN, this.destroy, this);
   };
 
   private bindEvents() {
-    this.unsubs.push(ResourceManager.Instance.Eventbus.on("onStarShardsUpdate", (starShards, playerId) => {
-      if (playerId === ResourceManager.Instance.mineId) {
-        this.starShards = starShards;
-        this.updateStars();
-      }
-    }));
     this.unsubs.push(MobManager.Instance.EventBus.on("onProgressUpdate", (progress) => {
       this.progressState = progress;
       this.updateProgress();
-    }));
-    this.unsubs.push(PlantsManager.Instance.EventBus.on("onStarshardsInsufficient", () => {
-      this.flashStars();
-    }));
-    this.unsubs.push(CardpileManager.Instance.EventBus.on("onChosenStarShards", () => {
-      this.starSelected = true;
-      this.updateStars();
-    }));
-    this.unsubs.push(CardpileManager.Instance.EventBus.on("onChosenCard", () => {
-      this.starSelected = false;
-      this.updateStars();
-    }));
-    this.unsubs.push(CardpileManager.Instance.EventBus.on("onChosenPickaxe", () => {
-      this.starSelected = false;
-      this.updateStars();
-    }));
-    this.unsubs.push(CardpileManager.Instance.EventBus.on("onCancelChosen", () => {
-      this.starSelected = false;
-      this.updateStars();
     }));
 
     PhaserEventBus.on(PhaserEvents.BossHealth, this.handleBossHealth);
     PhaserEventBus.on(PhaserEvents.BossDead, this.handleBossDead);
     i18n.on("languageChanged", this.refreshStageText);
-  }
-
-  private handleStarClick() {
-    if (this.starShards <= 0) {
-      PlantsManager.Instance.EventBus.emit("onStarshardsInsufficient");
-      return;
-    }
-    CardpileManager.Instance.ClickStarShards();
   }
 
   private refreshStageText = () => {
@@ -244,52 +193,6 @@ export class BottomBar {
     this.pauseText.setText(translate("game.pause"));
     fitText(this.pauseText, this.bounds.width * 0.1, Math.max(10, Math.round(this.bounds.height * 0.4)), 9);
   };
-
-  private updateStars() {
-    for (const object of this.starObjects.splice(0)) {
-      object.destroy();
-    }
-    const width = this.bounds.width * 0.27;
-    const height = this.bounds.height;
-    this.starsBg.clear();
-    if (this.starSelected) {
-      this.starsBg.lineStyle(2, 0xffee22, 1);
-      this.starsBg.strokeRoundedRect(1, 2, width - 2, height - 4, 5);
-    }
-
-    if (this.starShards >= 5) {
-      const iconSize = height * 0.78;
-      const icon = this.scene.add.image(iconSize * 0.55, height / 2, "starshards");
-      icon.setDisplaySize(iconSize, iconSize);
-      const text = this.scene.add.text(iconSize + 8, height / 2, `x ${this.starShards}`, {
-        fontFamily: "Arial, sans-serif",
-        fontSize: `${Math.max(10, Math.round(height * 0.42))}px`,
-        color: "#ffffff",
-        fontStyle: "bold",
-      }).setOrigin(0, 0.5);
-      this.starsContainer.add([icon, text]);
-      this.starObjects.push(icon, text);
-      return;
-    }
-
-    const iconSize = height * 0.78;
-    for (let i = 0; i < this.starShards; i += 1) {
-      const icon = this.scene.add.image(8 + iconSize / 2 + i * iconSize * 0.82, height / 2, "starshards");
-      icon.setDisplaySize(iconSize, iconSize);
-      this.starsContainer.add(icon);
-      this.starObjects.push(icon);
-    }
-  }
-
-  private flashStars() {
-    this.starFlashTimer?.remove(false);
-    this.starsBg.lineStyle(2, 0xff3c3c, 1);
-    this.starsBg.strokeRoundedRect(1, 2, this.bounds.width * 0.27 - 2, this.bounds.height - 4, 5);
-    this.starFlashTimer = this.scene.time.delayedCall(450, () => {
-      this.starFlashTimer = null;
-      this.updateStars();
-    });
-  }
 
   private updateProgress() {
     const x = this.bounds.width * 0.365;
