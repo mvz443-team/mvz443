@@ -47,6 +47,16 @@ const LEVEL_STATUS_RANK: Record<LevelStatus, number> = {
     pass: 2,
 };
 
+/** 联机相关的本地配置，跟随存档一起导出/导入 */
+export interface OnlineConfig {
+    /** 联机昵称，首次生成 player + 5 位随机数 */
+    username: string;
+    /** 上次使用的服务器地址（不含协议） */
+    serverAddr: string;
+    /** 玩家自己添加的服务器地址 */
+    customServers: string[];
+}
+
 export interface GameProgress {
     id?: number; // Dexie 会自动管理主键
     level: LevelProgress[];
@@ -55,6 +65,36 @@ export interface GameProgress {
     items: Map<number, Item>;
     slotNum: number;
     updatedAt: Date;
+    online: OnlineConfig;
+}
+
+function createDefaultUsername(): string {
+    return `player${Math.floor(10000 + Math.random() * 90000)}`;
+}
+
+export function createDefaultOnlineConfig(): OnlineConfig {
+    return {
+        username: createDefaultUsername(),
+        serverAddr: '',
+        customServers: [],
+    };
+}
+
+/** 老存档没有 online 字段，这里统一补默认值 */
+export function normalizeOnlineConfig(raw: unknown): OnlineConfig {
+    const defaults = createDefaultOnlineConfig();
+    if (!raw || typeof raw !== 'object') {
+        return defaults;
+    }
+    const data = raw as Partial<OnlineConfig>;
+    const customServers = Array.isArray(data.customServers)
+        ? data.customServers.filter((item): item is string => typeof item === 'string' && item.length > 0)
+        : [];
+    return {
+        username: typeof data.username === 'string' && data.username.trim() ? data.username : defaults.username,
+        serverAddr: typeof data.serverAddr === 'string' ? data.serverAddr : '',
+        customServers,
+    };
 }
 
 function isLevelStatus(value: unknown): value is LevelStatus {
@@ -137,7 +177,8 @@ function serializeGameProgress(gameProgress: GameProgress): any {
             count: value.count
         })),
         slotNum: gameProgress.slotNum,
-        updatedAt: gameProgress.updatedAt
+        updatedAt: gameProgress.updatedAt,
+        online: normalizeOnlineConfig(gameProgress.online),
     };
 }
 
@@ -159,7 +200,8 @@ function deserializeGameProgress(data: any): GameProgress {
             })] as const;
         })),
         slotNum: data.slotNum,
-        updatedAt: new Date(data.updatedAt)
+        updatedAt: new Date(data.updatedAt),
+        online: normalizeOnlineConfig(data.online),
     };
 }
 
@@ -316,7 +358,8 @@ export class GameManager {
             zombies: [],
             items: new Map<number, Item>(),
             slotNum: 6,
-            updatedAt: new Date()
+            updatedAt: new Date(),
+            online: createDefaultOnlineConfig(),
         };
     }
 
@@ -473,6 +516,35 @@ export class GameManager {
         if (num > this._currentProgress.slotNum) {
             this._currentProgress.slotNum = num;
         }
+    }
+
+    // 联机配置：昵称、服务器地址、自定义服务器列表
+    getOnlineConfig(): OnlineConfig {
+        if (!this._currentProgress.online) {
+            this._currentProgress.online = createDefaultOnlineConfig();
+        }
+        return this._currentProgress.online;
+    }
+
+    updateOnlineConfig(patch: Partial<OnlineConfig>): OnlineConfig {
+        const current = this.getOnlineConfig();
+        this._currentProgress.online = {
+            ...current,
+            ...patch,
+            customServers: patch.customServers ? [...patch.customServers] : current.customServers,
+        };
+        void this.saveProgress().catch((error) => console.error("保存联机配置失败:", error));
+        return this._currentProgress.online;
+    }
+
+    // 添加一个自定义服务器地址，重复时只保留一份
+    addCustomServer(address: string): OnlineConfig {
+        const trimmed = address.trim();
+        const current = this.getOnlineConfig();
+        if (!trimmed || current.customServers.includes(trimmed)) {
+            return current;
+        }
+        return this.updateOnlineConfig({ customServers: [...current.customServers, trimmed] });
     }
 
     // 保存当前游戏进度

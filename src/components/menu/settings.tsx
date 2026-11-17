@@ -1,11 +1,10 @@
 // Settings.tsx
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useSaveManager } from '../../context/save_ctx';
 import { useSettings } from '../../context/settings_ctx';
 import { debounce } from '../../utils/debounce';
-import BackendWS from '../../utils/net/sync';
-import { createRoom, getRoomsInfo, RoomInfo, RoomListWidget } from '../../utils/net/lobby';
 import { Locale, useLocaleMessages } from '../../hooks/useLocaleMessages';
+import OnlineSettings from './settings/OnlineSettings';
 
 interface Props {
   width: number;
@@ -77,22 +76,7 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
   const fileInputRef = useRef<HTMLInputElement>(null);
   const saveManager = useSaveManager();
 
-  const [header, setHeader] = useState<string>("");
-  const [roomsInfo, setRoomsInfo] = useState<RoomInfo[]>([]);
-  const [noRoomFlag, setNoRoomFlag] = useState(false);
-
-  const [linkStatus, setLinkStatus] = useState(false);
-  const [sendLatencyInput, setSendLatencyInput] = useState(String(BackendWS.getDebugLatencyConfig().sendLatencyMs));
-  const [receiveLatencyInput, setReceiveLatencyInput] = useState(String(BackendWS.getDebugLatencyConfig().receiveLatencyMs));
   const { translate } = useLocaleMessages();
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLinkStatus(BackendWS.isOnlineMode());
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, []);
 
   const onBack = async () => {
     onBackOriginal();
@@ -101,14 +85,6 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
     } catch (error) {
       console.error('保存失败:', error);
     }
-  };
-
-  const sanitizeLatencyInput = (value: string): string => {
-    const digits = value.replace(/[^\d]/g, '');
-    if (!digits) {
-      return "0";
-    }
-    return String(Math.min(60000, Number(digits)));
   };
 
   // 处理导入存档
@@ -300,171 +276,7 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
         ]
       }
     ],
-    online: [
-      {
-        title: `Online Settings${linkStatus ? `-Connected->id: ${BackendWS.room_id}` : "-Disconnected"}`,
-        items: [
-          {
-            titleKey: "menu.settings_server_address",
-            descriptionKey: "menu.settings_server_address_t",
-            controlType: "input",
-            controlProps: {
-              placeholder: settingManager.linkOptions.baseUrl, onChange: (val) => {
-                if (!val) {
-                  settingManager.setLinkOptions("", settingManager.linkOptions.key);
-                  return;
-                }
-                settingManager.setLinkOptions(val, settingManager.linkOptions.key);
-              }
-            }
-          },
-          {
-            titleKey: 'menu.settings_try_connectivity',
-            descriptionKey: 'menu.settings_try_connectivity_t',
-            controlType: 'button',
-            controlProps: {
-              onClick: () => {
-                function checkAndOpenUrl(url: string) {
-                  // 发起一个 fetch 请求来检测证书
-                  fetch(url, { method: 'HEAD' })
-                    .then(_response => {
-                      // 如果响应成功，不是自签证书
-                      alert('有效并且证书已被信任');
-                    })
-                    .catch(error => {
-                      if (error instanceof TypeError) {
-                        // 这里的 TypeError 通常表示网络问题或证书错误
-                        console.error('Network error or SSL certificate issue', error);
-                        // 引导用户手动信任自签名证书
-                        alert("目标服务器证书没有被信任,现在开始手动信任流程,浏览器会提示您的连接不是私密连接”，点击'高级' 继续前往（不安全)这样浏览器会把该证书加入“例外”列表。");
-
-                        // window.open(url, '_blank');
-                        const newTab = window.open('', '_blank');
-                        if (newTab) {
-                          newTab.location.href = url;
-                        }
-                      } else {
-                        // 处理其他类型的错误
-                        console.error('An error occurred:', error);
-                        alert(`其他错误 ${error}`);
-                      }
-                    });
-                }
-                checkAndOpenUrl(`https://${settingManager.linkOptions.baseUrl}/list`);
-              },
-              btnText: 'menu.settings_try_connectivity',
-            }
-          },
-          {
-            titleKey: "menu.settings_refresh_room_list",
-            descriptionKey: "menu.settings_refresh_room_list_t",
-            controlType: "button",
-            controlProps: {
-              onClick: () => {
-                setNoRoomFlag(false);
-                setRoomsInfo([]);
-                debounce(() => {
-                  const req = async () => {
-                    const roomsInfo = await getRoomsInfo(settingManager.linkOptions.baseUrl);
-                    if (roomsInfo === null) {
-                      alert("获取房间列表失败，请检查服务器地址或网络连接, 或者尝试测试联通性。");
-                      return;
-                    }
-                    if (roomsInfo.length === 0) {
-                      setNoRoomFlag(true);
-                      return;
-                    }
-                    setRoomsInfo(roomsInfo);
-                  };
-                  req();
-                }, 50)();
-              },
-              btnText: "menu.settings_refresh_room_list"
-            }
-          },
-          {
-            titleKey: "menu.settings_create_room",
-            descriptionKey: "menu.settings_create_room_t",
-            controlType: "button",
-            controlProps: {
-              onClick: () => {
-                createRoom(settingManager.linkOptions.baseUrl, settingManager.linkOptions.key);
-              },
-              btnText: "menu.settings_create_room"
-            }
-          },
-          {
-            titleKey: "menu.settings_set_global_key",
-            descriptionKey: "menu.settings_set_global_key_t",
-            controlType: "input",
-            controlProps: {
-              placeholder: settingManager.linkOptions.key, onChange: (val) => {
-                console.log(val)
-                if (!val) {
-                  settingManager.setLinkOptions(settingManager.linkOptions.baseUrl, "");
-                }
-                settingManager.setLinkOptions(settingManager.linkOptions.baseUrl, val);
-              }
-            }
-          },
-          {
-            titleKey: "menu.settings_disconnect",
-            descriptionKey: "menu.settings_disconnect_t",
-            controlType: "button",
-            controlProps: {
-              onClick: () => {
-                BackendWS.closeConnection();
-              }
-            }
-          },
-          {
-            titleKey: "发送延迟(ms)",
-            descriptionKey: "仅本次页面打开期间生效，用于本地调试发送慢链路",
-            controlType: "input",
-            controlProps: {
-              placeholder: "0",
-              value: sendLatencyInput,
-              onChange: (val) => {
-                const nextValue = sanitizeLatencyInput(val);
-                setSendLatencyInput(nextValue);
-                BackendWS.setDebugSendLatencyMs(Number(nextValue));
-              }
-            }
-          },
-          {
-            titleKey: "接收延迟(ms)",
-            descriptionKey: "仅本次页面打开期间生效，用于本地调试接收慢链路",
-            controlType: "input",
-            controlProps: {
-              placeholder: "0",
-              value: receiveLatencyInput,
-              onChange: (val) => {
-                const nextValue = sanitizeLatencyInput(val);
-                setReceiveLatencyInput(nextValue);
-                BackendWS.setDebugReceiveLatencyMs(Number(nextValue));
-              }
-            }
-          }
-        ]
-      },
-      (roomsInfo.length > 0) ? {
-        title: "房间列表",
-        items: (
-          roomsInfo.map((info) => {
-            return RoomListWidget(info, settingManager.linkOptions.baseUrl, settingManager.linkOptions.key, setHeader);
-          })
-        )
-      } : null,
-      (noRoomFlag) ? {
-        title: "房间列表",
-        items: [
-          {
-            titleKey: "没有房间",
-            descriptionKey: "当前没有可用的房间",
-          }
-        ]
-      } : null,
-    ]
+    online: [],
   };
 
   const menuItems = [
@@ -571,6 +383,7 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
         scrollbarColor: "#666 #333",
         background: "rgba(30, 30, 30, 0.9)"
       }}>
+        {selectedCategory === 'online' && <OnlineSettings />}
         {settingsData[selectedCategory].filter(panel => panel !== null).map((panel, index) => (
           <div key={index} style={{
             marginBottom: "30px",

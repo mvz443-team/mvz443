@@ -79,6 +79,20 @@ export interface Request {
          */
         endGame: RequestEndGame;
     } | {
+        oneofKind: "updateRoom";
+        /**
+         * 等待房间（InLobby）内的房间管理请求
+         *
+         * @generated from protobuf field: messages.RequestUpdateRoom update_room = 10
+         */
+        updateRoom: RequestUpdateRoom;
+    } | {
+        oneofKind: "kickPlayer";
+        /**
+         * @generated from protobuf field: messages.RequestKickPlayer kick_player = 11
+         */
+        kickPlayer: RequestKickPlayer;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -337,6 +351,36 @@ export interface RequestEndGame {
      */
     gameResult: number; // 0: 失败, 1: 胜利
 }
+/**
+ * 房主在等待房间内修改房间名与密码；仅房主有效
+ *
+ * @generated from protobuf message messages.RequestUpdateRoom
+ */
+export interface RequestUpdateRoom {
+    /**
+     * 房间名，最长 6 个字符（服务端按 rune 截断）
+     *
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * 房间密码，空字符串表示公开房间；最长 8 个字符
+     *
+     * @generated from protobuf field: string key = 2
+     */
+    key: string;
+}
+/**
+ * 房主将指定玩家移出房间
+ *
+ * @generated from protobuf message messages.RequestKickPlayer
+ */
+export interface RequestKickPlayer {
+    /**
+     * @generated from protobuf field: uint32 player_id = 1
+     */
+    playerId: number;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class Request$Type extends MessageType<Request> {
     constructor() {
@@ -349,7 +393,9 @@ class Request$Type extends MessageType<Request> {
             { no: 2, name: "plant", kind: "message", oneof: "payload", T: () => RequestCardPlant },
             { no: 3, name: "remove_plant", kind: "message", oneof: "payload", T: () => RequestRemovePlant },
             { no: 4, name: "star_shards", kind: "message", oneof: "payload", T: () => RequestStarShards },
-            { no: 7, name: "end_game", kind: "message", oneof: "payload", T: () => RequestEndGame }
+            { no: 7, name: "end_game", kind: "message", oneof: "payload", T: () => RequestEndGame },
+            { no: 10, name: "update_room", kind: "message", oneof: "payload", T: () => RequestUpdateRoom },
+            { no: 11, name: "kick_player", kind: "message", oneof: "payload", T: () => RequestKickPlayer }
         ]);
     }
     create(value?: PartialMessage<Request>): Request {
@@ -418,6 +464,18 @@ class Request$Type extends MessageType<Request> {
                         endGame: RequestEndGame.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).endGame)
                     };
                     break;
+                case /* messages.RequestUpdateRoom update_room */ 10:
+                    message.payload = {
+                        oneofKind: "updateRoom",
+                        updateRoom: RequestUpdateRoom.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).updateRoom)
+                    };
+                    break;
+                case /* messages.RequestKickPlayer kick_player */ 11:
+                    message.payload = {
+                        oneofKind: "kickPlayer",
+                        kickPlayer: RequestKickPlayer.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).kickPlayer)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -457,6 +515,12 @@ class Request$Type extends MessageType<Request> {
         /* messages.RequestLeaveChooseMap leave_choose_map = 9; */
         if (message.payload.oneofKind === "leaveChooseMap")
             RequestLeaveChooseMap.internalBinaryWrite(message.payload.leaveChooseMap, writer.tag(9, WireType.LengthDelimited).fork(), options).join();
+        /* messages.RequestUpdateRoom update_room = 10; */
+        if (message.payload.oneofKind === "updateRoom")
+            RequestUpdateRoom.internalBinaryWrite(message.payload.updateRoom, writer.tag(10, WireType.LengthDelimited).fork(), options).join();
+        /* messages.RequestKickPlayer kick_player = 11; */
+        if (message.payload.oneofKind === "kickPlayer")
+            RequestKickPlayer.internalBinaryWrite(message.payload.kickPlayer, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1091,3 +1155,105 @@ class RequestEndGame$Type extends MessageType<RequestEndGame> {
  * @generated MessageType for protobuf message messages.RequestEndGame
  */
 export const RequestEndGame = new RequestEndGame$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RequestUpdateRoom$Type extends MessageType<RequestUpdateRoom> {
+    constructor() {
+        super("messages.RequestUpdateRoom", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RequestUpdateRoom>): RequestUpdateRoom {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.key = "";
+        if (value !== undefined)
+            reflectionMergePartial<RequestUpdateRoom>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RequestUpdateRoom): RequestUpdateRoom {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string key */ 2:
+                    message.key = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RequestUpdateRoom, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string key = 2; */
+        if (message.key !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.key);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message messages.RequestUpdateRoom
+ */
+export const RequestUpdateRoom = new RequestUpdateRoom$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RequestKickPlayer$Type extends MessageType<RequestKickPlayer> {
+    constructor() {
+        super("messages.RequestKickPlayer", [
+            { no: 1, name: "player_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RequestKickPlayer>): RequestKickPlayer {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.playerId = 0;
+        if (value !== undefined)
+            reflectionMergePartial<RequestKickPlayer>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RequestKickPlayer): RequestKickPlayer {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 player_id */ 1:
+                    message.playerId = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RequestKickPlayer, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 player_id = 1; */
+        if (message.playerId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.playerId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message messages.RequestKickPlayer
+ */
+export const RequestKickPlayer = new RequestKickPlayer$Type();

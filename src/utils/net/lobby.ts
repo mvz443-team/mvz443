@@ -1,20 +1,32 @@
-// 处理连接到服务器大厅
+// 处理连接到服务器大厅：房间列表、建房与加入房间
 
-import { publicUrl } from "../browser";
 import BackendWS from "./sync";
 
 /**
+ * 服务端 /list 返回的房间信息
  * RoomID      int             `json:"room_id"`
-    NeedKey     bool            `json:"need_key"`
-    PlayerCount int             `json:"player_count"`
-    GameState   constants.Stage `json:"game_state"` // 游戏状态
+ * RoomName    string          `json:"room_name"`
+ * NeedKey     bool            `json:"need_key"`
+ * PlayerCount int             `json:"player_count"`
+ * GameState   constants.Stage `json:"game_state"`
+ * ChapterID   uint32          `json:"chapter_id"`
+ * StageID     uint32          `json:"stage_id"`
  */
 export type RoomInfo = {
     room_id: number;
+    room_name: string;
     need_key: boolean;
     player_count: number;
     game_state: number;
-}
+    chapter_id: number;
+    stage_id: number;
+};
+
+// 与 service 端 utils/text.go 的限制保持一致
+export const ROOM_NAME_MAX_LENGTH = 6;
+export const ROOM_KEY_MAX_LENGTH = 8;
+
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
 
 // game_state to string
 export function gameStateToString(state: number): string {
@@ -38,66 +50,149 @@ export function gameStateToString(state: number): string {
     }
 }
 
-export function getRoomsInfo(lobbyUrl: string): Promise<RoomInfo[] | null> {
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", `https://${lobbyUrl}/list`, true);
-        xhr.setRequestHeader("Content-Type", "application/json");
-        xhr.onreadystatechange = () => {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        resolve(response || null);
-                    } catch (error) {
-                        console.error("Error parsing response:", error);
-                        resolve(null);
-                    }
-                } else {
-                    console.error("Error fetching rooms:", xhr.status, xhr.statusText);
-                    resolve(null);
-                }
-            }
-        };
-        xhr.send();
-    });
+/** 去掉协议前缀、路径与首尾空白，得到 host:port 形式 */
+export function normalizeServerAddress(input: string): string {
+    let value = (input || "").trim();
+    value = value.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, "");
+    value = value.split("/")[0];
+    return value.trim();
 }
 
-export function RoomListWidget(info: RoomInfo, baseUrl: string, key: string, setHeader: (arg0: string) => void): any {
-    BackendWS.key = key; // 设置密钥
-    const myKey = BackendWS.key;
-    const wsUrl = `wss://${baseUrl}/ws?id=${info.room_id}&key=${myKey}`;
+/** 房间名：去掉控制字符，最多 6 个字符 */
+export function normalizeRoomName(value: string): string {
+    return Array.from((value || "").replace(CONTROL_CHARS, "")).slice(0, ROOM_NAME_MAX_LENGTH).join("");
+}
 
-    const onClick = () => {
-        if (BackendWS.isOnlineMode()) {
-            alert("请先断开当前连接");
-            return;
-        }
+/** 房间密码：去掉空白与控制字符，最多 8 个字符 */
+export function normalizeRoomKey(value: string): string {
+    return Array.from((value || "").replace(/\s/g, "").replace(CONTROL_CHARS, "")).slice(0, ROOM_KEY_MAX_LENGTH).join("");
+}
 
-        setTimeout(() => {
-            BackendWS.setConnectionUrl(wsUrl);
-            BackendWS.startConnection();
-        }, 0); // 解决点击后立刻关闭的问题
-    };
-
+function normalizeRoomInfo(raw: any): RoomInfo | null {
+    if (!raw || typeof raw !== "object") {
+        return null;
+    }
+    const roomId = Number(raw.room_id);
+    if (!Number.isFinite(roomId)) {
+        return null;
+    }
+    const playerCount = Number(raw.player_count) || 0;
+    if (playerCount <= 0) {
+        return null;
+    }
     return {
-        titleKey: `房间号: ${info.room_id} ${info.need_key ? "私密" : "公开"}`,
-        descriptionKey: `人数: ${info.player_count} ${gameStateToString(info.game_state)}`,
-        controlType: 'button',
-        controlProps: {
-            onClick: onClick,
+        room_id: roomId,
+        room_name: typeof raw.room_name === "string" && raw.room_name ? raw.room_name : `房间${roomId}`,
+        need_key: Boolean(raw.need_key),
+        player_count: playerCount,
+        game_state: Number(raw.game_state) || 0,
+        chapter_id: Number(raw.chapter_id) || 0,
+        stage_id: Number(raw.stage_id) || 0,
+    };
+}
+
+/**
+ * 拉取房间列表；chapterId / stageId 传 undefined 表示不按关卡筛选。
+ * 失败返回 null（调用方据此提示连通性问题）。
+ */
+export async function getRoomsInfo(baseUrl: string, chapterId?: number, stageId?: number): Promise<RoomInfo[] | null> {
+    const address = normalizeServerAddress(baseUrl);
+    if (!address) {
+        return null;
+    }
+
+    const params = new URLSearchParams();
+    if (typeof chapterId === "number") {
+        params.set("chapter_id", String(chapterId));
+    }
+    if (typeof stageId === "number") {
+        params.set("stage_id", String(stageId));
+    }
+    const query = params.toString();
+    const url = `https://${address}/list${query ? `?${query}` : ""}`;
+
+    try {
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) {
+            console.error("Error fetching rooms:", response.status, response.statusText);
+            return null;
         }
+        const data = await response.json();
+        if (!Array.isArray(data)) {
+            return null;
+        }
+        return data
+            .map(normalizeRoomInfo)
+            .filter((room): room is RoomInfo => room !== null);
+    } catch (error) {
+        console.error("Error fetching rooms:", error);
+        return null;
     }
 }
 
-export function createRoom(baseUrl: string, key: string) {
-    if (BackendWS.isOnlineMode()) {
-        alert("请先断开当前连接");
-        return;
+export type RoomSessionOptions = {
+    baseUrl: string;
+    /** 加入已有房间时必填；建房留空 */
+    roomId?: number;
+    /** 建房时的房间名 */
+    roomName?: string;
+    /** 房间密码，空表示公开房间 */
+    key?: string;
+    chapterId?: number;
+    stageId?: number;
+    /** 联机昵称，仅用于房间内展示 */
+    username?: string;
+};
+
+function buildRoomUrl(options: RoomSessionOptions): string {
+    const address = normalizeServerAddress(options.baseUrl);
+    const key = encodeURIComponent(normalizeRoomKey(options.key || ""));
+    const user = encodeURIComponent(options.username || "");
+    if (typeof options.roomId === "number" && options.roomId >= 0) {
+        return `wss://${address}/ws?id=${options.roomId}&key=${key}&user=${user}`;
     }
-    BackendWS.key = key; // 设置密钥
-    const myKey = BackendWS.key;
-    const wsUrl = `wss://${baseUrl}/ws?key=${myKey}`;
-    BackendWS.setConnectionUrl(wsUrl);
+    const name = encodeURIComponent(normalizeRoomName(options.roomName || ""));
+    const chapterId = options.chapterId ?? 0;
+    const stageId = options.stageId ?? 0;
+    return `wss://${address}/ws?create=1&name=${name}&key=${key}&chapter_id=${chapterId}&stage_id=${stageId}&user=${user}`;
+}
+
+function ensureNotConnected(): boolean {
+    if (BackendWS.isRoomSessionMode()) {
+        alert("请先离开当前房间");
+        return false;
+    }
+    return true;
+}
+
+/** 创建房间并连接：房间名、密码与绑定关卡会随连接参数提交 */
+export function createRoom(options: RoomSessionOptions): boolean {
+    if (!ensureNotConnected()) {
+        return false;
+    }
+    const address = normalizeServerAddress(options.baseUrl);
+    if (!address) {
+        alert("请先在设置 → 联机中连接服务器");
+        return false;
+    }
+    BackendWS.key = normalizeRoomKey(options.key || "");
+    BackendWS.setConnectionUrl(buildRoomUrl(options));
     BackendWS.startConnection();
-} 
+    return true;
+}
+
+/** 加入已有房间 */
+export function joinRoom(options: RoomSessionOptions): boolean {
+    if (!ensureNotConnected()) {
+        return false;
+    }
+    const address = normalizeServerAddress(options.baseUrl);
+    if (!address) {
+        alert("请先在设置 → 联机中连接服务器");
+        return false;
+    }
+    BackendWS.key = normalizeRoomKey(options.key || "");
+    BackendWS.setConnectionUrl(buildRoomUrl(options));
+    BackendWS.startConnection();
+    return true;
+}

@@ -101,7 +101,10 @@ class MockServer {
               roomId: this.roomId,
               lordId: this.lordId,
               myId: this.myId,
-              peers: JSON.stringify([{ id: this.myId, addr: "local-mock" }])
+              peers: JSON.stringify([{ id: this.myId, addr: "local-mock", name: "player", ready: true }]),
+              roomName: "single",
+              chapterId: 0,
+              stageId: 0
             }
           }
         })

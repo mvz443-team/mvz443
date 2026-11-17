@@ -258,11 +258,27 @@ export interface ResponseRoomInfo {
     myId: number;
     /**
      * 房间内玩家情况
-     * json 字段
+     * json 字段: [{"id":int,"name":string,"addr":string,"ready":bool}]
      *
      * @generated from protobuf field: string peers = 4
      */
     peers: string;
+    /**
+     * 房间名（房主可修改）
+     *
+     * @generated from protobuf field: string room_name = 5
+     */
+    roomName: string;
+    /**
+     * 房间绑定的章节与关卡，创建房间时确定
+     *
+     * @generated from protobuf field: uint32 chapter_id = 6
+     */
+    chapterId: number;
+    /**
+     * @generated from protobuf field: uint32 stage_id = 7
+     */
+    stageId: number;
 }
 /**
  * 已经选择了地图
@@ -1125,7 +1141,10 @@ class ResponseRoomInfo$Type extends MessageType<ResponseRoomInfo> {
             { no: 1, name: "room_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "lord_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 3, name: "my_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 4, name: "peers", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "peers", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "room_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "chapter_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 7, name: "stage_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<ResponseRoomInfo>): ResponseRoomInfo {
@@ -1134,6 +1153,9 @@ class ResponseRoomInfo$Type extends MessageType<ResponseRoomInfo> {
         message.lordId = 0;
         message.myId = 0;
         message.peers = "";
+        message.roomName = "";
+        message.chapterId = 0;
+        message.stageId = 0;
         if (value !== undefined)
             reflectionMergePartial<ResponseRoomInfo>(this, message, value);
         return message;
@@ -1154,6 +1176,15 @@ class ResponseRoomInfo$Type extends MessageType<ResponseRoomInfo> {
                     break;
                 case /* string peers */ 4:
                     message.peers = reader.string();
+                    break;
+                case /* string room_name */ 5:
+                    message.roomName = reader.string();
+                    break;
+                case /* uint32 chapter_id */ 6:
+                    message.chapterId = reader.uint32();
+                    break;
+                case /* uint32 stage_id */ 7:
+                    message.stageId = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1179,6 +1210,15 @@ class ResponseRoomInfo$Type extends MessageType<ResponseRoomInfo> {
         /* string peers = 4; */
         if (message.peers !== "")
             writer.tag(4, WireType.LengthDelimited).string(message.peers);
+        /* string room_name = 5; */
+        if (message.roomName !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.roomName);
+        /* uint32 chapter_id = 6; */
+        if (message.chapterId !== 0)
+            writer.tag(6, WireType.Varint).uint32(message.chapterId);
+        /* uint32 stage_id = 7; */
+        if (message.stageId !== 0)
+            writer.tag(7, WireType.Varint).uint32(message.stageId);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -420,6 +420,10 @@ function App() {
     setGameResult(result);
     setShowGameResult(true);
     BackendWS.closeMockRoom();
+    // 联机对局结束后离开房间，回到大厅重新选关
+    if (BackendWS.isOnlineMode()) {
+      BackendWS.closeConnection();
+    }
     BackendWS.ResetGameData();
   }, [setShowGameScreen, setShowGameTool]);
 

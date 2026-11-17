@@ -1,5 +1,14 @@
 // Request sender for room lifecycle operations.
-import { Request, RequestChooseMap, RequestEndGame, RequestLeaveChooseMap, RequestLoaded, RequestReady } from "../../pb/request";
+import {
+  Request,
+  RequestChooseMap,
+  RequestEndGame,
+  RequestKickPlayer,
+  RequestLeaveChooseMap,
+  RequestLoaded,
+  RequestReady,
+  RequestUpdateRoom
+} from "../../pb/request";
 import type { LoadoutSnapshot } from "../../pb/common";
 import BackendWS from "./sync";
 import { canonicalizeLoadout } from "./loadout";
@@ -52,4 +61,22 @@ function SendEndGame(isWin: boolean) {
   BackendWS.send(Request.toBinary({ payload: { endGame: request, oneofKind: 'endGame' } }));
 }
 
-export { SendChooseMap, SendLeaveChooseMap, SendReady, SendLoaded, SendEndGame };
+/** 房主修改房间名与密码；服务端会重新广播 roomInfo */
+function SendUpdateRoom(name: string, key: string) {
+  if (!BackendWS.isRoomSessionMode() || !BackendWS.isLord()) {
+    return;
+  }
+  const request: RequestUpdateRoom = { name, key };
+  BackendWS.send(Request.toBinary({ payload: { updateRoom: request, oneofKind: 'updateRoom' } }));
+}
+
+/** 房主把指定玩家移出房间 */
+function SendKickPlayer(playerId: number) {
+  if (!BackendWS.isRoomSessionMode() || !BackendWS.isLord()) {
+    return;
+  }
+  const request: RequestKickPlayer = { playerId };
+  BackendWS.send(Request.toBinary({ payload: { kickPlayer: request, oneofKind: 'kickPlayer' } }));
+}
+
+export { SendChooseMap, SendLeaveChooseMap, SendReady, SendLoaded, SendEndGame, SendUpdateRoom, SendKickPlayer };

@@ -9,6 +9,14 @@ import { stageKey } from '../../../i18n/keys';
 import { useSetState, useLocalStorageState, useMount, useMemoizedFn } from 'ahooks';
 import type { StageData } from '../../../types/stage';
 import type { LevelIntroItem } from '../../../types/drama';
+import RoomSidebar from './RoomSidebar';
+import { getRoomsInfo, RoomInfo } from '../../../utils/net/lobby';
+import BackendWS from '../../../utils/net/sync';
+import EnumGameStage from '../../../utils/net/game_state';
+import { onlineStateManager } from '../../../store/OnlineStateManager';
+import { PhaserEventBus, PhaserEvents } from '../../../game/EventBus';
+
+const ROOM_LIST_REFRESH_MS = 5000;
 
 type StageSelectorStageData = Pick<StageData, 'levelIntro' | 'rows' | 'stageScript' | 'onWin'>;
 
@@ -60,6 +68,55 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
   const settings = useSettings();
   const { translate } = useLocaleMessages();
 
+  // 联机：房间列表与侧边栏
+  const [roomList, setRoomList] = React.useState<RoomInfo[] | null>(null);
+  const [roomPanelOpen, setRoomPanelOpen] = React.useState(false);
+  const [inRoom, setInRoom] = React.useState(false);
+  const serverAddress = saveManager.getOnlineConfig().serverAddr;
+
+  const refreshRooms = useMemoizedFn(async () => {
+    const targetStage = state.selectedStage;
+    if (!targetStage || !serverAddress) {
+      setRoomList([]);
+      return;
+    }
+    const rooms = await getRoomsInfo(serverAddress, chapterId, targetStage);
+    setRoomList(rooms);
+  });
+
+  const syncRoomSession = useMemoizedFn(() => {
+    const isInRoom = BackendWS.isRoomSessionMode()
+      && onlineStateManager.getCurrentGameStage() === EnumGameStage.InLobby;
+    setInRoom(isInRoom);
+    if (isInRoom) {
+      setRoomPanelOpen(true);
+    }
+  });
+
+  useEffect(() => {
+    syncRoomSession();
+    PhaserEventBus.on(PhaserEvents.RoomInfo, syncRoomSession);
+    onlineStateManager.onGameStageUpdate(syncRoomSession);
+    onlineStateManager.onOnlineModeUpdate(syncRoomSession);
+    return () => {
+      PhaserEventBus.off(PhaserEvents.RoomInfo, syncRoomSession);
+      onlineStateManager.removeGameStageUpdateListener(syncRoomSession);
+      onlineStateManager.removeOnlineModeUpdateListener(syncRoomSession);
+    };
+  }, [syncRoomSession]);
+
+  // 选中关卡后定时刷新该关的房间数量
+  useEffect(() => {
+    if (!state.selectedStage || inRoom) {
+      return;
+    }
+    void refreshRooms();
+    const timer = setInterval(() => {
+      void refreshRooms();
+    }, ROOM_LIST_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [state.selectedStage, inRoom, serverAddress, refreshRooms]);
+
   // 计算可用关卡
   const calculateAvailableStages = useMemoizedFn(() => {
     const chapterStages = ChapterDataRecords[chapterId]?.stages || [];
@@ -76,6 +133,13 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
   useMount(() => {
     const stages = calculateAvailableStages();
     setState({ stagesIds: stages });
+
+    // 房间会话中：以房间绑定的关卡为准
+    const roomStage = onlineStateManager.getRoomMeta().stageId;
+    if (BackendWS.isRoomSessionMode() && roomStage > 0) {
+      setState({ selectedStage: roomStage });
+      return;
+    }
 
     // 恢复上次选择的关卡（如果是在同一章节）
     if (stageSelection.lastChapterId === chapterId &&
@@ -147,6 +211,11 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
     }
   });
 
+  const handleMultiplayer = useMemoizedFn(() => {
+    setRoomPanelOpen(true);
+    void refreshRooms();
+  });
+
   const selectedStageRecord = state.selectedStage !== null ? StageDataRecords[state.selectedStage] : null;
   const selectedStageName = selectedStageRecord ? translate(stageKey(selectedStageRecord.nameKey)) : '';
   const selectedStageUnlocked = state.selectedStage !== null && saveManager.isLevelUnlocked(state.selectedStage, chapterId);
@@ -182,6 +251,13 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
   const stageSummaryPercent = state.selectedStageData
     ? Math.min(100, Math.max(18, (stageWaveCount / 40) * 100))
     : 0;
+
+  // 房间会话中即使没有手动选中关卡，也要能展示等待房间
+  const roomStageId = onlineStateManager.getRoomMeta().stageId;
+  const sidebarStageId = state.selectedStage ?? (roomStageId > 0 ? roomStageId : null);
+  const sidebarStageRecord = sidebarStageId !== null ? StageDataRecords[sidebarStageId] : null;
+  const sidebarStageName = selectedStageName
+    || (sidebarStageRecord ? translate(stageKey(sidebarStageRecord.nameKey)) : '');
 
   return (
     <div style={{
@@ -322,21 +398,42 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
               flexDirection: 'column',
               alignItems: 'stretch',
               gap: '10px',
-              flex: '0 0 220px',
+              flex: '0 0 300px',
             }}>
-              <button
-                style={{
-                  padding: '10px 20px',
-                  background: infoPanelTheme.accent,
-                  border: 'none',
-                  color: '#fff',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease',
-                }}
-                onClick={handleNext}
-              >
-                {translate('menu.next')}
-              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  style={{
+                    flex: 1,
+                    padding: '10px 12px',
+                    background: infoPanelTheme.accent,
+                    border: 'none',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    whiteSpace: 'nowrap',
+                  }}
+                  onClick={handleNext}
+                >
+                  {translate('menu.online_single_player')}
+                </button>
+                <button
+                  style={{
+                    flex: 1,
+                    padding: '10px 12px',
+                    background: 'linear-gradient(45deg, #4CAF50, #45a049)',
+                    border: 'none',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    whiteSpace: 'nowrap',
+                  }}
+                  onClick={handleMultiplayer}
+                >
+                  {roomList && roomList.length > 0
+                    ? translate('menu.online_multiplayer_count', { count: roomList.length })
+                    : translate('menu.online_multiplayer')}
+                </button>
+              </div>
               <div style={{
                 position: 'relative',
                 height: '22px',
@@ -396,6 +493,24 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
           })
         ) : translate('menu.level_choose_level_tip')}
       </div>
+
+      {roomPanelOpen && sidebarStageId !== null && (
+        <RoomSidebar
+          chapterId={chapterId}
+          stageId={sidebarStageId}
+          stageName={sidebarStageName}
+          stageSummary={state.selectedStageData ? {
+            light: stageLightText,
+            rows: state.selectedStageData.rows,
+            waves: stageWaveCount,
+            threat: stageThreatText,
+          } : null}
+          rooms={roomList}
+          serverAddress={serverAddress}
+          onRefresh={refreshRooms}
+          onClose={() => setRoomPanelOpen(false)}
+        />
+      )}
     </div>
   );
 };

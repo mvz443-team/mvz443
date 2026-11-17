@@ -1,5 +1,5 @@
 import EnumGameStage from '../utils/net/game_state';
-import { PeerInfo, RoomAllReadyEvent } from '../types/online';
+import { PeerInfo, RoomAllReadyEvent, RoomMeta } from '../types/online';
 
 type RoomInfoListener = (roomInfo: { roomId: number; myId: number; lordId: number; peers: string }) => void;
 
@@ -13,6 +13,7 @@ export class OnlineStateManager {
     private lordId: number = 50;
     private connectionKey: string = "";
     private roomPeers: string = "";
+    private roomMeta: RoomMeta = { roomName: "", chapterId: 0, stageId: 0 };
     private latestRoomAllReady: RoomAllReadyEvent | null = null;
 
     private gameStageUpdateCallbacks: Array<(gameStage: number) => void> = [];
@@ -55,16 +56,43 @@ export class OnlineStateManager {
         };
     }
 
-    public updateRoomInfo(roomId: number, myId: number, lordId: number, peers?: string): void {
+    public updateRoomInfo(
+        roomId: number,
+        myId: number,
+        lordId: number,
+        peers?: string,
+        meta?: Partial<RoomMeta>
+    ): void {
         this.roomId = roomId;
         this.myId = myId;
         this.lordId = lordId;
         if (peers !== undefined) {
             this.roomPeers = peers;
         }
+        if (meta) {
+            this.roomMeta = {
+                roomName: meta.roomName ?? this.roomMeta.roomName,
+                chapterId: meta.chapterId ?? this.roomMeta.chapterId,
+                stageId: meta.stageId ?? this.roomMeta.stageId,
+            };
+        }
 
         const roomInfo = { roomId, myId, lordId, peers: this.roomPeers };
         this.roomInfoUpdateCallbacks.forEach(callback => callback(roomInfo));
+    }
+
+    /** 房间绑定信息：房间名与章节关卡 */
+    public getRoomMeta(): RoomMeta {
+        return { ...this.roomMeta };
+    }
+
+    /** 当前玩家在房间里的昵称（来自 peers） */
+    public getMyName(): string {
+        const peers = this.getRoomPeersData();
+        if (!peers) {
+            return "";
+        }
+        return peers.find(peer => peer.id === this.myId)?.name ?? "";
     }
 
     public getConnectionKey(): string {
@@ -114,6 +142,9 @@ export class OnlineStateManager {
     }
 
     public getRoomPeersData(): PeerInfo[] | null {
+        if (!this.roomPeers) {
+            return null;
+        }
         try {
             const peersData = JSON.parse(this.roomPeers);
             if (Array.isArray(peersData)) {
@@ -195,6 +226,7 @@ export class OnlineStateManager {
         this.lordId = 50;
         this.connectionKey = "";
         this.roomPeers = "";
+        this.roomMeta = { roomName: "", chapterId: 0, stageId: 0 };
     }
 
     public onGameStageUpdate(callback: (gameStage: number) => void): void {

@@ -63,7 +63,11 @@ export default class WSClientHandlers {
     switch (roomResponse.payload.oneofKind) {
       case 'roomInfo': {
         const roomInfo = roomResponse.payload.roomInfo;
-        onlineStateManager.updateRoomInfo(roomInfo.roomId, roomInfo.myId, roomInfo.lordId, roomInfo.peers);
+        onlineStateManager.updateRoomInfo(roomInfo.roomId, roomInfo.myId, roomInfo.lordId, roomInfo.peers, {
+          roomName: roomInfo.roomName,
+          chapterId: roomInfo.chapterId,
+          stageId: roomInfo.stageId,
+        });
 
         let peersData: PeerInfo[] | null = null;
         try {
@@ -86,7 +90,10 @@ export default class WSClientHandlers {
           lordId: roomInfo.lordId,
           peers: roomInfo.peers,
           peersData,
-          playerCount: peersData ? peersData.length : 0
+          playerCount: peersData ? peersData.length : 0,
+          roomName: roomInfo.roomName,
+          chapterId: roomInfo.chapterId,
+          stageId: roomInfo.stageId
         });
         break;
       }

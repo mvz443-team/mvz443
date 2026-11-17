@@ -12,6 +12,7 @@ import EnumGameStage from '../../utils/net/game_state';
 import { useSetState, useLocalStorageState, useMount } from 'ahooks';
 import { useLocaleMessages } from '../../hooks/useLocaleMessages';
 import { commonKey } from '../../i18n/keys';
+import { PhaserEventBus, PhaserEvents } from '../../game/EventBus';
 
 interface LevelSelectorProps {
   width: number;
@@ -81,7 +82,8 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
   };
 
   // 统一监听房间阶段变化，mock 单人房也需要经过完整状态流转。
-  useMount(() => {
+  // 使用 useEffect 而不是 useMount，确保组件卸载时能注销监听
+  React.useEffect(() => {
     const handleGameStageChange = (gameStage: number) => {
       const currentState = stateRef.current;
       console.log('馃幃 GameStage changed from', currentState.gameStage, 'to', gameStage, 'current step:', currentState.currentStep);
@@ -96,6 +98,20 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
       } else if (gameStage === EnumGameStage.Loading) {
         setState({ isLoading: true });
       } else if (gameStage === EnumGameStage.InLobby) {
+        // 房间会话中：回到等待房间（关卡页的联机侧边栏）
+        // roomInfo 可能晚于 LobbyJoinSuccess 到达，此时还不知道房间关卡，保持当前步骤避免跳回章节页
+        if (BackendWS.isRoomSessionMode()) {
+          const meta = onlineManager.getRoomMeta();
+          setState({
+            gameStage,
+            isLoading: false,
+            currentStep: meta.stageId > 0 ? 'stage' : currentState.currentStep,
+            selectedChapterId: meta.chapterId || currentState.selectedChapterId,
+            selectedStageId: meta.stageId || currentState.selectedStageId,
+          });
+          return;
+        }
+
         // 只有在明确需要回到大厅时才重置状态
         // 避免在准备阶段的状态更新导致误跳转
         console.log('馃攧 Received InLobby state, current step:', currentState.currentStep);
@@ -130,20 +146,50 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
       });
     };
 
+    // 房间关卡信息到达后，确保停留在等待房间（关卡页）
+    const handleRoomMetaChange = () => {
+      if (!BackendWS.isRoomSessionMode()) {
+        return;
+      }
+      const meta = onlineManager.getRoomMeta();
+      const currentState = stateRef.current;
+      if (meta.stageId > 0 && currentState.currentStep !== 'params') {
+        setState({
+          currentStep: 'stage',
+          selectedChapterId: meta.chapterId || currentState.selectedChapterId,
+          selectedStageId: meta.stageId,
+        });
+      }
+    };
+
     onlineManager.onGameStageUpdate(handleGameStageChange);
     onlineManager.onRoomInfoUpdate(handleRoomInfoChange);
+    PhaserEventBus.on(PhaserEvents.RoomInfo, handleRoomMetaChange);
 
     // 初始化状态
-    setState({
-      gameStage: onlineManager.getCurrentGameStage(),
-      totalPlayerCount: onlineManager.getPlayerCount()
-    });
+    const initialStage = onlineManager.getCurrentGameStage();
+    if (BackendWS.isRoomSessionMode() && initialStage === EnumGameStage.InLobby) {
+      const meta = onlineManager.getRoomMeta();
+      setState({
+        gameStage: initialStage,
+        totalPlayerCount: onlineManager.getPlayerCount(),
+        currentStep: meta.stageId > 0 ? 'stage' : 'chapter',
+        selectedChapterId: meta.chapterId || null,
+        selectedStageId: meta.stageId || null,
+      });
+    } else {
+      setState({
+        gameStage: initialStage,
+        totalPlayerCount: onlineManager.getPlayerCount()
+      });
+    }
 
     return () => {
       onlineManager.removeGameStageUpdateListener(handleGameStageChange);
       onlineManager.removeRoomInfoUpdateListener(handleRoomInfoChange);
+      PhaserEventBus.off(PhaserEvents.RoomInfo, handleRoomMetaChange);
     };
-  });
+  }, []);
 
   const handleBack = () => {
     // 选择章节中的细分地图

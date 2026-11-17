@@ -6,6 +6,15 @@
 export interface PeerInfo {
     addr: string; // 连接地址，如 "192.168.1.100:12345"
     id: number;   // 玩家ID
+    name?: string;  // 联机昵称
+    ready?: boolean; // 是否已准备
+}
+
+// 房间绑定信息（等待房间展示用）
+export interface RoomMeta {
+    roomName: string;
+    chapterId: number;
+    stageId: number;
 }
 
 // 房间信息
