@@ -1,15 +1,22 @@
+// WebSocketClient 门面：保留原有的全部对外 API，内部委托给拆分后的模块。
+// 传输（transport.ts）、重连策略（reconnect_controller.ts）、
+// 消息路由（message_router.ts）、业务处理（handlers.ts）各司其职。
+
 import QueueReceive from "../../game/sync/queue_receive";
 import QueueSend from "../../game/sync/queue_send";
 import { Request } from "../../pb/request";
 import { InGameResponse } from "../../pb/response";
+import { PhaserEventBus, PhaserEvents } from "../../game/EventBus";
+import { onlineStateManager } from "../../store/OnlineStateManager";
 import EnumGameStage from "./game_state";
 import WSClientHandlers from "./handlers";
-import { onlineStateManager } from "../../store/OnlineStateManager";
-import { PhaserEventBus, PhaserEvents } from "../../game/EventBus";
 import mockServer, { MockPacket } from "./mock_server";
+import { WebSocketTransport } from "./transport";
+import { ReconnectController } from "./reconnect_controller";
+import { routeIncoming, ResponseKind } from "./message_router";
 
 class WebSocketClient {
-  private ws: WebSocket | null = null;
+  private transport = new WebSocketTransport();
   private handlers: WSClientHandlers = new WSClientHandlers(this);
 
   private receiveQueue: QueueReceive | null = null;
@@ -20,36 +27,74 @@ class WebSocketClient {
   private messageCounter: number = 0;
   private debugLatencyConfig = {
     sendLatencyMs: 0,
-    receiveLatencyMs: 0
+    receiveLatencyMs: 0,
   };
   private pendingSendTimers: Set<number> = new Set();
   private pendingReceiveTimers: Set<number> = new Set();
   private pendingInGameResponses: InGameResponse[] = [];
 
-  // 断线重连状态：InGame 掉线后保留本地战局，按退避重连并请求补帧。
-  private reconnectAttempt: number = 0;
-  private reconnectTimer: number | null = null;
-  private reconnecting: boolean = false;
-  private static readonly MAX_RECONNECT_ATTEMPTS = 12;
+  // 重连状态：由 reconnect controller 管理，这里保留只读访问入口
+  private reconnect: ReconnectController;
   private offlineMode: "none" | "desync" = "none";
   private latencySamples: number[] = [];
   private static readonly MAX_LATENCY_SAMPLES = 30;
   private lastSentAt: number = 0;
 
-  private trace(message: string, details?: unknown) {
-    if (details !== undefined) {
-      // console.log(`[BackendWS] ${message}`, details);
-      return;
-    }
-    // console.log(`[BackendWS] ${message}`);
+  // 测试钩子：netDebug=1 时暴露
+  private static instance: WebSocketClient | null = null;
+
+  constructor() {
+    this.reconnect = new ReconnectController({
+      baseUrl: () => this.url || null,
+      buildReconnectUrl: () => this.buildReconnectUrl(),
+      onAttempt: (attempt, delay) => this.onReconnectAttempt(attempt, delay),
+      onGiveUp: (reason) => this.giveUpReconnect(reason),
+    });
+    this.reconnect.setConnectHandler((url) => this.openSocket(url, true));
+    WebSocketClient.instance = this;
   }
+
+  /** 供测试调整重连参数（test hook）。 */
+  public configureReconnectForTest(options: { baseDelayMs?: number; maxDelayMs?: number; maxAttempts?: number }): void {
+    // ReconnectController 的配置在构造时注入，重建一个实例
+    this.reconnect.cancel();
+    this.reconnect = new ReconnectController({
+      baseUrl: () => this.url || null,
+      buildReconnectUrl: () => this.buildReconnectUrl(),
+      onAttempt: (attempt, delay) => this.onReconnectAttempt(attempt, delay),
+      onGiveUp: (reason) => this.giveUpReconnect(reason),
+      ...options,
+    });
+    this.reconnect.setConnectHandler((url) => this.openSocket(url, true));
+    this.publishNetworkStatus();
+  }
+
+  private publishNetworkStatus(): void {
+    // 发布结构化状态：UI 与测试都通过 PhaserEventBus 订阅
+    PhaserEventBus.emit(PhaserEvents.OnlineNetworkStatus, {
+      reconnecting: this.reconnect.isReconnecting(),
+      reconnectAttempt: this.reconnect.getAttempt(),
+      latencyMs: this.getAverageLatencyMs(),
+      offlineMode: this.offlineMode,
+    });
+  }
+
+  private trace(_message: string, _details?: unknown) {
+    // 调试日志关闭；需要时在此打开
+  }
+
+  /** E2E 诊断：记录最近一次消息路由类型，netDebug=1 时可从 MVZ_NET 读取 */
+  private recentRoutes: Array<{ kind: string; firstBytes: number[]; size: number }> = [];
+  private traceRoute(kind: string, data: Uint8Array): void {
+    this.recentRoutes.push({ kind, firstBytes: Array.from(data.slice(0, 12)), size: data.byteLength });
+    if (this.recentRoutes.length > 20) this.recentRoutes.shift();
+  }
+  public getRecentRoutesForTest() { return [...this.recentRoutes]; }
 
   setQueue(receiveQueue: QueueReceive, sendQueue: QueueSend) {
     this.receiveQueue = receiveQueue;
     this.sendQueue = sendQueue;
-    this.trace("setQueue bound", {
-      pendingInGameResponses: this.pendingInGameResponses.length
-    });
+    this.trace("setQueue bound", { pendingInGameResponses: this.pendingInGameResponses.length });
     this.flushPendingInGameResponses();
   }
 
@@ -59,10 +104,6 @@ class WebSocketClient {
 
   enqueuePendingInGameResponse(response: InGameResponse) {
     this.pendingInGameResponses.push(response);
-    this.trace("buffered ingame response before queue binding", {
-      frameId: response.frameId,
-      bufferedCount: this.pendingInGameResponses.length
-    });
     this.flushPendingInGameResponses();
   }
 
@@ -106,10 +147,6 @@ class WebSocketClient {
   }
 
   private dispatchMockPackets(packets: MockPacket[]) {
-    this.trace("dispatchMockPackets", {
-      packetCount: packets.length,
-      channels: packets.map(packet => packet.channel)
-    });
     for (const packet of packets) {
       switch (packet.channel) {
         case 'lobby':
@@ -120,8 +157,6 @@ class WebSocketClient {
           break;
         case 'ingame':
           this.scheduleIncomingPacket(() => this.handlers.handleInGameResponse(packet.data));
-          break;
-        default:
           break;
       }
     }
@@ -141,29 +176,18 @@ class WebSocketClient {
       handler();
       return;
     }
-    this.trace("schedule incoming packet", { delayMs });
     this.trackTimer(this.pendingReceiveTimers, handler, delayMs);
   }
 
   private clearPendingTimers() {
-    for (const timerId of this.pendingSendTimers) {
-      window.clearTimeout(timerId);
-    }
+    for (const timerId of this.pendingSendTimers) window.clearTimeout(timerId);
     this.pendingSendTimers.clear();
-
-    for (const timerId of this.pendingReceiveTimers) {
-      window.clearTimeout(timerId);
-    }
+    for (const timerId of this.pendingReceiveTimers) window.clearTimeout(timerId);
     this.pendingReceiveTimers.clear();
   }
 
   private flushPendingInGameResponses() {
-    if (!this.receiveQueue || this.pendingInGameResponses.length === 0) {
-      return;
-    }
-    this.trace("flush pending ingame responses", {
-      count: this.pendingInGameResponses.length
-    });
+    if (!this.receiveQueue || this.pendingInGameResponses.length === 0) return;
     for (const response of this.pendingInGameResponses) {
       this.receiveQueue.handleInGameResponse(response);
     }
@@ -171,56 +195,38 @@ class WebSocketClient {
   }
 
   private dispatchBinaryMessage(message: Uint8Array<ArrayBufferLike>) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.trace("send binary via websocket", {
-        byteLength: message.byteLength
-      });
-      // slice() 生成只包含当前视图字节的独立 ArrayBuffer，
-      // 避免 message 是更大 buffer 视图时把无关字节一起发送。
-      this.ws.send(message.slice().buffer as ArrayBuffer);
-      return;
-    }
-
+    if (this.transport.send(message)) return;
     if (this.mockRoomMode && mockServer.isActive()) {
-      this.trace("send binary to mock server", {
-        byteLength: message.byteLength
-      });
       const packets = mockServer.handleMessage(message);
       this.dispatchMockPackets(packets);
       return;
     }
-
     // 断线重连期间包会被丢弃；服务端补帧后客户端会重新发送当前 ACK。
-    this.trace("drop outgoing message: no active transport");
   }
 
   public startSinglePlayerRoom() {
-    if (this.mockRoomMode) {
-      return;
-    }
-    this.trace("startSinglePlayerRoom");
+    if (this.mockRoomMode) return;
     this.ResetGameData();
     this.mockRoomMode = true;
     this.dispatchMockPackets(mockServer.startSingleRoom());
   }
 
-  /** 分叉后进入不可恢复的离线单机模式：只影响本端，不再接收权威帧。 */
+  /** 分叉后进入不可恢复的离线单机模式 */
   public enterDesyncOfflineMode(): void {
     this.offlineMode = "desync";
-    this.cancelReconnect();
+    this.reconnect.cancel();
     this.clearPendingTimers();
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.close();
-    }
-    this.ws = null;
+    this.transport.close();
     onlineStateManager.updateGameStage(EnumGameStage.InGame);
     this.mockRoomMode = false;
     this.receiveQueue = null;
     this.sendQueue = null;
+    this.publishNetworkStatus();
   }
 
   public exitDesyncOfflineMode(): void {
     this.offlineMode = "none";
+    this.publishNetworkStatus();
   }
 
   public isDesyncOfflineMode(): boolean {
@@ -228,11 +234,11 @@ class WebSocketClient {
   }
 
   public getReconnectAttempt(): number {
-    return this.reconnectAttempt;
+    return this.reconnect.getAttempt();
   }
 
   public isReconnecting(): boolean {
-    return this.reconnecting || this.reconnectTimer !== null;
+    return this.reconnect.isReconnecting();
   }
 
   public recordLatencySample(sampleMs: number): void {
@@ -250,9 +256,7 @@ class WebSocketClient {
   }
 
   public closeMockRoom() {
-    if (!this.mockRoomMode) {
-      return;
-    }
+    if (!this.mockRoomMode) return;
     this.clearPendingTimers();
     this.mockRoomMode = false;
     mockServer.stop();
@@ -264,7 +268,6 @@ class WebSocketClient {
   }
 
   startConnection() {
-    console.log('try to link');
     this.ResetGameData();
     onlineStateManager.updateRoomInfo(-1, 51, 50);
     if (onlineStateManager.getIsOnlineMode()) {
@@ -275,105 +278,86 @@ class WebSocketClient {
       console.error("WebSocket URL not set!");
       return;
     }
-
-    this.openSocket(false);
+    this.reconnect.cancel();
+    this.openSocket(this.url, false);
   }
 
-  private openSocket(reconnect: boolean) {
-    const url = reconnect ? this.buildReconnectUrl() : this.url;
+  /** 打开一条连接；所有回调都在 transport 内绑定到该 socket 实例。 */
+  private openSocket(url: string, isReconnect: boolean) {
     if (!url) {
-      console.error("WebSocket URL not available for", reconnect ? "reconnect" : "connection");
-      if (reconnect) this.giveUpReconnect("无法构造重连地址");
+      console.error("WebSocket URL not available for", isReconnect ? "reconnect" : "connection");
+      if (isReconnect) this.giveUpReconnect("无法构造重连地址");
       return;
     }
 
-    this.reconnecting = reconnect;
-    this.ws = new WebSocket(url);
-    this.ws.binaryType = "arraybuffer";
+    this.transport.setCallbacks({
+      onOpen: () => {
+        console.log(isReconnect ? "WebSocket reconnected." : "WebSocket connection established.");
+        if (isReconnect) {
+          this.reconnect.markConnected();
+          onlineStateManager.updateOnlineMode(true);
+          // 立刻用当前帧/ACK 触发服务端从断点补发
+          this.sendQueue?.sendBlankFrame(this.receiveQueue?.currentFrameId ?? 0);
+          this.sendQueue?.Consume();
+        }
+        this.publishNetworkStatus();
+      },
+      onMessage: (data) => {
+        this.messageCounter++;
+        if (this.lastSentAt > 0) this.recordLatencySample(performance.now() - this.lastSentAt);
+        this.scheduleIncomingPacket(() => {
+          try {
+            // 统一路由：不再按“是否重连 socket”或首字节散落分流
+            const kind = routeIncoming(
+              data,
+              {
+                getStage: () => onlineStateManager.getCurrentGameStage(),
+                isOnline: () => onlineStateManager.getIsOnlineMode(),
+                isRoomSession: () => this.isRoomSessionMode(),
+              },
+              {
+                handleLobbyResponse: (bytes) => { this.traceRoute('lobby', bytes); this.handlers.handleLobbyResponse(bytes); },
+                handleRoomResponse: (bytes) => { this.traceRoute('room', bytes); this.handlers.handleRoomResponse(bytes); },
+                handleInGameResponse: (bytes) => { this.traceRoute('ingame', bytes); this.handlers.handleInGameResponse(bytes); },
+              },
+            );
+            this.trace("routed", { kind, size: data.byteLength } as { kind: ResponseKind; size: number });
+          } catch (e) {
+            console.error("Failed to parse Protobuf message:", e);
+            // net 层不再直接弹 alert：统一发事件，由 UI 层呈现
+            PhaserEventBus.emit(PhaserEvents.RoomError, {
+              message: "发生错误，请检查网络或服务器: " + (e instanceof Error ? e.message : String(e)),
+            });
+            this.closeConnection();
+          }
+        });
+      },
+      onError: (error) => console.error("WebSocket error: ", error),
+      onClose: (event) => {
+        this.clearPendingTimers();
+        if (this.offlineMode === "desync") return;
+        const stage = onlineStateManager.getCurrentGameStage();
+        console.log("WebSocket connection closed:", {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          onlineMode: onlineStateManager.getIsOnlineMode(),
+          gameStage: onlineStateManager.getGameStageName(),
+        });
 
-    this.ws.onopen = () => {
-      console.log(reconnect ? "WebSocket reconnected." : "WebSocket connection established.");
-      this.reconnecting = false;
-      if (reconnect) {
-        this.reconnectAttempt = 0;
-        onlineStateManager.updateOnlineMode(true);
-        // 立刻用当前帧/ACK 触发服务端从断点补发
-        this.sendQueue?.sendBlankFrame(this.receiveQueue?.currentFrameId ?? 0);
-        this.sendQueue?.Consume();
-      }
-    };
-
-    this.ws.onmessage = (event: MessageEvent) => {
-      this.messageCounter++;
-      if (!(event.data instanceof ArrayBuffer)) {
-        console.warn(`Message #${this.messageCounter}: Received non-binary message, ignoring:`, event.data);
-        return;
-      }
-
-      const data = new Uint8Array(event.data);
-      if (this.lastSentAt > 0) this.recordLatencySample(performance.now() - this.lastSentAt);
-      this.scheduleIncomingPacket(() => {
-        try {
-          if (reconnect) {
-            // 重连期间服务端可能补发 InGameResponse 或 RoomResponse(ReplayFrames)。
-            if (data[0] === 0x08) this.handlers.handleInGameResponse(data);
-            else this.handlers.handleRoomResponse(data);
+        // 正在主动关闭/放弃时不应重连
+        if (stage === EnumGameStage.InGame || stage === EnumGameStage.Loading) {
+          if (this.reconnect.schedule()) {
+            this.publishNetworkStatus();
             return;
           }
-          if (!onlineStateManager.getIsOnlineMode()) {
-            this.handlers.handleLobbyResponse(data);
-          } else {
-            switch (onlineStateManager.getCurrentGameStage()) {
-              case EnumGameStage.InLobby:
-              case EnumGameStage.Preparing:
-              case EnumGameStage.Loading:
-                this.handlers.handleRoomResponse(data);
-                break;
-              case EnumGameStage.InGame:
-                this.handlers.handleInGameResponse(data);
-                break;
-              case EnumGameStage.PostGame:
-                break;
-              default:
-                console.error("Unknown game stage:", onlineStateManager.getCurrentGameStage());
-                break;
-            }
-          }
-        } catch (e) {
-          console.error("Failed to parse Protobuf message:", e);
-          alert("发生错误,请检查网络或服务器: " + (e instanceof Error ? e.message : String(e)));
-          this.closeConnection();
         }
-      });
-    };
+        onlineStateManager.updateOnlineMode(false);
+        this.publishNetworkStatus();
+      },
+    });
 
-    this.ws.onerror = (error: Event) => {
-      console.error("WebSocket error: ", error);
-    };
-
-    this.ws.onclose = (event: CloseEvent) => {
-      this.clearPendingTimers();
-      this.ws = null;
-      const stage = onlineStateManager.getCurrentGameStage();
-      if (this.offlineMode === "desync") return;
-      console.log("WebSocket connection closed:", {
-        code: event.code,
-        reason: event.reason,
-        wasClean: event.wasClean,
-        timeStamp: new Date().toISOString(),
-        onlineMode: onlineStateManager.getIsOnlineMode(),
-        gameStage: onlineStateManager.getGameStageName(),
-        roomInfo: onlineStateManager.getRoomInfo()
-      });
-
-      this.reconnecting = false;
-      // InGame/Loading 掉线时不销毁本地战局，保留状态等待补帧重连。
-      if (stage === EnumGameStage.InGame || stage === EnumGameStage.Loading) {
-        this.scheduleReconnect();
-        return;
-      }
-      onlineStateManager.updateOnlineMode(false);
-    };
+    this.transport.open(url, isReconnect);
   }
 
   private buildReconnectUrl(): string | null {
@@ -384,40 +368,21 @@ class WebSocketClient {
     return `${base}?id=${roomId}&key=${encodeURIComponent(key)}&reconnect=1&my_id=${myId}`;
   }
 
-  private scheduleReconnect() {
-    if (this.reconnectTimer !== null) return;
-    if (this.reconnectAttempt >= WebSocketClient.MAX_RECONNECT_ATTEMPTS) {
-      this.giveUpReconnect("网络中断，重连超时");
-      return;
-    }
-    const delay = Math.min(5000, 300 * 2 ** this.reconnectAttempt);
-    this.reconnectAttempt += 1;
-    console.log(`[BackendWS] reconnect attempt ${this.reconnectAttempt} in ${delay}ms`);
-    this.reconnectTimer = window.setTimeout(() => {
-      this.reconnectTimer = null;
-      this.openSocket(true);
-    }, delay);
+  private onReconnectAttempt(attempt: number, delayMs: number): void {
+    console.log(`[BackendWS] reconnect attempt ${attempt} in ${delayMs}ms`);
+    this.publishNetworkStatus();
   }
 
-  private cancelReconnect() {
-    if (this.reconnectTimer !== null) {
-      window.clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    this.reconnectAttempt = 0;
-    this.reconnecting = false;
-  }
-
-  private giveUpReconnect(message: string) {
-    this.cancelReconnect();
+  private giveUpReconnect(message: string): void {
+    this.reconnect.cancel();
     onlineStateManager.updateOnlineMode(false);
+    this.publishNetworkStatus();
     PhaserEventBus.emit(PhaserEvents.RoomClosed, { message });
   }
 
   sendMessage(message: string) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(message);
-      console.log("Message sent:", message);
+    if (this.transport.isOpen()) {
+      this.transport.currentSocket()!.send(message);
     } else {
       console.error("WebSocket is not open. Cannot send message.");
     }
@@ -440,25 +405,16 @@ class WebSocketClient {
       sendNow();
       return;
     }
-
-    this.trace("schedule outgoing message", {
-      delayMs,
-      byteLength: message.byteLength
-    });
     this.trackTimer(this.pendingSendTimers, sendNow, delayMs);
   }
 
   consumeSendQueue() {
-    if (!this.sendQueue) {
-      return;
-    }
-
-    if ((this.ws && this.ws.readyState === WebSocket.OPEN) || this.mockRoomMode) {
+    if (!this.sendQueue) return;
+    if (this.transport.isOpen() || this.mockRoomMode) {
       while (!this.sendQueue.queues.isEmpty()) {
         const message = this.sendQueue.queues.shift();
         if (message) {
-          const binary = Request.toBinary(message);
-          this.send(binary);
+          this.send(Request.toBinary(message));
         }
       }
     } else {
@@ -467,22 +423,18 @@ class WebSocketClient {
   }
 
   closeConnection() {
-    this.cancelReconnect();
+    this.reconnect.cancel();
     this.clearPendingTimers();
-
     if (this.mockRoomMode) {
       this.closeMockRoom();
       return;
     }
-
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.close();
-      this.ws = null;
+    if (this.transport.currentSocket()) {
+      this.transport.close();
       onlineStateManager.resetAllState();
       this.ResetGameData();
-    } else {
-      console.error("WebSocket is not open. Cannot close connection.");
     }
+    this.publishNetworkStatus();
   }
 
   disconnectQueues() {
@@ -520,9 +472,7 @@ class WebSocketClient {
   }
 
   set FrameID(value: number) {
-    if (this.receiveQueue) {
-      this.receiveQueue.currentFrameId = value;
-    }
+    if (this.receiveQueue) this.receiveQueue.currentFrameId = value;
   }
 
   get AckFrameID(): number {
@@ -530,15 +480,11 @@ class WebSocketClient {
   }
 
   set AckFrameID(value: number) {
-    if (this.receiveQueue) {
-      this.receiveQueue.lastAckFrameId = value;
-    }
+    if (this.receiveQueue) this.receiveQueue.lastAckFrameId = value;
   }
 
   isOnlineMode(): boolean {
-    return (!this.isMockRoomMode())
-      && onlineStateManager.getIsOnlineMode()
-      && !this.isDesyncOfflineMode();
+    return !this.isMockRoomMode() && onlineStateManager.getIsOnlineMode() && !this.isDesyncOfflineMode();
   }
 
   isMockRoomMode(): boolean {
@@ -547,6 +493,24 @@ class WebSocketClient {
 
   isRoomSessionMode(): boolean {
     return this.isOnlineMode() || this.isMockRoomMode();
+  }
+
+  /** 测试钩子：只断开底层 socket，不取消重连策略，也不重置业务状态。 */
+  public dropSocketForTest(): void {
+    const socket = this.transport.currentSocket();
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.close(4000, 'e2e-drop');
+    }
+  }
+
+  /** 测试钩子：走与真实重连放弃相同的 UI 提示链路。 */
+  public giveUpReconnectForTest(reason: string): void {
+    this.giveUpReconnect(reason);
+  }
+
+  /** 测试钩子：返回单例（仅在 netDebug 模式由 index 注入到 window） */
+  static getInstance(): WebSocketClient | null {
+    return WebSocketClient.instance;
   }
 }
 
@@ -557,5 +521,4 @@ export function HasConnected() {
 }
 
 export { WebSocketClient };
-
 export default BackendWS;

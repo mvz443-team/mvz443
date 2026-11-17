@@ -1,19 +1,18 @@
-import { WebSocketClient } from "./sync";
+// 业务响应处理：把解码后的 protobuf 响应翻译成状态更新与 EventBus 事件。
+// 不直接操作 Phaser / CombatManager：需要战斗层配合时通过 EventBus 发事件，
+// 由战斗层订阅，消除 utils → game 顶层的反向依赖。
+
+import type { WebSocketClient } from "./sync";
 import {
   InGameResponse,
   LobbyResponse,
   RoomResponse,
 } from "../../pb/response";
 import EnumGameStage from "./game_state";
-import {
-  PhaserEventBus,
-  PhaserEvents,
-} from "../../game/EventBus";
+import { PhaserEventBus, PhaserEvents } from "../../game/EventBus";
 import { onlineStateManager } from "../../store/OnlineStateManager";
 import { PeerInfo, RoomAllReadyEvent } from "../../types/online";
 import { computeLoadoutHash } from "./loadout";
-import CombatManager from "../../game/managers/CombatManager";
-import { restoreInlineSnapshot } from "../../game/core/snapshot/InlineSnapshot";
 import type { InlineSnapshot } from "../../game/core/snapshot/InlineSnapshot";
 
 export default class WSClientHandlers {
@@ -31,13 +30,13 @@ export default class WSClientHandlers {
         onlineStateManager.updateOnlineMode(false);
         onlineStateManager.resetAllState();
         console.error('Join room failed:', lobbyResponse.payload.joinRoomFailed.message);
-        alert(lobbyResponse.payload.joinRoomFailed.message);
+        PhaserEventBus.emit(PhaserEvents.RoomError, {
+          message: lobbyResponse.payload.joinRoomFailed.message,
+        });
         this.ws.closeConnection();
         break;
       case 'joinRoomSuccess': {
         const joinRoomSuccess = lobbyResponse.payload.joinRoomSuccess;
-        console.log('joinRoomSuccess message received:', joinRoomSuccess);
-
         onlineStateManager.updateOnlineMode(true);
         onlineStateManager.updateGameStage(EnumGameStage.InLobby);
         onlineStateManager.updateRoomInfo(joinRoomSuccess.roomId, joinRoomSuccess.myId, 50);
@@ -47,7 +46,7 @@ export default class WSClientHandlers {
           roomId: joinRoomSuccess.roomId,
           myId: joinRoomSuccess.myId,
           key: joinRoomSuccess.key,
-          message: joinRoomSuccess.message
+          message: joinRoomSuccess.message,
         });
         break;
       }
@@ -71,17 +70,12 @@ export default class WSClientHandlers {
 
         let peersData: PeerInfo[] | null = null;
         try {
-          peersData = JSON.parse(roomInfo.peers) as PeerInfo[];
-          if (Array.isArray(peersData)) {
-            peersData.forEach((peer, index) => {
-              if (typeof peer.addr !== 'string' || typeof peer.id !== 'number') {
-                console.warn(`Invalid peer data at index ${index}:`, peer);
-              }
-            });
+          const parsed = JSON.parse(roomInfo.peers) as PeerInfo[];
+          if (Array.isArray(parsed)) {
+            peersData = parsed;
           }
         } catch (e) {
           console.warn('Failed to parse peers JSON:', roomInfo.peers, e);
-          peersData = null;
         }
 
         PhaserEventBus.emit(PhaserEvents.RoomInfo, {
@@ -93,7 +87,7 @@ export default class WSClientHandlers {
           playerCount: peersData ? peersData.length : 0,
           roomName: roomInfo.roomName,
           chapterId: roomInfo.chapterId,
-          stageId: roomInfo.stageId
+          stageId: roomInfo.stageId,
         });
         break;
       }
@@ -111,7 +105,7 @@ export default class WSClientHandlers {
         const updateReadyCount = roomResponse.payload.updateReadyCount;
         PhaserEventBus.emit(PhaserEvents.RoomUpdateReadyCount, {
           readyCount: updateReadyCount.count,
-          totalPlayers: updateReadyCount.allPlayerCount
+          totalPlayers: updateReadyCount.allPlayerCount,
         });
         break;
       }
@@ -122,7 +116,7 @@ export default class WSClientHandlers {
           seed: allReady.seed,
           myId: allReady.myId,
           playerIds: allReady.playerIds,
-          loadouts: allReady.loadouts
+          loadouts: allReady.loadouts,
         };
 
         const ownLoadout = allReady.loadouts.find((entry) => entry.playerId === allReady.myId);
@@ -151,18 +145,19 @@ export default class WSClientHandlers {
       }
       case 'replayFrames': {
         const replay = roomResponse.payload.replayFrames;
-        const receiveQueue = this.ws.getReceiveQueue();
+        // 依赖倒置：把快照恢复交给战斗层处理（监听 ReplaySnapshotReceived）
         if (replay.checkpointFrameId > 0 && replay.inlineSnapshotJson) {
           try {
             const snapshot = JSON.parse(replay.inlineSnapshotJson) as InlineSnapshot;
-            const state = restoreInlineSnapshot(snapshot);
-            state.frameId = replay.checkpointFrameId;
-            CombatManager.Instance.restoreState(state, "rebuild");
-            receiveQueue?.restoreToFrame(replay.checkpointFrameId);
+            PhaserEventBus.emit(PhaserEvents.ReplaySnapshotReceived, {
+              snapshot,
+              frameId: replay.checkpointFrameId,
+            });
           } catch (error) {
             console.warn("[checkpoint] replay snapshot restore failed", error);
           }
         }
+        const receiveQueue = this.ws.getReceiveQueue();
         for (const frame of replay.frames) {
           if (receiveQueue) receiveQueue.handleInGameResponse(frame);
           else this.ws.enqueuePendingInGameResponse(frame);
@@ -180,6 +175,15 @@ export default class WSClientHandlers {
         }
         break;
       }
+      case 'returnToLobby': {
+        // 服务端确认：房间已重置回等待房间，客户端回到关卡页
+        onlineStateManager.updateGameStage(EnumGameStage.InLobby);
+        onlineStateManager.resetGameData();
+        PhaserEventBus.emit(PhaserEvents.ReturnToLobby, {
+          stage: roomResponse.payload.returnToLobby.stage,
+        });
+        break;
+      }
       case 'roomClosed': {
         const roomClosed = roomResponse.payload.roomClosed;
         onlineStateManager.resetAllState();
@@ -191,7 +195,6 @@ export default class WSClientHandlers {
         const error = roomResponse.payload.error;
         if (error.message.includes('状态分叉')) {
           this.ws.enterDesyncOfflineMode();
-          CombatManager.Instance.enterDesyncOfflineMode(error.message);
           PhaserEventBus.emit(PhaserEvents.DesyncOfflineMode, { message: error.message });
           return;
         }
@@ -207,17 +210,13 @@ export default class WSClientHandlers {
   public handleInGameResponse(response: Uint8Array) {
     const inGameResponse = InGameResponse.fromBinary(response);
     if (inGameResponse.frameId === 0 && inGameResponse.operations.length === 0) {
+      // 房间响应与权威帧共享二进制通道：首帧 0 时再试 RoomResponse
       const roomResponse = RoomResponse.fromBinary(response);
       if (roomResponse.payload.oneofKind === "gameEnd") {
         this.handleRoomResponse(response);
         return;
       }
     }
-    // console.log("[WSClientHandlers] handleInGameResponse", {
-    //   frameId: inGameResponse.frameId,
-    //   operationCount: inGameResponse.operations.length,
-    //   hasReceiveQueue: Boolean(this.ws.getReceiveQueue())
-    // });
     const receiveQueue = this.ws.getReceiveQueue();
     if (receiveQueue) {
       receiveQueue.handleInGameResponse(inGameResponse);

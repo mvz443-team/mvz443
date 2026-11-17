@@ -93,6 +93,14 @@ export interface Request {
          */
         kickPlayer: RequestKickPlayer;
     } | {
+        oneofKind: "returnToLobby";
+        /**
+         * PostGame 结算后请求返回等待房间
+         *
+         * @generated from protobuf field: messages.RequestReturnToLobby return_to_lobby = 12
+         */
+        returnToLobby: RequestReturnToLobby;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -381,6 +389,13 @@ export interface RequestKickPlayer {
      */
     playerId: number;
 }
+/**
+ * PostGame 结算后任一玩家可请求返回等待房间；房间重置回 InLobby，可再次准备开局
+ *
+ * @generated from protobuf message messages.RequestReturnToLobby
+ */
+export interface RequestReturnToLobby {
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class Request$Type extends MessageType<Request> {
     constructor() {
@@ -395,7 +410,8 @@ class Request$Type extends MessageType<Request> {
             { no: 4, name: "star_shards", kind: "message", oneof: "payload", T: () => RequestStarShards },
             { no: 7, name: "end_game", kind: "message", oneof: "payload", T: () => RequestEndGame },
             { no: 10, name: "update_room", kind: "message", oneof: "payload", T: () => RequestUpdateRoom },
-            { no: 11, name: "kick_player", kind: "message", oneof: "payload", T: () => RequestKickPlayer }
+            { no: 11, name: "kick_player", kind: "message", oneof: "payload", T: () => RequestKickPlayer },
+            { no: 12, name: "return_to_lobby", kind: "message", oneof: "payload", T: () => RequestReturnToLobby }
         ]);
     }
     create(value?: PartialMessage<Request>): Request {
@@ -476,6 +492,12 @@ class Request$Type extends MessageType<Request> {
                         kickPlayer: RequestKickPlayer.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).kickPlayer)
                     };
                     break;
+                case /* messages.RequestReturnToLobby return_to_lobby */ 12:
+                    message.payload = {
+                        oneofKind: "returnToLobby",
+                        returnToLobby: RequestReturnToLobby.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).returnToLobby)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -521,6 +543,9 @@ class Request$Type extends MessageType<Request> {
         /* messages.RequestKickPlayer kick_player = 11; */
         if (message.payload.oneofKind === "kickPlayer")
             RequestKickPlayer.internalBinaryWrite(message.payload.kickPlayer, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* messages.RequestReturnToLobby return_to_lobby = 12; */
+        if (message.payload.oneofKind === "returnToLobby")
+            RequestReturnToLobby.internalBinaryWrite(message.payload.returnToLobby, writer.tag(12, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1257,3 +1282,41 @@ class RequestKickPlayer$Type extends MessageType<RequestKickPlayer> {
  * @generated MessageType for protobuf message messages.RequestKickPlayer
  */
 export const RequestKickPlayer = new RequestKickPlayer$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RequestReturnToLobby$Type extends MessageType<RequestReturnToLobby> {
+    constructor() {
+        super("messages.RequestReturnToLobby", []);
+    }
+    create(value?: PartialMessage<RequestReturnToLobby>): RequestReturnToLobby {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<RequestReturnToLobby>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RequestReturnToLobby): RequestReturnToLobby {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RequestReturnToLobby, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message messages.RequestReturnToLobby
+ */
+export const RequestReturnToLobby = new RequestReturnToLobby$Type();

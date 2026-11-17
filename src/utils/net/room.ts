@@ -7,7 +7,8 @@ import {
   RequestLeaveChooseMap,
   RequestLoaded,
   RequestReady,
-  RequestUpdateRoom
+  RequestUpdateRoom,
+  RequestReturnToLobby,
 } from "../../pb/request";
 import type { LoadoutSnapshot } from "../../pb/common";
 import BackendWS from "./sync";
@@ -70,6 +71,15 @@ function SendUpdateRoom(name: string, key: string) {
   BackendWS.send(Request.toBinary({ payload: { updateRoom: request, oneofKind: 'updateRoom' } }));
 }
 
+/** PostGame 结算后请求返回等待房间（房间保留，可再开一局） */
+function SendReturnToLobby() {
+  if (!BackendWS.isOnlineMode()) {
+    return;
+  }
+  const request: RequestReturnToLobby = {};
+  BackendWS.send(Request.toBinary({ payload: { returnToLobby: request, oneofKind: "returnToLobby" } }));
+}
+
 /** 房主把指定玩家移出房间 */
 function SendKickPlayer(playerId: number) {
   if (!BackendWS.isRoomSessionMode() || !BackendWS.isLord()) {
@@ -79,4 +89,4 @@ function SendKickPlayer(playerId: number) {
   BackendWS.send(Request.toBinary({ payload: { kickPlayer: request, oneofKind: 'kickPlayer' } }));
 }
 
-export { SendChooseMap, SendLeaveChooseMap, SendReady, SendLoaded, SendEndGame, SendUpdateRoom, SendKickPlayer };
+export { SendChooseMap, SendLeaveChooseMap, SendReady, SendLoaded, SendEndGame, SendUpdateRoom, SendKickPlayer, SendReturnToLobby };

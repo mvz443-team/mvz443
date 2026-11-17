@@ -7,6 +7,8 @@ import { useLocaleMessages } from '../../hooks/useLocaleMessages';
 import { cardKey, commonKey, stageKey } from '../../i18n/keys';
 import { PlantLibrary } from '../../game/managers/library/PlantLibrary';
 import { goodsItemName } from '../../types/goods';
+import BackendWS from '../../utils/net/sync';
+import { SendReturnToLobby } from '../../utils/net/room';
 
 interface Props {
     width: number;
@@ -18,9 +20,11 @@ interface Props {
     progressRewards: ProgressReward[] | undefined;
     myProgress: number;
     onBack: () => void;
+  /** 联机对局结算后返回原房间（房间保留，可再开一局） */
+  onReturnToRoom?: () => void;
 }
 
-export default function GameResultView({ width, height, isWin, chapterId, stageId, onWin, progressRewards, myProgress, onBack }: Props) {
+export default function GameResultView({ width, height, isWin, chapterId, stageId, onWin, progressRewards, myProgress, onBack, onReturnToRoom }: Props) {
     // console.log(onWin)
     const saveManager = useSaveManager();
     const hasSavedRef = useRef(false);
@@ -104,8 +108,9 @@ export default function GameResultView({ width, height, isWin, chapterId, stageI
             boxShadow: "0 0 15px rgba(0, 0, 0, 0.5)",
             animation: "frameFadeIn 0.5s ease-out"
         }}>
-            {/* 返回主页按钮 */}
+            {/* 返回主页按钮：联机模式下改为“返回房间”，留在原房间可再开一局 */}
             <button
+                data-testid="result-back-button"
                 style={{
                     position: "absolute",
                     top: "2%",
@@ -126,9 +131,18 @@ export default function GameResultView({ width, height, isWin, chapterId, stageI
                     e.currentTarget.style.background = "none";
                     e.currentTarget.style.borderColor = "#666";
                 }}
-                onClick={onBack}
+                onClick={() => {
+                    if (BackendWS.isOnlineMode()) {
+                        SendReturnToLobby();
+                        onReturnToRoom?.();
+                    } else {
+                        onBack();
+                    }
+                }}
             >
-                {translate('menu.back')}
+                {BackendWS.isOnlineMode()
+                    ? (translate('menu.online_return_room') || '返回房间')
+                    : translate('menu.back')}
             </button>
 
             {/* 左侧：游戏结果 */}

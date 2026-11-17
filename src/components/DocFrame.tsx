@@ -114,15 +114,24 @@ export default function DocFrame({ width, height, setGameParams, gameStart }: Pr
       }
     };
 
+    const handleReturnToLobby = () => {
+      console.log('🔁 服务端确认返回等待房间，回到关卡页');
+      setSkipToParams(false);
+      setChosenStage(null);
+      setCurrentView('levels');
+    };
+
     // 通过EventBus监听事件
     PhaserEventBus.on(PhaserEvents.LobbyJoinSuccess, handleLobbyJoinSuccess);
     PhaserEventBus.on(PhaserEvents.RoomChooseMap, handleRoomChooseMap);
     PhaserEventBus.on(PhaserEvents.RoomAllReady, handleRoomAllReady);
+    PhaserEventBus.on(PhaserEvents.ReturnToLobby, handleReturnToLobby);
 
     return () => {
       PhaserEventBus.off(PhaserEvents.LobbyJoinSuccess, handleLobbyJoinSuccess);
       PhaserEventBus.off(PhaserEvents.RoomChooseMap, handleRoomChooseMap);
       PhaserEventBus.off(PhaserEvents.RoomAllReady, handleRoomAllReady);
+      PhaserEventBus.off(PhaserEvents.ReturnToLobby, handleReturnToLobby);
     };
   }, []);
 

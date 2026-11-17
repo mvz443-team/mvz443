@@ -255,4 +255,21 @@ export namespace PhaserEvents {
    * 触发时机：房间连接或交互出错时触发
    */
   export const RoomError = 'room-error';
+
+  /**
+   * 网络状态变化（重连中 / 第 N 次尝试 / 平均延迟）
+   * @param { reconnecting: boolean, reconnectAttempt: number, latencyMs: number|null, offlineMode: string }
+   */
+  export const OnlineNetworkStatus = 'online-network-status';
+
+  /**
+   * PostGame 后服务端确认返回等待房间；客户端应销毁战斗场景并回到关卡页等待房间
+   */
+  export const ReturnToLobby = 'return-to-lobby';
+
+  /**
+   * 重连收到权威快照：战斗层据此恢复状态并从 checkpoint 帧重放
+   * @param { snapshot: InlineSnapshot, frameId: number }
+   */
+  export const ReplaySnapshotReceived = 'replay-snapshot-received';
 }

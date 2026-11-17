@@ -183,8 +183,28 @@ export interface RoomResponse {
          */
         replayFrames: ResponseReplayFrames;
     } | {
+        oneofKind: "returnToLobby";
+        /**
+         * @generated from protobuf field: messages.ResponseReturnToLobby return_to_lobby = 12
+         */
+        returnToLobby: ResponseReturnToLobby; // PostGame 结算后返回等待房间
+    } | {
         oneofKind: undefined;
     };
+}
+/**
+ * PostGame 结算完成后，任一玩家请求返回等待房间；
+ * 服务端在房间仍存在时广播本消息并把房间重置回 InLobby。
+ *
+ * @generated from protobuf message messages.ResponseReturnToLobby
+ */
+export interface ResponseReturnToLobby {
+    /**
+     * 房间当前阶段（应为 InLobby），便于客户端校验
+     *
+     * @generated from protobuf field: uint32 stage = 1
+     */
+    stage: number;
 }
 /**
  * 低频权威恢复快照：只在双端摘要一致时由服务端采纳并缓存。
@@ -258,7 +278,8 @@ export interface ResponseRoomInfo {
     myId: number;
     /**
      * 房间内玩家情况
-     * json 字段: [{"id":int,"name":string,"addr":string,"ready":bool}]
+     * json 字段: [{"id":int,"name":string,"addr":string,"ready":bool,"state":int}]
+     * state: 1=在线, 2=断线（等待重连）
      *
      * @generated from protobuf field: string peers = 4
      */
@@ -864,7 +885,8 @@ class RoomResponse$Type extends MessageType<RoomResponse> {
             { no: 6, name: "all_ready", kind: "message", oneof: "payload", T: () => ResponseAllReady },
             { no: 7, name: "all_loaded", kind: "message", oneof: "payload", T: () => ResponseAllLoaded },
             { no: 10, name: "checkpoint_accepted", kind: "message", oneof: "payload", T: () => ResponseCheckpointAccepted },
-            { no: 11, name: "replay_frames", kind: "message", oneof: "payload", T: () => ResponseReplayFrames }
+            { no: 11, name: "replay_frames", kind: "message", oneof: "payload", T: () => ResponseReplayFrames },
+            { no: 12, name: "return_to_lobby", kind: "message", oneof: "payload", T: () => ResponseReturnToLobby }
         ]);
     }
     create(value?: PartialMessage<RoomResponse>): RoomResponse {
@@ -945,6 +967,12 @@ class RoomResponse$Type extends MessageType<RoomResponse> {
                         replayFrames: ResponseReplayFrames.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).replayFrames)
                     };
                     break;
+                case /* messages.ResponseReturnToLobby return_to_lobby */ 12:
+                    message.payload = {
+                        oneofKind: "returnToLobby",
+                        returnToLobby: ResponseReturnToLobby.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).returnToLobby)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -990,6 +1018,9 @@ class RoomResponse$Type extends MessageType<RoomResponse> {
         /* messages.ResponseReplayFrames replay_frames = 11; */
         if (message.payload.oneofKind === "replayFrames")
             ResponseReplayFrames.internalBinaryWrite(message.payload.replayFrames, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* messages.ResponseReturnToLobby return_to_lobby = 12; */
+        if (message.payload.oneofKind === "returnToLobby")
+            ResponseReturnToLobby.internalBinaryWrite(message.payload.returnToLobby, writer.tag(12, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1000,6 +1031,53 @@ class RoomResponse$Type extends MessageType<RoomResponse> {
  * @generated MessageType for protobuf message messages.RoomResponse
  */
 export const RoomResponse = new RoomResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ResponseReturnToLobby$Type extends MessageType<ResponseReturnToLobby> {
+    constructor() {
+        super("messages.ResponseReturnToLobby", [
+            { no: 1, name: "stage", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ResponseReturnToLobby>): ResponseReturnToLobby {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.stage = 0;
+        if (value !== undefined)
+            reflectionMergePartial<ResponseReturnToLobby>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ResponseReturnToLobby): ResponseReturnToLobby {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 stage */ 1:
+                    message.stage = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ResponseReturnToLobby, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 stage = 1; */
+        if (message.stage !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.stage);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message messages.ResponseReturnToLobby
+ */
+export const ResponseReturnToLobby = new ResponseReturnToLobby$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ResponseCheckpointAccepted$Type extends MessageType<ResponseCheckpointAccepted> {
     constructor() {

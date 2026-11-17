@@ -3,12 +3,17 @@ import type { MutableRefObject } from 'react';
 import { IRefPhaserGame, PhaserGame } from './game/PhaserGame';
 import DocFrame from './components/DocFrame';
 import GlobalOnlineStateListener from './components/GlobalOnlineStateListener';
+import NetworkStatusOverlay from './components/NetworkStatusOverlay';
 import { useSettings } from './context/settings_ctx';
 import { GameParams } from './game/models/GameParams';
 import type { StageResult } from './types/stage';
 import GameResultView from './components/menu/result';
 import { useDeviceType } from './hooks/useDeviceType';
 import BackendWS from './utils/net/sync';
+import { onlineStateManager } from './store/OnlineStateManager';
+import { createRoom, joinRoom } from './utils/net/lobby';
+import { SendReady, SendLoaded, SendChooseMap, SendEndGame, SendReturnToLobby } from './utils/net/room';
+import { useSaveManager } from './context/save_ctx';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import SettingsPage from './pages/settings';
 import { publicUrl } from './utils/browser';
@@ -129,6 +134,7 @@ function GameMainWindow({
           progressRewards={gameResult?.rewards}
           myProgress={gameResult?.progress ? gameResult.progress : 0}
           onBack={exitResultView}
+          onReturnToRoom={exitResultView}
           width={mainWidth}
           height={mainHeight}
         />
@@ -332,6 +338,7 @@ function App() {
   const [gameResult, setGameResult] = useState<StageResult | null>(null);
   const deviceType = useDeviceType();
   const viewportSize = useViewportSize();
+  const saveManager = useSaveManager();
 
   //  References to the PhaserGame component (game and scene are exposed)
   const phaserRef = useRef<IRefPhaserGame | null>(null);
@@ -358,7 +365,54 @@ function App() {
 
   useEffect(() => {
     isUnlockAllCardsEnabled();
-  }, []);
+    // 测试钩子：netDebug=1 时暴露网络状态与测试配置接口，供 Playwright E2E 使用
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('netDebug') === '1') {
+      (window as any).MVZ_NET = {
+        getState: () => ({
+          reconnecting: BackendWS.isReconnecting(),
+          reconnectAttempt: BackendWS.getReconnectAttempt(),
+          latencyMs: BackendWS.getAverageLatencyMs(),
+          online: BackendWS.isOnlineMode(),
+          roomSession: BackendWS.isRoomSessionMode(),
+          inGame: BackendWS.GetFrameID() > 0,
+          frameId: BackendWS.GetFrameID(),
+          stage: onlineStateManager.getCurrentGameStage(),
+          roomId: onlineStateManager.getRoomInfo().roomId,
+          myId: onlineStateManager.getRoomInfo().myId,
+          lordId: onlineStateManager.getRoomInfo().lordId,
+          peers: onlineStateManager.getRoomPeersData(),
+        }),
+        configureReconnect: (options: { baseDelayMs?: number; maxDelayMs?: number; maxAttempts?: number }) =>
+          BackendWS.configureReconnectForTest(options),
+        openRoom: (options: { roomName?: string; roomId?: number; chapterId?: number; stageId?: number; username?: string }) => {
+          // E2E 专用：直接走与房间列表 UI 相同的 lobby 入口，避免依赖 DOM 流程。
+          const serverAddress = new URLSearchParams(window.location.search).get('serverAddr')
+            || saveManager.getOnlineConfig().serverAddr
+            || '';
+          const params = { baseUrl: serverAddress, ...options };
+          if (typeof options.roomId === 'number') return joinRoom(params);
+          return createRoom(params);
+        },
+        closeRoom: () => BackendWS.closeConnection(),
+        dropSocketForTest: () => BackendWS.dropSocketForTest(),
+        forceGiveUpForTest: (reason: string) => BackendWS.giveUpReconnectForTest(reason),
+        getRecentRoutes: () => BackendWS.getRecentRoutesForTest(),
+        sendReady: (isReady: boolean) => SendReady(isReady),
+        sendLoaded: (isLoaded?: boolean) => SendLoaded(isLoaded ?? true),
+        chooseStage: (chapterId: number, stageId: number) => SendChooseMap(chapterId, stageId),
+        sendEndGame: (isWin: boolean) => SendEndGame(isWin),
+        sendReturnToLobby: () => SendReturnToLobby(),
+        showResultForTest: () => gameExit({
+          isWin: true,
+          chapterId: 1,
+          stageId: 1,
+          onWin: { unLock: [], unLockPlant: [] },
+          rewards: [],
+          progress: 100,
+        }),
+      };
+    }
+  }, [saveManager]);
 
   useEffect(() => {
     const handleUnlockShortcut = (event: KeyboardEvent) => {
@@ -419,11 +473,9 @@ function App() {
     // 结算
     setGameResult(result);
     setShowGameResult(true);
+    // 单机 mock 房间结算后关闭；联机房间保持连接，等待玩家点“返回房间”后
+    // 由服务端广播 ReturnToLobby 事件再回到等待房间。
     BackendWS.closeMockRoom();
-    // 联机对局结束后离开房间，回到大厅重新选关
-    if (BackendWS.isOnlineMode()) {
-      BackendWS.closeConnection();
-    }
     BackendWS.ResetGameData();
   }, [setShowGameScreen, setShowGameTool]);
 
@@ -493,6 +545,8 @@ function App() {
     <Router>
       {/* 全局在线状态变化监听器 */}
       <GlobalOnlineStateListener />
+      {/* 全局网络重连徽标与错误 Toast */}
+      <NetworkStatusOverlay />
 
       <Routes>
         <Route path={`${publicUrl}/`} element={

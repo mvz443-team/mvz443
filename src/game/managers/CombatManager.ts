@@ -17,6 +17,8 @@ import { resolveEntityBySnapshotId } from "../core/EntityLookup";
 import { logicEvents } from "../core/logic/LogicEvents";
 import { updateAllTickManagers } from "../core/logic/EntityTickManager";
 import { buildInlineSnapshotOrHash } from "../core/snapshot/InlineSnapshot";
+import { restoreInlineSnapshot } from "../core/snapshot/InlineSnapshot";
+import type { InlineSnapshot } from "../core/snapshot/InlineSnapshot";
 
 // 单次 update 允许接受的最大 delta（切后台/断点会产生数秒级 delta）
 const MAX_FRAME_DELTA_MS = 250;
@@ -129,6 +131,7 @@ export default class CombatManager extends BaseManager {
     PhaserEventBus.on(PhaserEvents.RoomGameEnd, this.handleRoomGameEnd, this);
 
     PhaserEventBus.on(PhaserEvents.RoomAllReady, this.handleRoomAllReady, this);
+    PhaserEventBus.on(PhaserEvents.ReplaySnapshotReceived, this.handleReplaySnapshot, this);
     const roomAllReady = onlineStateManager.getRoomAllReady();
     if (roomAllReady) {
       this.handleRoomAllReady(roomAllReady);
@@ -148,6 +151,7 @@ export default class CombatManager extends BaseManager {
     PhaserEventBus.off(PhaserEvents.RoomGameStart, this.handleRoomGameStart, this);
     PhaserEventBus.off(PhaserEvents.RoomGameEnd, this.handleRoomGameEnd, this);
     PhaserEventBus.off(PhaserEvents.RoomAllReady, this.handleRoomAllReady, this);
+    PhaserEventBus.off(PhaserEvents.ReplaySnapshotReceived, this.handleReplaySnapshot, this);
 
     if (this.scene) {
       this.scene.time.timeScale = 1;
@@ -218,6 +222,19 @@ export default class CombatManager extends BaseManager {
     this.lastStateHash = null;
     this.lastStateHashFrame = 0;
   }
+
+  /** 重连补帧：恢复 checkpoint 快照并回滚接收队列到该帧。 */
+  private handleReplaySnapshot = ({ snapshot, frameId }: { snapshot: InlineSnapshot; frameId: number }) => {
+    try {
+      const state = restoreInlineSnapshot(snapshot);
+      state.frameId = frameId;
+      this.restoreState(state, "rebuild");
+      BackendWS.getReceiveQueue()?.restoreToFrame(frameId);
+      console.log(`[reconnect] 已恢复 checkpoint frame=${frameId}`);
+    } catch (error) {
+      console.warn("[reconnect] checkpoint 快照恢复失败", error);
+    }
+  };
 
   private handleRoomGameEnd({ isWin }: { isWin: boolean }) {
     this.isGameEnd = true;

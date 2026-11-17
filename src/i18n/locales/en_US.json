@@ -239,7 +239,8 @@
     "endding_fail": "Failed. Keep trying!",
     "endding_progress": "Progress",
     "endding_reward": "Reward",
-    "endding_noreward": "No progress reward yet"
+    "endding_noreward": "No progress reward yet",
+    "online_return_room": "Return to Room"
   },
   "common": {
     "loading": "Loading...",

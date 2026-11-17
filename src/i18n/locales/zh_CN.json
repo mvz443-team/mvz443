@@ -239,7 +239,8 @@
     "endding_fail": "失败,请再接再厉",
     "endding_progress": "进度",
     "endding_reward": "奖励",
-    "endding_noreward": "暂无进度奖励"
+    "endding_noreward": "暂无进度奖励",
+    "online_return_room": "返回房间"
   },
   "common": {
     "loading": "加载中...",
