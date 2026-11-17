@@ -14,6 +14,12 @@ import { SightLineGroup } from "../../../models/entities/SightLineEntity";
 import SoundCmd from "../../../utils/cmd/SoundCmd";
 import { SfxCmd } from "../../../utils/cmd/SfxCmd";
 import { PumpkinWanLaserSfx } from "../../../sfx/laser/PumpkinWanLaserSfx";
+import { DEFAULT_TICK_EVENT_NAMES } from "../../../core/logic/TickEvents";
+import type { JsonValue } from "../../../core/SimulationState";
+
+const PUMPKIN_WAN_EVENTS = {
+  BruteExplosion: "PumpkinWanBruteExplosion",
+} as const;
 
 /**
  * 南瓜头·晚上 - 夜间激光植物的升级版
@@ -21,7 +27,7 @@ import { PumpkinWanLaserSfx } from "../../../sfx/laser/PumpkinWanLaserSfx";
  * 特点：
  * - 升级版南瓜头，替换基座植物
  * - 攻击更快，范围更近
- * - 发射三束激光（上、中、下）
+ * - 以自身为中心向周围发射激光（3x3，9 级扩大到 5x5）
  * - 7级以上激光能攻击飞行单位
  * - 星屑能力发射连续爆炸
  */
@@ -39,8 +45,17 @@ export class PumpkinWanModel extends PlantModel {
   public damage = new LevelScaledValue(ProjectileDamage.laser.heavy_laser).setIncRatio(1.35);
   public isNightPlant = true;
 
+  /** 星碎爆炸队列；即使植物死亡，也要把已排队的爆炸执行完。 */
+  public pendingBruteExplosions = 0;
+  public disposeAfterBruteExplosions = false;
+
   LevelThresholds1 = 5; // 激光能攻击飞行单位的等级阈值
   LevelThresholds2 = 9; // 激光范围增加的等级阈值
+
+  public override readonly tickEventNames: readonly string[] = [
+    ...DEFAULT_TICK_EVENT_NAMES,
+    PUMPKIN_WAN_EVENTS.BruteExplosion,
+  ];
 
   // 攻击参数
   private readonly attackDistance = new LevelScaledValue(3).setThreshold(this.LevelThresholds2, 5); // 格子数（比基础版短）
@@ -64,7 +79,7 @@ export class PumpkinWanModel extends PlantModel {
     const sightLine = new SightLineGroup(entity.scene, {
       owner: entity,
       row: () => entity.row,
-      rowOffsets: [-1, 0, 1],
+      rowOffsets: this.getRowOffsets(entity.level),
       originX: () => entity.x - this.startOffset.getValueAt(entity.level) * PositionManager.Instance.GRID_SIZEX,
       direction: 1,
       maxDistance: this.attackDistance.getValueAt(entity.level) * PositionManager.Instance.GRID_SIZEX,
@@ -98,11 +113,12 @@ export class PumpkinWanModel extends PlantModel {
     if (entity.currentHealth <= 0) return;
 
     // 触发连续爆炸大招
+    this.pendingBruteExplosions = 5;
     this.bruteShot(entity.scene, entity);
   }
 
   /**
-   * 普通发射：三束激光
+   * 普通发射：以自身为中心的矩形范围激光
    */
   private normalShot(scene: Game, entity: PumpkinWanEntity, attackInterval: number): void {
     const level = entity.level;
@@ -126,8 +142,8 @@ export class PumpkinWanModel extends PlantModel {
     });
     SoundCmd.PlayShootLaser();
 
-    // 物理体仍然是上、中、下三行独立激光，视觉由中心放射效果承担。
-    for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
+    // 物理体按行拆成独立激光，视觉由中心放射效果承担。
+    for (const rowOffset of this.getRowOffsets(level)) {
       const targetRow = entity.row + rowOffset;
       if (targetRow >= 0 && targetRow < PositionManager.Instance.getRowCount()) {
         const laserConfig: LaserConfig = {
@@ -148,6 +164,13 @@ export class PumpkinWanModel extends PlantModel {
     }
   }
 
+  /** 攻击覆盖行：默认上下各 1 行（3x3），9 级上下各 2 行（5x5）。 */
+  public getRowOffsets(level: number): number[] {
+    return level >= this.LevelThresholds2
+      ? [-2, -1, 0, 1, 2]
+      : [-1, 0, 1];
+  }
+
   private getVisualLaserLength(level: number): number {
     const startOffset = this.startOffset.getValueAt(level);
     const laserDistance = this.attackDistance.getValueAt(level);
@@ -164,30 +187,56 @@ export class PumpkinWanModel extends PlantModel {
    */
   private bruteShot(scene: Game, entity: PumpkinWanEntity): void {
     const totalExplosions = 5;
-    const initialDelay = 1800;
 
     entity.playBruteShootAnimation(totalExplosions);
 
-    entity.model.tickmanager.addEvent({
-      startAt: initialDelay,
-      delay: 2000,
-      repeat: totalExplosions - 1,
-      callback: () => {
-        if (entity.currentHealth > 0) {
-          const damage = 275;
-          const explosionConfig: ExplosionConfig = {
-            damage,
-            faction: entity.faction,
-            dealer: entity,
-            upGrid: 1,
-            leftGrid: 1.5,
-            rightGrid: 1.5,
-          };
-
-          entity.createExplosion(explosionConfig as unknown as Record<string, unknown>);
-        }
-      }
+    // 首次在 1800ms（2000 - startAt 200），之后每 2000ms 一次，共 5 次。
+    this.tickmanager.schedule(PUMPKIN_WAN_EVENTS.BruteExplosion, 2000, {
+      startAt: 200,
+      repeat: totalExplosions,
     });
+  }
+
+  public override handleTickEvent(
+    eventName: string,
+    args: JsonValue = null,
+    timerId?: number,
+  ): void {
+    if (eventName === PUMPKIN_WAN_EVENTS.BruteExplosion) {
+      this.bruteExplosion();
+      return;
+    }
+    super.handleTickEvent(eventName, args, timerId);
+  }
+
+  private bruteExplosion(): void {
+    const entity = this.host as PumpkinWanEntity | null;
+    if (!entity) return;
+
+    const explosionConfig: ExplosionConfig = {
+      damage: 275,
+      faction: entity.faction,
+      dealer: entity,
+      upGrid: 1,
+      leftGrid: 1.5,
+      rightGrid: 1.5,
+    };
+    entity.createExplosion(explosionConfig as unknown as Record<string, unknown>);
+
+    this.pendingBruteExplosions = Math.max(0, this.pendingBruteExplosions - 1);
+    if (this.pendingBruteExplosions === 0 && this.disposeAfterBruteExplosions) {
+      this.disposeAfterBruteExplosions = false;
+      super.disposeTickManager();
+    }
+  }
+
+  public override disposeTickManager(): void {
+    // 死亡后仍要完成星碎的持续爆炸；最后一次爆炸结束后再真正释放定时器。
+    if (this.pendingBruteExplosions > 0) {
+      this.disposeAfterBruteExplosions = true;
+      return;
+    }
+    super.disposeTickManager();
   }
 
   public createEntity(scene: Game, col: number, row: number, level: number): PumpkinWanEntity {

@@ -22,7 +22,7 @@ export class GeneratorModel extends PlantModel {
   public damage = new LevelScaledValue(0); // 生成器没有伤害
 
   LevelThresholds1 = 3;
-  LevelThresholds2 = 5;
+  LevelThresholds2 = 7;
 
   // 夜间植物标记
   isNightPlant = true;
@@ -38,16 +38,17 @@ export class GeneratorModel extends PlantModel {
       // 根据等级和睡眠状态计算产生的能量
       let energy = 5;
       if (entity.isSleeping) {
-        // 睡眠时产能减少
+        // 睡眠时产能减少（光敏作物在阳光强烈时睡眠）
         // 1-2级: 3能量
         // 3-6级: 4能量
         // 7+级: 6能量
-        energy = (entity.level >= this.LevelThresholds1) ?
-          (entity.level >= this.LevelThresholds2 ? 6 : 4) : 3;
+        energy = (entity.level >= this.LevelThresholds1)
+          ? (entity.level >= this.LevelThresholds2 ? 6 : 4)
+          : 3;
       } else {
-        // 清醒时产能更多
-        // 1-8级: 5能量
-        // 9+级: 8能量
+        // 清醒（夜间）时产能更多
+        // 1-6级: 5能量
+        // 7+级: 8能量
         energy = (entity.level >= this.LevelThresholds2) ? 8 : 5;
       }
       energyToAdd += energy;

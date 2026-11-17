@@ -24,17 +24,31 @@ Manager、Cmd 使用测试替身。逻辑统一按 50ms/帧推进，与游戏平
 - 预期结果：等级阈值、伤害、数量、时序等可验收结果。
 - 为什么：对应源码中的公式、阈值或状态机分支。
 
-## 已确认的实现/描述差异
+## 实现与描述对齐说明
 
-测试按当前真实行为断言，并在对应文件中注明原因：
+测试按描述验收；下列容易误读的时序和计数已在实现与测试中统一：
 
-- `EntityTickManager.repeat` 表示总触发次数，部分星碎数量比描述少 1：
-  Dispenser 49 发、TripleDispenser 236 发、PumpkinWan 4 次爆炸、
-  DoubleDispenser 34 发（Lv1–6）。
-- `DoubleDispenser` 星碎在 Lv7+ 会因 `shootFrontArrow` 的等级加成把前方箭
-  从 34 发提升到 68 发。
-- `IceBomb` Lv1 实际伤害为 15；源码注释写的“1–4 级 30”与实现不一致。
-- `startAt` 是提前量，不是首次延迟：ATDispenser 1050ms 触发、1250ms 发射；
-  PumpkinWan 星碎首次爆炸在 200ms；Evoker 首次召唤在 4000ms。
-- `Generator` 通过 `ResourceManager.UpdateEnergy` 产能；睡眠产能代码在 5 级
-  就切到 6，而注释写的是 3–6 级 4、7+ 级 6。
+- `EntityTickManager.repeat` 表示总触发次数，不是“额外次数”。
+  星碎总数已对齐描述：Dispenser 50 发、TripleDispenser 240 发、
+  DoubleDispenser 35 发前方箭、PumpkinWan 5 次爆炸。
+- `startAt` 是提前量，不是首次延迟。首次触发时间 =
+  `delay - startAt`。例如 ATDispenser 1050ms 触发、1250ms 发射；
+  PumpkinWan 使用 `schedule(2000, { startAt: 200, repeat: 5 })`，
+  爆炸发生在 1800/3800/5800/7800/9800ms。
+- `DoubleDispenser` 的星碎前方箭固定为 35 发，不会在 7 级因普通攻击的
+  追加箭被动翻倍；后方烟花仍为 5 发。
+- `IceBomb` Lv1 每条激光伤害为 15；冻结与减速两条激光合计 30，
+  源码注释中的“30”指合计伤害，不是单条激光。夜间种植立即触发；
+  白天种植（睡眠）不立即生效；星碎技能仅在睡眠时生效。
+- `Generator` 是光敏作物，阳光强烈时处于睡眠：睡眠产能 1–2 级 3、
+  3–6 级 4、7–9 级 6；清醒产能 1–6 级 5、7–9 级 8。3 级只提高
+  阳光强烈（睡眠）时的效率，7 级才提高全天候效率。
+- `TNT` 7 级起首次爆炸后原地保留 3 秒，随后二次爆炸并销毁；
+  1–6 级仍在首次爆炸后 50ms 销毁。
+- `Pumpkin` 的 5 级加速攻击是阈值效果：1–4 级攻击间隔 1950ms，
+  5–9 级固定为 1462.5ms；9 级另外给激光附加 3s 减速。
+- `PumpkinWan` 普通激光覆盖以自身为中心的 3x3，9 级扩大到 5x5
+  （前后各 2.5 格、上下各 2 行）；星碎爆炸范围不随等级扩大，
+  植物死亡后仍会完成已排队的 5 次爆炸。
+- `ElasticPutin` 的反弹判定在 Model：只反弹己方、可反弹且自身清醒时的
+  子弹；闪电窗口内会为带附魔接口的箭追加 `lightning`。

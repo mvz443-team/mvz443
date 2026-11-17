@@ -93,7 +93,7 @@ export class DispenserModel extends PlantModel {
     entity.model.tickmanager.addEvent({
       startAt: 200,
       delay: 50,
-      repeat: totalArrows - 1,
+      repeat: totalArrows,
       callback: () => {
         this.normalShot(scene, entity, this.starShardsPenetratePower.getValueAt(entity.level));
       }

@@ -164,7 +164,11 @@ export function resetSim({
   seed = 20261117,
   dayOrNight = true,
 } = {}) {
-  for (const model of liveModels.splice(0)) model.disposeTickManager?.();
+  // resetSim 是测试隔离边界，必须绕过 preset 的“死亡后保留定时器”策略。
+  for (const model of liveModels.splice(0)) {
+    if (model.tickmanager?.dispose) model.tickmanager.dispose();
+    else model.disposeTickManager?.();
+  }
   resetWorld();
   resetSightTarget();
   resetTickManagerClock();

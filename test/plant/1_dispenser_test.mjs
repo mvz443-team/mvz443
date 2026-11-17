@@ -24,15 +24,14 @@ import { DispenserData } from "../../src/game/presets/plant/chapter1/dispenser.t
  *   5) 睡眠时不攻击。
  *
  * 预期结果：
- *   Lv1 5s 内 5 发，伤害 20，穿透 1；Lv3 穿透 2；星碎 49 发；
+ *   Lv1 5s 内 5 发，伤害 20，穿透 1；Lv3 穿透 2；星碎 50 发；
  *   Lv5 星碎穿透 3；睡眠 0 发。
  *
  * 为什么：
  *   onCreate 注册 startAt=800 / delay=1000 的循环 timer；
  *   penetratePower 在 3 级阈值变 2，starShardsPenetratePower 在 3/5 级变 2/3；
  *   EntityTickManager 的 repeat 表示“总触发次数”，bruteShot 传入
- *   repeat = totalArrows - 1 = 49，因此实际发射 49 发；与注释中的
- *   50 发存在 1 发偏差（当前实现行为）。
+ *   repeat = totalArrows = 50，因此精确发射 50 发。
  */
 
 test("有目标时 Lv1 每 1s 发射一发伤害 20 的箭", () => {
@@ -69,14 +68,14 @@ test("Lv3 普通箭穿透提升到 2", () => {
   assert.equal(ProjectileCmd.calls[0].cfg.penetratePower, 2);
 });
 
-test("星之碎片发射 49 发，并按等级使用星碎穿透", () => {
+test("星之碎片发射 50 发，并按等级使用星碎穿透", () => {
   const sim = resetSim();
   setSightTarget(true);
   const lv1 = spawnPlant(DispenserData, { level: 1 });
   ProjectileCmd.reset();
   lv1.model.onStarShards(lv1.entity);
   tick(sim, 2_700);
-  assert.equal(ProjectileCmd.calls.length, 49);
+  assert.equal(ProjectileCmd.calls.length, 50);
   assert.equal(ProjectileCmd.calls[0].cfg.penetratePower, 1);
 
   const sim2 = resetSim();
@@ -85,7 +84,7 @@ test("星之碎片发射 49 发，并按等级使用星碎穿透", () => {
   ProjectileCmd.reset();
   lv5.model.onStarShards(lv5.entity);
   tick(sim2, 2_700);
-  assert.equal(ProjectileCmd.calls.length, 49);
+  assert.equal(ProjectileCmd.calls.length, 50);
   assert.equal(ProjectileCmd.calls[0].cfg.penetratePower, 3);
 });
 
@@ -127,8 +126,8 @@ test("Lv1–Lv9 等级成长表", () => {
 
 /**
  * 逐级星碎验收（Lv1–Lv9）：
- *   星之碎片固定发射 49 发箭，穿透力按 3/5 级阈值使用 1/2/3。
- * 预期结果：每一级 49 发，且全部使用该等级的星碎穿透值。
+ *   星之碎片固定发射 50 发箭，穿透力按 3/5 级阈值使用 1/2/3。
+ * 预期结果：每一级 50 发，且全部使用该等级的星碎穿透值。
  * 为什么：bruteShot 的 normalShot 传入 starShardsPenetratePower.getValueAt(level)。
  */
 test("Lv1–Lv9 星之碎片穿透表", () => {
@@ -139,7 +138,7 @@ test("Lv1–Lv9 星之碎片穿透表", () => {
     model.onStarShards(entity);
     tick(sim, 3_000);
 
-    assert.equal(ProjectileCmd.calls.length, 49);
+    assert.equal(ProjectileCmd.calls.length, 50);
     assert.equal(
       ProjectileCmd.calls.every(
         (call) => call.cfg.penetratePower === expectedPenetration[level - 1],

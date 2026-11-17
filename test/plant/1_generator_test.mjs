@@ -16,16 +16,17 @@ import { GeneratorData } from "../../src/game/presets/plant/chapter1/generator.t
  * 验收路径：
  *   直接调用真实 GeneratorModel.onHurt / onStarShards。
  *   1) 每累计 20 点伤害触发一次产能。
- *   2) 清醒 Lv1 = 5，Lv5 = 8；睡眠 Lv1 = 3，Lv3 = 4，Lv5 = 6。
+ *   2) 清醒 Lv1 = 5，Lv3 = 5，Lv7 = 8；睡眠 Lv1 = 3，Lv3 = 4，Lv7 = 6。
  *   3) 星碎后 3x3 内植物 isSleeping = false，自身 health 回到 max。
  *
  * 预期结果：
- *   40 伤害 -> 10 能量；睡眠 Lv1 20 伤害 -> 3；Lv5 清醒 -> 8；
+ *   40 伤害 -> 10 能量；睡眠 Lv1 20 伤害 -> 3；Lv3 睡眠 -> 4；Lv7 清醒 -> 8；
  *   星碎后 3x3 内植物全部清醒。
  *
  * 为什么：
  *   onHurt 的 while(damagedSum >= 20) 每次扣 20 并累加 energyToAdd；
- *   睡眠/清醒分支与 LevelThresholds1=3、LevelThresholds2=5 对应。
+ *   睡眠/清醒分支与 LevelThresholds1=3、LevelThresholds2=7 对应：
+ *   光敏作物在阳光强烈时睡眠，3 级提高睡眠产能，7 级提高全天候产能。
  */
 
 test("每 20 点伤害转化一次能量", () => {
@@ -43,28 +44,32 @@ test("每 20 点伤害转化一次能量", () => {
   assert.equal(getResourceState().energyCalls[1], 5);
 });
 
-test("睡眠产能按 3/4/6 分级，清醒 5 级为 8", () => {
+test("3 级提高睡眠产能，7 级提高全天候产能", () => {
   resetSim();
   const lv1 = spawnPlant(GeneratorData, { level: 1 });
-  lv1.model.isSleeping = true;
   lv1.model.onHurt(lv1.entity, 20, 20);
-  assert.equal(getResourceState().energyCalls.at(-1), 3);
+  assert.equal(getResourceState().energyCalls.at(-1), 5);
 
   resetSim();
   const lv3 = spawnPlant(GeneratorData, { level: 3 });
-  lv3.model.isSleeping = true;
   lv3.model.onHurt(lv3.entity, 20, 20);
+  assert.equal(getResourceState().energyCalls.at(-1), 5);
+
+  resetSim();
+  const lv3sleep = spawnPlant(GeneratorData, { level: 3 });
+  lv3sleep.model.isSleeping = true;
+  lv3sleep.model.onHurt(lv3sleep.entity, 20, 20);
   assert.equal(getResourceState().energyCalls.at(-1), 4);
 
   resetSim();
-  const lv5sleep = spawnPlant(GeneratorData, { level: 5 });
-  lv5sleep.model.isSleeping = true;
-  lv5sleep.model.onHurt(lv5sleep.entity, 20, 20);
+  const lv7sleep = spawnPlant(GeneratorData, { level: 7 });
+  lv7sleep.model.isSleeping = true;
+  lv7sleep.model.onHurt(lv7sleep.entity, 20, 20);
   assert.equal(getResourceState().energyCalls.at(-1), 6);
 
   resetSim();
-  const lv5awake = spawnPlant(GeneratorData, { level: 5 });
-  lv5awake.model.onHurt(lv5awake.entity, 20, 20);
+  const lv7awake = spawnPlant(GeneratorData, { level: 7 });
+  lv7awake.model.onHurt(lv7awake.entity, 20, 20);
   assert.equal(getResourceState().energyCalls.at(-1), 8);
 });
 
@@ -84,15 +89,15 @@ test("星之碎片唤醒 3x3 内植物并回满自身", () => {
 
 /**
  * 逐级验收（Lv1–Lv9）：
- *   清醒时 1–4 级每 20 伤害产 5 能量，5–9 级产 8；
- *   睡眠时 1–2 级产 3，3–4 级产 4，5–9 级产 6。
+ *   清醒时 1–6 级每 20 伤害产 5 能量，7–9 级产 8；
+ *   睡眠时 1–2 级产 3，3–6 级产 4，7–9 级产 6。
  * 预期结果：下表每一级都必须精确匹配。
- * 为什么：onHurt 的睡眠/清醒分支使用 LevelThresholds1=3、LevelThresholds2=5；
- *   源码注释写“3-6 级 4、7+ 级 6”，但实现以 5 级为第二阈值，故 5 级起就是 6。
+ * 为什么：onHurt 的睡眠/清醒分支使用 LevelThresholds1=3、LevelThresholds2=7；
+ *   3 级提高阳光强烈（睡眠）效率，7 级提高全天候效率。
  */
 test("Lv1–Lv9 清醒/睡眠产能表", () => {
-  const awakeEnergy = [5, 5, 5, 5, 8, 8, 8, 8, 8];
-  const sleepingEnergy = [3, 3, 4, 4, 6, 6, 6, 6, 6];
+  const awakeEnergy = [5, 5, 5, 5, 5, 5, 8, 8, 8];
+  const sleepingEnergy = [3, 3, 4, 4, 4, 4, 6, 6, 6];
 
   for (let level = 1; level <= 9; level++) {
     resetSim();

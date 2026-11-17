@@ -81,12 +81,12 @@ export class DoubleDispenserModel extends PlantModel {
     entity.model.tickmanager.addEvent({
       startAt: 200,
       delay: frontInterval,
-      repeat: front - 1,
+      repeat: front,
       callback: () => {
         if (entity.currentHealth <= 0) return;
 
         // 前方箭矢
-        this.shootFrontArrow(entity, ProjectileDamage.bullet.arrow / 2);
+        this.shootFrontArrow(entity, ProjectileDamage.bullet.arrow / 2, false);
 
         // 每 elapsed 发前方，发一发后方烟花
         if (frontCount % elapsed === 0) {
@@ -116,7 +116,11 @@ export class DoubleDispenserModel extends PlantModel {
     this.shootBackArrow(entity, baseDamage);
   }
 
-  private shootFrontArrow(entity: DoubleDispenserEntity, damage: number): void {
+  private shootFrontArrow(
+    entity: DoubleDispenserEntity,
+    damage: number,
+    applyLevelBonus = true,
+  ): void {
     // 前方箭矢1
     ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
       damage: damage,
@@ -127,7 +131,7 @@ export class DoubleDispenserModel extends PlantModel {
     });
 
     // Lv7+：100ms后再发一发
-    if (entity.level >= 7) {
+    if (applyLevelBonus && entity.level >= 7) {
       entity.model.tickmanager.delayedCall({
         delay: 100,
         callback: () => {

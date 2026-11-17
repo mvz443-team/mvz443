@@ -16,12 +16,12 @@ import { DoubleDispenserData } from "../../src/game/presets/plant/chapter2/doubl
  *
  * 预期结果：
  *   Lv1 齐射 2 发（前 1 后 1）；Lv3 3 发（前 1 后 2）；Lv7 5 发（前 2 后 3）；
- *   星碎实际 34 发前方箭（伤害 10）+ 5 发后方烟花（伤害 150、爆炸 100）。
+ *   星碎 35 发前方箭（伤害 10）+ 5 发后方烟花（伤害 150、爆炸 100）。
  *
  * 为什么：
  *   普通齐射在 300ms 首次触发；Lv3 在 100ms 后补 1 发后方，Lv7 在 100/150ms
- *   再补前后方各 1 发；星碎 addEvent(repeat=34) 共 34 轮，frontCount 每 7 发
- *   触发一次烟花（0/7/14/21/28），描述目标为 35 发，存在 1 发偏差。
+ *   再补前后方各 1 发；星碎 addEvent(repeat=35) 共 35 轮，frontCount 每 7 发
+ *   触发一次烟花（0/7/14/21/28）。星碎是独立技能，不享受 7 级普攻追加。
  */
 
 function shots() {
@@ -65,7 +65,7 @@ test("Lv7 前后方各增加 1 发", () => {
   for (const call of calls) assert.equal(call.cfg.damage, 25.314);
 });
 
-test("星之碎片 34 发前方箭 + 5 发后方烟花", () => {
+test("星之碎片 35 发前方箭 + 5 发后方烟花", () => {
   const sim = resetSim();
   const { model, entity } = spawnPlant(DoubleDispenserData, { level: 1, row: 2 });
   ProjectileCmd.reset();
@@ -76,7 +76,7 @@ test("星之碎片 34 发前方箭 + 5 发后方烟花", () => {
   const calls = shots();
   const arrows = calls.filter((call) => call.model === "ArrowModel" && call.cfg.speed === undefined);
   const fireworks = calls.filter((call) => call.model === "HFireWorkModel");
-  assert.equal(arrows.length, 34);
+  assert.equal(arrows.length, 35);
   assert.equal(fireworks.length, 5);
   assert.equal(arrows.every((call) => call.cfg.damage === 10), true);
   for (const firework of fireworks) {
@@ -125,11 +125,11 @@ test("Lv1–Lv9 齐射数量与伤害成长表", () => {
 
 /**
  * 逐级星碎验收（Lv1–Lv9）：
- *   星之碎片固定 34 轮前方箭（伤害 10）+ 5 发后方烟花；
- *   7 级起 shootFrontArrow 每轮追加 1 发，因此前方箭变为 68 发；
+ *   星之碎片固定 35 轮前方箭（伤害 10）+ 5 发后方烟花；
+ *   7 级追加只属于普通齐射，星碎不额外翻倍；
  *   烟花伤害使用该等级的 fireworkDamage。
- * 预期结果：1–6 级 34 箭，7–9 级 68 箭；每一级都是 5 发烟花。
- * 为什么：shootFrontArrow 固定使用 arrow/2，并在 level>=7 时追加一发；
+ * 预期结果：每一级都是 35 箭与 5 发烟花。
+ * 为什么：星碎调用 shootFrontArrow(..., false)，跳过 level>=7 的普通齐射追加；
  *   shootBackFirework 使用 fireworkDamage.getValueAt(level)。
  */
 test("Lv1–Lv9 星之碎片烟花伤害表", () => {
@@ -144,7 +144,7 @@ test("Lv1–Lv9 星之碎片烟花伤害表", () => {
     const calls = shots();
     const arrows = calls.filter((call) => call.model === "ArrowModel" && call.cfg.speed === undefined);
     const fireworks = calls.filter((call) => call.model === "HFireWorkModel");
-    assert.equal(arrows.length, level >= 7 ? 68 : 34);
+    assert.equal(arrows.length, 35);
     assert.equal(fireworks.length, 5);
     assert.equal(arrows.every((call) => call.cfg.damage === 10), true);
     assert.equal(

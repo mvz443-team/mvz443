@@ -8,8 +8,14 @@ import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import { CollisionContext } from "../../../types";
-import { ArrowEntity } from "../../bullet/arrow";
 import { Faction } from "../../../models/Enum";
+
+type BounceableProjectile = {
+  faction: Faction;
+  bounceable: boolean;
+  reverseVelocityX(): void;
+  catchEnhancement?: (enhancement: "lightning") => void;
+};
 
 export class ElasticPutinModel extends PlantModel {
   public override pid = 15;
@@ -38,15 +44,51 @@ export class ElasticPutinModel extends PlantModel {
 
     // 激活闪电效果
     const duration = entity.level >= 7 ? 8000 : 5000;
-    entity.activateLightning(duration);
+    this.activateLightning(duration);
+  }
+
+  /** 反弹判定与闪电附魔由 Model 决定；Entity 只负责物理速度反转与视图同步。 */
+  public onCollision(entity: ElasticPutinEntity, target: unknown): boolean {
+    if (entity.isSleeping) return false;
+    if (!this.isBounceableProjectile(target)) return false;
+    if (target.faction !== entity.faction) return false;
+
+    target.reverseVelocityX();
+    if (this.isLightning) {
+      target.catchEnhancement?.("lightning");
+    }
+    return true;
+  }
+
+  public activateLightning(duration: number): void {
+    this.isLightning = true;
+    this.tickmanager.delayedCall({
+      delay: duration,
+      callback: () => {
+        if (this.health > 0) {
+          this.isLightning = false;
+        }
+      },
+    });
+  }
+
+  public canExtendSightLineFor(faction: Faction): boolean {
+    return this.health > 0 && !this.isSleeping && faction === Faction.PLANT;
+  }
+
+  private isBounceableProjectile(target: unknown): target is BounceableProjectile {
+    if (!target || typeof target !== "object") return false;
+    const candidate = target as Partial<BounceableProjectile>;
+    return typeof candidate.faction === "number"
+      && candidate.bounceable === true
+      && typeof candidate.reverseVelocityX === "function";
   }
 }
 
 export const ElasticPutinData = new ElasticPutinModel();
 
 export class ElasticPutinEntity extends PlantEntity {
-  /** 闪电窗口影响命中结果，字段由 PLANT_LOGIC_SCHEMA 追踪。 */
-  private declare isLightning: boolean;
+  public declare model: ElasticPutinModel;
 
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, ElasticPutinData, level);
@@ -68,45 +110,18 @@ export class ElasticPutinEntity extends PlantEntity {
    * 碰撞事件处理：反弹箭矢
    */
   public override onCollision(ctx: CollisionContext): void {
-    // 只反弹 ArrowEntity
-    if (!(ctx.targetEntity instanceof ArrowEntity)) return;
-
-    const arrow = ctx.targetEntity as ArrowEntity;
-
-    // 只反弹自己的箭矢
-    if (arrow.faction !== this.faction) return;
-
-    // 如果箭矢不可反弹，则不反弹
-    if (!arrow.bounceable) return;
-
-    // 调用箭矢的反弹方法
-    arrow.reverseVelocityX();
-
-    // 如果激活了闪电效果，为箭矢施加增强
-    if (this.isLightning && arrow instanceof ArrowEntity) {
-      arrow.catchEnhancement('lightning');
-    }
+    this.model.onCollision(this, ctx.targetEntity);
   }
 
   /**
    * 激活闪电效果，持续指定时间
    */
   public activateLightning(duration: number): void {
-    this.isLightning = true;
-    // 逻辑窗口必须用可快照的定时系统，不能用 scene.time：
-    // scene.time 不进入快照，回滚后会出现"幽灵闪电"。
-    this.model.tickmanager.delayedCall({
-      delay: duration,
-      callback: () => {
-        if (this.currentHealth > 0) {
-          this.isLightning = false;
-        }
-      },
-    });
+    this.model.activateLightning(duration);
   }
 
   public canExtendSightLineFor(faction: Faction): boolean {
-    return this.currentHealth > 0 && !this.isSleeping && this.faction === faction;
+    return this.model.canExtendSightLineFor(faction);
   }
 
   public override destroy(): void {

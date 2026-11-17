@@ -27,7 +27,7 @@ export class PumpkinModel extends PlantModel {
   public override texturePath = 'plant/pumpkin';
 
   public maxHealth = new LevelScaledValue(300);
-  public cost = new LevelScaledValue(100);
+  public cost = new LevelScaledValue(100).setThreshold(9, 150);
   public cooldown = new LevelScaledValue(12000);
   public cooldownStartAtRatio = 0;
 
@@ -37,7 +37,8 @@ export class PumpkinModel extends PlantModel {
 
   // 攻击参数
   private readonly attackDistance = 4.6; // 格子数
-  private readonly baseAttackInterval = new LevelScaledValue(1950).setDecValue(0.75); // 毫秒
+  // 1–4 级保持基础间隔，5 级起“加速攻击”到 1462.5ms。
+  private readonly baseAttackInterval = new LevelScaledValue(1950).setThreshold(5, 1462.5); // 毫秒
 
   // 激光参数
   private readonly laserDistance = 4.6; // 激光长度（格子数）

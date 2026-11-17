@@ -9,6 +9,12 @@ import { SfxCmd } from "../../../utils/cmd/SfxCmd";
 import { AlphaBlinkSfx } from "../../../sfx/flash/AlphaBlinkSfx";
 import CombatManager from "../../../managers/CombatManager";
 import type { ModelHost } from "../../../core/logic/LogicModel";
+import { DEFAULT_TICK_EVENT_NAMES } from "../../../core/logic/TickEvents";
+import type { JsonValue } from "../../../core/SimulationState";
+
+const TNT_EVENTS = {
+  ClusterExplosion: "TntClusterExplosion",
+} as const;
 
 export class TntModel extends PlantModel {
   public override pid = 7;
@@ -24,6 +30,14 @@ export class TntModel extends PlantModel {
 
   public damage = new LevelScaledValue(1400).setIncRatio(1.35);
   public isNightPlant = false;
+
+  /** 7 级集束炸弹的二次爆炸状态；与主爆炸分开，避免被主爆炸防重入字段拦截。 */
+  public hasClusterExploded = false;
+
+  public override readonly tickEventNames: readonly string[] = [
+    ...DEFAULT_TICK_EVENT_NAMES,
+    TNT_EVENTS.ClusterExplosion,
+  ];
 
   public override createEntity(scene: Game, col: number, row: number, level: number): TntEntity {
     return this.initializeEntity(new TntEntity(scene, col, row, level));
@@ -56,16 +70,22 @@ export class TntModel extends PlantModel {
       }
     });
 
-    entity.model.tickmanager.delayedCall({
-      delay: 900,
-      callback: () => {
-        entity.destroy();
-      }
-    });
+    // 7 级起，TNT 在第一次爆炸后留下集束炸弹；3 秒后二次爆炸再销毁。
+    // 低等级仍按原节奏在第一次爆炸后 50ms 销毁。
+    if (entity.level < 7) {
+      entity.model.tickmanager.delayedCall({
+        delay: 900,
+        callback: () => {
+          entity.destroy();
+        }
+      });
+    }
   }
 
   /** 爆炸效果由 Model 定义。 */
   public primaryExplosion(host: ModelHost): void {
+    if (this.hasExploded) return;
+    this.hasExploded = true;
     host.createExplosion({
       damage: host.explosionDamage,
       rightGrid: 1.5,
@@ -74,6 +94,39 @@ export class TntModel extends PlantModel {
       faction: host.faction,
       dealer: host,
     });
+
+    if (this.level >= 7) {
+      this.tickmanager.schedule(TNT_EVENTS.ClusterExplosion, 3000);
+    }
+  }
+
+  public override handleTickEvent(
+    eventName: string,
+    args: JsonValue = null,
+    timerId?: number,
+  ): void {
+    if (eventName === TNT_EVENTS.ClusterExplosion) {
+      this.clusterExplosion();
+      return;
+    }
+    super.handleTickEvent(eventName, args, timerId);
+  }
+
+  private clusterExplosion(): void {
+    if (this.hasClusterExploded) return;
+    this.hasClusterExploded = true;
+
+    const host = this.host;
+    if (!host) return;
+    host.createExplosion({
+      damage: this.explosionDamage,
+      rightGrid: 1.5,
+      leftGrid: 1.5,
+      upGrid: 1,
+      faction: host.faction,
+      dealer: host,
+    });
+    host.destroySelf();
   }
 
   public override onStarShards(_entity: TntEntity): void {

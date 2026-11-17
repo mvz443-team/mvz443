@@ -90,7 +90,7 @@ export class TripleDispenserModel extends PlantModel {
 
         entity.model.tickmanager.addEvent({
           delay: volleyDelay,
-          repeat: totalVolleys - 2,
+          repeat: totalVolleys - 1,
           callback: () => {
             if (entity.currentHealth <= 0) return;
             this.shootBruteVolley(entity, volleyIndex);

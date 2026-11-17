@@ -16,13 +16,13 @@ import { TripleDispenserData } from "../../src/game/presets/plant/chapter1/tripl
  *
  * 预期结果：
  *   Lv1 3 发（1/1/1），Lv3 4 发（1/2/1），Lv7 6 发（2/2/2）；
- *   星碎实际 59 轮 × 4 发 = 236 发，每发伤害 = 面板伤害/2。
+ *   星碎 60 轮 × 4 发 = 240 发，每发伤害 = 面板伤害/2。
  *
  * 为什么：
  *   shootArrows 按 LevelThresholds1=3、LevelThresholds2=7 增加中路/上下路箭；
  *   shootBruteVolley 每轮固定 2 个速度 × 上/下两个目标行 = 4 发；
- *   星碎为 delayedCall(200) + addEvent(repeat=58)，EntityTickManager 的
- *   repeat 表示总触发次数，因此是 1+58=59 轮（描述目标 60 轮，存在 1 轮偏差）。
+ *   星碎为 delayedCall(200) + addEvent(repeat=59)，EntityTickManager 的
+ *   repeat 表示总触发次数，因此是 1+59=60 轮，正好 240 发。
  */
 
 function volleyCalls() {
@@ -71,7 +71,7 @@ test("Lv7 三路各 2 发，共 6 发", () => {
   assert.deepEqual(sideRows, [1, 1, 3, 3]);
 });
 
-test("星之碎片散射 236 发，单发伤害为面板一半", () => {
+test("星之碎片散射 240 发，单发伤害为面板一半", () => {
   const sim = resetSim();
   setSightTarget(true);
   const { model, entity } = spawnPlant(TripleDispenserData, { level: 1, row: 2 });
@@ -81,7 +81,7 @@ test("星之碎片散射 236 发，单发伤害为面板一半", () => {
   tick(sim, 3_200);
 
   const calls = volleyCalls();
-  assert.equal(calls.length, 236);
+  assert.equal(calls.length, 240);
   assert.equal(calls.every((call) => call.model === "MutantYAxisArrowModel"), true);
   assert.equal(calls.every((call) => call.cfg.damage === 10), true);
   assert.equal(model.inBruteShoot, false);
@@ -122,8 +122,8 @@ test("Lv1–Lv9 齐射数量与伤害成长表", () => {
 
 /**
  * 逐级星碎验收（Lv1–Lv9）：
- *   星之碎片固定 59 轮 × 4 发 = 236 发，单发伤害为该等级面板伤害的一半。
- * 预期结果：每一级都是 236 发，且单发伤害等于 damage/2。
+ *   星之碎片固定 60 轮 × 4 发 = 240 发，单发伤害为该等级面板伤害的一半。
+ * 预期结果：每一级都是 240 发，且单发伤害等于 damage/2。
  * 为什么：shootBruteVolley 使用 damage.getValueAt(level) / 2。
  */
 test("Lv1–Lv9 星之碎片单发伤害表", () => {
@@ -136,7 +136,7 @@ test("Lv1–Lv9 星之碎片单发伤害表", () => {
     tick(sim, 3_200);
 
     const calls = volleyCalls();
-    assert.equal(calls.length, 236);
+    assert.equal(calls.length, 240);
     assert.equal(calls.every((call) => call.cfg.damage === expectedDamage[level - 1]), true);
   }
 });

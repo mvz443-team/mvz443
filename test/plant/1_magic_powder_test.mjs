@@ -51,7 +51,7 @@ test("星之碎片对魔法粉没有额外效果", () => {
 /**
  * 逐级验收（Lv1–Lv9）：
  *   1–8 级激光伤害 1500，9 级提升到 2000；
- *   5 级消耗从 175 降到 125；9 级冷却从 55s 降到 48s。
+ *   5 级消耗从 175 降到 150；9 级冷却从 55s 降到 48s。
  * 预期结果：下表每一级都必须精确匹配。
  * 为什么：damage / cost / cooldown 都是 Model 中的 LevelScaledValue 阈值定义。
  */
@@ -62,7 +62,7 @@ test("Lv1–Lv9 伤害、消耗与冷却成长表", () => {
   );
   assert.deepEqual(
     levelValues((level) => MagicPowderData.cost.getValueAt(level)),
-    [175, 175, 175, 175, 125, 125, 125, 125, 125],
+    [175, 175, 175, 175, 150, 150, 150, 150, 150],
   );
   assert.deepEqual(
     levelValues((level) => MagicPowderData.cooldown.getValueAt(level)),

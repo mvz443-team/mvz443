@@ -6,7 +6,7 @@ import { TntData } from "../../src/game/presets/plant/chapter1/tnt.ts";
 /**
  * 描述（tnt_description）：
  *   TNT 落地后短延迟爆炸，对 1.5 格范围造成高额伤害；5 级起伤害额外 ×1.3；
- *   TNT 无法使用星之碎片。
+ *   7 级起爆炸后原地留下集束炸弹，3 秒后再次爆炸；TNT 无法使用星之碎片。
  *
  * 验收路径：
  *   1) 创建后 800ms 不应爆炸，850ms 应产生一次爆炸，900ms 自身销毁。
@@ -16,7 +16,8 @@ import { TntData } from "../../src/game/presets/plant/chapter1/tnt.ts";
  *
  * 预期结果：
  *   Lv1 伤害 1400；Lv5 为 1758.919×1.3=2286.595；
- *   爆炸 right/left 1.5 格、up 1 行；星碎无效果。
+ *   爆炸 right/left 1.5 格、up 1 行；Lv7 在 850ms 与 3850ms 各爆炸一次；
+ *   星碎无效果。
  *
  * 为什么：
  *   onCreate 用 tickmanager.delayedCall(850/900) 驱动；
@@ -52,6 +53,22 @@ test("Lv5 爆炸伤害额外 ×1.3", () => {
   tick(sim, 850);
   assert.equal(ProjectileCmd.calls.length, 1);
   assert.equal(ProjectileCmd.calls[0].cfg.damage, 2286.5947);
+});
+
+test("Lv7 集束炸弹在 3 秒后再次爆炸", () => {
+  const sim = resetSim();
+  const { entity } = spawnPlant(TntData, { level: 7, row: 2 });
+
+  tick(sim, 850);
+  assert.equal(ProjectileCmd.calls.length, 1);
+  assert.equal(entity.destroyed, undefined);
+
+  tick(sim, 2_950);
+  assert.equal(ProjectileCmd.calls.length, 1);
+  tick(sim, 50);
+  assert.equal(ProjectileCmd.calls.length, 2);
+  assert.equal(ProjectileCmd.calls[1].cfg.damage, 2384.1415);
+  assert.equal(entity.destroyed, true);
 });
 
 test("星之碎片对 TNT 没有效果", () => {

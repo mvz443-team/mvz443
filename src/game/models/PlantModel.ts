@@ -12,7 +12,7 @@ export abstract class PlantModel extends LogicModel {
   public shieldHealth: number = 0;
   public damagedSum: number = 0;
   public inBruteShoot: boolean = false;
-  public isLightning: number = 0;
+  public isLightning: boolean = false;
   public isBuried: boolean = false;
   public hasExploded: boolean = false;
   public hasTriggered: boolean = false;

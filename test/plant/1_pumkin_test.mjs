@@ -5,8 +5,10 @@ import { PumpkinData } from "../../src/game/presets/plant/chapter1/pumkin.ts";
 
 /**
  * 描述（pumpkin_description）：
- *   南瓜头是夜间激光植物；周期 1950ms 随等级缩短，对前方 4.6 格发射 42 基础伤害激光；
- *   9 级激光附加 3s 减速；星之碎片向上中下三行发射 290 基础伤害的大招激光。
+ *   南瓜头是夜间激光植物；1–4 级周期 1950ms，5 级加速到 1462.5ms，
+ *   对前方 4.6 格发射 42 基础伤害激光；
+ *   9 级激光附加 3s 减速，惩罚是消耗增加至 150；
+ *   星之碎片向上中下三行发射 290 基础伤害的大招激光。
  *
  * 验收路径：
  *   SightLine 替身控制目标，驱动真实 PumpkinModel。
@@ -17,8 +19,8 @@ import { PumpkinData } from "../../src/game/presets/plant/chapter1/pumkin.ts";
  *
  * 为什么：
  *   addEvent 的 startAt 是“提前量”：首次触发 = delay - startAt，
- *   因此 Lv1 首次约 487.5ms，之后每 1950ms 一次，5s 内 3 次；
- *   Lv9 攻击间隔降到 1462.5ms，2s 内 2 次；
+ *   因此 Lv1 首次约 500ms（按 50ms 帧取整），之后每 1950ms 一次，5s 内 3 次；
+ *   Lv5 起攻击间隔阈值降到 1462.5ms，Lv9 2s 内 2 次；
  *   Lv9 在 normalShot 中写入 debuff='slow'、debuffDuration=3000；
  *   masterSpark 遍历 row-1..row+1，distance=12。
  */
@@ -78,7 +80,8 @@ test("睡眠时不发射普通激光", () => {
 /**
  * 逐级验收（Lv1–Lv9）：
  *   普通激光伤害按 1.35、大招伤害按 1.3 的对数曲线成长；
- *   攻击间隔从 1950ms 按 0.75 的对数曲线缩短到 1462.5ms。
+ *   攻击间隔 1–4 级为 1950ms，5–9 级为 1462.5ms；
+ *   1–8 级消耗 100，9 级因减速效果提高到 150。
  * 预期结果：下表每一级都必须精确匹配。
  * 为什么：damage / SparkDamage / baseAttackInterval 都是 Model 中的 LevelScaledValue。
  */
@@ -93,7 +96,11 @@ test("Lv1–Lv9 伤害与攻击间隔成长表", () => {
   );
   assert.deepEqual(
     levelValues((level) => PumpkinData.baseAttackInterval.getValueAt(level)),
-    [1950, 1796.211, 1706.25, 1642.422, 1592.913, 1552.461, 1518.259, 1488.633, 1462.5],
+    [1950, 1950, 1950, 1950, 1462.5, 1462.5, 1462.5, 1462.5, 1462.5],
+  );
+  assert.deepEqual(
+    levelValues((level) => PumpkinData.cost.getValueAt(level)),
+    [100, 100, 100, 100, 100, 100, 100, 100, 150],
   );
 });
 

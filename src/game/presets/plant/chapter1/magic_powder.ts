@@ -21,7 +21,7 @@ export class MagicPowderModel extends PlantModel {
   public override texturePath = 'plant/magic_powder';
 
   public maxHealth = new LevelScaledValue(9999); // 秒杀值，几乎无敌
-  public cost = new LevelScaledValue(175).setThreshold(5, 125);
+  public cost = new LevelScaledValue(175).setThreshold(5, 150);
   public cooldown = new LevelScaledValue(55000).setThreshold(9, 48000); // 55秒 / 9级时48秒
   public cooldownStartAtRatio = 1; // 需要完整等待cooldown
 
