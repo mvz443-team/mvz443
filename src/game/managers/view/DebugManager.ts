@@ -19,7 +19,7 @@ export default class DebugManager extends BaseManager {
   public Load(): void {
     const debugWorldDepth = DepthHelper.UI.debugWorld();
     const debugUiDepth = DepthHelper.UI.debugHint();
-    if (!this.scene?.innerSettings.isDebug) {
+    if (!this.scene?.innerSettings.basicDebug) {
       return;
     }
 

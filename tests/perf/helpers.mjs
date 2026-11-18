@@ -63,14 +63,15 @@ async function injectSave(page, save) {
   }, { dbName: SAVE_DB, storeName: SAVE_STORE, data: save });
 }
 
-export async function openGame(page, { netDebug = true } = {}) {
+export async function openGame(page, { netDebug = false } = {}) {
   await injectSave(page, DEFAULT_SAVE);
   await page.context().addCookies([{
     name: 'linkOptions',
     value: JSON.stringify({ baseUrl: SERVER_ADDRESS, key: '' }),
     url: process.env.E2E_BASE_URL ?? `http://127.0.0.1:${Number(process.env.E2E_FRONTEND_PORT ?? 8080)}`,
   }]);
-  const query = new URLSearchParams({ netDebug: netDebug ? '1' : '0', serverAddr: SERVER_ADDRESS });
+  const query = new URLSearchParams({ perfHarness: '1', serverAddr: SERVER_ADDRESS });
+  if (netDebug) query.set('netDebug', '1');
   await page.goto(`/?${query.toString()}`);
   await expect(page.locator('#app')).toBeVisible({ timeout: 30000 });
 }
@@ -121,16 +122,25 @@ export async function startMultiplayer(owner, guest) {
   await waitForCanvas(guest);
 }
 
-/** 注入固定高负载场景。联机只在 owner 端注入，Cmd 会产生权威操作分发给两端。 */
+/** 两端都必须调用；在权威帧采样窗口前建立完全相同的负载，避免 perf 注入本身造成分叉。 */
 export async function injectStressScene(page) {
   await page.evaluate((scene) => globalThis.MVZ_NET.injectPerfScene(scene), STRESS_SCENE);
-  await page.waitForTimeout(1000); // 等 DeferredManager 在下一逻辑帧落地
+  // 等 DeferredManager 在下一逻辑帧落地；不要在这里等权威帧推进。
+  await page.waitForTimeout(300);
+}
+
+/** 注入完成后再确认权威帧已开始，避免把启动空档算进采样窗口。 */
+export async function waitForAuthoritativeFrames(...pages) {
+  for (const page of pages) {
+    await expect.poll(async () => (await netState(page))?.frameId ?? 0, { timeout: 30000 }).toBeGreaterThan(0);
+  }
 }
 
 /** 采集常用游戏性能指标：FPS/帧时间/长任务/JS heap/CDP TaskDuration。 */
 export async function measure(page, durationMs = 8000) {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Performance.enable');
+  await page.evaluate(() => globalThis.MVZ_NET?.resetPerfSampler?.());
   const before = await cdp.send('Performance.getMetrics');
   await page.evaluate((ms) => {
     return new Promise((resolve) => {
@@ -162,7 +172,11 @@ export async function measure(page, durationMs = 8000) {
   const frameMs = samples.map((s) => s.frameMs).filter((v) => Number.isFinite(v) && v > 0);
   const longTasks = samples.filter((s) => s.longTaskMs).map((s) => s.longTaskMs);
   const metric = (metrics, name) => metrics.metrics.find((m) => m.name === name)?.value ?? 0;
+  const netAfter = await netState(page);
+  // 性能基线不打开 netDebug；用公开网络状态判断当前帧是否正常推进。
+  const desyncState = { state: { offline: (netAfter?.stage ?? 0) === 0 } };
   const counts = await page.evaluate(() => globalThis.MVZ_NET?.getPerfCounts?.() ?? null);
+  const sampler = await page.evaluate(() => globalThis.MVZ_NET?.getPerfSampler?.() ?? null);
   const pct = (values, p) => {
     if (!values.length) return null;
     const sorted = [...values].sort((a, b) => a - b);
@@ -185,7 +199,11 @@ export async function measure(page, durationMs = 8000) {
     layoutCount: metric(after, 'LayoutCount') - metric(before, 'LayoutCount'),
     recalcStyleCount: metric(after, 'RecalcStyleCount') - metric(before, 'RecalcStyleCount'),
     phaserFps: counts?.phaserFps ?? null,
-    authoritativeFrame: (await netState(page))?.frameId ?? null,
+    authoritativeFrame: netAfter?.frameId ?? null,
+    stageAfter: netAfter?.stage ?? null,
+    inGameAfter: netAfter?.inGame ?? null,
+    desyncState,
+    sampler,
     entityCounts: counts ? { plants: counts.plants, zombies: counts.zombies, projectiles: counts.projectiles } : null,
   };
 }

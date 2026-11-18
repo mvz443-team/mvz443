@@ -1,6 +1,8 @@
 // 传输层：只负责 WebSocket 连接生命周期与二进制收发。
 // 不含重连策略、不含业务路由、不依赖 OnlineStateManager。
 
+import { isNetDebugEnabled } from '../debugFlags';
+
 export type BinaryFrame = Uint8Array<ArrayBufferLike>;
 
 export interface TransportCallbacks {
@@ -43,7 +45,9 @@ export class WebSocketTransport {
     socket.onopen = () => this.callbacks.onOpen(isReconnect);
     socket.onmessage = (event: MessageEvent) => {
       if (!(event.data instanceof ArrayBuffer)) {
-        console.warn("[Transport] 忽略非二进制消息:", event.data);
+        if (isNetDebugEnabled()) {
+          console.warn("[Transport] 忽略非二进制消息:", event.data);
+        }
         return;
       }
       this.callbacks.onMessage(new Uint8Array(event.data));

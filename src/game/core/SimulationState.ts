@@ -141,16 +141,36 @@ export function canonicalize(value: unknown): JsonValue {
 
 /** 按 IEEE-754 位模式写字节的 hash 写入器。 */
 export class HashWriter {
-  private readonly chunks: number[] = [];
+  // 连续字节块直接写入可增长缓冲区，避免每个字节都进入 number[] 并触发装箱。
+  // 写入顺序和内容与旧的 chunks 实现完全一致，因此 h32/h64 口径不变。
+  private buffer = new Uint8Array(256);
+  private length = 0;
   private readonly encoder = new TextEncoder();
   private readonly scratch = new DataView(new ArrayBuffer(8));
 
+  private ensureCapacity(additional: number): void {
+    const required = this.length + additional;
+    if (required <= this.buffer.length) return;
+    let capacity = this.buffer.length;
+    while (capacity < required) capacity = Math.min(0x40000000, capacity * 2);
+    const next = new Uint8Array(capacity);
+    next.set(this.buffer.subarray(0, this.length));
+    this.buffer = next;
+  }
+
+  private pushByte(value: number): void {
+    this.ensureCapacity(1);
+    this.buffer[this.length++] = value & 0xff;
+  }
+
   private pushBytes(bytes: Uint8Array): void {
-    for (let i = 0; i < bytes.length; i++) this.chunks.push(bytes[i]);
+    this.ensureCapacity(bytes.length);
+    this.buffer.set(bytes, this.length);
+    this.length += bytes.length;
   }
 
   u8(value: number): this {
-    this.chunks.push(value & 0xff);
+    this.pushByte(value);
     return this;
   }
 
@@ -171,7 +191,8 @@ export class HashWriter {
   /** 写入 double 的原始 8 字节（小端），避免 JSON 文本对 0.1 / -0 的歧义。 */
   f64(value: number): this {
     this.scratch.setFloat64(0, value, true);
-    for (let i = 0; i < 8; i++) this.chunks.push(this.scratch.getUint8(i));
+    // 一次 set 写入 8 字节，避免逐字节 getUint8 + number[] push。
+    this.pushBytes(new Uint8Array(this.scratch.buffer, 0, 8));
     return this;
   }
 
@@ -213,7 +234,7 @@ export class HashWriter {
   }
 
   toBytes(): Uint8Array {
-    return new Uint8Array(this.chunks);
+    return this.buffer.slice(0, this.length);
   }
 }
 

@@ -12,6 +12,7 @@ import {
 } from "../../pb/response";
 import type { LoadoutSnapshot } from "../../pb/common";
 import { toPlayerLoadout } from "./loadout";
+import { isNetDebugEnabled } from "../debugFlags";
 
 export type MockPacketChannel = "lobby" | "room" | "ingame";
 
@@ -72,7 +73,7 @@ class MockServer {
       // console.log(`[MockServer] ${message}`, details);
       return;
     }
-    console.log(`[MockServer] ${message}`);
+    if (isNetDebugEnabled()) console.log(`[MockServer] ${message}`);
   }
 
   startSingleRoom(): MockPacket[] {

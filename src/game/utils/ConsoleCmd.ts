@@ -9,6 +9,7 @@ import { MonsterLibrary } from "../managers/library/MonsterLibrary";
 import { PositionManager } from "../managers/view/PositionManager";
 import type { Game } from "../scenes/Game";
 import { desyncDiagnostics } from "../../utils/debug/desyncDiagnostics";
+import { isDbgCommandsEnabled } from "../../utils/debugFlags";
 
 export type ConsoleResourceKind = "energy" | "starshards" | "starShards" | "star" | "stars" | "星之碎片" | "星碎" | "能量";
 
@@ -56,6 +57,10 @@ namespace ConsoleCmd {
 
   export function install(scene: Game) {
     currentScene = scene;
+    if (!isDbgCommandsEnabled()) {
+      delete (window as ConsoleWindow).DBG;
+      return null;
+    }
     const commands = createCommands();
     (window as ConsoleWindow).DBG = commands;
     printBanner();

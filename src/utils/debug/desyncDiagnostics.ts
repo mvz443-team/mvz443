@@ -9,6 +9,9 @@
  * 该文件是临时诊断设施，定位问题后可以整体删除。
  */
 
+import { perfSampler } from "./perfSampler";
+import { isNetDebugEnabled } from "../debugFlags";
+
 type LogEntry = {
   seq: number;
   ts: number;
@@ -61,12 +64,23 @@ type DesyncLogSnapshot = {
 const MAX_LOG_ENTRIES = 20_000;
 const MAX_NETWORK_ENTRIES = 40_000;
 const MAX_NETWORK_BYTES = 48 * 1024 * 1024;
+// 性能压测下每帧都有权威回包/心跳，无限记录会让诊断层成为主要主线程开销。
+// 诊断日志仍保留最近一批网络包用于排错；完整网络历史可用 NETWORK_DIAGNOSTICS_FULL=1 打开。
+const HOT_NETWORK_ENTRIES = 512;
 const MAX_FRAME_ENTRIES = 12_000;
 const MAX_MESSAGE_BYTES = 1024 * 1024;
 const MAX_STRING_LENGTH = 4_000;
 
+let lastIsoMs = -1;
+let lastIso = "";
+/** 同一毫秒内复用 ISO 字符串，减少热路径上的 Date/字符串分配。 */
 function nowIso(): string {
-  return new Date().toISOString();
+  const ms = Date.now();
+  if (ms !== lastIsoMs) {
+    lastIsoMs = ms;
+    lastIso = new Date(ms).toISOString();
+  }
+  return lastIso;
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -175,10 +189,20 @@ class DesyncDiagnostics {
   private encodeWorker: Worker | null = null;
   private encodeWorkerNextId = 1;
   private readonly encodeCallbacks = new Map<number, (result: { hex: string; base64: string }) => void>();
+  private readonly fullNetworkDiagnostics: boolean;
+  private readonly enabled: boolean;
 
   constructor() {
-    // 浏览器里尽早安装；Node 测试环境不劫持 console。
-    if (typeof window !== "undefined" && typeof document !== "undefined") {
+    this.fullNetworkDiagnostics = (() => {
+      try {
+        return (globalThis as { NETWORK_DIAGNOSTICS_FULL?: string }).NETWORK_DIAGNOSTICS_FULL === "1";
+      } catch {
+        return false;
+      }
+    })();
+    this.enabled = isNetDebugEnabled();
+    // 只在 netDebug=1 时安装；普通联机不再为每个 console/network 事件付诊断成本。
+    if (this.enabled && typeof window !== "undefined" && typeof document !== "undefined") {
       this.install();
       this.installEncodeWorker();
     }
@@ -269,11 +293,25 @@ class DesyncDiagnostics {
     (window as unknown as Record<string, unknown>).__MVZ443_DOWNLOAD_LOGS__ = api.download;
   }
 
+  public isEnabled(): boolean {
+    return this.enabled;
+  }
+
   public setStateProvider(provider: (() => Record<string, unknown>) | null): void {
     this.stateProvider = provider;
   }
 
   public record(category: string, message: string, data?: unknown): void {
+    if (!this.enabled) return;
+    const started = perfSampler.now();
+    try {
+      this.recordInner(category, message, data);
+    } finally {
+      perfSampler.record("diagnostics.record", perfSampler.now() - started);
+    }
+  }
+
+  private recordInner(category: string, message: string, data?: unknown): void {
     this.entries.push({
       seq: ++this.sequence,
       ts: Date.now(),
@@ -288,6 +326,16 @@ class DesyncDiagnostics {
   }
 
   public recordNetwork(direction: "send" | "recv", bytes: Uint8Array, note?: string): void {
+    if (!this.enabled) return;
+    const started = perfSampler.now();
+    try {
+      this.recordNetworkInner(direction, bytes, note);
+    } finally {
+      perfSampler.record("diagnostics.recordNetwork", perfSampler.now() - started);
+    }
+  }
+
+  private recordNetworkInner(direction: "send" | "recv", bytes: Uint8Array, note?: string): void {
     const truncated = bytes.length > MAX_MESSAGE_BYTES;
     // 复制一次是为了避免底层 WebSocket buffer 被复用/回收；不在热路径做编码。
     const raw = new Uint8Array(bytes);
@@ -303,6 +351,14 @@ class DesyncDiagnostics {
     };
     this.networkEntries.push(entry);
     this.networkBytes += Math.min(bytes.length, MAX_MESSAGE_BYTES);
+    if (!this.fullNetworkDiagnostics && this.networkEntries.length > HOT_NETWORK_ENTRIES) {
+      const removed = this.networkEntries.shift();
+      if (removed) {
+        removed.retired = true;
+        removed.raw = undefined;
+        this.networkBytes -= Math.min(removed.size, MAX_MESSAGE_BYTES);
+      }
+    }
     this.encodeNetworkBytes(raw, (encoded) => {
       // 条目可能已被环形淘汰；只有仍在缓冲中的条目才回填。
       if (entry.retired) return;
@@ -324,6 +380,7 @@ class DesyncDiagnostics {
   }
 
   public recordFrame(data: unknown): void {
+    if (!this.enabled) return;
     this.frameEntries.push({
       seq: ++this.sequence,
       ts: Date.now(),
@@ -346,6 +403,7 @@ class DesyncDiagnostics {
 
   /** 手动下载；不会清空缓冲，也不会被一次性标记拦截。 */
   public download(reason: string, extra?: unknown): void {
+    if (!this.enabled) return;
     if (typeof document === "undefined" || typeof Blob === "undefined") {
       this.record("diagnostics", "download skipped: no document/Blob", { reason });
       return;

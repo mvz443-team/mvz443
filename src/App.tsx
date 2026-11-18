@@ -17,6 +17,7 @@ import { SendReady, SendLoaded, SendChooseMap, SendEndGame, SendReturnToLobby } 
 import { Request } from './pb/request';
 import { PlantCmd } from './game/utils/cmd/PlantCmd';
 import MobCmd from './game/utils/cmd/MobCmd';
+import { perfSampler } from './utils/debug/perfSampler';
 import { ProjectileCmd } from './game/utils/cmd/ProjectileCmd';
 import { PlantLibrary } from './game/managers/library/PlantLibrary';
 import { MonsterLibrary } from './game/managers/library/MonsterLibrary';
@@ -30,6 +31,7 @@ import { publicUrl } from './utils/browser';
 import { PhaserEventBus, PhaserEvents } from './game/EventBus';
 import CursorManager from './game/managers/combat/CursorManager';
 import CardpileManager from './game/managers/combat/CardpileManager';
+import CombatManager from './game/managers/CombatManager';
 import { initializeGameLibraries } from './game/managers/library/initializeGameLibraries';
 import {
   GAME_ASPECT_RATIO,
@@ -38,7 +40,7 @@ import {
   LOGICAL_BATTLE_WIDTH,
   LOGICAL_BATTLE_WORLD_WIDTH,
 } from './constants/gameLayout';
-import { isUnlockAllCardsEnabled, toggleUnlockAllCards } from './utils/debugFlags';
+import { isNetDebugEnabled, isUnlockAllEnabled, toggleUnlockAll } from './utils/debugFlags';
 
 interface GameMainWindowProps {
   width: number;
@@ -377,11 +379,14 @@ function App() {
     && viewportSize.height > viewportSize.width;
 
   useEffect(() => {
-    isUnlockAllCardsEnabled();
-    // 测试钩子：netDebug=1 时暴露网络状态与测试配置接口，供 Playwright E2E 使用
-    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('netDebug') === '1') {
+    isUnlockAllEnabled();
+    // 测试钩子：netDebug=1 或 perfHarness=1 时暴露网络状态与测试配置接口。
+    // 性能基线用 perfHarness=1，只开测试 API，不开网络字节/console 诊断记录。
+    const isHarness = typeof window !== 'undefined'
+      && new URLSearchParams(window.location.search).get('perfHarness') === '1';
+    if (typeof window !== 'undefined' && (isNetDebugEnabled() || isHarness)) {
       // 记录最近一次确定性状态采样，供双窗口联机 E2E 比对两端模拟是否分叉。
-      // 只在 netDebug=1 时订阅，生产环境零开销。
+      // 只在 netDebug/perfHarness 时订阅，普通游戏零开销。
       let lastHash: { frameId: number; hash: string } | null = null;
       const onHashSampled = (sample: { frameId: number; hash: string }) => {
         lastHash = { frameId: sample.frameId, hash: sample.hash };
@@ -389,6 +394,12 @@ function App() {
       PhaserEventBus.on(PhaserEvents.SimulationHashSampled, onHashSampled);
       (window as any).MVZ_NET = {
         getSimulationHash: () => lastHash,
+        getDesyncState: () => ({
+          offline: CombatManager.Instance.isDesyncOffline(),
+          reason: CombatManager.Instance.getDesyncReason(),
+        }),
+        getPerfSampler: () => perfSampler.snapshot(),
+        resetPerfSampler: () => perfSampler.reset(),
         getState: () => ({
           reconnecting: BackendWS.isReconnecting(),
           reconnectAttempt: BackendWS.getReconnectAttempt(),
@@ -433,7 +444,7 @@ function App() {
             gameExit: (result: StageResult) => gameExit(result),
             gameSettings: {
               isBluePrint: false,
-              isDebug: false,
+              basicDebug: false,
               isBgm: false,
               isSoundAudio: false,
               showCardLevelInGame: false,
@@ -466,7 +477,7 @@ function App() {
             gameExit: (result: StageResult) => gameExit(result),
             gameSettings: {
               isBluePrint: false,
-              isDebug: false,
+              basicDebug: false,
               isBgm: false,
               isSoundAudio: false,
               showCardLevelInGame: false,
@@ -566,9 +577,9 @@ function App() {
         return;
       }
       event.preventDefault();
-      toggleUnlockAllCards();
+      toggleUnlockAll();
       const url = new URL(window.location.href);
-      url.searchParams.delete('unlockAllCards');
+      url.searchParams.delete('unlockall');
       window.location.replace(url.toString());
     };
     window.addEventListener('keydown', handleUnlockShortcut);

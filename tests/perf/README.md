@@ -42,3 +42,5 @@ npx playwright test --config playwright.perf.config.ts
 - `PERFORMANCE_REPORT.json`
 
 注意：逻辑固定步是 20 FPS（50ms），因此 rAF/Phaser 帧率接近 20-30 FPS 不一定代表渲染卡顿，需要同时看 p95、长任务和 TaskDuration。
+
+性能基线使用 `perfHarness=1` 而不是 `netDebug=1`：前者只暴露必要测试 API，后者会打开网络日志、逐帧诊断和 desync 日志下载。调试开关统一在“设置 → 调试”中管理：`basicDebug`、`netDebug`、`DBG命令`、`unlockall`。

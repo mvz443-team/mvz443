@@ -175,16 +175,6 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
                 settingManager.toggleLanguage(val as Locale);
               }
             }
-          },
-          {
-            titleKey: "menu.settings_general_debug",
-            descriptionKey: "menu.settings_general_debug_t",
-            controlType: "switcher",
-            controlProps: {
-              value: settingManager.isDebug, onToggle: (val) => {
-                debounce((newVal) => settingManager.setIsDebug(newVal), 50)(val);
-              }
-            }
           }
         ],
       },
@@ -278,12 +268,52 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
       }
     ],
     online: [],
+    debug: [
+      {
+        title: "menu.settings_debug_title",
+        items: [
+          {
+            titleKey: "menu.settings_debug_basic",
+            descriptionKey: "menu.settings_debug_basic_t",
+            controlType: "switcher",
+            controlProps: {
+              value: settingManager.basicDebug, onToggle: (val) => settingManager.setBasicDebug(val)
+            }
+          },
+          {
+            titleKey: "menu.settings_debug_net",
+            descriptionKey: "menu.settings_debug_net_t",
+            controlType: "switcher",
+            controlProps: {
+              value: settingManager.netDebug, onToggle: (val) => settingManager.setNetDebug(val)
+            }
+          },
+          {
+            titleKey: "menu.settings_debug_dbg",
+            descriptionKey: "menu.settings_debug_dbg_t",
+            controlType: "switcher",
+            controlProps: {
+              value: settingManager.dbgCommands, onToggle: (val) => settingManager.setDbgCommands(val)
+            }
+          },
+          {
+            titleKey: "menu.settings_debug_unlockall",
+            descriptionKey: "menu.settings_debug_unlockall_t",
+            controlType: "switcher",
+            controlProps: {
+              value: settingManager.unlockAll, onToggle: (val) => settingManager.setUnlockAll(val)
+            }
+          }
+        ]
+      }
+    ],
   };
 
   const menuItems = [
     { name: "menu.settings_general", key: "general" },
     { name: "menu.settings_gaming", key: "game" },
-    { name: "menu.settings_online", key: "online" }
+    { name: "menu.settings_online", key: "online" },
+    { name: "menu.settings_debug", key: "debug" }
   ];
   return (
     <div style={{

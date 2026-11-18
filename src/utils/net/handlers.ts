@@ -16,6 +16,7 @@ import { normalizeSyncPlayers } from "./player_sync";
 import { computeLoadoutHash } from "./loadout";
 import type { InlineSnapshot } from "../../game/core/snapshot/InlineSnapshot";
 import { desyncDiagnostics } from "../debug/desyncDiagnostics";
+import { isNetDebugEnabled } from "../debugFlags";
 
 export default class WSClientHandlers {
   private ws: WebSocketClient;
@@ -192,7 +193,9 @@ export default class WSClientHandlers {
           frameId: accepted.frameId,
           snapshotKind: accepted.snapshotKind,
         });
-        console.log('[checkpoint] accepted', accepted.frameId, accepted.snapshotKind);
+        if (isNetDebugEnabled()) {
+          console.log('[checkpoint] accepted', accepted.frameId, accepted.snapshotKind);
+        }
         break;
       }
       case 'replayFrames': {
@@ -279,10 +282,12 @@ export default class WSClientHandlers {
           PhaserEventBus.emit(PhaserEvents.DesyncOfflineMode, { message: error.message });
           // 立即下载：此时 CombatManager 已通过事件进入离线态，状态提供器仍能
           // 捕获当前 Model 全量状态。downloadOnce 保证结算时不会重复下载。
-          desyncDiagnostics.downloadOnce(
-            isVersionMismatch ? "client-version-mismatch" : "server-desync",
-            report,
-          );
+          if (desyncDiagnostics.isEnabled()) {
+            desyncDiagnostics.downloadOnce(
+              isVersionMismatch ? "client-version-mismatch" : "server-desync",
+              report,
+            );
+          }
           this.ws.enterDesyncOfflineMode();
           return;
         }

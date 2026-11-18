@@ -9,6 +9,8 @@ import { PhaserEventBus, PhaserEvents } from "../EventBus";
 import SyncManager from "../managers/combat/SyncManager";
 import { desyncDiagnostics } from "../../utils/debug/desyncDiagnostics";
 import { setAuthoritativeFrame } from "../core/logic/EntityTickManager";
+import { perfSampler } from "../../utils/debug/perfSampler";
+import { isNetDebugEnabled } from "../../utils/debugFlags";
 
 type InGameEvent = {
   onCardPlant: (pid: number, col: number, row: number, level: number, uid: number) => void;
@@ -112,6 +114,8 @@ export default class QueueReceive {
 
   // 只保留 lastAckFrameId 即可判断重复帧，无需整局累积 Set
   private readonly maxBufferedResponses: number = 64;
+  /** 已入队的帧号：重复回包直接丢弃，不再让 staging 做无效签名计算。 */
+  private readonly queuedFrameIds: Set<number> = new Set();
   bufferedResponses: Map<number, InGameResponse> = new Map<number, InGameResponse>();
   /**
    * processFrameId -> operation signature -> operation。
@@ -130,6 +134,7 @@ export default class QueueReceive {
 
   Reset() {
     this.queues.clear();
+    this.queuedFrameIds.clear();
     this.bufferedResponses.clear();
     this.pendingOperations.clear();
     this.replayLog.clear();
@@ -170,6 +175,7 @@ export default class QueueReceive {
       pendingAfter: pendingAfter.map(([id]) => id),
     });
     this.queues.clear();
+    this.queuedFrameIds.clear();
     this.bufferedResponses.clear();
     this.pendingOperations.clear();
     for (const [id, operations] of pendingAfter) {
@@ -208,7 +214,10 @@ export default class QueueReceive {
     }
     for (const id of [...responses.keys()].sort((a, b) => a - b)) {
       const response = responses.get(id);
-      if (response) this.queues.push(response);
+      if (response) {
+        this.queues.push(response);
+        this.queuedFrameIds.add(id);
+      }
     }
   }
 
@@ -234,11 +243,22 @@ export default class QueueReceive {
     //   currentFrameId: this.currentFrameId,
     //   lastAckFrameId: this.lastAckFrameId
     // });
+    if (this.queuedFrameIds.has(response.frameId)) return;
     this.queues.push(response);
+    this.queuedFrameIds.add(response.frameId);
   }
 
   /** 把回包里的操作按 processFrameId 暂存；同一操作重复补发时按签名去重。 */
   private stageResponseOperations(response: InGameResponse): void {
+    const started = perfSampler.now();
+    try {
+      this.stageResponseOperationsInner(response);
+    } finally {
+      perfSampler.record("stageResponseOperations", perfSampler.now() - started);
+    }
+  }
+
+  private stageResponseOperationsInner(response: InGameResponse): void {
     for (const operation of response.operations) {
       const rawFrameId = operation.processFrameId > 0
         ? operation.processFrameId
@@ -440,10 +460,10 @@ export default class QueueReceive {
         break;
       }
       default:
-        console.warn("Unknown game operation type:", operation.payload.oneofKind);
+        if (isNetDebugEnabled()) console.warn("Unknown game operation type:", operation.payload.oneofKind);
         return;
     }
-    console.warn("No operation function defined for:", operation.payload.oneofKind);
+    if (isNetDebugEnabled()) console.warn("No operation function defined for:", operation.payload.oneofKind);
   }
 
   private getOperationUid(operation: InGameOperation): number {
@@ -486,6 +506,7 @@ export default class QueueReceive {
       if (!response) {
         continue;
       }
+      this.queuedFrameIds.delete(response.frameId);
       // 即使回包本身是重复帧，也可能携带尚未见过的后续帧操作，先分组再丢弃。
       this.stageResponseOperations(response);
       if (response.frameId <= this.lastAckFrameId) {
@@ -535,12 +556,11 @@ export default class QueueReceive {
       frameId: nextFrameID,
       operations,
     });
+    // 热路径只记录轻量字段；过去的 operations/buffered/replay 全量展开会在
+    // 每帧创建多份数组和字符串，联机下叠加网络日志后足以影响帧生成时间。
     desyncDiagnostics.record("sync", "consume frame", {
-      beforeFrameId,
       frameId: nextFrameID,
-      operations: operations.map(describeOperation),
-      bufferedFrameIds: [...this.bufferedResponses.keys()].sort((a, b) => a - b),
-      replayFrameIds: [...this.replayLog.keys()].sort((a, b) => a - b),
+      operationCount: operations.length,
       ackFrameId: this.lastAckFrameId,
     });
 

@@ -255,7 +255,7 @@ export class Game extends Scene {
       DepthHelper.UI.waitingText(),
     );
 
-    if (this.innerSettings.isDebug) {
+    if (this.innerSettings.basicDebug) {
       const sceneBounds = PositionManager.Instance.getSceneBounds(deviceType);
       this.debugFrameText = this.add.text(
         8,
@@ -433,7 +433,7 @@ export class Game extends Scene {
     DebugManager.Instance.update();
     this.syncCameraLayers();
     this.updateWaitText(delta);
-    if (this.debugFrameText && this.innerSettings.isDebug) {
+    if (this.debugFrameText && this.innerSettings.basicDebug) {
       this.debugFrameText.setText(`frameId: ${BackendWS.FrameID}\nackFrameId: ${BackendWS.AckFrameID}`);
     }
   }

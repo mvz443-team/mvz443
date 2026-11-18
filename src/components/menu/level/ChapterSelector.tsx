@@ -3,6 +3,7 @@ import React from 'react';
 import { ChapterDataRecords, StageDataRecords } from '../../../game/managers/library/ChapterLibrary';
 import { useSaveManager } from '../../../context/save_ctx';
 import { useLocaleMessages } from '../../../hooks/useLocaleMessages';
+import { isUnlockAllEnabled } from '../../../utils/debugFlags';
 import { stageKey } from '../../../i18n/keys';
 import { useSetState, useLocalStorageState, useMount, useMemoizedFn } from 'ahooks';
 
@@ -50,6 +51,9 @@ const ChapterSelector: React.FC<ChapterSelectorProps> = ({ onSelect, onBack }) =
 
   // 计算可用章节
   const calculateAvailableChapters = useMemoizedFn(() => {
+    if (isUnlockAllEnabled()) {
+      return Object.keys(ChapterDataRecords).map(Number).sort((a, b) => a - b);
+    }
     let tmpChapters: number[] = [];
     saveManager.getUnlockedLevels().forEach((level) => {
       const chapterId = level.chapterId;
@@ -90,7 +94,8 @@ const ChapterSelector: React.FC<ChapterSelectorProps> = ({ onSelect, onBack }) =
   const totalStageCount = selectedChapterStages.length;
   const selectedChapterName = selectedChapterData ? translate(stageKey(selectedChapterData.nameKey)) : '-';
   const selectedChapterUnlocked = selectedChapterData
-    ? selectedChapterStages.some((stageId) => saveManager.isLevelUnlocked(stageId, selectedChapterData.id))
+    ? isUnlockAllEnabled()
+      || selectedChapterStages.some((stageId) => saveManager.isLevelUnlocked(stageId, selectedChapterData.id))
     : false;
   const selectedChapterCompleted = totalStageCount > 0 && completedStageCount === totalStageCount;
   const infoPanelTheme = selectedChapterCompleted

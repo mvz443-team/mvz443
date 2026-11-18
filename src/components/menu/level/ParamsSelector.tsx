@@ -17,7 +17,7 @@ import BackendWS from '../../../utils/net/sync';
 import { Request, RequestChooseMap, RequestReady } from '../../../pb/request';
 import { SendReady } from '../../../utils/net/room';
 import type { StageData } from '../../../types/stage';
-import { isUnlockAllCardsEnabled } from '../../../utils/debugFlags';
+import { isUnlockAllEnabled } from '../../../utils/debugFlags';
 import { MAX_CARD_SLOTS } from '../../../constants/cardSlotLayout';
 
 interface ParamsSelectorProps {
@@ -131,7 +131,7 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
   // 计算可用植物
   const calculateAvailablePlants = useMemoizedFn(() => {
     const plantProgress = saveManager.currentProgress.plants;
-    if (isUnlockAllCardsEnabled()) {
+    if (isUnlockAllEnabled()) {
       const plantLevelByPid = new Map<number, number>();
       for (const plant of plantProgress ?? []) {
         plantLevelByPid.set(plant.pid, Math.max(plantLevelByPid.get(plant.pid) ?? 0, plant.level));
@@ -182,7 +182,7 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
     const unlockedSlots = Math.floor(saveManager.currentProgress.slotNum ?? 0);
     setState({
       availablePlants: plants,
-      selectUpperLimit: isUnlockAllCardsEnabled()
+      selectUpperLimit: isUnlockAllEnabled()
         ? MAX_CARD_SLOTS
         : Math.max(0, Math.min(MAX_CARD_SLOTS, unlockedSlots)),
     });
@@ -264,7 +264,7 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
         gameExit: () => { console.log('no gameexit Implemented') },
         gameSettings: {
           isBluePrint: settings.isBluePrint,
-          isDebug: settings.isDebug,
+          basicDebug: settings.basicDebug,
           isBgm: settings.isBgm,
           isSoundAudio: settings.isSoundAudio,
           showCardLevelInGame: settings.showCardLevelInGame,
@@ -311,7 +311,7 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
       gameExit: () => { console.log('no gameexit Implemented') },
       gameSettings: {
         isBluePrint: settings.isBluePrint,
-        isDebug: settings.isDebug,
+        basicDebug: settings.basicDebug,
         isBgm: settings.isBgm,
         isSoundAudio: settings.isSoundAudio,
         showCardLevelInGame: settings.showCardLevelInGame,

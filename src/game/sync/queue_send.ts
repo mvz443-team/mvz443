@@ -52,7 +52,6 @@ export default class QueueSend {
         const refreshedRequest = this.refreshAckFrameId(request);
         desyncDiagnostics.record("sync", "send request", {
           kind: refreshedRequest.payload.oneofKind,
-          payload: refreshedRequest.payload,
         });
         // console.log("[QueueSend] send request", {
         //   type: refreshedRequest.payload.oneofKind,
@@ -291,10 +290,7 @@ export default class QueueSend {
 
   public sendBlankFrame(frameId: number) {
     const now = Date.now();
-    desyncDiagnostics.record("sync", "sendBlankFrame", {
-      frameId,
-      ackFrameId: BackendWS.AckFrameID,
-    });
+    desyncDiagnostics.record("sync", "sendBlankFrame", { frameId });
     const request: RequestBlank = {
       frameId,
       ackFrameId: BackendWS.AckFrameID,
@@ -330,20 +326,8 @@ export default class QueueSend {
       && now - this.lastBlankQueuedAt < this.getFrameIntervalMs();
 
     if (hasSentSameAckRecently || hasQueuedSameAckRecently) {
-      console.log("[QueueSend] skip duplicate blank", {
-        frameId,
-        ackFrameId,
-        lastBlankAckFrameIdSent: this.lastBlankAckFrameIdSent,
-        lastBlankAckFrameIdQueued: this.lastBlankAckFrameIdQueued,
-        msSinceLastBlankSent: now - this.lastBlankSentAt,
-        msSinceLastBlankQueued: now - this.lastBlankQueuedAt
-      });
       return;
     }
-    console.log("[QueueSend] ensure blank frame", {
-      frameId,
-      ackFrameId
-    });
     this.sendBlankFrame(frameId);
   }
 

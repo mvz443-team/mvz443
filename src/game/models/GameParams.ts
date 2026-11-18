@@ -25,7 +25,8 @@ export interface GameParams {
 
 export interface GameSettings {
   isBluePrint: boolean;
-  isDebug: boolean;
+  /** 旧 isDebug：Rapier 物理体与当前帧号显示。 */
+  basicDebug: boolean;
   isBgm: boolean;
   isSoundAudio: boolean;
   showCardLevelInGame: boolean;

@@ -4,7 +4,10 @@ import { ChapterDataRecords, StageDataRecords } from '../../../game/managers/lib
 import { useSaveManager } from '../../../context/save_ctx';
 import { publicUrl } from '../../../utils/browser';
 import { useSettings } from '../../../context/settings_ctx';
+
 import { useLocaleMessages } from '../../../hooks/useLocaleMessages';
+import { isUnlockAllEnabled } from '../../../utils/debugFlags';
+
 import { stageKey } from '../../../i18n/keys';
 import { useSetState, useLocalStorageState, useMount, useMemoizedFn } from 'ahooks';
 import type { StageData } from '../../../types/stage';
@@ -48,6 +51,7 @@ interface StageSelectorProps {
 }
 
 const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBack }) => {
+  const settings = useSettings();
   const [state, setState] = useSetState({
     selectedStage: null as number | null,
     stagesIds: [] as number[],
@@ -65,7 +69,6 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
   });
 
   const saveManager = useSaveManager();
-  const settings = useSettings();
   const { translate } = useLocaleMessages();
 
   // 联机：房间列表与侧边栏
@@ -121,8 +124,9 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
   const calculateAvailableStages = useMemoizedFn(() => {
     const chapterStages = ChapterDataRecords[chapterId]?.stages || [];
     const tmpStagesIds: number[] = [];
+    const unlockAll = isUnlockAllEnabled();
     for (const stageId of chapterStages) {
-      if (saveManager.isLevelUnlocked(stageId, chapterId)) {
+      if (unlockAll || saveManager.isLevelUnlocked(stageId, chapterId)) {
         tmpStagesIds.push(stageId);
       }
     }
@@ -218,7 +222,8 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
 
   const selectedStageRecord = state.selectedStage !== null ? StageDataRecords[state.selectedStage] : null;
   const selectedStageName = selectedStageRecord ? translate(stageKey(selectedStageRecord.nameKey)) : '';
-  const selectedStageUnlocked = state.selectedStage !== null && saveManager.isLevelUnlocked(state.selectedStage, chapterId);
+  const selectedStageUnlocked = state.selectedStage !== null
+    && (isUnlockAllEnabled() || saveManager.isLevelUnlocked(state.selectedStage, chapterId));
   const selectedStageCompleted = state.selectedStage !== null && saveManager.isLevelPassed(state.selectedStage, chapterId);
   const infoPanelTheme = selectedStageCompleted
     ? infoPanelThemes.completed

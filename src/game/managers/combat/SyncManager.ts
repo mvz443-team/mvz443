@@ -17,6 +17,7 @@ import CardpileManager from "./CardpileManager";
 import PlantsManager from "./PlantsManager";
 import ResourceManager, { PlayerIdentify } from "./ResourceManager";
 import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
+import { perfSampler } from "../../../utils/debug/perfSampler";
 
 type SyncManagerEvent = {
   onRequestPlant: (playerId: PlayerIdentify, pid: number, level: number, col: number, row: number) => void;
@@ -339,9 +340,13 @@ export default class SyncManager extends BaseManager {
       this.recvQueue.lastAckFrameId = this.recvQueue.currentFrameId;
       return true;
     }
+    const consumeStarted = perfSampler.now();
     const frameReady = this.recvQueue.Consume();
+    perfSampler.record("recvQueue.Consume", perfSampler.now() - consumeStarted);
     if (!frameReady && BackendWS.isRoomSessionMode() && !CombatManager.Instance.isPaused) {
+      const blankStarted = perfSampler.now();
       this.sendQueue.ensureBlankFrame(this.recvQueue.currentFrameId);
+      perfSampler.record("ensureBlankFrame", perfSampler.now() - blankStarted);
     }
     if (this.scene?.waitText) {
       this.scene.setWaitTextVisibleTarget(BackendWS.isOnlineMode() && !frameReady && !CombatManager.Instance.isPaused);

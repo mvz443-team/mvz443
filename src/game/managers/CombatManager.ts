@@ -26,6 +26,7 @@ import { buildInlineSnapshotOrHash } from "../core/snapshot/InlineSnapshot";
 import { restoreInlineSnapshot } from "../core/snapshot/InlineSnapshot";
 import type { InlineSnapshot } from "../core/snapshot/InlineSnapshot";
 import { desyncDiagnostics } from "../../utils/debug/desyncDiagnostics";
+import { perfSampler } from "../../utils/debug/perfSampler";
 
 // 单次 update 允许接受的最大 delta（切后台/断点会产生数秒级 delta）
 const MAX_FRAME_DELTA_MS = 250;
@@ -102,6 +103,12 @@ export default class CombatManager extends BaseManager {
   private desyncReason = "";
   private desyncLogExported = false;
   private lastCheckpointFrame = 0;
+  /**
+   * 同一固定步内可能同时触发 hash 采样、快照记录、checkpoint。
+   * 这三者之间没有任何状态变更，共享一次 capture 可避免重复构造完整状态。
+   */
+  private readonly frameStateCache = new Map<string, SimulationState>();
+
   /** 进行中的确定性自检（回滚-重放）任务。 */
   private pendingDeterminismCheck: { targetFrame: number; expectedHash: string; restoreFrame: number } | null = null;
 
@@ -201,6 +208,7 @@ export default class CombatManager extends BaseManager {
     this.lastStateHash = null;
     this.lastStateHashFrame = 0;
     this.snapshotRing.clear();
+    this.frameStateCache.clear();
     this.pendingDeterminismCheck = null;
     this.lastRestoreReport = null;
     this.desyncOffline = false;
@@ -250,6 +258,7 @@ export default class CombatManager extends BaseManager {
     this.isEndGameRequested = false;
     this.isPaused = false;
     this.snapshotRing.clear();
+    this.frameStateCache.clear();
     this.pendingDeterminismCheck = null;
     this.lastStateHash = null;
     this.lastStateHashFrame = 0;
@@ -285,6 +294,7 @@ export default class CombatManager extends BaseManager {
       BackendWS.getReceiveQueue()?.restoreToFrame(frameId);
       // 旧环形快照可能来自恢复前已经分叉的分支，不能再用于后续回滚。
       this.snapshotRing.clear();
+      this.frameStateCache.clear();
       this.lastCheckpointFrame = 0;
       console.log(`[reconnect] 已恢复 checkpoint frame=${frameId}`);
     } catch (error) {
@@ -342,7 +352,9 @@ export default class CombatManager extends BaseManager {
       // 避免在 world.step / bodies.forEach 相关借用期间修改物理世界。
       DeferredManager.Instance.flush();
 
+      const syncStarted = perfSampler.now();
       const frameReady = SyncManager.Instance.update();
+      perfSampler.record("sync.update", perfSampler.now() - syncStarted);
 
       if (!frameReady) {
         this.isInFixedStep = false;
@@ -396,9 +408,15 @@ export default class CombatManager extends BaseManager {
       }
 
       this.isInFixedStep = false;
+      const hashStarted = perfSampler.now();
       this.sampleStateHash();
+      perfSampler.record("sampleStateHash", perfSampler.now() - hashStarted);
+      const diagnosticStarted = perfSampler.now();
       this.captureDiagnosticFrame();
+      perfSampler.record("captureDiagnosticFrame", perfSampler.now() - diagnosticStarted);
+      const snapshotStarted = perfSampler.now();
       this.recordSnapshotIfNeeded();
+      perfSampler.record("recordSnapshotIfNeeded", perfSampler.now() - snapshotStarted);
       this.finishDeterminismCheckIfNeeded();
       this.commitPendingPausedState();
       if (this.isPaused) {
@@ -424,6 +442,21 @@ export default class CombatManager extends BaseManager {
 
     // Regular per-render work.
     SyncManager.Instance.sendQueue.Consume();
+  }
+
+  /**
+   * 同一固定步内的 state capture 共享入口。
+   * 只缓存当前 frameId 的结果；快照对象不可变，回滚/接收端恢复不会写回它。
+   */
+  private captureFrameState(): SimulationState {
+    const frameId = SyncManager.Instance.recvQueue?.currentFrameId ?? 0;
+    const key = String(frameId);
+    const cached = this.frameStateCache.get(key);
+    if (cached) return cached;
+    const state = this.captureState();
+    this.frameStateCache.clear();
+    this.frameStateCache.set(key, state);
+    return state;
   }
 
   /** 供联机分叉检测 / 断线恢复使用：收集当前完整确定性状态。 */
@@ -476,6 +509,7 @@ export default class CombatManager extends BaseManager {
 
     // 快照必须落在干净的帧边界：先执行完延迟创建/销毁。
     DeferredManager.Instance.flush();
+    // 快照需要独立对象：同一帧的 h32/checkpoint 会交给服务端，不能共享引用。
     const state = this.captureState();
     this.snapshotRing.push({ frameId, state });
     desyncDiagnostics.record("combat", "snapshot recorded", {
@@ -512,6 +546,7 @@ export default class CombatManager extends BaseManager {
 
   public clearSnapshotRing(): void {
     this.snapshotRing.clear();
+    this.frameStateCache.clear();
   }
 
   /** 当前完整状态的 64 位摘要。 */
@@ -535,6 +570,7 @@ export default class CombatManager extends BaseManager {
     this.isEndGameRequested = false;
     this.isPaused = false;
     this.snapshotRing.clear();
+    this.frameStateCache.clear();
     this.pendingDeterminismCheck = null;
   }
 
@@ -548,6 +584,7 @@ export default class CombatManager extends BaseManager {
 
   /** 分叉日志：立即下载一次；结算时不会重复下载。 */
   public exportDesyncLog(): void {
+    if (!desyncDiagnostics.isEnabled()) return;
     if (!this.desyncOffline || this.desyncLogExported) return;
     this.desyncLogExported = true;
     desyncDiagnostics.downloadOnce("desync-offline", {
@@ -664,20 +701,24 @@ export default class CombatManager extends BaseManager {
     // 由 ConsoleCmd 显式触发，避免低频 capture/序列化造成周期性卡顿。
     if (BackendWS.isMockRoomMode()) return;
     try {
-      const state = this.captureState();
+      const state = this.captureFrameState();
       const hash = simulationState.hash(state);
       this.lastStateHash = hash.h64;
       this.lastStateHashFrame = frameId;
-      desyncDiagnostics.record("combat", "state hash sample", {
-        frameId,
-        h32: hash.h32,
-        h64: hash.h64,
-        tickerFrame: TickerManager.Instance.currentFrame,
-      });
-      PhaserEventBus.emit(PhaserEvents.SimulationHashSampled, {
-        frameId,
-        hash: this.lastStateHash,
-      });
+      // 协议必需的 h32 摘要必须继续上报，否则服务端分叉检测失效；
+      // 只有本地日志和事件订阅属于 netDebug 诊断，可关闭。
+      if (desyncDiagnostics.isEnabled()) {
+        desyncDiagnostics.record("combat", "state hash sample", {
+          frameId,
+          h32: hash.h32,
+          h64: hash.h64,
+          tickerFrame: TickerManager.Instance.currentFrame,
+        });
+        PhaserEventBus.emit(PhaserEvents.SimulationHashSampled, {
+          frameId,
+          hash: this.lastStateHash,
+        });
+      }
       // 房间会话下把 32 位摘要随心跳上报，服务端跨端比对以发现分叉
       const hash32 = Number.parseInt(hash.h32, 16) >>> 0;
       if (BackendWS.isRoomSessionMode() && hash32 !== 0) {
@@ -734,7 +775,7 @@ export default class CombatManager extends BaseManager {
   public captureCheckpoint(): { frameId: number; hash: string; payload: unknown } | null {
     const frameId = SyncManager.Instance.recvQueue.currentFrameId;
     if (frameId <= 0) return null;
-    const state = this.captureState();
+    const state = this.captureFrameState();
     const hash = simulationState.hash(state);
     const inline = buildInlineSnapshotOrHash(state, hash.h32);
     return {

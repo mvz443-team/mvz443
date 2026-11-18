@@ -14,6 +14,7 @@ import mockServer, { MockPacket } from "./mock_server";
 import { WebSocketTransport } from "./transport";
 import { ReconnectController } from "./reconnect_controller";
 import { routeIncoming, ResponseKind } from "./message_router";
+import { isNetDebugEnabled } from "../debugFlags";
 import { desyncDiagnostics } from "../debug/desyncDiagnostics";
 import type { InlineSnapshot } from "../../game/core/snapshot/InlineSnapshot";
 
@@ -57,10 +58,19 @@ class WebSocketClient {
   private static readonly MAX_LATENCY_SAMPLES = 30;
   private lastSentAt: number = 0;
 
-  // 测试钩子：netDebug=1 时暴露
+  // 测试钩子：netDebug 开关开启时暴露
   private static instance: WebSocketClient | null = null;
+  private readonly routeTracingEnabled: boolean;
+  private readonly netDebugEnabled: boolean;
 
   constructor() {
+    try {
+      this.routeTracingEnabled = new URLSearchParams(
+        typeof location !== "undefined" ? location.search : "",
+      ).get("traceRoutes") === "1";
+    } catch {
+      this.routeTracingEnabled = false;
+    }
     this.reconnect = new ReconnectController({
       baseUrl: () => this.url || null,
       buildReconnectUrl: () => this.buildReconnectUrl(),
@@ -68,6 +78,9 @@ class WebSocketClient {
       onGiveUp: (reason) => this.giveUpReconnect(reason),
     });
     this.reconnect.setConnectHandler((url) => this.openSocket(url, true));
+    // 网络字节诊断只在 netDebug 开关开启时记录；
+    // 收包解码/路由不使用这段缓冲，改造不影响同步。
+    this.netDebugEnabled = this.routeTracingEnabled || isNetDebugEnabled();
     WebSocketClient.instance = this;
   }
 
@@ -103,6 +116,7 @@ class WebSocketClient {
   /** E2E 诊断：记录最近一次消息路由类型，netDebug=1 时可从 MVZ_NET 读取 */
   private recentRoutes: Array<{ kind: string; firstBytes: number[]; size: number }> = [];
   private traceRoute(kind: string, data: Uint8Array): void {
+    if (!this.routeTracingEnabled) return;
     this.recentRoutes.push({ kind, firstBytes: Array.from(data.slice(0, 12)), size: data.byteLength });
     if (this.recentRoutes.length > 20) this.recentRoutes.shift();
   }
@@ -354,7 +368,9 @@ class WebSocketClient {
           frameId: this.GetFrameID(),
           ackFrameId: this.AckFrameID,
         });
-        console.log(isReconnect ? "WebSocket reconnected." : "WebSocket connection established.");
+        if (this.netDebugEnabled) {
+          console.log(isReconnect ? "WebSocket reconnected." : "WebSocket connection established.");
+        }
         if (isReconnect) {
           this.reconnect.markConnected();
           onlineStateManager.updateOnlineMode(true);
@@ -365,7 +381,7 @@ class WebSocketClient {
         this.publishNetworkStatus();
       },
       onMessage: (data) => {
-        desyncDiagnostics.recordNetwork("recv", data, "websocket");
+        if (this.netDebugEnabled) desyncDiagnostics.recordNetwork("recv", data, "websocket");
         this.messageCounter++;
         if (this.lastSentAt > 0) this.recordLatencySample(performance.now() - this.lastSentAt);
         this.scheduleIncomingPacket(() => {
@@ -410,13 +426,15 @@ class WebSocketClient {
         this.clearPendingTimers();
         if (this.offlineMode === "desync") return;
         const stage = onlineStateManager.getCurrentGameStage();
-        console.log("WebSocket connection closed:", {
-          code: event.code,
-          reason: event.reason,
-          wasClean: event.wasClean,
-          onlineMode: onlineStateManager.getIsOnlineMode(),
-          gameStage: onlineStateManager.getGameStageName(),
-        });
+        if (this.netDebugEnabled) {
+          console.log("WebSocket connection closed:", {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean,
+            onlineMode: onlineStateManager.getIsOnlineMode(),
+            gameStage: onlineStateManager.getGameStageName(),
+          });
+        }
 
         // 正在主动关闭/放弃时不应重连
         if (stage === EnumGameStage.InGame || stage === EnumGameStage.Loading) {
@@ -443,7 +461,9 @@ class WebSocketClient {
 
   private onReconnectAttempt(attempt: number, delayMs: number): void {
     desyncDiagnostics.record("net", "reconnect attempt", { attempt, delayMs });
-    console.log(`[BackendWS] reconnect attempt ${attempt} in ${delayMs}ms`);
+    if (this.netDebugEnabled) {
+      console.log(`[BackendWS] reconnect attempt ${attempt} in ${delayMs}ms`);
+    }
     this.publishNetworkStatus();
   }
 
@@ -473,7 +493,7 @@ class WebSocketClient {
   }
 
   send(message: Uint8Array<ArrayBufferLike>) {
-    desyncDiagnostics.recordNetwork("send", message, "websocket");
+    if (this.netDebugEnabled) desyncDiagnostics.recordNetwork("send", message, "websocket");
     const sendNow = () => this.dispatchBinaryMessage(message);
     this.lastSentAt = performance.now();
 

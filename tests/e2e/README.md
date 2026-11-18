@@ -29,7 +29,7 @@
 
 ## 测试钩子
 
-页面通过 `?netDebug=1&serverAddr=localhost:28090` 暴露 `window.MVZ_NET`：
+页面通过 `?netDebug=1&serverAddr=localhost:28090`（或在 设置 → 调试 中打开 `netDebug`）暴露 `window.MVZ_NET`：
 
 - `getState()`：`stage / roomId / myId / lordId / peers / reconnecting / reconnectAttempt / online / roomSession / frameId`
 - `openRoom({ roomName | roomId, chapterId, stageId, username })`：走与房间列表 UI 相同的 lobby 入口建房/加入

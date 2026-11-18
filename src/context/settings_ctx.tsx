@@ -1,6 +1,14 @@
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { debounce } from '../utils/debounce';
 import { changeLocale, Locale } from '../i18n';
+import {
+  isDbgCommandsEnabled,
+  isNetDebugEnabled,
+  isUnlockAllEnabled,
+  setDbgCommandsEnabled,
+  setNetDebugEnabled,
+  setUnlockAllEnabled,
+} from '../utils/debugFlags';
 
 const loadCookie = <T,>(key: string, defaultValue: T): T => {
   const value = document.cookie
@@ -19,7 +27,11 @@ interface GameSettings {
   width: number;
   language: Locale;
   isBluePrint: boolean;
-  isDebug: boolean;
+  /** 旧“显示调试信息”：Rapier 物理体与当前帧号。 */
+  basicDebug: boolean;
+  netDebug: boolean;
+  dbgCommands: boolean;
+  unlockAll: boolean;
   isBgm: boolean;
   isSoundAudio: boolean;
   showLevelIntroImages: boolean;
@@ -34,7 +46,10 @@ interface GameSettings {
   setWidth: (newWidth: number) => void;
   toggleLanguage: (lang: Locale) => void;
   setIsBluePrint: (isBluePrint: boolean) => void;
-  setIsDebug: (isDebug: boolean) => void;
+  setBasicDebug: (basicDebug: boolean) => void;
+  setNetDebug: (netDebug: boolean) => void;
+  setDbgCommands: (dbgCommands: boolean) => void;
+  setUnlockAll: (unlockAll: boolean) => void;
   setIsBgm: (isBgm: boolean) => void;
   setIsSoundAudio: (isSoundAudio: boolean) => void;
   setShowLevelIntroImages: (showLevelIntroImages: boolean) => void;
@@ -59,7 +74,10 @@ export function SettingsProvider(props: Props) {
   const [width, setWidth] = useState<number>(loadCookie('width', 800));
   const [language, setLanguage] = useState<Locale>(loadCookie('language', 'zh_CN'));
   const [isBluePrint, setIsBluePrintStatus] = useState<boolean>(loadCookie('isBluePrint', false));
-  const [isDebug, setIsDebugStatus] = useState<boolean>(loadCookie('isDebug', false));
+  const [basicDebug, setBasicDebugStatus] = useState<boolean>(loadCookie('isDebug', false));
+  const [netDebug, setNetDebugStatus] = useState<boolean>(isNetDebugEnabled());
+  const [dbgCommands, setDbgCommandsStatus] = useState<boolean>(isDbgCommandsEnabled());
+  const [unlockAll, setUnlockAllStatus] = useState<boolean>(isUnlockAllEnabled());
   const [showLevelIntroImages, setShowLevelIntroImagesStatus] = useState<boolean>(loadCookie('showLevelIntroImages', true));
   const [showCardLevelInGame, setShowCardLevelInGameStatus] = useState<boolean>(loadCookie('showCardLevelInGame', true));
   const [bgmVolume, setBgmVolumeStatus] = useState<number>(loadCookie('bgmVolume', loadCookie('isBgm', true) ? 1 : 0));
@@ -75,10 +93,31 @@ export function SettingsProvider(props: Props) {
     }, 50)(value);
   };
 
-  const setIsDebug = (value: boolean) => {
+  const setBasicDebug = (value: boolean) => {
     debounce((newVal) => {
-      setIsDebugStatus(newVal);
+      setBasicDebugStatus(newVal);
       storeCookie('isDebug', newVal);
+    }, 50)(value);
+  };
+
+  const setNetDebug = (value: boolean) => {
+    debounce((newVal) => {
+      setNetDebugStatus(newVal);
+      setNetDebugEnabled(newVal);
+    }, 50)(value);
+  };
+
+  const setDbgCommands = (value: boolean) => {
+    debounce((newVal) => {
+      setDbgCommandsStatus(newVal);
+      setDbgCommandsEnabled(newVal);
+    }, 50)(value);
+  };
+
+  const setUnlockAll = (value: boolean) => {
+    debounce((newVal) => {
+      setUnlockAllStatus(newVal);
+      setUnlockAllEnabled(newVal);
     }, 50)(value);
   };
 
@@ -172,12 +211,16 @@ export function SettingsProvider(props: Props) {
       width,
       language,
       isBluePrint,
+      basicDebug,
+      netDebug,
+      dbgCommands,
+      unlockAll,
       showLevelIntroImages,
       showCardLevelInGame,
       bgmVolume,
       soundAudioVolume
     });
-  }, [isFullScreen, width, language, isBluePrint, showLevelIntroImages, showCardLevelInGame, bgmVolume, soundAudioVolume]);
+  }, [isFullScreen, width, language, isBluePrint, basicDebug, netDebug, dbgCommands, unlockAll, showLevelIntroImages, showCardLevelInGame, bgmVolume, soundAudioVolume]);
 
   const importFromJson = (jsonString: string) => {
     const data = JSON.parse(jsonString);
@@ -186,6 +229,13 @@ export function SettingsProvider(props: Props) {
     setLanguage(data.language);
     changeLocale(data.language);
     setIsBluePrintStatus(data.isBluePrint);
+    if (typeof data.basicDebug === 'boolean') {
+      setBasicDebugStatus(data.basicDebug);
+      storeCookie('isDebug', data.basicDebug);
+    }
+    if (typeof data.netDebug === 'boolean') setNetDebugStatus(setNetDebugEnabled(data.netDebug));
+    if (typeof data.dbgCommands === 'boolean') setDbgCommandsStatus(setDbgCommandsEnabled(data.dbgCommands));
+    if (typeof data.unlockAll === 'boolean') setUnlockAllStatus(setUnlockAllEnabled(data.unlockAll));
     if (typeof data.showLevelIntroImages === 'boolean') {
       setShowLevelIntroImagesStatus(data.showLevelIntroImages);
       storeCookie('showLevelIntroImages', data.showLevelIntroImages);
@@ -209,7 +259,10 @@ export function SettingsProvider(props: Props) {
     setLanguage(storedLanguage);
     changeLocale(storedLanguage);
     setIsBluePrintStatus(loadCookie('isBluePrint', false));
-    setIsDebugStatus(loadCookie('isDebug', false));
+    setBasicDebugStatus(loadCookie('isDebug', false));
+    setNetDebugStatus(isNetDebugEnabled());
+    setDbgCommandsStatus(isDbgCommandsEnabled());
+    setUnlockAllStatus(isUnlockAllEnabled());
     setShowLevelIntroImagesStatus(loadCookie('showLevelIntroImages', true));
     setShowCardLevelInGameStatus(loadCookie('showCardLevelInGame', true));
     setBgmVolumeStatus(loadCookie('bgmVolume', loadCookie('isBgm', true) ? 1 : 0));
@@ -222,7 +275,10 @@ export function SettingsProvider(props: Props) {
     width,
     language,
     isBluePrint,
-    isDebug,
+    basicDebug,
+    netDebug,
+    dbgCommands,
+    unlockAll,
     isBgm: bgmVolume > 0,
     isSoundAudio: soundAudioVolume > 0,
     showLevelIntroImages,
@@ -234,7 +290,10 @@ export function SettingsProvider(props: Props) {
     setWidth,
     toggleLanguage,
     setIsBluePrint,
-    setIsDebug,
+    setBasicDebug,
+    setNetDebug,
+    setDbgCommands,
+    setUnlockAll,
     setIsBgm,
     setIsSoundAudio,
     setShowLevelIntroImages,
