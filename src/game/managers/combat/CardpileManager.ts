@@ -176,7 +176,7 @@ export default class CardpileManager extends BaseManager {
     }
   }
 
-  /** 卡槽冷却状态（含表现层预演值），用于精确回滚。 */
+  /** 本地调试用快照：包含表现层预演冷却。 */
   public CaptureCardpileState(): Record<string, unknown> {
     return {
       cards: [...this.cardpileStatus.entries()]
@@ -185,16 +185,33 @@ export default class CardpileManager extends BaseManager {
     };
   }
 
+  /**
+   * 跨端一致性哈希使用：只保留权威冷却状态。
+   * previewLeftMs 是远端确认前的本地预演值，两端输入时序不同必然不一致。
+   */
+  public CaptureCanonicalCardpileState(): Record<string, unknown> {
+    return {
+      cards: [...this.cardpileStatus.entries()]
+        .map(([pid, status]) => ({
+          pid,
+          level: status.level,
+          leftMs: status.leftMs,
+          totalMs: status.totalMs,
+        }))
+        .sort((a, b) => a.pid - b.pid),
+    };
+  }
+
   public RestoreCardpileState(state: Record<string, unknown>): void {
     this.cardpileStatus.clear();
     const cards = Array.isArray(state.cards)
-      ? (state.cards as Array<{ pid: number; level: number; leftMs: number; previewLeftMs: number; totalMs: number }>)
+      ? (state.cards as Array<{ pid: number; level: number; leftMs: number; previewLeftMs?: number; totalMs: number }>)
       : [];
     for (const card of cards) {
       this.cardpileStatus.set(Number(card.pid), {
         level: Number(card.level) || 1,
         leftMs: Number(card.leftMs) || 0,
-        previewLeftMs: Number(card.previewLeftMs) || 0,
+        previewLeftMs: 0,
         totalMs: Number(card.totalMs) || 0,
       });
     }

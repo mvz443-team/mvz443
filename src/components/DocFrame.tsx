@@ -15,6 +15,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLocaleMessages } from '../hooks/useLocaleMessages';
 import OnlineStatus from './OnlineStatus';
 import GlobalRoomListener from './GlobalRoomListener';
+import { useSaveManager } from '../context/save_ctx';
+import { joinRoom, leaveRoomRemotely, normalizeServerAddress, queryMyRoom } from '../utils/net/lobby';
+import BackendWS from '../utils/net/sync';
+import { showAlert, showConfirm } from '../utils/uiDialog';
 
 // Docs site lives on Vercel (kept off gh-pages so it doesn't fight the game deploy).
 // Override per environment with VITE_DOCS_URL if the project's domain changes.
@@ -56,6 +60,42 @@ export default function DocFrame({ width, height, setGameParams, gameStart }: Pr
   const deviceType = useDeviceType();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const saveManager = useSaveManager();
+
+  // 主页“开始游戏”：先向服务器确认自己是否仍在某个房间里。
+  const handleStartGame = async () => {
+    const config = saveManager.getOnlineConfig();
+    const address = normalizeServerAddress(config.serverAddr);
+    if (address && config.username) {
+      const membership = await queryMyRoom(address, config.username);
+      if (membership) {
+        const reconnect = await showConfirm(translate('menu.online_reconnect_message'), {
+          title: translate('menu.online_reconnect_title'),
+          confirmText: translate('menu.online_reconnect_confirm'),
+          cancelText: translate('menu.online_reconnect_cancel'),
+        });
+        if (reconnect) {
+          BackendWS.closeConnection();
+          joinRoom({
+            baseUrl: address,
+            roomId: membership.roomId,
+            myId: membership.myId,
+            key: membership.key,
+            reconnect: true,
+            username: config.username,
+            chapterId: membership.chapterId,
+            stageId: membership.stageId,
+          });
+          setCurrentView('levels');
+          return;
+        }
+        await leaveRoomRemotely(address, config.username);
+        BackendWS.closeConnection();
+        void showAlert(translate('menu.online_reconnect_left'));
+      }
+    }
+    setCurrentView('levels');
+  };
 
   useEffect(() => {
     // 处理从其他页面跳转过来的自动选图
@@ -114,6 +154,13 @@ export default function DocFrame({ width, height, setGameParams, gameStart }: Pr
       }
     };
 
+    const handleRoomAllSync = () => {
+      // 重连回到 InGame 时服务端单播 roomAllSync；此时需要挂载 Phaser 让 LoadScene 直接进战局。
+      if (gameStart) {
+        gameStart();
+      }
+    };
+
     const handleReturnToLobby = () => {
       console.log('🔁 服务端确认返回等待房间，回到关卡页');
       setSkipToParams(false);
@@ -125,12 +172,14 @@ export default function DocFrame({ width, height, setGameParams, gameStart }: Pr
     PhaserEventBus.on(PhaserEvents.LobbyJoinSuccess, handleLobbyJoinSuccess);
     PhaserEventBus.on(PhaserEvents.RoomChooseMap, handleRoomChooseMap);
     PhaserEventBus.on(PhaserEvents.RoomAllReady, handleRoomAllReady);
+    PhaserEventBus.on(PhaserEvents.RoomAllSync, handleRoomAllSync);
     PhaserEventBus.on(PhaserEvents.ReturnToLobby, handleReturnToLobby);
 
     return () => {
       PhaserEventBus.off(PhaserEvents.LobbyJoinSuccess, handleLobbyJoinSuccess);
       PhaserEventBus.off(PhaserEvents.RoomChooseMap, handleRoomChooseMap);
       PhaserEventBus.off(PhaserEvents.RoomAllReady, handleRoomAllReady);
+      PhaserEventBus.off(PhaserEvents.RoomAllSync, handleRoomAllSync);
       PhaserEventBus.off(PhaserEvents.ReturnToLobby, handleReturnToLobby);
     };
   }, []);
@@ -200,7 +249,7 @@ export default function DocFrame({ width, height, setGameParams, gameStart }: Pr
               target.style.color = "#ddd";
             }}
             onClick={() => {
-              if (item === "menu.choose_level") setCurrentView('levels');
+              if (item === "menu.choose_level") void handleStartGame();
               else if (item === "menu.pokedex") setCurrentView('pokedex');
               else if (item === "menu.shop") setCurrentView('shop');
               else if (item === "menu.settings") {

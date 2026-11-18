@@ -5,6 +5,7 @@ import { useSettings } from '../../context/settings_ctx';
 import { debounce } from '../../utils/debounce';
 import { Locale, useLocaleMessages } from '../../hooks/useLocaleMessages';
 import OnlineSettings from './settings/OnlineSettings';
+import { showAlert } from '../../utils/uiDialog';
 
 interface Props {
   width: number;
@@ -107,7 +108,7 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
       };
       reader.readAsText(file);
     } else {
-      alert('请上传有效的 JSON 文件');
+      void showAlert('请上传有效的 JSON 文件');
     }
     // 重置 input 以允许重复选择同一文件
     event.target.value = '';

@@ -6,6 +6,7 @@ import {
   RequestKickPlayer,
   RequestLeaveChooseMap,
   RequestLoaded,
+  RequestPlayerLoaded,
   RequestReady,
   RequestUpdateRoom,
   RequestReturnToLobby,
@@ -55,6 +56,19 @@ function SendLoaded(isLoaded: boolean = true) {
   BackendWS.send(Request.toBinary({ payload: { loaded: request, oneofKind: 'loaded' } }));
 }
 
+/**
+ * Loading 阶段上报加载进度（1..100）。
+ * 100 = 素材、音效与战局初始化全部完成，进入等待其他玩家同步。
+ */
+function SendPlayerLoaded(progress: number) {
+  if (!BackendWS.isRoomSessionMode()) {
+    return;
+  }
+  const normalized = Math.max(0, Math.min(100, Math.floor(Number(progress) || 0)));
+  const request: RequestPlayerLoaded = { progress: normalized };
+  BackendWS.send(Request.toBinary({ payload: { playerLoaded: request, oneofKind: 'playerLoaded' } }));
+}
+
 function SendEndGame(isWin: boolean) {
   const request: RequestEndGame = {
     gameResult: isWin ? 1 : 0
@@ -89,4 +103,4 @@ function SendKickPlayer(playerId: number) {
   BackendWS.send(Request.toBinary({ payload: { kickPlayer: request, oneofKind: 'kickPlayer' } }));
 }
 
-export { SendChooseMap, SendLeaveChooseMap, SendReady, SendLoaded, SendEndGame, SendUpdateRoom, SendKickPlayer, SendReturnToLobby };
+export { SendChooseMap, SendLeaveChooseMap, SendReady, SendLoaded, SendPlayerLoaded, SendEndGame, SendUpdateRoom, SendKickPlayer, SendReturnToLobby };

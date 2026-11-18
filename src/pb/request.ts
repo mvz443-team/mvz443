@@ -101,6 +101,14 @@ export interface Request {
          */
         returnToLobby: RequestReturnToLobby;
     } | {
+        oneofKind: "playerLoaded";
+        /**
+         * Loading 阶段：客户端加载进度（1..100，100=完全加载好等待同步）
+         *
+         * @generated from protobuf field: messages.RequestPlayerLoaded player_loaded = 13
+         */
+        playerLoaded: RequestPlayerLoaded;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -148,7 +156,7 @@ export interface RequestReady {
     loadout?: LoadoutSnapshot;
 }
 /**
- * Loaded 表示某个客户端加载完毕
+ * Loaded 表示某个客户端加载完毕（兼容旧协议；新流程使用 player_loaded）
  *
  * @generated from protobuf message messages.RequestLoaded
  */
@@ -157,6 +165,19 @@ export interface RequestLoaded {
      * @generated from protobuf field: bool isLoaded = 1
      */
     isLoaded: boolean;
+}
+/**
+ * PlayerLoaded 表示某个客户端在 Loading 阶段的加载进度。
+ * 客户端在加载素材、音效与初始化战局的过程中持续上报，1..100 的整数；
+ * 100 表示完全加载好、正在等待其他玩家同步。
+ *
+ * @generated from protobuf message messages.RequestPlayerLoaded
+ */
+export interface RequestPlayerLoaded {
+    /**
+     * @generated from protobuf field: uint32 progress = 1
+     */
+    progress: number;
 }
 // ----------
 // InGame 游戏中
@@ -411,7 +432,8 @@ class Request$Type extends MessageType<Request> {
             { no: 7, name: "end_game", kind: "message", oneof: "payload", T: () => RequestEndGame },
             { no: 10, name: "update_room", kind: "message", oneof: "payload", T: () => RequestUpdateRoom },
             { no: 11, name: "kick_player", kind: "message", oneof: "payload", T: () => RequestKickPlayer },
-            { no: 12, name: "return_to_lobby", kind: "message", oneof: "payload", T: () => RequestReturnToLobby }
+            { no: 12, name: "return_to_lobby", kind: "message", oneof: "payload", T: () => RequestReturnToLobby },
+            { no: 13, name: "player_loaded", kind: "message", oneof: "payload", T: () => RequestPlayerLoaded }
         ]);
     }
     create(value?: PartialMessage<Request>): Request {
@@ -498,6 +520,12 @@ class Request$Type extends MessageType<Request> {
                         returnToLobby: RequestReturnToLobby.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).returnToLobby)
                     };
                     break;
+                case /* messages.RequestPlayerLoaded player_loaded */ 13:
+                    message.payload = {
+                        oneofKind: "playerLoaded",
+                        playerLoaded: RequestPlayerLoaded.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).playerLoaded)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -546,6 +574,9 @@ class Request$Type extends MessageType<Request> {
         /* messages.RequestReturnToLobby return_to_lobby = 12; */
         if (message.payload.oneofKind === "returnToLobby")
             RequestReturnToLobby.internalBinaryWrite(message.payload.returnToLobby, writer.tag(12, WireType.LengthDelimited).fork(), options).join();
+        /* messages.RequestPlayerLoaded player_loaded = 13; */
+        if (message.payload.oneofKind === "playerLoaded")
+            RequestPlayerLoaded.internalBinaryWrite(message.payload.playerLoaded, writer.tag(13, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -750,6 +781,53 @@ class RequestLoaded$Type extends MessageType<RequestLoaded> {
  * @generated MessageType for protobuf message messages.RequestLoaded
  */
 export const RequestLoaded = new RequestLoaded$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RequestPlayerLoaded$Type extends MessageType<RequestPlayerLoaded> {
+    constructor() {
+        super("messages.RequestPlayerLoaded", [
+            { no: 1, name: "progress", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RequestPlayerLoaded>): RequestPlayerLoaded {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.progress = 0;
+        if (value !== undefined)
+            reflectionMergePartial<RequestPlayerLoaded>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RequestPlayerLoaded): RequestPlayerLoaded {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 progress */ 1:
+                    message.progress = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RequestPlayerLoaded, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 progress = 1; */
+        if (message.progress !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.progress);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message messages.RequestPlayerLoaded
+ */
+export const RequestPlayerLoaded = new RequestPlayerLoaded$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class RequestBlank$Type extends MessageType<RequestBlank> {
     constructor() {

@@ -1,6 +1,7 @@
 // 处理连接到服务器大厅：房间列表、建房与加入房间
 
 import BackendWS from "./sync";
+import { showAlert } from "../uiDialog";
 
 /**
  * 服务端 /list 返回的房间信息
@@ -25,6 +26,17 @@ export type RoomInfo = {
 // 与 service 端 utils/text.go 的限制保持一致
 export const ROOM_NAME_MAX_LENGTH = 6;
 export const ROOM_KEY_MAX_LENGTH = 8;
+
+/** /user-room 返回的玩家已有房间会话 */
+export interface UserRoomMembership {
+    roomId: number;
+    myId: number;
+    key: string;
+    roomName: string;
+    chapterId: number;
+    stageId: number;
+    stage: number;
+}
 
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
 
@@ -130,6 +142,63 @@ export async function getRoomsInfo(baseUrl: string, chapterId?: number, stageId?
     }
 }
 
+/**
+ * 查询昵称对应的玩家是否仍在某个房间中。
+ * 返回 null 表示不在任何房间（或服务器不可达）。
+ */
+export async function queryMyRoom(baseUrl: string, username: string): Promise<UserRoomMembership | null> {
+    const address = normalizeServerAddress(baseUrl);
+    if (!address || !username) {
+        return null;
+    }
+    const params = new URLSearchParams({ user: username });
+    try {
+        const response = await fetch(`https://${address}/user-room?${params.toString()}`, { cache: "no-store" });
+        if (!response.ok) {
+            return null;
+        }
+        const data = await response.json();
+        if (!data || typeof data !== "object" || typeof data.room_id !== "number") {
+            return null;
+        }
+        return {
+            roomId: data.room_id,
+            myId: Number(data.my_id) || 0,
+            key: typeof data.key === "string" ? data.key : "",
+            roomName: typeof data.room_name === "string" ? data.room_name : "",
+            chapterId: Number(data.chapter_id) || 0,
+            stageId: Number(data.stage_id) || 0,
+            stage: Number(data.stage) || 0,
+        };
+    } catch (error) {
+        console.error("Error querying user room:", error);
+        return null;
+    }
+}
+
+/** 玩家选择“不重连”时，请服务端把自己从房间里彻底移除。 */
+export async function leaveRoomRemotely(baseUrl: string, username: string): Promise<boolean> {
+    const address = normalizeServerAddress(baseUrl);
+    if (!address || !username) {
+        return false;
+    }
+    const params = new URLSearchParams({ user: username });
+    try {
+        const response = await fetch(`https://${address}/user-room/leave?${params.toString()}`, {
+            method: "POST",
+            cache: "no-store",
+        });
+        if (!response.ok) {
+            return false;
+        }
+        const data = await response.json();
+        return Boolean(data?.ok);
+    } catch (error) {
+        console.error("Error leaving user room:", error);
+        return false;
+    }
+}
+
 export type RoomSessionOptions = {
     baseUrl: string;
     /** 加入已有房间时必填；建房留空 */
@@ -142,6 +211,10 @@ export type RoomSessionOptions = {
     stageId?: number;
     /** 联机昵称，仅用于房间内展示 */
     username?: string;
+    /** 从主页会话检查发起的重连：复用原玩家席位 */
+    reconnect?: boolean;
+    /** 重连时的原玩家 ID */
+    myId?: number;
 };
 
 function buildRoomUrl(options: RoomSessionOptions): string {
@@ -149,7 +222,11 @@ function buildRoomUrl(options: RoomSessionOptions): string {
     const key = encodeURIComponent(normalizeRoomKey(options.key || ""));
     const user = encodeURIComponent(options.username || "");
     if (typeof options.roomId === "number" && options.roomId >= 0) {
-        return `wss://${address}/ws?id=${options.roomId}&key=${key}&user=${user}`;
+        const base = `wss://${address}/ws?id=${options.roomId}&key=${key}&user=${user}`;
+        if (options.reconnect && typeof options.myId === "number" && options.myId > 0) {
+            return `${base}&reconnect=1&my_id=${options.myId}`;
+        }
+        return base;
     }
     const name = encodeURIComponent(normalizeRoomName(options.roomName || ""));
     const chapterId = options.chapterId ?? 0;
@@ -159,7 +236,7 @@ function buildRoomUrl(options: RoomSessionOptions): string {
 
 function ensureNotConnected(): boolean {
     if (BackendWS.isRoomSessionMode()) {
-        alert("请先离开当前房间");
+        void showAlert("请先离开当前房间");
         return false;
     }
     return true;
@@ -172,7 +249,7 @@ export function createRoom(options: RoomSessionOptions): boolean {
     }
     const address = normalizeServerAddress(options.baseUrl);
     if (!address) {
-        alert("请先在设置 → 联机中连接服务器");
+        void showAlert("请先在设置 → 联机中连接服务器");
         return false;
     }
     BackendWS.key = normalizeRoomKey(options.key || "");
@@ -188,7 +265,7 @@ export function joinRoom(options: RoomSessionOptions): boolean {
     }
     const address = normalizeServerAddress(options.baseUrl);
     if (!address) {
-        alert("请先在设置 → 联机中连接服务器");
+        void showAlert("请先在设置 → 联机中连接服务器");
         return false;
     }
     BackendWS.key = normalizeRoomKey(options.key || "");

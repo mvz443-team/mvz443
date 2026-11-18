@@ -429,11 +429,16 @@ class WebSocketClient {
       this.closeMockRoom();
       return;
     }
+    if (this.offlineMode === "desync") {
+      this.exitDesyncOfflineMode();
+    }
     if (this.transport.currentSocket()) {
       this.transport.close();
-      onlineStateManager.resetAllState();
-      this.ResetGameData();
     }
+    // 无论是否还有底层 socket，都必须清空会话状态；
+    // 否则 desync/掉线后回主页会出现“无法建房也无法回房”的幽灵会话。
+    onlineStateManager.resetAllState();
+    this.ResetGameData();
     this.publishNetworkStatus();
   }
 

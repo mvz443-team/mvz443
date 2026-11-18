@@ -19,6 +19,7 @@ import {
 } from '../../../utils/net/lobby';
 import { SendKickPlayer, SendReady, SendUpdateRoom } from '../../../utils/net/room';
 import { PhaserEventBus, PhaserEvents } from '../../../game/EventBus';
+import { showAlert, showConfirm } from '../../../utils/uiDialog';
 
 export type StageSummary = {
   light: string;
@@ -142,7 +143,7 @@ const RoomSidebar: React.FC<Props> = ({
 
   const ensureServer = (): boolean => {
     if (!serverAddress) {
-      alert(translate('menu.online_need_server'));
+      void showAlert(translate('menu.online_need_server'));
       return false;
     }
     return true;
@@ -151,7 +152,7 @@ const RoomSidebar: React.FC<Props> = ({
   const handleCreateRoom = () => {
     const name = normalizeRoomName(createName);
     if (!name) {
-      alert(translate('menu.online_room_name_required'));
+      void showAlert(translate('menu.online_room_name_required'));
       return;
     }
     if (!ensureServer()) {
@@ -182,7 +183,7 @@ const RoomSidebar: React.FC<Props> = ({
 
   const handleRoomClick = (room: RoomInfo) => {
     if (room.player_count >= 2) {
-      alert(translate('menu.online_room_full'));
+      void showAlert(translate('menu.online_room_full'));
       return;
     }
     if (!ensureServer()) {
@@ -200,16 +201,19 @@ const RoomSidebar: React.FC<Props> = ({
     SendReady(!isReady);
   };
 
-  const handleLeave = () => {
-    if (!window.confirm(translate('menu.online_leave_confirm'))) {
+  const handleLeave = async () => {
+    const confirmed = await showConfirm(translate('menu.online_leave_confirm'));
+    if (!confirmed) {
       return;
     }
     BackendWS.closeConnection();
-    void onRefresh();
+    setRoomState(readRoomState());
+    await onRefresh();
   };
 
-  const handleKick = (playerId: number) => {
-    if (!window.confirm(translate('menu.online_kick_confirm'))) {
+  const handleKick = async (playerId: number) => {
+    const confirmed = await showConfirm(translate('menu.online_kick_confirm'));
+    if (!confirmed) {
       return;
     }
     SendKickPlayer(playerId);

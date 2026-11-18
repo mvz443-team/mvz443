@@ -7,6 +7,8 @@ import { useLocaleMessages } from '../../../hooks/useLocaleMessages';
 import BackendWS from '../../../utils/net/sync';
 import { normalizeServerAddress } from '../../../utils/net/lobby';
 import { PRESET_SERVERS, serverStatus } from '../../../utils/net/server_status';
+import { showAlert, showConfirm } from '../../../utils/uiDialog';
+import NetLatencyStatus from '../../widget/NetLatencyStatus';
 
 const CUSTOM_SERVER_VALUE = '__custom__';
 const USERNAME_MAX_LENGTH = 16;
@@ -107,12 +109,7 @@ export default function OnlineSettings() {
     return options;
   }, [onlineConfig.customServers, translate]);
 
-  const statusLabel = status.state === 'connected'
-    ? `${translate('menu.settings_connected')}${status.latency !== null ? ` · ${status.latency}ms` : ''}`
-    : status.state === 'connecting'
-      ? translate('menu.settings_connecting')
-      : translate('menu.settings_offline');
-  const statusColor = status.state === 'connected' ? '#22c55e' : status.state === 'connecting' ? '#f59e0b' : '#888';
+  
 
   const handleUsernameChange = (value: string) => {
     const next = value.slice(0, USERNAME_MAX_LENGTH);
@@ -121,14 +118,14 @@ export default function OnlineSettings() {
 
   const handleConnect = async () => {
     if (BackendWS.isRoomSessionMode()) {
-      alert(translate('menu.online_leave_first'));
+      void showAlert(translate('menu.online_leave_first'));
       return;
     }
     const address = normalizeServerAddress(
       selectedServer === CUSTOM_SERVER_VALUE ? customServerInput : selectedServer
     );
     if (!address) {
-      alert(translate('menu.settings_server_required'));
+      void showAlert(translate('menu.settings_server_required'));
       return;
     }
 
@@ -139,13 +136,13 @@ export default function OnlineSettings() {
     if (!result.ok) {
       if (result.failure === 'cert') {
         // 自签证书：引导用户在新标签页手动信任
-        const openTrustPage = window.confirm(translate('menu.settings_cert_hint'));
+        const openTrustPage = await showConfirm(translate('menu.settings_cert_hint'));
         if (openTrustPage) {
           window.open(`https://${address}/list`, '_blank');
         }
         return;
       }
-      alert(`${translate('menu.settings_server_unreachable')}：${result.message ?? result.failure}`);
+      void showAlert(`${translate('menu.settings_server_unreachable')}：${result.message ?? result.failure}`);
       return;
     }
 
@@ -182,16 +179,12 @@ export default function OnlineSettings() {
             {translate('menu.settings_probe_hint_t')}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: statusColor }}>
-          <span style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            background: statusColor,
-            boxShadow: `0 0 6px ${statusColor}`
-          }} />
-          <span>{statusLabel}</span>
-        </div>
+        <NetLatencyStatus
+          state={status.state}
+          roundTripMs={status.latency}
+          inputExtraMs={Number(sendLatencyInput) || 0}
+          receiveExtraMs={Number(receiveLatencyInput) || 0}
+        />
       </div>
 
       <div style={{ ...rowStyle, borderBottom: '1px solid rgba(100, 100, 100, 0.3)' }}>

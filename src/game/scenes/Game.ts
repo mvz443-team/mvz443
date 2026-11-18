@@ -31,7 +31,6 @@ import { DeferredManager } from '../managers/DeferredManager';
 import { PresetEventManager } from '../managers/combat/PresetEventManager';
 import TileItemManager from '../managers/combat/TileItemManager';
 import ConsoleCmd from '../utils/ConsoleCmd';
-import { SendLoaded } from '../../utils/net/room';
 import {
   BATTLE_GRID_CELL_HEIGHT,
   BATTLE_GRID_CELL_WIDTH,
@@ -50,6 +49,8 @@ import { CardSlots } from '../ui/cardslots';
 import { BottomBar } from '../ui/bottom';
 import { MobileBottomBar } from '../ui/bottom_mobile';
 import { installRuntimeStateSources, registerPhysicsSource } from '../core/RuntimeStateBridge';
+import { onlineStateManager } from '../../store/OnlineStateManager';
+import NetStatusBadge, { type NetBadgeState } from '../ui/NetStatusBadge';
 
 
 export class Game extends Scene {
@@ -74,7 +75,7 @@ export class Game extends Scene {
   waitText: Phaser.GameObjects.Text;
   speedText: Phaser.GameObjects.Text;
   debugFrameText: Phaser.GameObjects.Text | null = null;
-  netStatusText: Phaser.GameObjects.Text | null = null;
+  private netStatusBadge: NetStatusBadge | null = null;
   private waitTextVisibleTarget: boolean = false;
   private cardSlotsUi: CardSlots | null = null;
   private bottomBarUi: BottomBar | MobileBottomBar | null = null;
@@ -95,18 +96,25 @@ export class Game extends Scene {
   };
 
 
+  private static preparedScene: Game | null = null;
+
   constructor() {
     console.log('Game constructor');
     super('Game');
   }
 
-  preload() {
+  /** LoadScene 的“初始化战局”阶段调用；此后切到 MainGame 只剩轻量视图搭建。 */
+  public static async prepareBattle(scene: Game, params: GameParams, stageData: StageData): Promise<void> {
+    if (Game.preparedScene === scene) {
+      return;
+    }
     BackendWS.FrameID = 0;
-    this.params = this.game.registry.get('gameParams') as GameParams;
-    this.stageData = this.cache.json.get(`ch${this.params.level}`) as StageData;
-    this.innerSettings = this.params.gameSettings;
+    scene.params = params;
+    scene.stageData = stageData;
+    scene.innerSettings = params.gameSettings;
+    const deviceType = params.deviceType ?? 'pc';
 
-    this.ManagerGroup = [
+    scene.ManagerGroup = [
       CombatManager.Instance,
       CardpileManager.Instance,
       CursorManager.Instance,
@@ -125,38 +133,58 @@ export class Game extends Scene {
       DebugManager.Instance,
       PositionManager.Instance,
     ];
-
-    // Audio must be initialized before the room loaded signal is sent.
-    // Preloader has already decoded the assets, so this creates BGM/SFX objects
-    // during Game.preload instead of waiting for Game.create.
-    SoundManager.Instance.setScene(this);
-    SoundManager.Instance.Load();
-  }
-
-  async create() {
-    // read external data
-    // TODO : 根据type具体判断放置那张背景图
-    this.params = this.game.registry.get('gameParams') as GameParams;
-    this.innerSettings = this.params.gameSettings;
-    const frameIntervalMs = LEGACY_BALANCE_FRAME_INTERVAL_MS;
-    const deviceType = this.params.deviceType ?? 'pc';
-    this.scaleFactor = 1;
     PositionManager.Instance.setSceneViewportSize(
-      this.params.mainViewportWidth ?? LOGICAL_BATTLE_WIDTH,
-      this.params.mainViewportHeight ?? LOGICAL_BATTLE_HEIGHT,
+      params.mainViewportWidth ?? LOGICAL_BATTLE_WIDTH,
+      params.mainViewportHeight ?? LOGICAL_BATTLE_HEIGHT,
       deviceType,
     );
-
-    // 初始化各个Manager
-    for (const manager of this.ManagerGroup) {
-      manager.setScene(this);
+    for (const manager of scene.ManagerGroup) {
+      manager.setScene(scene);
       manager.Load();
     }
 
-    PositionManager.Instance.setStageGrid(1, this.stageData.rows, BATTLE_GRID_COLS, { deviceType });
+    PositionManager.Instance.setStageGrid(1, stageData.rows, BATTLE_GRID_COLS, { deviceType });
     const gridProperties = new Array(PositionManager.Instance.Row_Number)
-      .fill(0).map(() => new Array(PositionManager.Instance.Col_Number).fill('ground')); //  默认全为地板
+      .fill(0).map(() => new Array(PositionManager.Instance.Col_Number).fill('ground'));
     GridManager.Instance.setGridProperty(gridProperties);
+
+    await RAPIER.init();
+    scene.rapierWorld = new RAPIER.World({ x: 0, y: 0 });
+    scene.rapierWorld.timestep = getRapierTimestepSeconds(LEGACY_BALANCE_FRAME_INTERVAL_MS);
+    scene.rapierEventQueue = new RAPIER.EventQueue(true);
+    installRuntimeStateSources();
+    registerPhysicsSource(scene);
+    Game.preparedScene = scene;
+
+    // 重连回已开战的房间时，roomAllSync/RoomGameStart 可能早于这里的订阅到达；
+    // 战局初始化完成后补发一次，确保 CombatManager/TickerManager 真正进入运行态。
+    if (onlineStateManager.isInGame()) {
+      PhaserEventBus.emit(PhaserEvents.RoomGameStart, { myID: onlineStateManager.getRoomInfo().myId });
+    }
+  }
+
+  public static isPrepared(scene: Game): boolean {
+    return Game.preparedScene === scene;
+  }
+
+  preload() {
+    // 重活由 Preloader 的 prepareBattle 完成；这里只读取共享缓存。
+    this.params = this.game.registry.get('gameParams') as GameParams;
+    this.stageData = this.cache.json.get(`ch${this.params.level}`) as StageData;
+    this.innerSettings = this.params.gameSettings;
+  }
+
+  async create() {
+    // 兜底：直接启动 Game 场景（例如调试）时也保证战局已完整初始化。
+    // 正常联机/单机流程由 Preloader 的“初始化战局”阶段提前完成。
+    this.params = this.game.registry.get('gameParams') as GameParams;
+    this.innerSettings = this.params.gameSettings;
+    if (!Game.isPrepared(this)) {
+      this.stageData = this.cache.json.get(`ch${this.params.level}`) as StageData;
+      await Game.prepareBattle(this, this.params, this.stageData);
+    }
+    const deviceType = this.params.deviceType ?? 'pc';
+    this.scaleFactor = 1;
 
     // 菜单
     CreateInnerMenu(this);
@@ -199,17 +227,13 @@ export class Game extends Scene {
       }
     ).setOrigin(0.5, 0).setDepth(DepthHelper.UI.waitingText()).setVisible(false).setAlpha(0);
 
-    this.netStatusText = this.add.text(
+    this.netStatusBadge = new NetStatusBadge(
+      this,
       gameViewport.x + 8 * this.scaleFactor,
       gameViewport.y + 8 * this.scaleFactor,
-      translate("game.netOffline"),
-      {
-        fontSize: `${Math.max(11, Math.round(this.scale.displaySize.width / 60))}px`,
-        color: '#9fe8ff',
-        backgroundColor: 'rgba(0, 0, 0, 0.35)',
-        padding: { x: 6, y: 3 },
-      },
-    ).setOrigin(0, 0).setDepth(DepthHelper.UI.waitingText());
+      Math.max(24, Math.round(this.scale.displaySize.width / 42)),
+      DepthHelper.UI.waitingText(),
+    );
 
     if (this.innerSettings.isDebug) {
       const sceneBounds = PositionManager.Instance.getSceneBounds(deviceType);
@@ -226,22 +250,6 @@ export class Game extends Scene {
       ).setOrigin(0, 1).setDepth(DepthHelper.UI.debugFrameText());
     }
 
-    // 初始化物理世界
-    await RAPIER.init();
-    this.rapierWorld = new RAPIER.World({ x: 0, y: 0 }); // 无重力的物理世界
-    this.rapierWorld.timestep = getRapierTimestepSeconds(frameIntervalMs);
-    this.rapierEventQueue = new RAPIER.EventQueue(true);
-
-    installRuntimeStateSources();
-    registerPhysicsSource(this);
-
-
-
-    if (this.innerSettings.isDebug) {
-      // 调试模式下可以添加可视化代码
-      // TODO: 实现 RAPIER 的调试可视化
-    }
-
     PhaserEventBus.on(PhaserEvents.RoomGameEnd, this.handleRoomGameEnd, this);
     CombatManager.Instance.Eventbus.on('onCombatPause', this.onCombatPauseHandler);
     CombatManager.Instance.Eventbus.on('onCombatResume', this.onCombatResumeHandler);
@@ -249,19 +257,11 @@ export class Game extends Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanupSceneListeners, this);
 
     ConsoleCmd.install(this);
-
-    console.log('load finish');
-    if (BackendWS.isRoomSessionMode()) {
-      try {
-        await this.waitForMediaReady();
-        SendLoaded(true);
-      } catch (error) {
-        console.error("[Game] media assets are not ready; loaded signal was not sent.", error);
-      }
-    }
+    console.log('[Game] battle view ready (battle logic was prepared in Preloader)');
   }
 
-  private async waitForMediaReady(): Promise<void> {
+  /** 供 Preloader 在“加载音乐音效资源”阶段复用：等待音频/视频缓存真正可用。 */
+  public async waitForMediaReady(): Promise<void> {
     await Promise.all([
       this.waitForAudioCacheReady(),
       this.waitForVideoCacheReady(),
@@ -409,7 +409,7 @@ export class Game extends Scene {
 
   update(time: number, delta: number): void {
     CombatManager.Instance.update(time, delta);
-    this.updateNetStatusText();
+    this.updateNetStatusBadge();
     DebugManager.Instance.update();
     this.syncCameraLayers();
     this.updateWaitText(delta);
@@ -425,18 +425,18 @@ export class Game extends Scene {
     }
   }
 
-  private updateNetStatusText(): void {
-    if (!this.netStatusText) return;
-    let label = translate("game.netOffline");
+  private updateNetStatusBadge(): void {
+    if (!this.netStatusBadge) return;
+    let state: NetBadgeState = { kind: "offline" };
     if (BackendWS.isDesyncOfflineMode() || CombatManager.Instance.isDesyncOffline()) {
-      label = translate("game.netDesync");
+      state = { kind: "desync" };
     } else if (BackendWS.isReconnecting()) {
-      label = translate("game.netRetry", { count: BackendWS.getReconnectAttempt() });
+      state = { kind: "reconnecting" };
     } else if (BackendWS.isOnlineMode() || BackendWS.isMockRoomMode()) {
       const latency = BackendWS.getAverageLatencyMs();
-      label = latency === null ? translate("game.netOffline") : translate("game.netLatency", { ms: latency });
+      state = latency === null ? { kind: "offline" } : { kind: "latency", latencyMs: latency };
     }
-    if (this.netStatusText.text !== label) this.netStatusText.setText(label);
+    this.netStatusBadge.update(state);
   }
 
   private updateWaitText(delta: number) {
@@ -722,8 +722,8 @@ export class Game extends Scene {
     SoundManager.Instance.Reset();
     this.debugFrameText?.destroy();
     this.debugFrameText = null;
-    this.netStatusText?.destroy();
-    this.netStatusText = null;
+    this.netStatusBadge?.destroy();
+    this.netStatusBadge = null;
     this.cardSlotsUi?.destroy();
     this.cardSlotsUi = null;
     this.bottomBarUi?.destroy();

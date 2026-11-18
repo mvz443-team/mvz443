@@ -12,6 +12,7 @@ import EnumGameStage from "./game_state";
 import { PhaserEventBus, PhaserEvents } from "../../game/EventBus";
 import { onlineStateManager } from "../../store/OnlineStateManager";
 import { PeerInfo, RoomAllReadyEvent } from "../../types/online";
+import { normalizeSyncPlayers } from "./player_sync";
 import { computeLoadoutHash } from "./loadout";
 import type { InlineSnapshot } from "../../game/core/snapshot/InlineSnapshot";
 
@@ -132,9 +133,24 @@ export default class WSClientHandlers {
         PhaserEventBus.emit(PhaserEvents.RoomAllReady, allReadyEvent);
         break;
       }
-      case 'allLoaded': {
+      case 'roomSync': {
+        const players = normalizeSyncPlayers(roomResponse.payload.roomSync.players);
+        onlineStateManager.updateRoomSync(players);
+        PhaserEventBus.emit(PhaserEvents.RoomSync, { players: onlineStateManager.getRoomSyncPlayers() });
+        break;
+      }
+      case 'roomAllSync': {
         onlineStateManager.updateGameStage(EnumGameStage.InGame);
         const roomInfo = onlineStateManager.getRoomInfo();
+        PhaserEventBus.emit(PhaserEvents.RoomAllSync, {});
+        PhaserEventBus.emit(PhaserEvents.RoomGameStart, { myID: roomInfo.myId });
+        break;
+      }
+      case 'allLoaded': {
+        // 兼容旧服务端 / mock：语义与 roomAllSync 一致。
+        onlineStateManager.updateGameStage(EnumGameStage.InGame);
+        const roomInfo = onlineStateManager.getRoomInfo();
+        PhaserEventBus.emit(PhaserEvents.RoomAllSync, {});
         PhaserEventBus.emit(PhaserEvents.RoomGameStart, { myID: roomInfo.myId });
         break;
       }

@@ -27,6 +27,7 @@ interface ClientSession {
   highestSubmittedFrame: number;
   isReady: boolean;
   isLoaded: boolean;
+  loadProgress: number; // 1..100，100=完全加载好
   loadout?: LoadoutSnapshot;
 }
 
@@ -146,6 +147,8 @@ class MockServer {
           return this.handleReadyRequest(this.myId, request.payload.ready.isReady, now, request.payload.ready.loadout);
         case "loaded":
           return this.handleLoadedRequest(this.myId, request.payload.loaded.isLoaded, now);
+        case "playerLoaded":
+          return this.handlePlayerLoadedRequest(this.myId, request.payload.playerLoaded.progress, now);
         case "endGame":
           return this.handleEndGameRequest(this.myId, request.payload.endGame.gameResult, now);
         case "blank":
@@ -188,6 +191,9 @@ class MockServer {
     const client = this.ensureClient(clientId, now);
     client.lastSeenAt = now;
     client.isLoaded = isLoaded;
+    if (isLoaded) {
+      client.loadProgress = 100;
+    }
     this.trace("handleLoadedRequest", {
       clientId,
       isLoaded,
@@ -202,6 +208,25 @@ class MockServer {
     }
     this.advanceFrames(now);
     return [this.makeAllLoadedPacket(), ...this.collectPacketsForClient(client.id)];
+  }
+
+  private handlePlayerLoadedRequest(clientId: number, progress: number, now: number): MockPacket[] {
+    const client = this.ensureClient(clientId, now);
+    client.lastSeenAt = now;
+    const normalized = Math.max(0, Math.min(100, Math.floor(Number(progress) || 0)));
+    client.loadProgress = Math.max(client.loadProgress, normalized);
+    if (client.loadProgress >= 100) {
+      client.isLoaded = true;
+    }
+    const packets: MockPacket[] = [this.makeRoomSyncPacket()];
+    if (this.areAllClientsLoaded()) {
+      if (this.gameStartedAt === 0) {
+        this.gameStartedAt = now;
+      }
+      this.advanceFrames(now);
+      packets.push(this.makeRoomAllSyncPacket(), ...this.collectPacketsForClient(client.id));
+    }
+    return packets;
   }
 
   private handleInGameRequest(request: Request, now: number): MockPacket[] {
@@ -265,7 +290,8 @@ class MockServer {
       lastSeenAt: now,
       highestSubmittedFrame: 0,
       isReady: false,
-      isLoaded: false
+      isLoaded: false,
+      loadProgress: 0
     };
     this.clients.set(clientId, created);
     return created;
@@ -777,6 +803,38 @@ class MockServer {
         payload: {
           oneofKind: "allLoaded",
           allLoaded: {}
+        }
+      })
+    };
+  }
+
+  private makeRoomSyncPacket(): MockPacket {
+    const players = [...this.clients.values()]
+      .sort((a, b) => a.id - b.id)
+      .map((client) => ({
+        playerId: client.id,
+        progress: client.loadProgress,
+        name: `player${client.id}`,
+        loaded: client.loadProgress >= 100,
+      }));
+    return {
+      channel: "room",
+      data: RoomResponse.toBinary({
+        payload: {
+          oneofKind: "roomSync",
+          roomSync: { players }
+        }
+      })
+    };
+  }
+
+  private makeRoomAllSyncPacket(): MockPacket {
+    return {
+      channel: "room",
+      data: RoomResponse.toBinary({
+        payload: {
+          oneofKind: "roomAllSync",
+          roomAllSync: {}
         }
       })
     };

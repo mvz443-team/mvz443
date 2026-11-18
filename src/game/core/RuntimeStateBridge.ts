@@ -191,12 +191,12 @@ export function installRuntimeStateSources(): void {
     () => ticker.frameInterval,
     () => { /* 逻辑帧间隔固定为 50ms，不接受旧快照覆盖。 */ },
   );
-  simulationState.registerValue("resources", () => resources.GetResourceState(), (value) => {
+  simulationState.registerValue("resources", () => resources.CaptureCanonicalResourceState(), (value) => {
     resources.RestoreResourceState(value as Record<string, number>);
   });
   simulationState.registerValue(
     "cardpile",
-    () => cardpile.CaptureCardpileState() as unknown as JsonValue,
+    () => cardpile.CaptureCanonicalCardpileState() as unknown as JsonValue,
     (value) => { cardpile.RestoreCardpileState(value as Record<string, unknown>); },
   );
   simulationState.registerValue("wave", () => mobs.GetWaveState(), (value) => {

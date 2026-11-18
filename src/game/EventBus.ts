@@ -243,6 +243,18 @@ export namespace PhaserEvents {
   export const RoomAllReady = 'room-all-ready';
 
   /**
+   * Loading 阶段每秒下发的房间同步状态
+   * @param { players: PlayerSyncInfo[] } - 每位玩家 id / 进度 / 昵称 / 是否加载完成
+   */
+  export const RoomSync = 'room-sync';
+
+  /**
+   * 全员加载完成：所有客户端从 LoadScene 瞬间切换到 MainGame
+   * @param 无参数
+   */
+  export const RoomAllSync = 'room-all-sync';
+
+  /**
    * 房间已关闭
    * @param { message: string } - 关闭原因或消息
    * 触发时机：房间因人数不足或其他原因被关闭时触发

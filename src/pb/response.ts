@@ -189,8 +189,63 @@ export interface RoomResponse {
          */
         returnToLobby: ResponseReturnToLobby; // PostGame 结算后返回等待房间
     } | {
+        oneofKind: "roomSync";
+        /**
+         * @generated from protobuf field: messages.ResponseRoomSync room_sync = 13
+         */
+        roomSync: ResponseRoomSync; // Loading 阶段每秒广播一次，带每位玩家加载进度
+    } | {
+        oneofKind: "roomAllSync";
+        /**
+         * @generated from protobuf field: messages.ResponseRoomAllSync room_all_sync = 14
+         */
+        roomAllSync: ResponseRoomAllSync; // 全员加载完成，所有客户端瞬间进入 MainGame
+    } | {
         oneofKind: undefined;
     };
+}
+/**
+ * 一位玩家的加载同步进度
+ *
+ * @generated from protobuf message messages.PlayerSyncProgress
+ */
+export interface PlayerSyncProgress {
+    /**
+     * @generated from protobuf field: uint32 player_id = 1
+     */
+    playerId: number;
+    /**
+     * 1..100；100 表示完全加载好、等待同步
+     *
+     * @generated from protobuf field: uint32 progress = 2
+     */
+    progress: number;
+    /**
+     * @generated from protobuf field: string name = 3
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: bool loaded = 4
+     */
+    loaded: boolean; // progress >= 100
+}
+/**
+ * Loading 阶段每秒下发的房间同步状态
+ *
+ * @generated from protobuf message messages.ResponseRoomSync
+ */
+export interface ResponseRoomSync {
+    /**
+     * @generated from protobuf field: repeated messages.PlayerSyncProgress players = 1
+     */
+    players: PlayerSyncProgress[];
+}
+/**
+ * 全员加载完成，客户端应立即从 LoadScene 切到 MainGame 并开始游戏
+ *
+ * @generated from protobuf message messages.ResponseRoomAllSync
+ */
+export interface ResponseRoomAllSync {
 }
 /**
  * PostGame 结算完成后，任一玩家请求返回等待房间；
@@ -886,7 +941,9 @@ class RoomResponse$Type extends MessageType<RoomResponse> {
             { no: 7, name: "all_loaded", kind: "message", oneof: "payload", T: () => ResponseAllLoaded },
             { no: 10, name: "checkpoint_accepted", kind: "message", oneof: "payload", T: () => ResponseCheckpointAccepted },
             { no: 11, name: "replay_frames", kind: "message", oneof: "payload", T: () => ResponseReplayFrames },
-            { no: 12, name: "return_to_lobby", kind: "message", oneof: "payload", T: () => ResponseReturnToLobby }
+            { no: 12, name: "return_to_lobby", kind: "message", oneof: "payload", T: () => ResponseReturnToLobby },
+            { no: 13, name: "room_sync", kind: "message", oneof: "payload", T: () => ResponseRoomSync },
+            { no: 14, name: "room_all_sync", kind: "message", oneof: "payload", T: () => ResponseRoomAllSync }
         ]);
     }
     create(value?: PartialMessage<RoomResponse>): RoomResponse {
@@ -973,6 +1030,18 @@ class RoomResponse$Type extends MessageType<RoomResponse> {
                         returnToLobby: ResponseReturnToLobby.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).returnToLobby)
                     };
                     break;
+                case /* messages.ResponseRoomSync room_sync */ 13:
+                    message.payload = {
+                        oneofKind: "roomSync",
+                        roomSync: ResponseRoomSync.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).roomSync)
+                    };
+                    break;
+                case /* messages.ResponseRoomAllSync room_all_sync */ 14:
+                    message.payload = {
+                        oneofKind: "roomAllSync",
+                        roomAllSync: ResponseRoomAllSync.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).roomAllSync)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -1021,6 +1090,12 @@ class RoomResponse$Type extends MessageType<RoomResponse> {
         /* messages.ResponseReturnToLobby return_to_lobby = 12; */
         if (message.payload.oneofKind === "returnToLobby")
             ResponseReturnToLobby.internalBinaryWrite(message.payload.returnToLobby, writer.tag(12, WireType.LengthDelimited).fork(), options).join();
+        /* messages.ResponseRoomSync room_sync = 13; */
+        if (message.payload.oneofKind === "roomSync")
+            ResponseRoomSync.internalBinaryWrite(message.payload.roomSync, writer.tag(13, WireType.LengthDelimited).fork(), options).join();
+        /* messages.ResponseRoomAllSync room_all_sync = 14; */
+        if (message.payload.oneofKind === "roomAllSync")
+            ResponseRoomAllSync.internalBinaryWrite(message.payload.roomAllSync, writer.tag(14, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1031,6 +1106,162 @@ class RoomResponse$Type extends MessageType<RoomResponse> {
  * @generated MessageType for protobuf message messages.RoomResponse
  */
 export const RoomResponse = new RoomResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class PlayerSyncProgress$Type extends MessageType<PlayerSyncProgress> {
+    constructor() {
+        super("messages.PlayerSyncProgress", [
+            { no: 1, name: "player_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "progress", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "loaded", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<PlayerSyncProgress>): PlayerSyncProgress {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.playerId = 0;
+        message.progress = 0;
+        message.name = "";
+        message.loaded = false;
+        if (value !== undefined)
+            reflectionMergePartial<PlayerSyncProgress>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PlayerSyncProgress): PlayerSyncProgress {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 player_id */ 1:
+                    message.playerId = reader.uint32();
+                    break;
+                case /* uint32 progress */ 2:
+                    message.progress = reader.uint32();
+                    break;
+                case /* string name */ 3:
+                    message.name = reader.string();
+                    break;
+                case /* bool loaded */ 4:
+                    message.loaded = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: PlayerSyncProgress, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 player_id = 1; */
+        if (message.playerId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.playerId);
+        /* uint32 progress = 2; */
+        if (message.progress !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.progress);
+        /* string name = 3; */
+        if (message.name !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.name);
+        /* bool loaded = 4; */
+        if (message.loaded !== false)
+            writer.tag(4, WireType.Varint).bool(message.loaded);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message messages.PlayerSyncProgress
+ */
+export const PlayerSyncProgress = new PlayerSyncProgress$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ResponseRoomSync$Type extends MessageType<ResponseRoomSync> {
+    constructor() {
+        super("messages.ResponseRoomSync", [
+            { no: 1, name: "players", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => PlayerSyncProgress }
+        ]);
+    }
+    create(value?: PartialMessage<ResponseRoomSync>): ResponseRoomSync {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.players = [];
+        if (value !== undefined)
+            reflectionMergePartial<ResponseRoomSync>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ResponseRoomSync): ResponseRoomSync {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated messages.PlayerSyncProgress players */ 1:
+                    message.players.push(PlayerSyncProgress.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ResponseRoomSync, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated messages.PlayerSyncProgress players = 1; */
+        for (let i = 0; i < message.players.length; i++)
+            PlayerSyncProgress.internalBinaryWrite(message.players[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message messages.ResponseRoomSync
+ */
+export const ResponseRoomSync = new ResponseRoomSync$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ResponseRoomAllSync$Type extends MessageType<ResponseRoomAllSync> {
+    constructor() {
+        super("messages.ResponseRoomAllSync", []);
+    }
+    create(value?: PartialMessage<ResponseRoomAllSync>): ResponseRoomAllSync {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<ResponseRoomAllSync>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ResponseRoomAllSync): ResponseRoomAllSync {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ResponseRoomAllSync, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message messages.ResponseRoomAllSync
+ */
+export const ResponseRoomAllSync = new ResponseRoomAllSync$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ResponseReturnToLobby$Type extends MessageType<ResponseReturnToLobby> {
     constructor() {

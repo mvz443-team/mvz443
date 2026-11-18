@@ -1,5 +1,6 @@
 import EnumGameStage from '../utils/net/game_state';
 import { PeerInfo, RoomAllReadyEvent, RoomMeta } from '../types/online';
+import { mergeSyncPlayers, PlayerSyncInfo } from '../utils/net/player_sync';
 
 type RoomInfoListener = (roomInfo: { roomId: number; myId: number; lordId: number; peers: string }) => void;
 
@@ -15,6 +16,7 @@ export class OnlineStateManager {
     private roomPeers: string = "";
     private roomMeta: RoomMeta = { roomName: "", chapterId: 0, stageId: 0 };
     private latestRoomAllReady: RoomAllReadyEvent | null = null;
+    private roomSyncPlayers: PlayerSyncInfo[] = [];
 
     private gameStageUpdateCallbacks: Array<(gameStage: number) => void> = [];
     private onlineModeUpdateCallbacks: Array<(isOnline: boolean) => void> = [];
@@ -137,6 +139,15 @@ export class OnlineStateManager {
         return this.getCanonicalLoadouts()?.find((entry) => entry.playerId === this.myId);
     }
 
+    /** Loading 阶段各玩家加载进度（单调递增的合并快照）。 */
+    public updateRoomSync(players: readonly PlayerSyncInfo[]): void {
+        this.roomSyncPlayers = mergeSyncPlayers(this.roomSyncPlayers, players);
+    }
+
+    public getRoomSyncPlayers(): PlayerSyncInfo[] {
+        return this.roomSyncPlayers.map((player) => ({ ...player }));
+    }
+
     public getRoomPeers(): string {
         return this.roomPeers;
     }
@@ -216,6 +227,7 @@ export class OnlineStateManager {
     public resetGameData(): void {
         this.currentGameStage = EnumGameStage.InLobby;
         this.latestRoomAllReady = null;
+        this.roomSyncPlayers = [];
     }
 
     public resetAllState(): void {

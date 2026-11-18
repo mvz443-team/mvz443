@@ -65,6 +65,18 @@ export interface RoomAllReadyEvent {
     loadouts?: import("../pb/common").PlayerLoadout[];
 }
 
+/** Loading 阶段每位玩家的加载进度 */
+export interface PlayerSyncInfo {
+    playerId: number;
+    progress: number;   // 1..100，100=完全加载好
+    name: string;
+    loaded: boolean;
+}
+
+export interface RoomSyncEvent {
+    players: PlayerSyncInfo[];
+}
+
 export interface RoomGameStartEvent {
     seed: number;
     myID: number;

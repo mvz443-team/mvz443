@@ -64,6 +64,7 @@ export default class MobManager extends BaseManager {
 
   public EventBus: EventBus<MobManagerEvent>;
   private seed: number = 0;
+  private gameStartInitialized: boolean = false;
 
   // 存活的怪物列表
   public MobsByLane: Map<number, Mob[]> = new Map(); // 按行分的怪物列表
@@ -149,6 +150,7 @@ export default class MobManager extends BaseManager {
   public Reset() {
     PhaserEventBus.off(PhaserEvents.RoomAllReady, this.handleRoomAllReady, this);
     PhaserEventBus.off(PhaserEvents.RoomGameStart, this.handleRoomGameStart, this);
+    this.gameStartInitialized = false;
     this.Timer?.remove();
     this.Timer = null;
     this.SpawnTimer?.remove();
@@ -594,6 +596,9 @@ export default class MobManager extends BaseManager {
   }
 
   private handleRoomGameStart() {
+    if (this.gameStartInitialized) {
+      return;
+    }
     const roomAllReady = onlineStateManager.getRoomAllReady();
     this.seed = roomAllReady?.seed ?? CombatManager.Instance.seed;
     this.setRandomSeed(this.seed);
@@ -601,6 +606,7 @@ export default class MobManager extends BaseManager {
       console.error("No stage data found for MobManager game start.");
       return;
     }
+    this.gameStartInitialized = true;
     const stageScriptRandom = seedrandom.alea(String(this.seed));
     this.setWaves(StageHelper.generateStageScript(
       this.scene.stageData.stageScript,

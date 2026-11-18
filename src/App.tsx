@@ -4,6 +4,7 @@ import { IRefPhaserGame, PhaserGame } from './game/PhaserGame';
 import DocFrame from './components/DocFrame';
 import GlobalOnlineStateListener from './components/GlobalOnlineStateListener';
 import NetworkStatusOverlay from './components/NetworkStatusOverlay';
+import GlobalDialogHost from './components/GlobalDialogHost';
 import { useSettings } from './context/settings_ctx';
 import { GameParams } from './game/models/GameParams';
 import type { StageResult } from './types/stage';
@@ -547,6 +548,8 @@ function App() {
       <GlobalOnlineStateListener />
       {/* 全局网络重连徽标与错误 Toast */}
       <NetworkStatusOverlay />
+      {/* 全局前端级对话框（替代系统 alert/confirm） */}
+      <GlobalDialogHost />
 
       <Routes>
         <Route path={`${publicUrl}/`} element={

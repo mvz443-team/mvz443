@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { PhaserEventBus, PhaserEvents } from '../game/EventBus';
 import BackendWS from '../utils/net/sync';
+import DisconnectedIcon from './svgs/DisconnectedIcon';
 
 type NetworkToast = {
   id: number;
@@ -79,9 +80,13 @@ export default function NetworkStatusOverlay() {
             color: '#fff',
             fontSize: 13,
             pointerEvents: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
           }}
         >
-          网络中断，正在重连（第 {network.reconnectAttempt} 次）…
+          <DisconnectedIcon size={18} color="#eceff4" />
+          <span>网络中断，正在重连（第 {network.reconnectAttempt} 次）…</span>
         </div>
       )}
       <div

@@ -174,7 +174,7 @@ export default class ResourceManager extends BaseManager {
     return (this.StarShardsMaps.get(playerId) || 0) + (this.previewStarShardsDeltaMaps.get(playerId) || 0);
   }
 
-  /** 导出全部玩家的权威资源与预览资源快照。 */
+  /** 导出全部玩家的权威资源与预览资源快照（仅本地调试用，不参与跨端哈希）。 */
   public GetResourceState(): Record<string, number> {
     const snapshot: Record<string, number> = {};
     this.EnergyMaps.forEach((value, pid) => { snapshot[`energy:${pid}`] = value; });
@@ -185,23 +185,31 @@ export default class ResourceManager extends BaseManager {
     return snapshot;
   }
 
-  /** 从快照恢复资源状态，并同步视图事件。 */
+  /**
+   * 跨端一致性哈希使用：只包含权威资源。
+   * mineId 是本机席位号，preview* 是输入预测表现值，二者两端天然不同，
+   * 若进入哈希会在首个 20 帧采样点产生必然分叉。
+   */
+  public CaptureCanonicalResourceState(): Record<string, number> {
+    const snapshot: Record<string, number> = {};
+    this.EnergyMaps.forEach((value, pid) => { snapshot[`energy:${pid}`] = value; });
+    this.StarShardsMaps.forEach((value, pid) => { snapshot[`star:${pid}`] = value; });
+    return snapshot;
+  }
+
+  /** 从快照恢复权威资源；保留本机 mineId 并清除本地预测值。 */
   public RestoreResourceState(state: Record<string, number>): void {
-    this.mineId = state["mineId"] ?? this.mineId;
     this.EnergyMaps.clear();
     this.StarShardsMaps.clear();
     this.previewEnergyDeltaMaps.clear();
     this.previewStarShardsDeltaMaps.clear();
     Object.keys(state).sort().forEach((key) => {
       const value = state[key];
-      if (key === "mineId") return;
       const [kind, idText] = key.split(":");
       const pid = Number(idText);
       if (!Number.isFinite(pid)) return;
       if (kind === "energy") this.EnergyMaps.set(pid, value);
       else if (kind === "star") this.StarShardsMaps.set(pid, value);
-      else if (kind === "previewEnergy") this.previewEnergyDeltaMaps.set(pid, value);
-      else if (kind === "previewStar") this.previewStarShardsDeltaMaps.set(pid, value);
     });
     this.EnergyMaps.forEach((value, pid) => this.Eventbus.emit("onEnergyUpdate", value, pid));
     this.StarShardsMaps.forEach((value, pid) => this.Eventbus.emit("onStarShardsUpdate", value, pid));
