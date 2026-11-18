@@ -794,6 +794,7 @@ class MockServer {
             roomId: this.roomId,
             chapterId: 0,
             stageId: 0,
+            resources: [],
           }
         }
       })

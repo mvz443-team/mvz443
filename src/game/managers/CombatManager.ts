@@ -12,6 +12,7 @@ import { onlineStateManager } from "../../store/OnlineStateManager";
 import { RoomAllReadyEvent } from "../../types/online";
 import BackendWS from "../../utils/net/sync";
 import CardpileManager from "./combat/CardpileManager";
+import ResourceManager from "./combat/ResourceManager";
 import {
   simulationState,
   SimulationState,
@@ -292,12 +293,22 @@ export default class CombatManager extends BaseManager {
     try {
       const state = restoreInlineSnapshot(snapshot);
       state.frameId = frameId;
-      this.restoreState(state, "rebuild");
+      const report = this.restoreState(state, "rebuild");
       BackendWS.getReceiveQueue()?.restoreToFrame(frameId);
       // 旧环形快照可能来自恢复前已经分叉的分支，不能再用于后续回滚。
       this.snapshotRing.clear();
       this.frameStateCache.clear();
       this.lastCheckpointFrame = 0;
+      // 恢复后的摘要必须与服务端转发的快照摘要一致；不一致说明有状态源
+      // 没有正确恢复，继续补帧会立刻分叉，先把问题暴露在控制台。
+      const restoredHash = simulationState.hash();
+      if (snapshot.hash && restoredHash.h32 !== snapshot.hash) {
+        console.warn(`[reconnect] 快照恢复摘要不一致 frame=${frameId}`, {
+          snapshotHash: snapshot.hash,
+          restoredHash: restoredHash.h32,
+          report,
+        });
+      }
       console.log(`[reconnect] 已恢复 checkpoint frame=${frameId}`);
     } catch (error) {
       console.warn("[reconnect] checkpoint 快照恢复失败", error);
@@ -402,7 +413,9 @@ export default class CombatManager extends BaseManager {
         // 新实体在 updateAllTickManagers 之后创建，计时器以当前帧为起点，
         // 不会在同一帧被额外 tick 一次；两端也都在同一逻辑帧末看到相同实体集合。
         DeferredManager.Instance.flush();
+        CardpileManager.Instance.applyPendingOwnProfile(frameId);
         CardpileManager.Instance.stepUpdate();
+        ResourceManager.Instance.applyPendingResourceProfiles(frameId);
       }
 
       // Physics-step systems.

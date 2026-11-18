@@ -10,6 +10,7 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { CardCooldownState } from "./common";
 import { LoadoutSnapshot } from "./common";
 /**
  * 包装消息，包含所有可能的请求类型
@@ -247,6 +248,27 @@ export interface RequestBlank {
      * @generated from protobuf field: uint32 client_latency_ms = 8
      */
     clientLatencyMs: number;
+    /**
+     * 客户端当前资源 profile：每帧心跳上报，服务端按玩家保存，
+     * 供页面刷新后的重连恢复能量、星之碎片与卡槽冷却。
+     *
+     * @generated from protobuf field: uint32 energy = 9
+     */
+    energy: number;
+    /**
+     * @generated from protobuf field: uint32 star_shards = 10
+     */
+    starShards: number;
+    /**
+     * @generated from protobuf field: repeated messages.CardCooldownState card_cooldowns = 11
+     */
+    cardCooldowns: CardCooldownState[];
+    /**
+     * 新客户端会置 true；旧客户端缺省 false 时不覆盖服务端已有 profile。
+     *
+     * @generated from protobuf field: bool resources_reported = 12
+     */
+    resourcesReported: boolean;
 }
 /**
  * RequestGridOperation 格子操作请求
@@ -897,7 +919,11 @@ class RequestBlank$Type extends MessageType<RequestBlank> {
             { no: 5, name: "state_hash_hex", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "inline_snapshot_json", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "state_hash_version", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 8, name: "client_latency_ms", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 8, name: "client_latency_ms", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 9, name: "energy", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 10, name: "star_shards", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 11, name: "card_cooldowns", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => CardCooldownState },
+            { no: 12, name: "resources_reported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<RequestBlank>): RequestBlank {
@@ -910,6 +936,10 @@ class RequestBlank$Type extends MessageType<RequestBlank> {
         message.inlineSnapshotJson = "";
         message.stateHashVersion = 0;
         message.clientLatencyMs = 0;
+        message.energy = 0;
+        message.starShards = 0;
+        message.cardCooldowns = [];
+        message.resourcesReported = false;
         if (value !== undefined)
             reflectionMergePartial<RequestBlank>(this, message, value);
         return message;
@@ -942,6 +972,18 @@ class RequestBlank$Type extends MessageType<RequestBlank> {
                     break;
                 case /* uint32 client_latency_ms */ 8:
                     message.clientLatencyMs = reader.uint32();
+                    break;
+                case /* uint32 energy */ 9:
+                    message.energy = reader.uint32();
+                    break;
+                case /* uint32 star_shards */ 10:
+                    message.starShards = reader.uint32();
+                    break;
+                case /* repeated messages.CardCooldownState card_cooldowns */ 11:
+                    message.cardCooldowns.push(CardCooldownState.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* bool resources_reported */ 12:
+                    message.resourcesReported = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -979,6 +1021,18 @@ class RequestBlank$Type extends MessageType<RequestBlank> {
         /* uint32 client_latency_ms = 8; */
         if (message.clientLatencyMs !== 0)
             writer.tag(8, WireType.Varint).uint32(message.clientLatencyMs);
+        /* uint32 energy = 9; */
+        if (message.energy !== 0)
+            writer.tag(9, WireType.Varint).uint32(message.energy);
+        /* uint32 star_shards = 10; */
+        if (message.starShards !== 0)
+            writer.tag(10, WireType.Varint).uint32(message.starShards);
+        /* repeated messages.CardCooldownState card_cooldowns = 11; */
+        for (let i = 0; i < message.cardCooldowns.length; i++)
+            CardCooldownState.internalBinaryWrite(message.cardCooldowns[i], writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* bool resources_reported = 12; */
+        if (message.resourcesReported !== false)
+            writer.tag(12, WireType.Varint).bool(message.resourcesReported);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

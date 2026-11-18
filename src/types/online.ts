@@ -63,6 +63,8 @@ export interface RoomAllReadyEvent {
     playerIds: number[];
     /** 服务端规范化后的全员开局配置 */
     loadouts?: import("../pb/common").PlayerLoadout[];
+    /** 服务端持久化的各玩家资源 profile：能量、星之碎片、卡槽冷却 */
+    resources?: import("../pb/common").PlayerResourceState[];
     /** 房间与关卡信息：页面刷新后用于重建 GameParams */
     roomId?: number;
     chapterId?: number;

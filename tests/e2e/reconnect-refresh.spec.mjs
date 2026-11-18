@@ -47,6 +47,24 @@ test('刷新页面后重连能重建 GameParams 并进入战局', async ({ brows
     await waitForStage(guest, STAGE.InGame);
     await expect.poll(async () => simHash(owner), { timeout: 20000 }).not.toBeNull();
 
+    // 开局能量面板必须立即显示权威值，而不是等第一次收获后才刷新。
+    await expect.poll(
+      async () => owner.evaluate(() => window.MVZ_NET.getGameRuntime().energyText),
+      { timeout: 15000 },
+    ).not.toBeNull();
+    const ownerRuntime = await owner.evaluate(() => window.MVZ_NET.getGameRuntime());
+    expect(ownerRuntime.energyText).toBe(String(ownerRuntime.energy));
+
+    // 刷新前先种植，让能量与卡槽冷却偏离初始值；重连后必须恢复而不是重置。
+    await guest.evaluate(() => window.MVZ_NET.plantAt(1, 1, 7, 0));
+    await expect.poll(
+      async () => (await guest.evaluate(() => window.MVZ_NET.getGameRuntime())).energy,
+      { timeout: 15000 },
+    ).toBeLessThan(100);
+    const beforeReconnect = await guest.evaluate(() => window.MVZ_NET.getGameRuntime());
+    const cooldownBefore = beforeReconnect.cardpile.find((card) => card.pid === 1)?.leftMs ?? 0;
+    expect(cooldownBefore).toBeGreaterThan(0);
+
     // 模拟刷新：新进程丢失本地 GameParams，只能依赖服务端 profile。
     await guest.reload();
     await expect(guest.locator('#app')).toBeVisible({ timeout: 30000 });
@@ -72,6 +90,19 @@ test('刷新页面后重连能重建 GameParams 并进入战局', async ({ brows
 
     // 快照恢复后客户端继续产出确定性状态采样。
     await expect.poll(async () => simHash(guest), { timeout: 30000 }).not.toBeNull();
+
+    // 资源 profile：刷新前的能量不得归零，卡槽冷却必须继续倒计时而不是卡死。
+    await expect.poll(
+      async () => (await guest.evaluate(() => window.MVZ_NET.getGameRuntime())).energy,
+      { timeout: 20000 },
+    ).toBeGreaterThanOrEqual(beforeReconnect.energy);
+    await expect.poll(async () => {
+      const runtime = await guest.evaluate(() => window.MVZ_NET.getGameRuntime());
+      const cooldown = runtime.cardpile.find((card) => card.pid === 1);
+      if (!cooldown || cooldown.totalMs <= 0) return 'missing';
+      if (cooldown.leftMs === 0) return 'ready';
+      return cooldown.leftMs < cooldownBefore ? 'cooling' : `stuck:${cooldown.leftMs}`;
+    }, { timeout: 20000 }).toMatch(/cooling|ready/);
   } finally {
     await contextA.close();
     await contextB.close();

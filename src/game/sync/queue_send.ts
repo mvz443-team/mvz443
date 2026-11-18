@@ -14,21 +14,33 @@ import { LEGACY_BALANCE_FRAME_INTERVAL_MS } from "../../constants/physics";
 import { desyncDiagnostics } from "../../utils/debug/desyncDiagnostics";
 import { SIMULATION_STATE_VERSION } from "../core/SimulationState";
 
+/** 每帧随心跳上报的资源 profile（仅本机玩家）。 */
+export interface ResourceUploadSnapshot {
+  energy: number;
+  starShards: number;
+  cardCooldowns: Array<{ pid: number; level: number; leftMs: number; totalMs: number }>;
+}
+
 export default class QueueSend {
   queues: Denque<Request>;
   private readonly pendingStateHashes: Denque<{ frameId: number; hash: number }> = new Denque();
   // 与 Go server constants.CommandLeadFrames 对齐：点击后最少 2 帧进入权威帧。
   private readonly commandLeadFrames: number = 2;
   private readonly frameIntervalMsProvider: () => number;
+  private readonly resourceProvider: (() => ResourceUploadSnapshot | null) | null;
   private lastBlankAckFrameIdSent: number = -1;
   private lastBlankAckFrameIdQueued: number = -1;
   private lastBlankSentAt: number = 0;
   private lastBlankQueuedAt: number = 0;
   private clientOpSeq: number = 0;
 
-  constructor(frameIntervalMsProvider: () => number = () => LEGACY_BALANCE_FRAME_INTERVAL_MS) {
+  constructor(
+    frameIntervalMsProvider: () => number = () => LEGACY_BALANCE_FRAME_INTERVAL_MS,
+    resourceProvider: (() => ResourceUploadSnapshot | null) | null = null,
+  ) {
     this.queues = new Denque();
     this.frameIntervalMsProvider = frameIntervalMsProvider;
+    this.resourceProvider = resourceProvider;
   }
 
   Reset() {
@@ -173,6 +185,10 @@ export default class QueueSend {
       inlineSnapshotJson,
       stateHashVersion: SIMULATION_STATE_VERSION,
       clientLatencyMs: QueueSend.currentLatencyMs(),
+      energy: 0,
+      starShards: 0,
+      cardCooldowns: [],
+      resourcesReported: false,
     };
     this.queues.push({
       payload: { blank: request, oneofKind: "blank" },
@@ -192,6 +208,10 @@ export default class QueueSend {
         inlineSnapshotJson: "",
         stateHashVersion: SIMULATION_STATE_VERSION,
         clientLatencyMs: QueueSend.currentLatencyMs(),
+        energy: 0,
+        starShards: 0,
+        cardCooldowns: [],
+        resourcesReported: false,
       };
       BackendWS.send(Request.toBinary({
         payload: { blank: request, oneofKind: "blank" }
@@ -213,6 +233,10 @@ export default class QueueSend {
         inlineSnapshotJson: "",
         stateHashVersion: SIMULATION_STATE_VERSION,
         clientLatencyMs: QueueSend.currentLatencyMs(),
+        energy: 0,
+        starShards: 0,
+        cardCooldowns: [],
+        resourcesReported: false,
       },
       col,
       row,
@@ -320,6 +344,8 @@ export default class QueueSend {
   public sendBlankFrame(frameId: number) {
     const now = Date.now();
     desyncDiagnostics.record("sync", "sendBlankFrame", { frameId });
+    // 资源 profile 每帧上传：页面刷新后服务端仍掌握玩家最后的能量/星屑/冷却。
+    const resources = this.resourceProvider?.() ?? null;
     const request: RequestBlank = {
       frameId,
       ackFrameId: BackendWS.AckFrameID,
@@ -329,6 +355,17 @@ export default class QueueSend {
       inlineSnapshotJson: "",
       stateHashVersion: SIMULATION_STATE_VERSION,
       clientLatencyMs: QueueSend.currentLatencyMs(),
+      energy: resources ? Math.max(0, Math.round(resources.energy)) : 0,
+      starShards: resources ? Math.max(0, Math.round(resources.starShards)) : 0,
+      cardCooldowns: resources
+        ? resources.cardCooldowns.map((card) => ({
+          pid: Math.max(0, Math.round(card.pid)),
+          level: Math.max(0, Math.round(card.level)),
+          leftMs: Math.max(0, Math.round(card.leftMs)),
+          totalMs: Math.max(0, Math.round(card.totalMs)),
+        }))
+        : [],
+      resourcesReported: resources !== null,
     };
     // console.log("[QueueSend] queue blank frame", {
     //   frameId,

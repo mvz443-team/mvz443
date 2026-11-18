@@ -80,7 +80,10 @@ export default class TileItemManager extends BaseManager {
   }
 
   public RestoreTileItemState(state: Record<string, unknown>): void {
-    this.currentWaveId = Number(state.currentWaveId) || -1;
+    // wave 0 是合法状态，不能把 0 当成“缺省”回退成 -1；
+    // 否则重连恢复后首个摘要采样就与对端分叉（tileitem 值不同）。
+    const waveId = Number(state.currentWaveId);
+    this.currentWaveId = Number.isFinite(waveId) ? waveId : -1;
     this.slotsByRow.clear();
     const slots = Array.isArray(state.slots) ? (state.slots as Array<{ row: number; kind: string }>) : [];
     for (const slot of slots) {

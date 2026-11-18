@@ -56,3 +56,34 @@ test('hash-only checkpoint 不得上报', () => {
   const sent = captureSent(queue);
   assert.equal(sent.length, 0, '没有正文的 checkpoint 不能推进服务端恢复锚点');
 });
+
+test('blank 心跳携带本机资源 profile', () => {
+  const queue = new QueueSend(
+    () => 50,
+    () => ({
+      energy: 75,
+      starShards: 3,
+      cardCooldowns: [{ pid: 1, level: 2, leftMs: 350.6, totalMs: 6000 }],
+    }),
+  );
+  queue.sendBlankFrame(202);
+  const sent = captureSent(queue);
+  assert.equal(sent.length, 1);
+  const blank = sent[0].payload.blank;
+  assert.equal(blank.resourcesReported, true, '上报了 profile 才能让服务端覆盖旧值');
+  assert.equal(blank.energy, 75);
+  assert.equal(blank.starShards, 3);
+  assert.equal(blank.cardCooldowns.length, 1);
+  assert.equal(blank.cardCooldowns[0].pid, 1);
+  assert.equal(blank.cardCooldowns[0].leftMs, 351, 'uint32 字段必须取整');
+  assert.equal(blank.cardCooldowns[0].totalMs, 6000);
+});
+
+test('没有资源提供者时不得置 resources_reported', () => {
+  const queue = new QueueSend();
+  queue.sendBlankFrame(202);
+  const blank = captureSent(queue)[0].payload.blank;
+  assert.equal(blank.resourcesReported, false, '零值心跳不能覆盖服务端已有 profile');
+  assert.equal(blank.energy, 0);
+  assert.equal(blank.cardCooldowns.length, 0);
+});

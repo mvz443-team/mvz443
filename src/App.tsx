@@ -32,6 +32,7 @@ import { publicUrl } from './utils/browser';
 import { PhaserEventBus, PhaserEvents } from './game/EventBus';
 import CursorManager from './game/managers/combat/CursorManager';
 import CardpileManager from './game/managers/combat/CardpileManager';
+import ResourceManager from './game/managers/combat/ResourceManager';
 import CombatManager from './game/managers/CombatManager';
 import { initializeGameLibraries } from './game/managers/library/initializeGameLibraries';
 import {
@@ -468,6 +469,10 @@ function App() {
                 inlineSnapshotJson: "",
                 stateHashVersion: 0,
                 clientLatencyMs: 0,
+                energy: 0,
+                starShards: 0,
+                cardCooldowns: [],
+                resourcesReported: false,
               },
               oneofKind: "blank",
             },
@@ -497,6 +502,16 @@ function App() {
             paused: CombatManager.Instance.isPaused,
             timeScale: scene?.time?.timeScale ?? null,
             pauseMenu: scene?.getPauseMenuState() ?? { visible: false },
+            frameId: BackendWS.FrameID,
+            energy: ResourceManager.Instance.getEnergy('mine'),
+            energyText: scene?.getCardSlotEnergyText() ?? null,
+            starShards: ResourceManager.Instance.getStarShards('mine'),
+            cardpile: [...CardpileManager.Instance.cardpileStatus.entries()].map(([pid, status]) => ({
+              pid,
+              level: status.level,
+              leftMs: status.leftMs,
+              totalMs: status.totalMs,
+            })),
           };
         },
         // 走与真实“确认/准备”按钮完全相同的选卡确认路径：设置 GameParams +

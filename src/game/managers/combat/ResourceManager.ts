@@ -4,11 +4,18 @@ import { PhaserEventBus, PhaserEvents } from "../../EventBus";
 import { EventBus } from "../../../utils/eventBus";
 import { onlineStateManager } from "../../../store/OnlineStateManager";
 import { RoomAllReadyEvent } from "../../../types/online";
+import type { PlayerResourceState } from "../../../pb/common";
 import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
+import SyncManager from "./SyncManager";
 
 export type PlayerIdentify = number;
 
 const MAX_STAR_SHARDS = 10;
+/**
+ * profile 只在本地帧号“刚好追上”时套用；落后超过该窗口说明本地是跳帧恢复
+ * （checkpoint/备用快照），跳帧得到的状态更权威，profile 已过期。
+ */
+const PROFILE_APPLY_WINDOW_FRAMES = 8;
 
 type ResourceManagerEvents = {
   onEnergyUpdate: (newEnergy: number, playerId: PlayerIdentify) => void;
@@ -49,6 +56,10 @@ export default class ResourceManager extends BaseManager {
           this.StarShardsMaps.set(playerId, loadout?.initialStarShards ?? 0);
         }
       }
+      // 服务端 profile 是重连时最后上报的权威资源；快照恢复过就不要再覆盖。
+      if (!this.restoredFromSnapshot) {
+        this.applyResourceProfiles(data);
+      }
       return;
     }
     this.EnergyMaps.clear();
@@ -63,6 +74,8 @@ export default class ResourceManager extends BaseManager {
       this.Eventbus.emit('onEnergyUpdate', this.getDisplayEnergy(playerId), playerId);
       this.Eventbus.emit('onStarShardsUpdate', this.getDisplayStarShards(playerId), playerId);
     }
+    // 页面刷新重连：服务端保存了刷新前每帧上报的资源，覆盖关卡初始值。
+    this.applyResourceProfiles(data);
     desyncDiagnostics.record("resources", "RoomAllReady loadouts applied", {
       mineId: this.mineId,
       playerIds: data.playerIds,
@@ -70,10 +83,75 @@ export default class ResourceManager extends BaseManager {
     });
   };
 
+  /**
+   * 应用服务端下发的资源 profile（重连恢复的第二条路径）。
+   *
+   * 不能在收到 AllReady 时立刻套用：页面刷新后客户端可能要从帧 1 重演，
+   * profile 记录的是断开时的终态，提前覆盖会让重演中的资源叠加错误并在
+   * 20 帧摘要采样点与在线端分叉。先登记，等本地模拟追到 profile 帧号再套用。
+   *
+   * 本地帧号已经越过 profile 帧号时说明状态来自 checkpoint/备用快照，
+   * 那份状态比 profile 更权威，直接丢弃 profile。
+   */
+  private applyResourceProfiles(data: RoomAllReadyEvent): void {
+    if (!data.resources || data.resources.length === 0) return;
+    if (this.restoredFromSnapshot) return;
+    const localFrame = SyncManager.Instance.recvQueue?.currentFrameId ?? 0;
+    const pending = data.resources
+      .map((profile) => ({ ...profile, frameId: Number(profile.frameId) || 0 }))
+      .filter((profile) => profile.frameId > localFrame);
+    if (pending.length === 0) {
+      desyncDiagnostics.record("resources", "RoomAllReady profiles dropped (local frame ahead)", {
+        mineId: this.mineId,
+        localFrame,
+        profileFrames: data.resources.map((profile) => profile.frameId),
+      });
+      return;
+    }
+    this.pendingResourceProfiles = pending;
+  }
+
+  /** 每帧固定步推进后调用：本地帧号追上 profile 帧号后才覆盖资源。 */
+  public applyPendingResourceProfiles(frameId: number): void {
+    if (this.pendingResourceProfiles.length === 0) return;
+    if (this.restoredFromSnapshot) {
+      this.pendingResourceProfiles = [];
+      return;
+    }
+    if (frameId <= 0) return;
+    const applicable: PlayerResourceState[] = [];
+    const remaining: PlayerResourceState[] = [];
+    for (const profile of this.pendingResourceProfiles) {
+      const profileFrame = Number(profile.frameId) || 0;
+      if (frameId < profileFrame) {
+        remaining.push(profile);
+      } else if (frameId - profileFrame <= PROFILE_APPLY_WINDOW_FRAMES) {
+        applicable.push(profile);
+      }
+      // 超过窗口：本地是跳帧恢复（checkpoint/快照），状态已权威，丢弃 profile。
+    }
+    this.pendingResourceProfiles = remaining;
+    if (applicable.length === 0) return;
+    for (const profile of applicable) {
+      const playerId = profile.playerId;
+      this.EnergyMaps.set(playerId, profile.energy);
+      this.StarShardsMaps.set(playerId, Math.max(0, Math.min(MAX_STAR_SHARDS, profile.starShards)));
+      this.Eventbus.emit('onEnergyUpdate', this.getDisplayEnergy(playerId), playerId);
+      this.Eventbus.emit('onStarShardsUpdate', this.getDisplayStarShards(playerId), playerId);
+    }
+    desyncDiagnostics.record("resources", "RoomAllReady profiles applied", {
+      mineId: this.mineId,
+      frameId,
+      energy: this.CaptureCanonicalResourceState(),
+    });
+  }
+
   private EnergyMaps: Map<PlayerIdentify, number> = new Map();
   private StarShardsMaps: Map<PlayerIdentify, number> = new Map();
   private previewEnergyDeltaMaps: Map<PlayerIdentify, number> = new Map();
   private previewStarShardsDeltaMaps: Map<PlayerIdentify, number> = new Map();
+  /** 待应用的资源 profile（等本地帧号追上 profile.frameId）。 */
+  private pendingResourceProfiles: PlayerResourceState[] = [];
 
   constructor() {
     super();
@@ -106,6 +184,7 @@ export default class ResourceManager extends BaseManager {
     this.StarShardsMaps.clear();
     this.previewEnergyDeltaMaps.clear();
     this.previewStarShardsDeltaMaps.clear();
+    this.pendingResourceProfiles = [];
     this.restoredFromSnapshot = false;
     this.gameStarted = false;
   }

@@ -87,6 +87,65 @@ export interface PlayerLoadout {
      */
     hash: string;
 }
+/**
+ * 单张卡片的权威冷却状态，随心跳每帧上报，服务端按玩家保存为 profile。
+ *
+ * @generated from protobuf message messages.CardCooldownState
+ */
+export interface CardCooldownState {
+    /**
+     * @generated from protobuf field: uint32 pid = 1
+     */
+    pid: number;
+    /**
+     * @generated from protobuf field: uint32 level = 2
+     */
+    level: number;
+    /**
+     * 剩余冷却毫秒数（取整）；0 表示已就绪
+     *
+     * @generated from protobuf field: uint32 left_ms = 3
+     */
+    leftMs: number;
+    /**
+     * 总冷却毫秒数，用于客户端按比例恢复冷却条
+     *
+     * @generated from protobuf field: uint32 total_ms = 4
+     */
+    totalMs: number;
+}
+/**
+ * 一名玩家最近的资源 profile：能量、星之碎片与卡槽冷却。
+ * 页面刷新后本地模拟状态全部丢失，重连时由服务端随 AllReady 回传，
+ * 让客户端在快照不可用时也能恢复资源与冷却显示。
+ *
+ * @generated from protobuf message messages.PlayerResourceState
+ */
+export interface PlayerResourceState {
+    /**
+     * @generated from protobuf field: uint32 player_id = 1
+     */
+    playerId: number;
+    /**
+     * @generated from protobuf field: uint32 energy = 2
+     */
+    energy: number;
+    /**
+     * @generated from protobuf field: uint32 star_shards = 3
+     */
+    starShards: number;
+    /**
+     * @generated from protobuf field: repeated messages.CardCooldownState card_cooldowns = 4
+     */
+    cardCooldowns: CardCooldownState[];
+    /**
+     * 该 profile 对应的权威帧号。客户端只在本地模拟追到该帧后才应用，
+     * 避免补帧期间用“终态”覆盖从初始状态重演的资源，造成摘要分叉。
+     *
+     * @generated from protobuf field: uint32 frame_id = 5
+     */
+    frameId: number;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class LoadoutCard$Type extends MessageType<LoadoutCard> {
     constructor() {
@@ -338,3 +397,153 @@ class PlayerLoadout$Type extends MessageType<PlayerLoadout> {
  * @generated MessageType for protobuf message messages.PlayerLoadout
  */
 export const PlayerLoadout = new PlayerLoadout$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CardCooldownState$Type extends MessageType<CardCooldownState> {
+    constructor() {
+        super("messages.CardCooldownState", [
+            { no: 1, name: "pid", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "level", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "left_ms", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 4, name: "total_ms", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<CardCooldownState>): CardCooldownState {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.pid = 0;
+        message.level = 0;
+        message.leftMs = 0;
+        message.totalMs = 0;
+        if (value !== undefined)
+            reflectionMergePartial<CardCooldownState>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CardCooldownState): CardCooldownState {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 pid */ 1:
+                    message.pid = reader.uint32();
+                    break;
+                case /* uint32 level */ 2:
+                    message.level = reader.uint32();
+                    break;
+                case /* uint32 left_ms */ 3:
+                    message.leftMs = reader.uint32();
+                    break;
+                case /* uint32 total_ms */ 4:
+                    message.totalMs = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CardCooldownState, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 pid = 1; */
+        if (message.pid !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.pid);
+        /* uint32 level = 2; */
+        if (message.level !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.level);
+        /* uint32 left_ms = 3; */
+        if (message.leftMs !== 0)
+            writer.tag(3, WireType.Varint).uint32(message.leftMs);
+        /* uint32 total_ms = 4; */
+        if (message.totalMs !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.totalMs);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message messages.CardCooldownState
+ */
+export const CardCooldownState = new CardCooldownState$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class PlayerResourceState$Type extends MessageType<PlayerResourceState> {
+    constructor() {
+        super("messages.PlayerResourceState", [
+            { no: 1, name: "player_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "energy", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "star_shards", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 4, name: "card_cooldowns", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => CardCooldownState },
+            { no: 5, name: "frame_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<PlayerResourceState>): PlayerResourceState {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.playerId = 0;
+        message.energy = 0;
+        message.starShards = 0;
+        message.cardCooldowns = [];
+        message.frameId = 0;
+        if (value !== undefined)
+            reflectionMergePartial<PlayerResourceState>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PlayerResourceState): PlayerResourceState {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 player_id */ 1:
+                    message.playerId = reader.uint32();
+                    break;
+                case /* uint32 energy */ 2:
+                    message.energy = reader.uint32();
+                    break;
+                case /* uint32 star_shards */ 3:
+                    message.starShards = reader.uint32();
+                    break;
+                case /* repeated messages.CardCooldownState card_cooldowns */ 4:
+                    message.cardCooldowns.push(CardCooldownState.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* uint32 frame_id */ 5:
+                    message.frameId = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: PlayerResourceState, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 player_id = 1; */
+        if (message.playerId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.playerId);
+        /* uint32 energy = 2; */
+        if (message.energy !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.energy);
+        /* uint32 star_shards = 3; */
+        if (message.starShards !== 0)
+            writer.tag(3, WireType.Varint).uint32(message.starShards);
+        /* repeated messages.CardCooldownState card_cooldowns = 4; */
+        for (let i = 0; i < message.cardCooldowns.length; i++)
+            CardCooldownState.internalBinaryWrite(message.cardCooldowns[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* uint32 frame_id = 5; */
+        if (message.frameId !== 0)
+            writer.tag(5, WireType.Varint).uint32(message.frameId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message messages.PlayerResourceState
+ */
+export const PlayerResourceState = new PlayerResourceState$Type();

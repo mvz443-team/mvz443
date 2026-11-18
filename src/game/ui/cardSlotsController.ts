@@ -72,12 +72,34 @@ export class CardSlots {
         slotLayout.energy.height,
       );
       this.controller = createCardSlotsController(this.scene, slotLayout);
+      this.pullCurrentState();
       return;
     }
     const pcLayout = getPcLayout(this.deviceType, this.cardCount);
     this.panels.push(drawChromePanel(this.scene, chrome.topCardSlot.x, chrome.topCardSlot.y, chrome.topCardSlot.width, chrome.topCardSlot.height));
     this.energyPanel = new EnergyPanelView(this.scene, pcLayout.energy.x, pcLayout.energy.y, pcLayout.energy.width, pcLayout.energy.height);
     this.controller = createCardSlotsController(this.scene, pcLayout);
+    this.pullCurrentState();
+  }
+
+  /**
+   * 新挂载的控件默认显示 0 能量/满冷却；开局事件通常早于 UI 创建，
+   * 必须主动拉取一次当前权威值，否则要等第一次资源变化才会刷新。
+   */
+  private pullCurrentState() {
+    const energy = ResourceManager.Instance.getDisplayEnergy("mine");
+    this.energyPanel?.setEnergy(energy);
+    const cooldownStatus = CardpileManager.Instance.GetDisplayCooldownStatus();
+    for (const card of this.controller?.cards ?? []) {
+      card.setEnergy(energy);
+      const status = cooldownStatus.get(card.pid);
+      if (status) card.setCooldown(status.hasReloaded, status.leftPercent);
+    }
+  }
+
+  /** 调试/E2E：能量面板当前显示的文本（未挂载时 null）。 */
+  public getDisplayedEnergyText(): string | null {
+    return this.energyPanel?.getEnergyText() ?? null;
   }
 
   private syncCardCount() {
@@ -85,6 +107,7 @@ export class CardSlots {
   }
 
   private bindEvents() {
+    this.pullCurrentState();
     this.unsubs.push(ResourceManager.Instance.Eventbus.on("onEnergyUpdate", () => {
       const energy = ResourceManager.Instance.getDisplayEnergy("mine");
       this.energyPanel?.setEnergy(energy);

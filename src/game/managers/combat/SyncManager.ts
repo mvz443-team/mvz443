@@ -6,7 +6,7 @@ import BackendWS from "../../../utils/net/sync";
 import { PhaserEventBus, PhaserEvents } from "../../EventBus";
 import type { Game } from "../../scenes/Game";
 import QueueReceive from "../../sync/queue_receive";
-import QueueSend from "../../sync/queue_send";
+import QueueSend, { type ResourceUploadSnapshot } from "../../sync/queue_send";
 import { BaseManager } from "../BaseManager";
 import CombatManager from "../CombatManager";
 import { DeferredManager } from "../DeferredManager";
@@ -77,7 +77,10 @@ export default class SyncManager extends BaseManager {
 
   public Load(): void {
     this.recvQueue = new QueueReceive();
-    this.sendQueue = new QueueSend(() => this.frameIntervalMs);
+    this.sendQueue = new QueueSend(
+      () => this.frameIntervalMs,
+      () => this.captureUploadResources(),
+    );
     BackendWS.setQueue(this.recvQueue, this.sendQueue);
     this.bindQueueAndPlantEvents();
   }
@@ -352,6 +355,24 @@ export default class SyncManager extends BaseManager {
       this.scene.setWaitTextVisibleTarget(BackendWS.isOnlineMode() && !frameReady && !CombatManager.Instance.isPaused);
     }
     return frameReady;
+  }
+
+  /** 每帧心跳上报的本机资源 profile；未进入房间会话时不携带。 */
+  private captureUploadResources(): ResourceUploadSnapshot | null {
+    if (!BackendWS.isRoomSessionMode()) return null;
+    const resourceState = CardpileManager.Instance.CaptureCanonicalCardpileState() as {
+      cards: Array<{ pid: number; level: number; leftMs: number; totalMs: number }>;
+    };
+    return {
+      energy: ResourceManager.Instance.getEnergy("mine"),
+      starShards: ResourceManager.Instance.getStarShards("mine"),
+      cardCooldowns: (resourceState.cards ?? []).map((card) => ({
+        pid: card.pid,
+        level: card.level,
+        leftMs: card.leftMs,
+        totalMs: card.totalMs,
+      })),
+    };
   }
 
   public GetFrameID() {

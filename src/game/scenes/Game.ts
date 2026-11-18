@@ -112,6 +112,11 @@ export class Game extends Scene {
     pauseMenu?.requestExit();
   }
 
+  /** 调试/E2E：卡槽能量面板当前显示的文本。 */
+  public getCardSlotEnergyText(): string | null {
+    return this.cardSlotsUi?.getDisplayedEnergyText() ?? null;
+  }
+
   public getPauseMenuState() {
     const pauseMenu = (this as any).pauseMenu as import('../ui/menu/PauseMenu').PauseMenu | null;
     return { visible: pauseMenu?.getIsVisible() ?? false };

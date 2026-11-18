@@ -420,6 +420,11 @@ export class EnergyPanelView {
     );
   }
 
+  /** 调试/E2E：当前能量面板显示的数字文本。 */
+  public getEnergyText(): string {
+    return this.valueText.text;
+  }
+
   public flashInsufficient() {
     this.valueText.setColor("#f44336");
     this.flashTimer?.remove(false);

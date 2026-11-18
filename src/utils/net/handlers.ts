@@ -141,6 +141,7 @@ export default class WSClientHandlers {
           myId: allReady.myId,
           playerIds: allReady.playerIds,
           loadouts: allReady.loadouts,
+          resources: allReady.resources,
           roomId: allReady.roomId,
           chapterId: allReady.chapterId,
           stageId: allReady.stageId,

@@ -10,6 +10,7 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { PlayerResourceState } from "./common";
 import { PlayerLoadout } from "./common";
 /**
  * general
@@ -464,6 +465,13 @@ export interface ResponseAllReady {
      * @generated from protobuf field: uint32 stage_id = 8
      */
     stageId: number;
+    /**
+     * 服务端保存的各玩家最新资源 profile；正常开局为空，
+     * 重连时用于恢复能量、星之碎片与卡槽冷却。
+     *
+     * @generated from protobuf field: repeated messages.PlayerResourceState resources = 9
+     */
+    resources: PlayerResourceState[];
 }
 /**
  * 告知所有玩家， 所有玩家已经loaded， 可以开始InGame游戏
@@ -1802,7 +1810,8 @@ class ResponseAllReady$Type extends MessageType<ResponseAllReady> {
             { no: 5, name: "loadouts", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => PlayerLoadout },
             { no: 6, name: "room_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 7, name: "chapter_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 8, name: "stage_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 8, name: "stage_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 9, name: "resources", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => PlayerResourceState }
         ]);
     }
     create(value?: PartialMessage<ResponseAllReady>): ResponseAllReady {
@@ -1815,6 +1824,7 @@ class ResponseAllReady$Type extends MessageType<ResponseAllReady> {
         message.roomId = 0;
         message.chapterId = 0;
         message.stageId = 0;
+        message.resources = [];
         if (value !== undefined)
             reflectionMergePartial<ResponseAllReady>(this, message, value);
         return message;
@@ -1851,6 +1861,9 @@ class ResponseAllReady$Type extends MessageType<ResponseAllReady> {
                     break;
                 case /* uint32 stage_id */ 8:
                     message.stageId = reader.uint32();
+                    break;
+                case /* repeated messages.PlayerResourceState resources */ 9:
+                    message.resources.push(PlayerResourceState.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1892,6 +1905,9 @@ class ResponseAllReady$Type extends MessageType<ResponseAllReady> {
         /* uint32 stage_id = 8; */
         if (message.stageId !== 0)
             writer.tag(8, WireType.Varint).uint32(message.stageId);
+        /* repeated messages.PlayerResourceState resources = 9; */
+        for (let i = 0; i < message.resources.length; i++)
+            PlayerResourceState.internalBinaryWrite(message.resources[i], writer.tag(9, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

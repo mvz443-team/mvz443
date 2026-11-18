@@ -1,6 +1,9 @@
 import { EventBus } from "../../../utils/eventBus";
 import { onlineStateManager } from "../../../store/OnlineStateManager";
 import BackendWS from "../../../utils/net/sync";
+import { PhaserEventBus, PhaserEvents } from "../../EventBus";
+import type { RoomAllReadyEvent } from "../../../types/online";
+import type { CardCooldownState } from "../../../pb/common";
 import type { Game } from "../../scenes/Game";
 import { BaseManager } from "../BaseManager";
 import CombatManager from "../CombatManager";
@@ -9,6 +12,12 @@ import PlantsManager from "./PlantsManager";
 import ResourceManager from "./ResourceManager";
 import SyncManager from "./SyncManager";
 import SoundCmd from "../../utils/cmd/SoundCmd";
+
+/**
+ * profile 只在本地帧号“刚好追上”时套用；落后超过该窗口说明本地是跳帧恢复
+ * （checkpoint/备用快照），跳帧得到的状态更权威，profile 已过期。
+ */
+const PROFILE_APPLY_WINDOW_FRAMES = 8;
 
 type CardpileManagerEvent = {
   onChosenCard: (pid: number, level: number) => void;
@@ -49,6 +58,57 @@ export default class CardpileManager extends BaseManager {
       this.handleRightClick();
     }
   };
+  /** 是否已经用权威快照恢复过冷却；之后到达的 profile 不得回退冷却。 */
+  private restoredFromSnapshot = false;
+  /** 待应用的本人卡槽 profile：等本地模拟追到 profile.frameId 再套用。 */
+  private pendingOwnProfile: { frameId: number; cooldowns: CardCooldownState[] } | null = null;
+  private readonly handleRoomAllReady = (data: RoomAllReadyEvent) => {
+    // 页面刷新重连：服务端保存了刷新前每帧上报的卡槽冷却。
+    // 快照恢复更新，发生过后以快照为准。
+    if (this.restoredFromSnapshot) return;
+    const ownProfile = data.resources?.find((profile) => profile.playerId === data.myId);
+    if (!ownProfile || ownProfile.cardCooldowns.length === 0) return;
+    // 不能在 AllReady 到达时立刻套用：页面刷新后本地要从初始冷却重演，
+    // 提前覆盖会让重演期间扣冷却的时序与在线端分叉。先登记，等帧号追上。
+    // 本地帧号已越过 profile 帧号说明状态来自 checkpoint/快照，那份更权威。
+    const profileFrame = Number(ownProfile.frameId) || 0;
+    const localFrame = SyncManager.Instance.recvQueue?.currentFrameId ?? 0;
+    if (profileFrame <= localFrame) return;
+    this.pendingOwnProfile = {
+      frameId: profileFrame,
+      cooldowns: ownProfile.cardCooldowns.map((cooldown) => ({ ...cooldown })),
+    };
+  };
+
+  /** 每帧固定步调用：本地帧号追上 profile 帧号后才覆盖冷却。 */
+  public applyPendingOwnProfile(frameId: number): void {
+    const pending = this.pendingOwnProfile;
+    if (!pending) return;
+    if (this.restoredFromSnapshot) {
+      this.pendingOwnProfile = null;
+      return;
+    }
+    if (frameId <= 0 || frameId < pending.frameId) return;
+    // 超过窗口说明本地是跳帧恢复（checkpoint/快照），冷却状态已权威，丢弃 profile。
+    if (frameId - pending.frameId > PROFILE_APPLY_WINDOW_FRAMES) {
+      this.pendingOwnProfile = null;
+      return;
+    }
+    this.pendingOwnProfile = null;
+    this.cardpileStatus.clear();
+    for (const cooldown of pending.cooldowns) {
+      const pid = Number(cooldown.pid);
+      if (!Number.isFinite(pid)) continue;
+      const totalMs = Number(cooldown.totalMs) || 0;
+      const leftMs = Math.max(0, Math.min(totalMs, Number(cooldown.leftMs) || 0));
+      this.cardpileStatus.set(pid, {
+        level: Number(cooldown.level) || 1,
+        leftMs,
+        previewLeftMs: 0,
+        totalMs,
+      });
+    }
+  }
 
   constructor() {
     super();
@@ -92,6 +152,13 @@ export default class CardpileManager extends BaseManager {
 
     // 监听右键取消选择以取消高亮
     this.scene?.input.on('pointerup', this.handlePointerUp);
+
+    PhaserEventBus.on(PhaserEvents.RoomAllReady, this.handleRoomAllReady, this);
+    // 重连时 AllReady 可能早于本 Manager 的 Load 到达，先应用缓存。
+    const roomAllReady = onlineStateManager.getRoomAllReady();
+    if (roomAllReady) {
+      this.handleRoomAllReady(roomAllReady);
+    }
   }
 
   public setScene(scene: Game) {
@@ -107,6 +174,9 @@ export default class CardpileManager extends BaseManager {
 
   public Reset() {
     this.scene?.input.off('pointerup', this.handlePointerUp);
+    PhaserEventBus.off(PhaserEvents.RoomAllReady, this.handleRoomAllReady, this);
+    this.restoredFromSnapshot = false;
+    this.pendingOwnProfile = null;
     this.prePlantPid = null;
     this.useStarShards = false;
     this.usePickaxe = false;
@@ -204,6 +274,7 @@ export default class CardpileManager extends BaseManager {
 
   public RestoreCardpileState(state: Record<string, unknown>): void {
     this.cardpileStatus.clear();
+    this.restoredFromSnapshot = true;
     const cards = Array.isArray(state.cards)
       ? (state.cards as Array<{ pid: number; level: number; leftMs: number; previewLeftMs?: number; totalMs: number }>)
       : [];
@@ -215,6 +286,19 @@ export default class CardpileManager extends BaseManager {
         totalMs: Number(card.totalMs) || 0,
       });
     }
+  }
+
+  /** 当前卡槽冷却的展示副本；UI 首次挂载时用于同步（避免错过 stepUpdate 事件）。 */
+  public GetDisplayCooldownStatus(): Map<number, { hasReloaded: boolean; leftPercent: number }> {
+    const status = new Map<number, { hasReloaded: boolean; leftPercent: number }>();
+    for (const [pid, card] of this.cardpileStatus) {
+      const leftMs = Math.max(card.leftMs, card.previewLeftMs);
+      status.set(pid, {
+        hasReloaded: leftMs <= 0,
+        leftPercent: card.totalMs > 0 ? leftMs / card.totalMs : 0,
+      });
+    }
+    return status;
   }
 
   isCardDisplayReloaded(pid: number): boolean {
