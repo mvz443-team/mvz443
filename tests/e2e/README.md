@@ -8,6 +8,7 @@
 | `reconnect.spec.mjs` | InGame 断线重连 | 重连徽标出现、attempt ≥ 1、自动重连后保留房间席位 |
 | `reconnect-giveup.spec.mjs` | 重连中止 UI | 断线徽标出现后，放弃时显示关闭 Toast 并退出在线状态 |
 | `postgame-return.spec.mjs` | 权威结算后返回房间 | “返回房间”按钮发送 ReturnToLobby，回到原房间等待阶段 |
+| `pause-exit.spec.mjs` | 联机暂停菜单与确认退出 | 打开菜单不暂停、倍速锁定；二次确认后永久离房、取消房间、对方收到 roomClosed |
 
 ## 运行
 
@@ -39,6 +40,9 @@
 - `plantAt(pid, level, col, row)`：走真实“选卡 → onAttemptPlant → QueueSend”路径，不预测、不直接改 Model
 - `dropSocketForTest()`：只断底层 WebSocket，保留重连策略与业务状态
 - `configureReconnect / forceGiveUpForTest`：验证重连 UI 链路
+- `toggleOnlinePauseMenu / getGameRuntime()`：验证联机暂停菜单不暂停模拟、倍速锁定
+- `requestPauseMenuExit()`：走真实暂停菜单的二次确认退出路径
+- `requestExitGame()`：跳过确认直接触发退出（仅用于清理类断言）
 - `showResultForTest()`：E2E 跳过 Phaser 战斗场景时直接打开结算视图
 
 前端网络层的退避/放弃策略与消息分流由 `npm run test:core` 中的 `reconnect_controller.test.mjs` 与 `message_router.test.mjs` 覆盖。

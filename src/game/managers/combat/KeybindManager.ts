@@ -72,10 +72,10 @@ export default class KeybindManager extends BaseManager {
   }
 
   private handlePause(): void {
-    if (BackendWS.isOnlineMode()) {
-      return;
-    }
-    PhaserEventBus.emit(PhaserEvents.TogglePause);
+    // 联机仍能打开/关闭查看态菜单；不会暂停模拟。
+    PhaserEventBus.emit(
+      BackendWS.isOnlineMode() ? PhaserEvents.ToggleOnlinePauseMenu : PhaserEvents.TogglePause
+    );
   }
 
   private handlePickaxe(): void {

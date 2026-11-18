@@ -310,7 +310,8 @@ export default class CombatManager extends BaseManager {
 
   // 切换游戏速度（1速/2速）
   public handleTimespeedToggle(): boolean {
-    // 真实联机无效；单机 mock 会话仍允许本地倍速 / 暂停时无效 / 结束时无效
+    // 真实联机无效（即使 UI 被绕过也不会变速）；联机分叉后的离线单机仍可本地倍速。
+    // 暂停/结算时也不允许；额外锁定在线房间会话中的 mock 房间。
     if ((BackendWS.isOnlineMode() && !this.desyncOffline) || this.isPaused || this.isGameEnd) return false;
     if (!this.scene) return false;
 

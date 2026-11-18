@@ -21,6 +21,18 @@ export namespace PhaserEvents {
   export const TogglePause = 'toggle-pause';
 
   /**
+   * 联机模式：打开/关闭“查看态”暂停菜单，不暂停模拟、不锁倍速输入之外的任何逻辑。
+   * @param 无参数
+   */
+  export const ToggleOnlinePauseMenu = 'toggle-online-pause-menu';
+
+  /**
+   * 玩家在对局中确认退出：由 App 层执行永久离房并回到主菜单。
+   * @param { online: boolean }
+   */
+  export const RequestExitGame = 'request-exit-game';
+
+  /**
    * 切换游戏速度（1速/2速）
    * @param 无参数
    * 触发时机：点击右上角速度按钮或按下快捷键时触发

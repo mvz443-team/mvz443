@@ -131,11 +131,13 @@ export class BottomBar {
       .setInteractive({ useHandCursor: true });
     this.pauseText.setShadow(2, 2, "#18212b", 4);
     this.container.add(this.pauseText);
+    // 联机：打开只读暂停菜单，模拟继续运行；单机：请求真正暂停。
+    const requestPause = () => PhaserEventBus.emit(
+      BackendWS.isOnlineMode() ? PhaserEvents.ToggleOnlinePauseMenu : PhaserEvents.TogglePause
+    );
     this.pauseText.on("pointerover", () => {
-      if (!BackendWS.isOnlineMode()) {
-        this.pauseText.setStyle({ backgroundColor: "#52687f" });
-        this.pauseText.setScale(1.04);
-      }
+      this.pauseText.setStyle({ backgroundColor: "#52687f" });
+      this.pauseText.setScale(1.04);
     });
     this.pauseText.on("pointerout", () => {
       this.pauseText.setStyle({ backgroundColor: "#3f5164" });
@@ -143,15 +145,11 @@ export class BottomBar {
     });
     this.pauseText.on("pointerup", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       stopInput(event);
-      if (!BackendWS.isOnlineMode()) {
-        PhaserEventBus.emit(PhaserEvents.TogglePause);
-      }
+      requestPause();
     });
     this.pauseText.on("pointerdown", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       stopInput(event);
-      if (!BackendWS.isOnlineMode()) {
-        this.pauseText.setScale(0.96);
-      }
+      this.pauseText.setScale(0.96);
     });
 
     this.refreshStageText();

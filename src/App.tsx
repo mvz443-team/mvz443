@@ -13,7 +13,7 @@ import { useDeviceType } from './hooks/useDeviceType';
 import BackendWS from './utils/net/sync';
 import { onlineStateManager } from './store/OnlineStateManager';
 import EnumGameStage from './utils/net/game_state';
-import { createRoom, joinRoom } from './utils/net/lobby';
+import { createRoom, joinRoom, leaveRoomAndDestroy } from './utils/net/lobby';
 import { SendReady, SendLoaded, SendChooseMap, SendEndGame, SendReturnToLobby } from './utils/net/room';
 import { Request } from './pb/request';
 import { PlantCmd } from './game/utils/cmd/PlantCmd';
@@ -444,6 +444,28 @@ function App() {
         chooseStage: (chapterId: number, stageId: number) => SendChooseMap(chapterId, stageId),
         sendEndGame: (isWin: boolean) => SendEndGame(isWin),
         sendReturnToLobby: () => SendReturnToLobby(),
+        // E2E：对局中确认退出（永久离房 + 取消房间 + 回主菜单）。
+        requestExitGame: () => PhaserEventBus.emit(PhaserEvents.RequestExitGame, { online: BackendWS.isOnlineMode() }),
+        // E2E：暂停菜单体验——联机打开菜单不暂停、倍速锁定、二次确认退出。
+        toggleOnlinePauseMenu: () => {
+          const scene = (window as unknown as { __MVZ443_GAME__?: import('./game/scenes/Game').Game }).__MVZ443_GAME__;
+          scene?.toggleOnlinePauseMenu();
+          return Boolean(scene);
+        },
+        requestPauseMenuExit: () => {
+          const scene = (window as unknown as { __MVZ443_GAME__?: import('./game/scenes/Game').Game }).__MVZ443_GAME__;
+          scene?.requestPauseMenuExit();
+          return Boolean(scene);
+        },
+        toggleTimeSpeedForTest: () => CombatManager.Instance.handleTimespeedToggle(),
+        getGameRuntime: () => {
+          const scene = (window as unknown as { __MVZ443_GAME__?: import('./game/scenes/Game').Game }).__MVZ443_GAME__;
+          return {
+            paused: CombatManager.Instance.isPaused,
+            timeScale: scene?.time?.timeScale ?? null,
+            pauseMenu: scene?.getPauseMenuState() ?? { visible: false },
+          };
+        },
         // 走与真实“确认/准备”按钮完全相同的选卡确认路径：设置 GameParams +
         // 发送带 loadout 的 ready。仅 sendReady 无法挂载 Phaser，权威帧永远不被消费。
         confirmLoadout: (plants: Array<{ pid: number; level: number }>, stageId: number, chapterId: number) => {
@@ -672,6 +694,35 @@ function App() {
     BackendWS.closeMockRoom();
     BackendWS.ResetGameData();
   }, [setShowGameScreen, setShowGameTool]);
+
+  // 对局中确认退出：直接回主菜单，不进结算页；联机永久离房并取消房间。
+  useEffect(() => {
+    const handleRequestExit = async ({ online }: { online: boolean }) => {
+      if (phaserRef.current) {
+        phaserRef.current.game?.destroy(true);
+        phaserRef.current = null;
+      }
+      if (online) {
+        const config = saveManager.getOnlineConfig();
+        try {
+          await leaveRoomAndDestroy(config.username, config.serverAddr);
+        } catch (error) {
+          console.error('退出并取消房间失败:', error);
+        }
+      }
+      BackendWS.closeConnection();
+      BackendWS.closeMockRoom();
+      setGameResult(null);
+      setShowGameResult(false);
+      setShowGameScreen(false);
+      setShowGameTool(false);
+      setShowRoomView(false);
+    };
+    PhaserEventBus.on(PhaserEvents.RequestExitGame, handleRequestExit);
+    return () => {
+      PhaserEventBus.off(PhaserEvents.RequestExitGame, handleRequestExit);
+    };
+  }, [saveManager]);
 
   // Event emitted from the PhaserGame component
   const currentScene = (_scene: Phaser.Scene) => {

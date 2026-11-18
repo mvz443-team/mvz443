@@ -297,6 +297,7 @@ export class Switch implements MenuControl {
   private readonly track: Phaser.GameObjects.Graphics;
   private readonly thumb: Phaser.GameObjects.Arc;
   private checked: boolean;
+  private enabled = true;
 
   constructor(scene: Phaser.Scene, public readonly width: number, private readonly options: SwitchOptions) {
     this.checked = options.checked;
@@ -326,10 +327,11 @@ export class Switch implements MenuControl {
       .setOrigin(0, 0.5)
       .setInteractive({ useHandCursor: true });
 
-    hitArea.on("pointerover", () => this.container.setScale(1.03));
+    hitArea.on("pointerover", () => { if (this.enabled) this.container.setScale(1.03); });
     hitArea.on("pointerout", () => this.container.setScale(1));
-    hitArea.on("pointerdown", () => this.container.setScale(0.98));
+    hitArea.on("pointerdown", () => { if (this.enabled) this.container.setScale(0.98); });
     hitArea.on("pointerup", () => {
+      if (!this.enabled) return;
       this.container.setScale(1.03);
       this.setChecked(!this.checked);
       this.options.onChange(this.checked);
@@ -340,13 +342,24 @@ export class Switch implements MenuControl {
   }
 
   private render(switchX = this.width - 58, centerY = this.height / 2, switchWidth = 58, switchHeight = 26) {
+    const alpha = this.enabled ? 1 : 0.4;
+    this.labelText.setAlpha(alpha);
+    this.valueText.setAlpha(alpha);
+    this.thumb.setAlpha(alpha);
     this.track.clear();
-    this.track.fillStyle(this.checked ? 0x27ae60 : 0x52606d, 0.98);
+    this.track.fillStyle(this.checked ? 0x27ae60 : 0x52606d, 0.98 * alpha);
     this.track.fillRoundedRect(switchX, centerY - switchHeight / 2, switchWidth, switchHeight, switchHeight / 2);
-    this.track.lineStyle(2, this.checked ? 0x9af0bd : 0xaab7c4, 0.95);
+    this.track.lineStyle(2, this.checked ? 0x9af0bd : 0xaab7c4, 0.95 * alpha);
     this.track.strokeRoundedRect(switchX, centerY - switchHeight / 2, switchWidth, switchHeight, switchHeight / 2);
     this.thumb.x = switchX + (this.checked ? switchWidth - 13 : 13);
     this.valueText.setText(this.checked ? "2x" : "1x");
+  }
+
+  /** 禁用开关：灰显、忽略点击（联机对战倍速锁定）。 */
+  public setEnabled(enabled: boolean) {
+    if (this.enabled === enabled) return;
+    this.enabled = enabled;
+    this.render();
   }
 
   public setLabel(label: string) {

@@ -91,6 +91,31 @@ export class Game extends Scene {
   private readonly onCombatResumeHandler = () => {
     this.handlePause({ paused: false });
   };
+  /** 联机：只切换菜单显示，不触碰 CombatManager.isPaused / 场景时钟。 */
+  private readonly onToggleOnlinePauseMenu = () => {
+    this.toggleOnlinePauseMenu();
+  };
+
+  public toggleOnlinePauseMenu() {
+    const pauseMenu = (this as any).pauseMenu as import('../ui/menu/PauseMenu').PauseMenu | null;
+    if (!pauseMenu) return;
+    if (pauseMenu.getIsVisible()) {
+      pauseMenu.hide();
+    } else {
+      pauseMenu.show({ onlineMode: true });
+    }
+  }
+
+  /** 供 E2E 走真实暂停菜单的二次确认退出路径。 */
+  public requestPauseMenuExit() {
+    const pauseMenu = (this as any).pauseMenu as import('../ui/menu/PauseMenu').PauseMenu | null;
+    pauseMenu?.requestExit();
+  }
+
+  public getPauseMenuState() {
+    const pauseMenu = (this as any).pauseMenu as import('../ui/menu/PauseMenu').PauseMenu | null;
+    return { visible: pauseMenu?.getIsVisible() ?? false };
+  }
   private offNotifyFlagWave: (() => void) | null = null;
   private readonly onNotifyFlagWaveHandler = () => {
     this.broadCastFlag();
@@ -271,6 +296,7 @@ export class Game extends Scene {
     }
 
     PhaserEventBus.on(PhaserEvents.RoomGameEnd, this.handleRoomGameEnd, this);
+    PhaserEventBus.on(PhaserEvents.ToggleOnlinePauseMenu, this.onToggleOnlinePauseMenu, this);
     CombatManager.Instance.Eventbus.on('onCombatPause', this.onCombatPauseHandler);
     CombatManager.Instance.Eventbus.on('onCombatResume', this.onCombatResumeHandler);
     this.offNotifyFlagWave = MobManager.Instance.EventBus.on('onNotifyFlagWave', this.onNotifyFlagWaveHandler);
@@ -725,6 +751,7 @@ export class Game extends Scene {
 
   private cleanupSceneListeners() {
     PhaserEventBus.off(PhaserEvents.RoomGameEnd, this.handleRoomGameEnd, this);
+    PhaserEventBus.off(PhaserEvents.ToggleOnlinePauseMenu, this.onToggleOnlinePauseMenu, this);
     CombatManager.Instance.Eventbus.off('onCombatPause', this.onCombatPauseHandler);
     CombatManager.Instance.Eventbus.off('onCombatResume', this.onCombatResumeHandler);
     this.offNotifyFlagWave?.();

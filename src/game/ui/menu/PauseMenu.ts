@@ -1,6 +1,7 @@
 import { translate } from "../../../i18n";
 import DepthHelper from "../../utils/helper/DepthHelper";
 import BackendWS from "../../../utils/net/sync";
+import { showConfirm } from "../../../utils/uiDialog";
 import { PhaserEventBus, PhaserEvents } from "../../EventBus";
 import CombatManager from "../../managers/CombatManager";
 import SoundManager from "../../managers/SoundManager";
@@ -9,6 +10,8 @@ import { Button, Menu, Slider, Switch } from "./Menu";
 
 type PauseMenuShowOptions = {
   bluePrintMode?: boolean;
+  /** 联机：只显示菜单供查看/设置音量与退出，不暂停模拟。 */
+  onlineMode?: boolean;
 };
 
 type PauseMenuLayout = {
@@ -35,10 +38,12 @@ export class PauseMenu {
   private soundVolumeSlider: Slider;
   private bgmVolumeSlider: Slider;
   private speedSwitch: Switch;
+  private noticeText: Phaser.GameObjects.Text;
   private continueButton: Button;
   private exitButton: Button;
   private isVisible = false;
   private isBluePrintMode = false;
+  private isOnlineMode = false;
 
   constructor(game: Game) {
     this.game = game;
@@ -139,6 +144,22 @@ export class PauseMenu {
     });
     this.menu.add(this.speedSwitch);
 
+    // 联机提示：仅说明状态，不参与交互；单机时隐藏。
+    this.noticeText = this.game.add.text(
+      layout.centerX,
+      layout.startY + layout.paddingTop + 3 * (38 + layout.gap),
+      translate("game.online_pause_notice"),
+      {
+        fontSize: `${Math.min(this.game.scale.displaySize.width / 50, 13)}px`,
+        color: "#ffcc66",
+        fontFamily: "Arial, sans-serif",
+        wordWrap: { width: layout.contentWidth },
+        align: "center",
+      }
+    ).setOrigin(0.5, 0).setDepth(DepthHelper.UI.pauseMenu());
+    this.noticeText.setVisible(false);
+    this.menu.container.add(this.noticeText);
+
     const buttonGap = Math.max(12, layout.contentWidth * 0.08);
     const buttonWidth = (layout.contentWidth - buttonGap) / 2;
     this.continueButton = new Button(this.game, buttonWidth, {
@@ -146,6 +167,11 @@ export class PauseMenu {
       normalColor: 0x27ae60,
       hoverColor: 0x2ecc71,
       onClick: () => {
+        if (this.isOnlineMode) {
+          // 联机不暂停模拟，关闭菜单即可。
+          this.hide();
+          return;
+        }
         CombatManager.Instance.isPaused = false;
       },
     });
@@ -153,25 +179,42 @@ export class PauseMenu {
       text: translate("game.exit"),
       normalColor: 0xe74c3c,
       hoverColor: 0xc0392b,
-      onClick: () => {
-        CombatManager.Instance.EndGame(false);
-        if (!BackendWS.isOnlineMode()) {
-          PhaserEventBus.emit(PhaserEvents.RoomGameEnd, { isWin: false });
-        }
-      },
+      onClick: () => { void this.handleExit(); },
     });
     this.menu.addRow([this.continueButton, this.exitButton], buttonGap);
   }
 
   private setGameSpeed(timeScale: 1 | 2) {
+    // 联机倍速锁定：即使通过快捷键/调试钩子绕过 UI 也不能改变速度。
     if (BackendWS.isOnlineMode() && !CombatManager.Instance.isDesyncOffline()) {
       this.speedSwitch?.setChecked(false);
+      this.game.time.timeScale = 1;
       return;
     }
 
     this.game.time.timeScale = timeScale;
     this.speedSwitch?.setChecked(timeScale > 1);
     PhaserEventBus.emit(PhaserEvents.TimespeedChanged, { timeScale });
+  }
+
+  /** 二次确认退出：联机会取消房间且不可重连，单机仅确认退出。 */
+  private async handleExit() {
+    const online = BackendWS.isOnlineMode();
+    const confirmed = await showConfirm(
+      translate(online ? "game.exit_confirm_online" : "game.exit_confirm_offline"),
+      {
+        title: translate("game.exit_confirm_title"),
+        confirmText: translate("game.exit_confirm"),
+        cancelText: translate("game.exit_cancel"),
+      }
+    );
+    if (!confirmed) {
+      return;
+    }
+    // 隐藏菜单，交由 App 层执行“永久离房 + 回主菜单”；
+    // 单机也走同一路径，仅关闭 mock 房间，不进入结算页。
+    this.hide();
+    PhaserEventBus.emit(PhaserEvents.RequestExitGame, { online });
   }
 
   private createBluePrintPauseText(layout: PauseMenuLayout) {
@@ -268,10 +311,11 @@ export class PauseMenu {
   }
 
   public show(options: PauseMenuShowOptions = {}) {
-    const { bluePrintMode = false } = options;
+    const { bluePrintMode = false, onlineMode = false } = options;
 
     this.isVisible = true;
     this.isBluePrintMode = bluePrintMode;
+    this.isOnlineMode = onlineMode;
 
     this.menu.setDepth(DepthHelper.UI.pauseMenu());
     this.bluePrintPauseText.setDepth(DepthHelper.UI.pauseMenu());
@@ -299,6 +343,7 @@ export class PauseMenu {
 
     this.isVisible = false;
     this.isBluePrintMode = false;
+    this.isOnlineMode = false;
     this.menu.hide();
   }
 
@@ -310,6 +355,12 @@ export class PauseMenu {
     this.menu?.destroy();
     this.bluePrintPauseText?.destroy();
     this.bluePrintEyeIcon?.destroy();
+    this.noticeText?.destroy();
+  }
+
+  /** 走真实的二次确认退出路径，供 E2E 触发（与点击“退出游戏”一致）。 */
+  public requestExit() {
+    void this.handleExit();
   }
 
   public getIsVisible(): boolean {
@@ -325,7 +376,14 @@ export class PauseMenu {
     this.exitButton?.setText(translate("game.exit"));
     this.soundVolumeSlider?.setValue(SoundManager.Instance.getSoundAudioVolume());
     this.bgmVolumeSlider?.setValue(SoundManager.Instance.getBgmVolume());
-    this.speedSwitch?.setChecked(this.game.time.timeScale > 1);
+    // 联机：强制 1x 并灰显倍速开关，仍允许尝试点击但不会生效。
+    if (this.isOnlineMode) {
+      this.game.time.timeScale = 1;
+      this.speedSwitch?.setChecked(false);
+    }
+    this.speedSwitch?.setEnabled(!this.isOnlineMode);
+    this.noticeText?.setText(translate("game.online_pause_notice"));
+    this.noticeText?.setVisible(this.isOnlineMode);
     this.alignEyeIcons();
   }
 

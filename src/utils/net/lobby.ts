@@ -1,6 +1,7 @@
 // 处理连接到服务器大厅：房间列表、建房与加入房间
 
 import BackendWS from "./sync";
+import { onlineStateManager } from "../../store/OnlineStateManager";
 import { showAlert } from "../uiDialog";
 
 /**
@@ -177,12 +178,24 @@ export async function queryMyRoom(baseUrl: string, username: string): Promise<Us
 }
 
 /** 玩家选择“不重连”时，请服务端把自己从房间里彻底移除。 */
-export async function leaveRoomRemotely(baseUrl: string, username: string): Promise<boolean> {
+export async function leaveRoomRemotely(
+    baseUrl: string,
+    username: string,
+    destroyRoom = false,
+    identity?: { roomId: number },
+): Promise<boolean> {
     const address = normalizeServerAddress(baseUrl);
-    if (!address || !username) {
+    if (!address || (!username && !identity)) {
         return false;
     }
+    // destroy=1：对局中主动退出，服务端取消整个房间，对方看到离线且无法重连。
     const params = new URLSearchParams({ user: username });
+    if (destroyRoom) {
+        params.set('destroy', '1');
+    }
+    if (identity && identity.roomId >= 0) {
+        params.set('room_id', String(identity.roomId));
+    }
     try {
         const response = await fetch(`https://${address}/user-room/leave?${params.toString()}`, {
             method: "POST",
@@ -197,6 +210,22 @@ export async function leaveRoomRemotely(baseUrl: string, username: string): Prom
         console.error("Error leaving user room:", error);
         return false;
     }
+}
+
+/**
+ * 对局中确认退出：优先用当前 WebSocket 连接地址（可能来自 URL 参数，未写入存档），
+ * 以昵称请服务端永久离房并取消整个房间。
+ */
+export async function leaveRoomAndDestroy(username: string, fallbackBaseUrl = ''): Promise<boolean> {
+    if (!username) return false;
+    // 当前连接的 wss://host/ws?... 是权威来源：可能带 URL 参数或与存档不同步。
+    const url = BackendWS.url ? new URL(BackendWS.url) : null;
+    const fromSocket = url?.host ?? '';
+    const connectedUser = url?.searchParams.get('user') || username;
+    const baseUrl = fromSocket || normalizeServerAddress(fallbackBaseUrl);
+    return leaveRoomRemotely(baseUrl, connectedUser, true, {
+        roomId: onlineStateManager.getRoomInfo().roomId,
+    });
 }
 
 export type RoomSessionOptions = {
