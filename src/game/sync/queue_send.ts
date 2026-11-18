@@ -121,6 +121,32 @@ export default class QueueSend {
     }
   }
 
+  private static currentLatencyMs(): number {
+    const latency = BackendWS.getAverageLatencyMs();
+    return latency === null || !Number.isFinite(latency) ? 0 : Math.max(0, Math.round(latency));
+  }
+
+  /** 响应服务端重连快照请求；快照正文由战斗层生成。 */
+  public sendSnapshotResponse(requestId: number, frameId: number, inlineSnapshotJson: string): boolean {
+    if (requestId <= 0 || frameId <= 0 || !inlineSnapshotJson) return false;
+    desyncDiagnostics.record("sync", "sendSnapshotResponse", {
+      requestId,
+      frameId,
+      inlineSnapshotBytes: inlineSnapshotJson.length,
+    });
+    BackendWS.send(Request.toBinary({
+      payload: {
+        snapshotResponse: {
+          requestId,
+          frameId,
+          inlineSnapshotJson,
+        },
+        oneofKind: "snapshotResponse",
+      },
+    }));
+    return true;
+  }
+
   /** 上报低频 checkpoint；服务端只在双端摘要一致时采纳。 */
   public sendCheckpoint(frameId: number, hash: string, payload: unknown): void {
     if (frameId <= 0 || !hash) return;
@@ -146,6 +172,7 @@ export default class QueueSend {
       stateHashHex: hash,
       inlineSnapshotJson,
       stateHashVersion: SIMULATION_STATE_VERSION,
+      clientLatencyMs: QueueSend.currentLatencyMs(),
     };
     this.queues.push({
       payload: { blank: request, oneofKind: "blank" },
@@ -164,6 +191,7 @@ export default class QueueSend {
         stateHashHex: "",
         inlineSnapshotJson: "",
         stateHashVersion: SIMULATION_STATE_VERSION,
+        clientLatencyMs: QueueSend.currentLatencyMs(),
       };
       BackendWS.send(Request.toBinary({
         payload: { blank: request, oneofKind: "blank" }
@@ -184,6 +212,7 @@ export default class QueueSend {
         stateHashHex: "",
         inlineSnapshotJson: "",
         stateHashVersion: SIMULATION_STATE_VERSION,
+        clientLatencyMs: QueueSend.currentLatencyMs(),
       },
       col,
       row,
@@ -299,6 +328,7 @@ export default class QueueSend {
       stateHashHex: "",
       inlineSnapshotJson: "",
       stateHashVersion: SIMULATION_STATE_VERSION,
+      clientLatencyMs: QueueSend.currentLatencyMs(),
     };
     // console.log("[QueueSend] queue blank frame", {
     //   frameId,

@@ -111,7 +111,10 @@ export class OnlineStateManager {
             seed: data.seed,
             myId: data.myId,
             playerIds: [...data.playerIds],
-            loadouts: data.loadouts ? [...data.loadouts] : undefined
+            loadouts: data.loadouts ? [...data.loadouts] : undefined,
+            roomId: data.roomId,
+            chapterId: data.chapterId,
+            stageId: data.stageId,
         };
     }
 
@@ -125,7 +128,10 @@ export class OnlineStateManager {
             seed: this.latestRoomAllReady.seed,
             myId: this.latestRoomAllReady.myId,
             playerIds: [...this.latestRoomAllReady.playerIds],
-            loadouts: this.latestRoomAllReady.loadouts ? [...this.latestRoomAllReady.loadouts] : undefined
+            loadouts: this.latestRoomAllReady.loadouts ? [...this.latestRoomAllReady.loadouts] : undefined,
+            roomId: this.latestRoomAllReady.roomId,
+            chapterId: this.latestRoomAllReady.chapterId,
+            stageId: this.latestRoomAllReady.stageId,
         };
     }
 

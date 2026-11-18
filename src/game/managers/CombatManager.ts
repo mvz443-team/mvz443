@@ -163,6 +163,7 @@ export default class CombatManager extends BaseManager {
 
     PhaserEventBus.on(PhaserEvents.RoomAllReady, this.handleRoomAllReady, this);
     PhaserEventBus.on(PhaserEvents.ReplaySnapshotReceived, this.handleReplaySnapshot, this);
+    PhaserEventBus.on(PhaserEvents.SnapshotRequested, this.handleSnapshotRequest, this);
     PhaserEventBus.on(PhaserEvents.DesyncOfflineMode, this.handleDesyncOfflineMode, this);
     desyncDiagnostics.setStateProvider(() => this.buildDesyncDiagnosticState());
     const roomAllReady = onlineStateManager.getRoomAllReady();
@@ -189,6 +190,7 @@ export default class CombatManager extends BaseManager {
     PhaserEventBus.off(PhaserEvents.RoomGameEnd, this.handleRoomGameEnd, this);
     PhaserEventBus.off(PhaserEvents.RoomAllReady, this.handleRoomAllReady, this);
     PhaserEventBus.off(PhaserEvents.ReplaySnapshotReceived, this.handleReplaySnapshot, this);
+    PhaserEventBus.off(PhaserEvents.SnapshotRequested, this.handleSnapshotRequest, this);
     PhaserEventBus.off(PhaserEvents.DesyncOfflineMode, this.handleDesyncOfflineMode, this);
     desyncDiagnostics.setStateProvider(null);
 
@@ -300,6 +302,22 @@ export default class CombatManager extends BaseManager {
     } catch (error) {
       console.warn("[reconnect] checkpoint 快照恢复失败", error);
     }
+  };
+
+  /** 服务端请求快照：把当前确定性状态回传，供其他玩家重连恢复。 */
+  private handleSnapshotRequest = ({ requestId }: { requestId: number }) => {
+    const snapshot = this.captureCheckpoint();
+    if (!snapshot || !snapshot.payload) {
+      return;
+    }
+    let inlineSnapshotJson = "";
+    try {
+      inlineSnapshotJson = JSON.stringify(snapshot.payload);
+    } catch (error) {
+      desyncDiagnostics.record("combat", "snapshotRequest serialize failed", { requestId, error });
+      return;
+    }
+    SyncManager.Instance.sendQueue?.sendSnapshotResponse(requestId, snapshot.frameId, inlineSnapshotJson);
   };
 
   private handleRoomGameEnd({ isWin }: { isWin: boolean }) {
@@ -774,7 +792,7 @@ export default class CombatManager extends BaseManager {
 
   /** 低频 checkpoint：只构造不含 Rapier physics 的 inline 状态，避免高频全量序列化。 */
   public captureCheckpoint(): { frameId: number; hash: string; payload: unknown } | null {
-    const frameId = SyncManager.Instance.recvQueue.currentFrameId;
+    const frameId = SyncManager.Instance.recvQueue?.currentFrameId ?? 0;
     if (frameId <= 0) return null;
     const state = this.captureFrameState();
     const hash = simulationState.hash(state);

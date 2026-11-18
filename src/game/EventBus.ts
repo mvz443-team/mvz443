@@ -296,4 +296,10 @@ export namespace PhaserEvents {
    * @param { snapshot: InlineSnapshot, frameId: number }
    */
   export const ReplaySnapshotReceived = 'replay-snapshot-received';
+
+  /**
+   * 服务端请求本客户端上传最近权威帧快照（用于其他玩家重连）
+   * @param { requestId: number }
+   */
+  export const SnapshotRequested = 'snapshot-requested';
 }

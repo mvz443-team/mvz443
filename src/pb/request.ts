@@ -109,6 +109,14 @@ export interface Request {
          */
         playerLoaded: RequestPlayerLoaded;
     } | {
+        oneofKind: "snapshotResponse";
+        /**
+         * 重连恢复：在线客户端响应服务端快照请求
+         *
+         * @generated from protobuf field: messages.RequestSnapshotResponse snapshot_response = 14
+         */
+        snapshotResponse: RequestSnapshotResponse;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -232,6 +240,13 @@ export interface RequestBlank {
      * @generated from protobuf field: uint32 state_hash_version = 7
      */
     stateHashVersion: number;
+    /**
+     * 客户端统计的服务器往返延迟（毫秒）；0 表示未知。
+     * 服务端用于挑选最低延迟的在线客户端作为重连快照来源。
+     *
+     * @generated from protobuf field: uint32 client_latency_ms = 8
+     */
+    clientLatencyMs: number;
 }
 /**
  * RequestGridOperation 格子操作请求
@@ -424,6 +439,32 @@ export interface RequestKickPlayer {
  */
 export interface RequestReturnToLobby {
 }
+/**
+ * 在线客户端响应服务端的重连快照请求。
+ * 服务端会把 inline_snapshot_json 转发给重连玩家，并补齐该帧到服务端权威帧之间的操作。
+ *
+ * @generated from protobuf message messages.RequestSnapshotResponse
+ */
+export interface RequestSnapshotResponse {
+    /**
+     * 对应 ResponseSnapshotRequest.request_id，用于丢弃过期响应
+     *
+     * @generated from protobuf field: uint32 request_id = 1
+     */
+    requestId: number;
+    /**
+     * 快照对应的客户端已执行帧号
+     *
+     * @generated from protobuf field: uint32 frame_id = 2
+     */
+    frameId: number;
+    /**
+     * InlineSnapshot JSON；空表示客户端当前无法提供快照
+     *
+     * @generated from protobuf field: string inline_snapshot_json = 3
+     */
+    inlineSnapshotJson: string;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class Request$Type extends MessageType<Request> {
     constructor() {
@@ -440,7 +481,8 @@ class Request$Type extends MessageType<Request> {
             { no: 10, name: "update_room", kind: "message", oneof: "payload", T: () => RequestUpdateRoom },
             { no: 11, name: "kick_player", kind: "message", oneof: "payload", T: () => RequestKickPlayer },
             { no: 12, name: "return_to_lobby", kind: "message", oneof: "payload", T: () => RequestReturnToLobby },
-            { no: 13, name: "player_loaded", kind: "message", oneof: "payload", T: () => RequestPlayerLoaded }
+            { no: 13, name: "player_loaded", kind: "message", oneof: "payload", T: () => RequestPlayerLoaded },
+            { no: 14, name: "snapshot_response", kind: "message", oneof: "payload", T: () => RequestSnapshotResponse }
         ]);
     }
     create(value?: PartialMessage<Request>): Request {
@@ -533,6 +575,12 @@ class Request$Type extends MessageType<Request> {
                         playerLoaded: RequestPlayerLoaded.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).playerLoaded)
                     };
                     break;
+                case /* messages.RequestSnapshotResponse snapshot_response */ 14:
+                    message.payload = {
+                        oneofKind: "snapshotResponse",
+                        snapshotResponse: RequestSnapshotResponse.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).snapshotResponse)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -584,6 +632,9 @@ class Request$Type extends MessageType<Request> {
         /* messages.RequestPlayerLoaded player_loaded = 13; */
         if (message.payload.oneofKind === "playerLoaded")
             RequestPlayerLoaded.internalBinaryWrite(message.payload.playerLoaded, writer.tag(13, WireType.LengthDelimited).fork(), options).join();
+        /* messages.RequestSnapshotResponse snapshot_response = 14; */
+        if (message.payload.oneofKind === "snapshotResponse")
+            RequestSnapshotResponse.internalBinaryWrite(message.payload.snapshotResponse, writer.tag(14, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -845,7 +896,8 @@ class RequestBlank$Type extends MessageType<RequestBlank> {
             { no: 4, name: "hash_frame_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 5, name: "state_hash_hex", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "inline_snapshot_json", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 7, name: "state_hash_version", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 7, name: "state_hash_version", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 8, name: "client_latency_ms", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<RequestBlank>): RequestBlank {
@@ -857,6 +909,7 @@ class RequestBlank$Type extends MessageType<RequestBlank> {
         message.stateHashHex = "";
         message.inlineSnapshotJson = "";
         message.stateHashVersion = 0;
+        message.clientLatencyMs = 0;
         if (value !== undefined)
             reflectionMergePartial<RequestBlank>(this, message, value);
         return message;
@@ -886,6 +939,9 @@ class RequestBlank$Type extends MessageType<RequestBlank> {
                     break;
                 case /* uint32 state_hash_version */ 7:
                     message.stateHashVersion = reader.uint32();
+                    break;
+                case /* uint32 client_latency_ms */ 8:
+                    message.clientLatencyMs = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -920,6 +976,9 @@ class RequestBlank$Type extends MessageType<RequestBlank> {
         /* uint32 state_hash_version = 7; */
         if (message.stateHashVersion !== 0)
             writer.tag(7, WireType.Varint).uint32(message.stateHashVersion);
+        /* uint32 client_latency_ms = 8; */
+        if (message.clientLatencyMs !== 0)
+            writer.tag(8, WireType.Varint).uint32(message.clientLatencyMs);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1413,3 +1472,66 @@ class RequestReturnToLobby$Type extends MessageType<RequestReturnToLobby> {
  * @generated MessageType for protobuf message messages.RequestReturnToLobby
  */
 export const RequestReturnToLobby = new RequestReturnToLobby$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RequestSnapshotResponse$Type extends MessageType<RequestSnapshotResponse> {
+    constructor() {
+        super("messages.RequestSnapshotResponse", [
+            { no: 1, name: "request_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "frame_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "inline_snapshot_json", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RequestSnapshotResponse>): RequestSnapshotResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.requestId = 0;
+        message.frameId = 0;
+        message.inlineSnapshotJson = "";
+        if (value !== undefined)
+            reflectionMergePartial<RequestSnapshotResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RequestSnapshotResponse): RequestSnapshotResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 request_id */ 1:
+                    message.requestId = reader.uint32();
+                    break;
+                case /* uint32 frame_id */ 2:
+                    message.frameId = reader.uint32();
+                    break;
+                case /* string inline_snapshot_json */ 3:
+                    message.inlineSnapshotJson = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RequestSnapshotResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 request_id = 1; */
+        if (message.requestId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.requestId);
+        /* uint32 frame_id = 2; */
+        if (message.frameId !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.frameId);
+        /* string inline_snapshot_json = 3; */
+        if (message.inlineSnapshotJson !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.inlineSnapshotJson);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message messages.RequestSnapshotResponse
+ */
+export const RequestSnapshotResponse = new RequestSnapshotResponse$Type();

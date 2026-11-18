@@ -141,6 +141,9 @@ export default class WSClientHandlers {
           myId: allReady.myId,
           playerIds: allReady.playerIds,
           loadouts: allReady.loadouts,
+          roomId: allReady.roomId,
+          chapterId: allReady.chapterId,
+          stageId: allReady.stageId,
         };
 
         const ownLoadout = allReady.loadouts.find((entry) => entry.playerId === allReady.myId);
@@ -261,6 +264,17 @@ export default class WSClientHandlers {
         PhaserEventBus.emit(PhaserEvents.RoomClosed, { message: roomClosed.message });
         break;
       }
+      case 'snapshotRequest': {
+        const request = roomResponse.payload.snapshotRequest;
+        desyncDiagnostics.record("room", "snapshotRequest", {
+          requestId: request.requestId,
+          targetPlayerId: request.targetPlayerId,
+        });
+        // 战斗层负责生成快照并通过 QueueSend 回传；未进入战斗时不应答，
+        // 服务端会超时并回退到 checkpoint/历史帧。
+        PhaserEventBus.emit(PhaserEvents.SnapshotRequested, { requestId: request.requestId });
+        break;
+      }
       case 'error': {
         const error = roomResponse.payload.error;
         const isStateDivergence = error.message.includes('状态分叉');
@@ -303,6 +317,7 @@ export default class WSClientHandlers {
 
   public handleInGameResponse(response: Uint8Array | InGameResponse) {
     const inGameResponse = response instanceof Uint8Array ? InGameResponse.fromBinary(response) : response;
+    this.ws.noteReceivedInGameFrame(inGameResponse.frameId);
     if (inGameResponse.frameId === 0 && inGameResponse.operations.length === 0) {
       // 房间响应与权威帧共享二进制通道：只有拿到原始字节时才需要再试 RoomResponse。
       if (response instanceof Uint8Array) {

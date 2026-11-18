@@ -790,7 +790,10 @@ class MockServer {
             seed: this.seed,
             myId: this.myId,
             playerIds,
-            loadouts
+            loadouts,
+            roomId: this.roomId,
+            chapterId: 0,
+            stageId: 0,
           }
         }
       })

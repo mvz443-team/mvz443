@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | `lobby.spec.mjs` | 两个上下文建房/加入房间 | roomId 一致、双方 stage=InLobby、peers 各 2 人 |
 | `reconnect.spec.mjs` | InGame 断线重连 | 重连徽标出现、attempt ≥ 1、自动重连后保留房间席位 |
+| `reconnect-refresh.spec.mjs` | 页面刷新后重连 | 从服务端 profile 重建 GameParams，进入 Preloader/Game，不再出现 no game params |
 | `reconnect-giveup.spec.mjs` | 重连中止 UI | 断线徽标出现后，放弃时显示关闭 Toast 并退出在线状态 |
 | `postgame-return.spec.mjs` | 权威结算后返回房间 | “返回房间”按钮发送 ReturnToLobby，回到原房间等待阶段 |
 | `pause-exit.spec.mjs` | 联机暂停菜单与确认退出 | 打开菜单不暂停、倍速锁定；二次确认后永久离房、取消房间、对方收到 roomClosed |
@@ -43,6 +44,7 @@
 - `toggleOnlinePauseMenu / getGameRuntime()`：验证联机暂停菜单不暂停模拟、倍速锁定
 - `requestPauseMenuExit()`：走真实暂停菜单的二次确认退出路径
 - `requestExitGame()`：跳过确认直接触发退出（仅用于清理类断言）
+- `setOnlineConfigForTest({ username, serverAddr })`：刷新后直接写入联机配置，绕开 E2E 存档注入时序
 - `showResultForTest()`：E2E 跳过 Phaser 战斗场景时直接打开结算视图
 
 前端网络层的退避/放弃策略与消息分流由 `npm run test:core` 中的 `reconnect_controller.test.mjs` 与 `message_router.test.mjs` 覆盖。

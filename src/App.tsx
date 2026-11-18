@@ -368,7 +368,12 @@ function App() {
   //  References to the PhaserGame component (game and scene are exposed)
   const phaserRef = useRef<IRefPhaserGame | null>(null);
 
-  const { width } = useSettings();
+  const settings = useSettings();
+  const { width } = settings;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const gameParamsRef = useRef<GameParams | null>(gameParams);
+  gameParamsRef.current = gameParams;
   const gamePreferredWidth = LOGICAL_BATTLE_WORLD_WIDTH;
   const layoutSize = useMemo(() => (
     getFittedMainSize(
@@ -443,8 +448,36 @@ function App() {
         sendLoaded: (isLoaded?: boolean) => SendLoaded(isLoaded ?? true),
         chooseStage: (chapterId: number, stageId: number) => SendChooseMap(chapterId, stageId),
         sendEndGame: (isWin: boolean) => SendEndGame(isWin),
+        // E2E：不挂载 Phaser 时也能把当前已收到的权威帧 ACK 给服务端，
+        // 用于验证 PostGame 等需要 committedFrameID 的服务端状态机。
+        ackLatestFrameForTest: () => {
+          // 挂载了 Phaser 时以 QueueReceive 已执行的帧为准；未挂载时退回网络层
+          // 记录的最新已送达帧，否则该钩子在 E2E 中永远只能 ACK 到 0。
+          const frameId = BackendWS.FrameID > 0
+            ? BackendWS.FrameID
+            : BackendWS.getLatestReceivedFrameId();
+          if (frameId <= 0) return false;
+          BackendWS.send(Request.toBinary({
+            payload: {
+              blank: {
+                frameId,
+                ackFrameId: frameId,
+                stateHash: 0,
+                hashFrameId: 0,
+                stateHashHex: "",
+                inlineSnapshotJson: "",
+                stateHashVersion: 0,
+                clientLatencyMs: 0,
+              },
+              oneofKind: "blank",
+            },
+          }));
+          return true;
+        },
         sendReturnToLobby: () => SendReturnToLobby(),
-        // E2E：对局中确认退出（永久离房 + 取消房间 + 回主菜单）。
+        // E2E：刷新后存档注入存在时序差异，允许直接设置联机配置。
+        setOnlineConfigForTest: (config: { username?: string; serverAddr?: string }) =>
+          saveManager.updateOnlineConfig(config),
         requestExitGame: () => PhaserEventBus.emit(PhaserEvents.RequestExitGame, { online: BackendWS.isOnlineMode() }),
         // E2E：暂停菜单体验——联机打开菜单不暂停、倍速锁定、二次确认退出。
         toggleOnlinePauseMenu: () => {
@@ -640,10 +673,41 @@ function App() {
   }, []);
 
   const gameStart = useCallback(() => {
+    // 页面刷新后的重连没有本地 ParamsSelector，需要从服务端 AllReady
+    // 下发的 seed / loadout / 章节关卡重建 GameParams，否则 Phaser 只能显示
+    // “no game params”。正常开局时 ParamsSelector 已经设置过，保留其设置。
+    if (!gameParamsRef.current) {
+      const allReady = onlineStateManager.getRoomAllReady();
+      const meta = onlineStateManager.getRoomMeta();
+      const stageId = allReady?.stageId || meta.stageId;
+      const ownLoadout = allReady?.loadouts?.find((entry) => entry.playerId === allReady.myId);
+      if (stageId > 0 && ownLoadout?.loadout) {
+        const settings = settingsRef.current;
+        const params: GameParams = {
+          level: stageId,
+          plants: ownLoadout.loadout.cards.map((card) => ({ pid: card.pid, level: card.level })),
+          gold: saveManager.currentProgress.items.get(1)?.count ?? 0,
+          gameExit: () => { console.log('no gameexit Implemented') },
+          gameSettings: {
+            isBluePrint: settings.isBluePrint,
+            basicDebug: settings.basicDebug,
+            isBgm: settings.isBgm,
+            isSoundAudio: settings.isSoundAudio,
+            showCardLevelInGame: settings.showCardLevelInGame,
+            bgmVolume: settings.bgmVolume,
+            soundAudioVolume: settings.soundAudioVolume,
+          },
+        };
+        gameParamsRef.current = params;
+        setGameParams(params);
+      } else {
+        console.error('[reconnect] 缺少重建 GameParams 所需的关卡或开局配置', allReady, meta);
+      }
+    }
     setShowRoomView(false);
     setShowGameScreen(true);
     setShowGameTool(true);
-  }, [setShowGameScreen, setShowGameTool]);
+  }, [saveManager, setGameParams, setShowGameScreen, setShowGameTool]);
 
   const exitResultView = useCallback(() => {
     setGameResult(null);

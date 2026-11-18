@@ -36,6 +36,12 @@ class WebSocketClient {
   private pendingReceiveTimers: Set<number> = new Set();
   private pendingInGameResponses: InGameResponse[] = [];
   /**
+   * 已收到的最大权威帧号，不依赖 QueueReceive 是否已绑定。
+   * 正式战局由 QueueReceive.currentFrameId 推进；这里只用于 E2E 在
+   * 未挂载 Phaser 时也能 ACK 服务端权威帧（例如 PostGame 落地判定）。
+   */
+  private latestReceivedFrameId: number = 0;
+  /**
    * 重连快照可能在 Game 场景/CombatManager 尚未创建时到达（页面刷新后的
    * Preload 阶段）。必须缓存到 SyncManager.setQueue 之后再派发，
    * 否则快照恢复事件会被丢掉，客户端会从空世界重跑开局预设。
@@ -146,6 +152,15 @@ class WebSocketClient {
     this.flushPendingInGameResponses();
   }
 
+  /** 记录服务端已送达的权威帧号，供未绑定 QueueReceive 的场景读取。 */
+  public noteReceivedInGameFrame(frameId: number) {
+    if (frameId > this.latestReceivedFrameId) this.latestReceivedFrameId = frameId;
+  }
+
+  public getLatestReceivedFrameId() {
+    return this.latestReceivedFrameId;
+  }
+
   enqueuePendingReplaySnapshot(data: { snapshot: InlineSnapshot; frameId: number }) {
     this.pendingReplaySnapshot = data;
     this.flushPendingReplaySnapshot();
@@ -198,6 +213,7 @@ class WebSocketClient {
     onlineStateManager.resetGameData();
     this.pendingInGameResponses = [];
     this.pendingReplaySnapshot = null;
+    this.latestReceivedFrameId = 0;
     if (this.receiveQueue) {
       this.receiveQueue.currentFrameId = 0;
       this.receiveQueue.lastAckFrameId = 0;

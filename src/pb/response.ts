@@ -201,6 +201,14 @@ export interface RoomResponse {
          */
         roomAllSync: ResponseRoomAllSync; // 全员加载完成，所有客户端瞬间进入 MainGame
     } | {
+        oneofKind: "snapshotRequest";
+        /**
+         * 重连恢复：服务端向仍在线、延迟最低的客户端索取最近权威帧快照
+         *
+         * @generated from protobuf field: messages.ResponseSnapshotRequest snapshot_request = 15
+         */
+        snapshotRequest: ResponseSnapshotRequest;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -246,6 +254,24 @@ export interface ResponseRoomSync {
  * @generated from protobuf message messages.ResponseRoomAllSync
  */
 export interface ResponseRoomAllSync {
+}
+/**
+ * 重连恢复：服务端请求仍在线客户端上传最近权威帧快照。
+ * 仅延迟最低的在线客户端会收到；结果由 RequestSnapshotResponse 回传。
+ *
+ * @generated from protobuf message messages.ResponseSnapshotRequest
+ */
+export interface ResponseSnapshotRequest {
+    /**
+     * @generated from protobuf field: uint32 request_id = 1
+     */
+    requestId: number;
+    /**
+     * 需要恢复的玩家 ID；客户端只用于诊断，不需要处理
+     *
+     * @generated from protobuf field: uint32 target_player_id = 2
+     */
+    targetPlayerId: number;
 }
 /**
  * PostGame 结算完成后，任一玩家请求返回等待房间；
@@ -424,6 +450,20 @@ export interface ResponseAllReady {
      * @generated from protobuf field: repeated messages.PlayerLoadout loadouts = 5
      */
     loadouts: PlayerLoadout[];
+    /**
+     * 房间与关卡信息：页面刷新后客户端没有本地 GameParams，必须从这里恢复
+     *
+     * @generated from protobuf field: uint32 room_id = 6
+     */
+    roomId: number;
+    /**
+     * @generated from protobuf field: uint32 chapter_id = 7
+     */
+    chapterId: number;
+    /**
+     * @generated from protobuf field: uint32 stage_id = 8
+     */
+    stageId: number;
 }
 /**
  * 告知所有玩家， 所有玩家已经loaded， 可以开始InGame游戏
@@ -943,7 +983,8 @@ class RoomResponse$Type extends MessageType<RoomResponse> {
             { no: 11, name: "replay_frames", kind: "message", oneof: "payload", T: () => ResponseReplayFrames },
             { no: 12, name: "return_to_lobby", kind: "message", oneof: "payload", T: () => ResponseReturnToLobby },
             { no: 13, name: "room_sync", kind: "message", oneof: "payload", T: () => ResponseRoomSync },
-            { no: 14, name: "room_all_sync", kind: "message", oneof: "payload", T: () => ResponseRoomAllSync }
+            { no: 14, name: "room_all_sync", kind: "message", oneof: "payload", T: () => ResponseRoomAllSync },
+            { no: 15, name: "snapshot_request", kind: "message", oneof: "payload", T: () => ResponseSnapshotRequest }
         ]);
     }
     create(value?: PartialMessage<RoomResponse>): RoomResponse {
@@ -1042,6 +1083,12 @@ class RoomResponse$Type extends MessageType<RoomResponse> {
                         roomAllSync: ResponseRoomAllSync.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).roomAllSync)
                     };
                     break;
+                case /* messages.ResponseSnapshotRequest snapshot_request */ 15:
+                    message.payload = {
+                        oneofKind: "snapshotRequest",
+                        snapshotRequest: ResponseSnapshotRequest.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).snapshotRequest)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -1096,6 +1143,9 @@ class RoomResponse$Type extends MessageType<RoomResponse> {
         /* messages.ResponseRoomAllSync room_all_sync = 14; */
         if (message.payload.oneofKind === "roomAllSync")
             ResponseRoomAllSync.internalBinaryWrite(message.payload.roomAllSync, writer.tag(14, WireType.LengthDelimited).fork(), options).join();
+        /* messages.ResponseSnapshotRequest snapshot_request = 15; */
+        if (message.payload.oneofKind === "snapshotRequest")
+            ResponseSnapshotRequest.internalBinaryWrite(message.payload.snapshotRequest, writer.tag(15, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1262,6 +1312,61 @@ class ResponseRoomAllSync$Type extends MessageType<ResponseRoomAllSync> {
  * @generated MessageType for protobuf message messages.ResponseRoomAllSync
  */
 export const ResponseRoomAllSync = new ResponseRoomAllSync$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ResponseSnapshotRequest$Type extends MessageType<ResponseSnapshotRequest> {
+    constructor() {
+        super("messages.ResponseSnapshotRequest", [
+            { no: 1, name: "request_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "target_player_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ResponseSnapshotRequest>): ResponseSnapshotRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.requestId = 0;
+        message.targetPlayerId = 0;
+        if (value !== undefined)
+            reflectionMergePartial<ResponseSnapshotRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ResponseSnapshotRequest): ResponseSnapshotRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 request_id */ 1:
+                    message.requestId = reader.uint32();
+                    break;
+                case /* uint32 target_player_id */ 2:
+                    message.targetPlayerId = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ResponseSnapshotRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 request_id = 1; */
+        if (message.requestId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.requestId);
+        /* uint32 target_player_id = 2; */
+        if (message.targetPlayerId !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.targetPlayerId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message messages.ResponseSnapshotRequest
+ */
+export const ResponseSnapshotRequest = new ResponseSnapshotRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ResponseReturnToLobby$Type extends MessageType<ResponseReturnToLobby> {
     constructor() {
@@ -1694,7 +1799,10 @@ class ResponseAllReady$Type extends MessageType<ResponseAllReady> {
             { no: 2, name: "seed", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 3, name: "my_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 4, name: "player_ids", kind: "scalar", repeat: 1 /*RepeatType.PACKED*/, T: 13 /*ScalarType.UINT32*/ },
-            { no: 5, name: "loadouts", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => PlayerLoadout }
+            { no: 5, name: "loadouts", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => PlayerLoadout },
+            { no: 6, name: "room_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 7, name: "chapter_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 8, name: "stage_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<ResponseAllReady>): ResponseAllReady {
@@ -1704,6 +1812,9 @@ class ResponseAllReady$Type extends MessageType<ResponseAllReady> {
         message.myId = 0;
         message.playerIds = [];
         message.loadouts = [];
+        message.roomId = 0;
+        message.chapterId = 0;
+        message.stageId = 0;
         if (value !== undefined)
             reflectionMergePartial<ResponseAllReady>(this, message, value);
         return message;
@@ -1731,6 +1842,15 @@ class ResponseAllReady$Type extends MessageType<ResponseAllReady> {
                     break;
                 case /* repeated messages.PlayerLoadout loadouts */ 5:
                     message.loadouts.push(PlayerLoadout.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* uint32 room_id */ 6:
+                    message.roomId = reader.uint32();
+                    break;
+                case /* uint32 chapter_id */ 7:
+                    message.chapterId = reader.uint32();
+                    break;
+                case /* uint32 stage_id */ 8:
+                    message.stageId = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1763,6 +1883,15 @@ class ResponseAllReady$Type extends MessageType<ResponseAllReady> {
         /* repeated messages.PlayerLoadout loadouts = 5; */
         for (let i = 0; i < message.loadouts.length; i++)
             PlayerLoadout.internalBinaryWrite(message.loadouts[i], writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        /* uint32 room_id = 6; */
+        if (message.roomId !== 0)
+            writer.tag(6, WireType.Varint).uint32(message.roomId);
+        /* uint32 chapter_id = 7; */
+        if (message.chapterId !== 0)
+            writer.tag(7, WireType.Varint).uint32(message.chapterId);
+        /* uint32 stage_id = 8; */
+        if (message.stageId !== 0)
+            writer.tag(8, WireType.Varint).uint32(message.stageId);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -63,6 +63,10 @@ export interface RoomAllReadyEvent {
     playerIds: number[];
     /** 服务端规范化后的全员开局配置 */
     loadouts?: import("../pb/common").PlayerLoadout[];
+    /** 房间与关卡信息：页面刷新后用于重建 GameParams */
+    roomId?: number;
+    chapterId?: number;
+    stageId?: number;
 }
 
 /** Loading 阶段每位玩家的加载进度 */
