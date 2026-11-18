@@ -218,8 +218,10 @@ const RoomSidebar: React.FC<Props> = ({
     }
     const roomId = onlineStateManager.getRoomInfo().roomId;
     // 先让服务端同步移除席位，再断开 WS：否则列表刷新会拿到注销前的快照。
+    BackendWS.cancelReconnect();
     await leaveRoomRemotely(serverAddress, username, false, { roomId });
     BackendWS.closeConnection();
+    onlineStateManager.resetAllState();
     setRoomState(readRoomState());
     await onRefresh();
     // 房间销毁从管理器移除是异步的，补一次刷新清掉可能的“幽灵房间”。

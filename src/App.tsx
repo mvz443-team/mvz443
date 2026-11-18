@@ -777,6 +777,11 @@ function App() {
   // 对局中确认退出：直接回主菜单，不进结算页；联机永久离房并取消房间。
   useEffect(() => {
     const handleRequestExit = async ({ online }: { online: boolean }) => {
+      if (online) {
+        // 先取消自动重连再发退房请求：否则退出方收到服务端 roomClosed 后
+        // transport 的 close 事件会立刻重新排入重连，导致房间取消后仍回到房间。
+        BackendWS.cancelReconnect();
+      }
       if (phaserRef.current) {
         phaserRef.current.game?.destroy(true);
         phaserRef.current = null;
@@ -790,7 +795,10 @@ function App() {
         }
       }
       BackendWS.closeConnection();
+      onlineStateManager.resetAllState();
       BackendWS.closeMockRoom();
+      gameParamsRef.current = null;
+      setGameParams(null);
       setGameResult(null);
       setShowGameResult(false);
       setShowGameScreen(false);

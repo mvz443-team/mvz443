@@ -311,6 +311,9 @@ class WebSocketClient {
     this.mockRoomMode = false;
     this.receiveQueue = null;
     this.sendQueue = null;
+    // 对局已经分叉为离线单机，不能再把玩家当作房间成员：否则结算后
+    // 回到主页点“开始游戏”会命中旧房间会话，无法重新开房。
+    onlineStateManager.resetAllState();
     this.publishNetworkStatus();
   }
 
@@ -333,6 +336,12 @@ class WebSocketClient {
 
   public isReconnecting(): boolean {
     return this.reconnect.isReconnecting();
+  }
+
+  /** 主动退房/放弃房间前调用：取消尚未触发或进行中的自动重连。 */
+  public cancelReconnect(): void {
+    this.reconnect.cancel();
+    this.publishNetworkStatus();
   }
 
   public recordLatencySample(sampleMs: number): void {

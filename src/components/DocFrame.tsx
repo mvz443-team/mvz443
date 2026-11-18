@@ -5,7 +5,7 @@ import Settings from './menu/settings';
 import { GameParams } from '../game/models/GameParams';
 import { publicUrl } from '../utils/browser';
 import { useDeviceType } from '../hooks/useDeviceType';
-import { OnlineStateManager } from '../store/OnlineStateManager';
+import { onlineStateManager, OnlineStateManager } from '../store/OnlineStateManager';
 import {
   PhaserEventBus,
   PhaserEvents
@@ -76,6 +76,7 @@ export default function DocFrame({ width, height, setGameParams, gameStart, init
           cancelText: translate('menu.online_reconnect_cancel'),
         });
         if (reconnect) {
+          BackendWS.cancelReconnect();
           BackendWS.closeConnection();
           joinRoom({
             baseUrl: address,
@@ -90,8 +91,10 @@ export default function DocFrame({ width, height, setGameParams, gameStart, init
           setCurrentView('levels');
           return;
         }
-        await leaveRoomRemotely(address, config.username);
+        BackendWS.cancelReconnect();
+        await leaveRoomRemotely(address, config.username, false, { roomId: membership.roomId });
         BackendWS.closeConnection();
+        onlineStateManager.resetAllState();
         void showAlert(translate('menu.online_reconnect_left'));
       }
     }

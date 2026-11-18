@@ -264,6 +264,8 @@ export default class WSClientHandlers {
         const roomClosed = roomResponse.payload.roomClosed;
         desyncDiagnostics.record("room", "roomClosed", { message: roomClosed.message });
         onlineStateManager.resetAllState();
+        // roomClosed 是服务端权威结束会话：先清掉房间身份，再关闭连接，
+        // 避免 onClose 仍按 InGame 触发重连或下一局命中旧席位。
         this.ws.closeConnection();
         PhaserEventBus.emit(PhaserEvents.RoomClosed, { message: roomClosed.message });
         break;
