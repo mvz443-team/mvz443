@@ -40,6 +40,8 @@ export class StarShardsOrbitSfx extends BaseSfx<StarShardsOrbitSfxArgs> {
       delay: 33,
       loop: true,
       callback: () => this.update(),
+      // 纯表现 timer：不能污染确定性 timer id / 快照 / 跨端 hash。
+      localOnly: true,
     });
     this.update();
   }

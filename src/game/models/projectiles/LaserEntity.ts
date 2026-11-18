@@ -6,6 +6,7 @@ import { CombatEntity } from "../core/CombatEntity";
 import { ProjectileEntity } from "../entities/ProjectileEntity";
 import { LaserConfig, LaserModel } from "./ProjectileModels";
 import SoundCmd from "../../utils/cmd/SoundCmd";
+import { TickEventNameEnums } from "../../core/logic/TickEvents";
 
 export class LaserEntity extends ProjectileEntity<LaserModel> {
   public baseDepth: number;
@@ -49,22 +50,20 @@ export class LaserEntity extends ProjectileEntity<LaserModel> {
       glow.setAlpha(0);
       beam.setAlpha(0);
       core.setAlpha(0);
-      this.model.tickmanager.delayedCall({
-        delay: Math.max(1, cfg.duration),
-        callback: () => this.destroy(),
-      });
+      this.model.tickmanager.schedule(
+        TickEventNameEnums.ProjectileExpire,
+        Math.max(1, cfg.duration),
+      );
     } else {
       SoundCmd.PlayShootLaser();
       scene.tweens.add({
         targets: [glow, beam, core],
         alpha: alphaTo,
         duration: cfg.duration,
-        onComplete: () => this.destroy()
       });
-      this.model.tickmanager.delayedCall({
-        delay: cfg.duration + 80,
-        callback: () => this.destroy(),
-      });
+      // 视觉 Tween 只负责透明度；销毁时机由逻辑帧 timer 决定，
+      // 否则同一激光在不同渲染帧率下会于不同逻辑帧消失。
+      this.model.tickmanager.schedule(TickEventNameEnums.ProjectileExpire, cfg.duration);
     }
   }
 

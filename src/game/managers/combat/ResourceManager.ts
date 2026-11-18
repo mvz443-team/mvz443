@@ -4,6 +4,7 @@ import { PhaserEventBus, PhaserEvents } from "../../EventBus";
 import { EventBus } from "../../../utils/eventBus";
 import { onlineStateManager } from "../../../store/OnlineStateManager";
 import { RoomAllReadyEvent } from "../../../types/online";
+import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
 
 export type PlayerIdentify = number;
 
@@ -25,15 +26,48 @@ export default class ResourceManager extends BaseManager {
   Eventbus: EventBus<ResourceManagerEvents>;
 
   mineId: number = 101;
+  /** 是否已经用权威快照恢复过资源；重连后的 RoomGameStart 不得再覆盖。 */
+  private restoredFromSnapshot = false;
+  /** 本局是否已经进入运行态；晚到的 RoomAllReady 不能清空已扣除的资源。 */
+  private gameStarted = false;
   private readonly handleRoomAllReady = (data: RoomAllReadyEvent) => {
     this.mineId = data.myId;
+    if (this.restoredFromSnapshot || this.gameStarted) {
+      desyncDiagnostics.record("resources", "RoomAllReady skipped (restored from snapshot)", {
+        mineId: this.mineId,
+        gameStarted: this.gameStarted,
+        energy: this.CaptureCanonicalResourceState(),
+      });
+      // 已经开战后只能补齐缺失的资源槽，不能用初始值覆盖已扣除的权威资源。
+      const stageEnergy = this.scene?.stageData?.energy ?? 0;
+      for (const playerId of data.playerIds) {
+        const loadout = data.loadouts?.find((entry) => entry.playerId === playerId)?.loadout;
+        if (!this.EnergyMaps.has(playerId)) {
+          this.EnergyMaps.set(playerId, loadout?.initialEnergy || stageEnergy);
+        }
+        if (!this.StarShardsMaps.has(playerId)) {
+          this.StarShardsMaps.set(playerId, loadout?.initialStarShards ?? 0);
+        }
+      }
+      return;
+    }
     this.EnergyMaps.clear();
     this.StarShardsMaps.clear();
+    // 当前 loadout 协议里的 initialEnergy 恒为 0，真正的开局能量由关卡数据决定。
+    // 这里把 0 视为“未指定”，避免 allReady 在 RoomGameStart 之后到达时把能量清空。
+    const stageEnergy = this.scene?.stageData?.energy ?? 0;
     for (const playerId of data.playerIds) {
       const loadout = data.loadouts?.find((entry) => entry.playerId === playerId)?.loadout;
-      this.EnergyMaps.set(playerId, loadout?.initialEnergy ?? 0);
+      this.EnergyMaps.set(playerId, loadout?.initialEnergy || stageEnergy);
       this.StarShardsMaps.set(playerId, loadout?.initialStarShards ?? 0);
+      this.Eventbus.emit('onEnergyUpdate', this.getDisplayEnergy(playerId), playerId);
+      this.Eventbus.emit('onStarShardsUpdate', this.getDisplayStarShards(playerId), playerId);
     }
+    desyncDiagnostics.record("resources", "RoomAllReady loadouts applied", {
+      mineId: this.mineId,
+      playerIds: data.playerIds,
+      energy: this.CaptureCanonicalResourceState(),
+    });
   };
 
   private EnergyMaps: Map<PlayerIdentify, number> = new Map();
@@ -72,6 +106,8 @@ export default class ResourceManager extends BaseManager {
     this.StarShardsMaps.clear();
     this.previewEnergyDeltaMaps.clear();
     this.previewStarShardsDeltaMaps.clear();
+    this.restoredFromSnapshot = false;
+    this.gameStarted = false;
   }
 
   public setScene(scene: Game): void {
@@ -88,6 +124,7 @@ export default class ResourceManager extends BaseManager {
     if (playerId === 'mine') {
       playerId = this.mineId;
     }
+    this.EnsurePlayerResources(playerId);
     const currentEnergy = this.EnergyMaps.get(playerId) || 0;
     const newEnergy = currentEnergy + energyDelta;
     this.EnergyMaps.set(playerId, newEnergy);
@@ -105,6 +142,7 @@ export default class ResourceManager extends BaseManager {
     if (playerId === 'mine') {
       playerId = this.mineId;
     }
+    this.EnsurePlayerResources(playerId);
     const currentStarShards = this.StarShardsMaps.get(playerId) || 0;
     const newStarShards = Math.max(0, Math.min(MAX_STAR_SHARDS, currentStarShards + starShardsDelta));
     const actualDelta = newStarShards - currentStarShards;
@@ -134,16 +172,38 @@ export default class ResourceManager extends BaseManager {
   }
 
   public SetInitialEnergy(initialEnergy: number): void {
-    if (this.EnergyMaps.size === 0) {
-      this.EnergyMaps.set(this.mineId, initialEnergy);
-      this.Eventbus.emit('onEnergyUpdate', this.getDisplayEnergy(this.mineId), this.mineId);
-      return;
+    const roomAllReady = onlineStateManager.getRoomAllReady();
+    if (roomAllReady) {
+      this.mineId = roomAllReady.myId;
     }
-
-    for (let playerId of this.EnergyMaps.keys()) {
+    const playerIds = new Set<PlayerIdentify>([
+      ...this.EnergyMaps.keys(),
+      ...(roomAllReady?.playerIds ?? []),
+      this.mineId,
+    ]);
+    for (const playerId of playerIds) {
       this.EnergyMaps.set(playerId, initialEnergy);
       this.Eventbus.emit('onEnergyUpdate', this.getDisplayEnergy(playerId), playerId);
     }
+  }
+
+  /**
+   * 权威操作落地前确保玩家资源槽存在。
+   * 远端玩家 map 缺失时不能静默按 0 处理，否则同一操作在两端扣减结果不同。
+   */
+  public EnsurePlayerResources(playerId: PlayerIdentify): void {
+    if (this.EnergyMaps.has(playerId) && this.StarShardsMaps.has(playerId)) {
+      return;
+    }
+    const stageEnergy = this.scene?.stageData?.energy ?? 0;
+    if (!this.EnergyMaps.has(playerId)) {
+      this.EnergyMaps.set(playerId, stageEnergy);
+    }
+    if (!this.StarShardsMaps.has(playerId)) {
+      this.StarShardsMaps.set(playerId, 0);
+    }
+    this.Eventbus.emit('onEnergyUpdate', this.getDisplayEnergy(playerId), playerId);
+    this.Eventbus.emit('onStarShardsUpdate', this.getDisplayStarShards(playerId), playerId);
   }
 
   getEnergy(playerId: PlayerIdentify | 'mine'): number {
@@ -203,6 +263,7 @@ export default class ResourceManager extends BaseManager {
     this.StarShardsMaps.clear();
     this.previewEnergyDeltaMaps.clear();
     this.previewStarShardsDeltaMaps.clear();
+    this.restoredFromSnapshot = true;
     Object.keys(state).sort().forEach((key) => {
       const value = state[key];
       const [kind, idText] = key.split(":");
@@ -290,6 +351,25 @@ export default class ResourceManager extends BaseManager {
   }
 
   private handleRoomGameStart() {
-    this.SetInitialEnergy(this.scene?.stageData.energy ?? 0);
+    if (this.restoredFromSnapshot) {
+      this.gameStarted = true;
+      desyncDiagnostics.record("resources", "RoomGameStart initial energy skipped (restored)", {
+        energy: this.CaptureCanonicalResourceState(),
+      });
+      return;
+    }
+    if (this.gameStarted) {
+      desyncDiagnostics.record("resources", "RoomGameStart initial energy skipped (already started)", {
+        energy: this.CaptureCanonicalResourceState(),
+      });
+      return;
+    }
+    this.gameStarted = true;
+    const initialEnergy = this.scene?.stageData.energy ?? 0;
+    desyncDiagnostics.record("resources", "RoomGameStart initial energy", {
+      initialEnergy,
+      before: this.CaptureCanonicalResourceState(),
+    });
+    this.SetInitialEnergy(initialEnergy);
   }
 }

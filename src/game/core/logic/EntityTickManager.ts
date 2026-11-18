@@ -137,9 +137,19 @@ type TickEventSink = {
 const managedTickManagers = new Set<EntityTickManager>();
 let currentLogicFrame = 0;
 let currentFrameInterval = LEGACY_BALANCE_FRAME_INTERVAL_MS;
+/**
+ * 权威逻辑帧：最近一次被网络层确认并执行的帧。
+ *
+ * 实体创建可能被 DeferredManager 推迟到 flush 执行，而 flush 的时机受渲染
+ * 循环、暂停恢复影响。若 timer 直接读 ticker.currentFrame，同一操作在两端
+ * 可能以不同帧为起点（例如 frame 212 vs 215），第一个 timer 的 targetFrame
+ * 随即分叉。创建实体时必须以“触发创建的操作帧”为起点，而不是执行时刻。
+ */
+let authoritativeFrame = 0;
+let pendingCreationFrame: number | null = null;
 
 export class EntityTickManager implements ITickManagerProxy {
-  public currentFrame = currentLogicFrame;
+  public currentFrame = pendingCreationFrame ?? (authoritativeFrame || currentLogicFrame);
   public frameInterval = currentFrameInterval;
 
   private ownerId = "entity";
@@ -398,10 +408,18 @@ export class EntityTickManager implements ITickManagerProxy {
 /** 由固定步长主循环调用；只驱动帧号，所有 timer 状态仍归各 LogicModel 所有。 */
 export function updateAllTickManagers(frame: number, frameIntervalMs?: number): void {
   currentLogicFrame = Math.trunc(frame);
+  authoritativeFrame = currentLogicFrame;
   if (typeof frameIntervalMs === "number" && frameIntervalMs > 0) {
     currentFrameInterval = frameIntervalMs;
   }
-  for (const manager of managedTickManagers) {
+  // Set 的插入顺序会受实体重建/回滚影响；按稳定 ownerId 排序，
+  // 保证同一逻辑帧内所有实体的 timer 触发顺序在两端一致。
+  const managers = [...managedTickManagers].sort((a, b) => {
+    const aId = a.getOwnerId();
+    const bId = b.getOwnerId();
+    return aId < bId ? -1 : aId > bId ? 1 : 0;
+  });
+  for (const manager of managers) {
     manager.setFrame(frame, frameIntervalMs);
     manager.update();
   }
@@ -410,5 +428,32 @@ export function updateAllTickManagers(frame: number, frameIntervalMs?: number): 
 /** 新开一局时重置实体定时器时钟，避免沿用上一局的高帧号。 */
 export function resetTickManagerClock(): void {
   currentLogicFrame = 0;
+  authoritativeFrame = 0;
+  pendingCreationFrame = null;
   currentFrameInterval = LEGACY_BALANCE_FRAME_INTERVAL_MS;
+}
+
+/** 网络层消费权威帧时调用；后续创建的实体以该帧为 timer 起点。 */
+export function setAuthoritativeFrame(frame: number): void {
+  if (!Number.isFinite(frame)) return;
+  authoritativeFrame = Math.max(0, Math.trunc(frame));
+}
+
+/** 创建实体时使用的逻辑帧：优先取正在执行的操作帧。 */
+export function getAuthoritativeFrame(): number {
+  return pendingCreationFrame ?? authoritativeFrame;
+}
+
+/**
+ * 在指定帧的上下文中执行 fn。DeferredManager 用它保证延迟创建/销毁
+ * 与触发它们的逻辑帧一致，不受 flush 实际执行时刻影响。
+ */
+export function withTickFrame<T>(frame: number, fn: () => T): T {
+  const previous = pendingCreationFrame;
+  pendingCreationFrame = Number.isFinite(frame) ? Math.max(0, Math.trunc(frame)) : previous;
+  try {
+    return fn();
+  } finally {
+    pendingCreationFrame = previous;
+  }
 }

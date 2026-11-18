@@ -8,6 +8,7 @@ import SoundCmd from "../../utils/cmd/SoundCmd";
 import { SfxCmd } from "../../utils/cmd/SfxCmd";
 import { RocketSmokeSfx } from "../../sfx/trail/RocketSmokeSfx";
 import type { ModelHost } from "../../core/logic/LogicModel";
+import { registerProjectileModel } from "../../utils/cmd/ProjectileModelRegistry";
 
 export interface HFireWorkConfig extends BulletConfig {
   explodeDamage?: number;
@@ -15,6 +16,7 @@ export interface HFireWorkConfig extends BulletConfig {
 
 /** 爆炸伤害与爆炸效果都由 Model 定义。 */
 export class HFireWorkModel extends BulletModel<HFireWorkConfig, HFireWorkEntity> {
+  public static override readonly projectileKind: string = "h_firework";
   texture = 'bullet/Hfirework';
   public override speed = legacyRapierVelocityToUnitsPerSecond(500);
   public explodeDamage: number = 0;
@@ -73,3 +75,5 @@ export class HFireWorkEntity extends BulletEntity {
     }
   }
 }
+
+registerProjectileModel(HFireWorkModel.projectileKind, HFireWorkModel);

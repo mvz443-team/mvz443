@@ -109,6 +109,9 @@ export class Game extends Scene {
     if (Game.preparedScene === scene) {
       return;
     }
+    // 在 Manager.Load()/SyncManager.setQueue() 之前关闭 replay 快照派发；
+    // 此时 simulationState 与 Rapier world 尚未注册，提前恢复只会得到空世界。
+    BackendWS.setReplaySnapshotReady(false);
     BackendWS.FrameID = 0;
     desyncDiagnostics.record('game', 'prepareBattle', {
       level: params.level,
@@ -164,6 +167,8 @@ export class Game extends Scene {
     scene.rapierEventQueue = new RAPIER.EventQueue(true);
     installRuntimeStateSources();
     registerPhysicsSource(scene);
+    // 状态源与物理世界已就绪，可以安全恢复页面刷新前缓存的 checkpoint。
+    BackendWS.setReplaySnapshotReady(true);
     Game.preparedScene = scene;
     desyncDiagnostics.record('game', 'prepareBattle complete', {
       level: params.level,

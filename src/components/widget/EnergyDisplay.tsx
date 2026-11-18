@@ -12,7 +12,7 @@ interface EnergyDisplayProps {
 
 export function EnergyDisplay({ direction }: EnergyDisplayProps) {
   const isDarkMode = useDarkMode();
-  const [energy, setEnergy] = useState(0);
+  const [energy, setEnergy] = useState(() => ResourceManager.Instance.getDisplayEnergy('mine'));
   const [isEnergyInsufficient, setIsEnergyInsufficient] = useState(false);
 
   const insufficientTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
@@ -28,6 +28,8 @@ export function EnergyDisplay({ direction }: EnergyDisplayProps) {
         setEnergy(newEnergy);
       }
     });
+    // 组件可能在开局能量事件之后才挂载，先同步一次当前权威值。
+    setEnergy(ResourceManager.Instance.getDisplayEnergy('mine'));
 
     return () => {
       offListenEnergy();

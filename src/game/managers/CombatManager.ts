@@ -20,7 +20,7 @@ import {
 } from "../core/SimulationState";
 import { resolveEntityBySnapshotId } from "../core/EntityLookup";
 import { logicEvents } from "../core/logic/LogicEvents";
-import { updateAllTickManagers } from "../core/logic/EntityTickManager";
+import { setAuthoritativeFrame, updateAllTickManagers } from "../core/logic/EntityTickManager";
 import { buildInlineSnapshotOrHash } from "../core/snapshot/InlineSnapshot";
 import { restoreInlineSnapshot } from "../core/snapshot/InlineSnapshot";
 import type { InlineSnapshot } from "../core/snapshot/InlineSnapshot";
@@ -261,11 +261,28 @@ export default class CombatManager extends BaseManager {
 
   /** 重连补帧：恢复 checkpoint 快照并回滚接收队列到该帧。 */
   private handleReplaySnapshot = ({ snapshot, frameId }: { snapshot: InlineSnapshot; frameId: number }) => {
+    // 同进程重连（网络闪断）：本地世界仍在 checkpoint 之后正常运行，此时若
+    // 无条件回滚到 checkpoint，会把已经执行的帧撤销；而 socket open 时上报的
+    // 旧进度 ACK 又已被服务端单调接收，服务端从此只补发“旧 ACK+1”，
+    // 跳过 checkpoint+1..旧ACK，客户端会永久冻结在 checkpoint。
+    // 只有本地进度确实落后/等于 checkpoint（页面刷新后的新进程）才需要恢复快照。
+    const localFrame = SyncManager.Instance.recvQueue?.currentFrameId ?? 0;
+    if (localFrame > frameId) {
+      desyncDiagnostics.record("combat", "replay snapshot skipped (local ahead)", {
+        checkpointFrame: frameId,
+        localFrame,
+      });
+      console.log(`[reconnect] 本地进度 ${localFrame} 已超过 checkpoint ${frameId}，跳过快照恢复，按 ACK 续帧`);
+      return;
+    }
     try {
       const state = restoreInlineSnapshot(snapshot);
       state.frameId = frameId;
       this.restoreState(state, "rebuild");
       BackendWS.getReceiveQueue()?.restoreToFrame(frameId);
+      // 旧环形快照可能来自恢复前已经分叉的分支，不能再用于后续回滚。
+      this.snapshotRing = [];
+      this.lastCheckpointFrame = 0;
       console.log(`[reconnect] 已恢复 checkpoint frame=${frameId}`);
     } catch (error) {
       console.warn("[reconnect] checkpoint 快照恢复失败", error);
@@ -347,6 +364,10 @@ export default class CombatManager extends BaseManager {
           TickerManager.Instance.currentFrame,
           TickerManager.Instance.frameInterval,
         );
+        // 权威操作在本帧消费后立即创建实体，保证“操作帧 = 实体存在帧”。
+        // 新实体在 updateAllTickManagers 之后创建，计时器以当前帧为起点，
+        // 不会在同一帧被额外 tick 一次；两端也都在同一逻辑帧末看到相同实体集合。
+        DeferredManager.Instance.flush();
         CardpileManager.Instance.stepUpdate();
       }
 
@@ -413,6 +434,14 @@ export default class CombatManager extends BaseManager {
 
   /** 供断线重连 / 分叉恢复使用：恢复收集器覆盖的全部状态源。 */
   public restoreState(state: SimulationState, mode: "in-place" | "rebuild" = "in-place") {
+    // 快照恢复前清空延迟队列：否则旧世界排队中的创建/销毁会在恢复后
+    // 才执行，凭空多出实体或删掉快照中的实体。
+    DeferredManager.Instance.Reset();
+    // 实体重建发生在 simulationState.restore 内部；先锚定快照帧，
+    // 让重建实体在 onCreate 里创建的计时器以快照帧为起点，
+    // 而不是沿用恢复前的旧帧（否则重连后第一批 timer 立刻错位）。
+    setAuthoritativeFrame(state.frameId);
+    TickerManager.Instance.currentFrame = state.frameId;
     const report = simulationState.restore(state, {
       mode,
       resolveEntity: resolveEntityBySnapshotId,
@@ -643,8 +672,8 @@ export default class CombatManager extends BaseManager {
         h32: hash.h32,
         h64: hash.h64,
         tickerFrame: TickerManager.Instance.currentFrame,
-        // 前 60 帧保留完整状态，便于定位第 20 帧分叉字段。
-        state: frameId <= 60 ? state : undefined,
+        // 临时诊断：开局与首次操作窗口保留完整状态，便于逐字段 diff。
+        state: frameId <= 240 ? state : undefined,
       });
       PhaserEventBus.emit(PhaserEvents.SimulationHashSampled, {
         frameId,
@@ -672,13 +701,15 @@ export default class CombatManager extends BaseManager {
   }
 
   /**
-   * 临时诊断：前 30 帧逐帧保存完整状态（分叉通常发生在第 20 帧），
-   * 之后每 5 帧保存一次摘要。完整状态用于两端日志逐字段 diff。
+   * 临时诊断：开局逐帧保存，首次种植窗口（205-225）逐帧保存，
+   * 其余每 5 帧保存一次。完整状态用于两端日志逐字段 diff。
    */
   private captureDiagnosticFrame(): void {
     const frameId = SyncManager.Instance.recvQueue.currentFrameId;
     if (frameId <= 0) return;
-    const shouldCapture = frameId <= 30 || frameId % 5 === 0;
+    const shouldCapture = frameId <= 30
+      || (frameId >= 205 && frameId <= 225)
+      || frameId % 5 === 0;
     if (!shouldCapture) return;
 
     try {
@@ -695,8 +726,8 @@ export default class CombatManager extends BaseManager {
         h64: hash.h64,
         entityCount: state.entities.length,
         timerCount: state.timers.ticker?.length ?? 0,
-        // 只在前 30 帧保存全量状态，避免长局日志无限膨胀。
-        state: frameId <= 30 ? state : undefined,
+        // 临时诊断：扩大全量状态窗口，定位首次操作后的分叉字段。
+        state: frameId <= 240 ? state : undefined,
       });
     } catch (error) {
       desyncDiagnostics.record("combat", "captureDiagnosticFrame failed", {
@@ -716,7 +747,10 @@ export default class CombatManager extends BaseManager {
     return {
       frameId,
       hash: Number.parseInt(hash.h32, 16).toString(16).padStart(8, "0"),
-      payload: inline.snapshot ?? { hash: inline.hash },
+      // 只返回完整 inline 快照；超过体积上限时返回 null，由发送侧放弃上报。
+      // 绝不能退化成 { hash }：服务端一旦采纳，重连会从无正文的 checkpoint
+      // 之后开始补帧，客户端无法恢复。
+      payload: inline.snapshot,
     };
   }
 }

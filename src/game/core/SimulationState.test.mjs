@@ -62,6 +62,95 @@ test('同一逻辑状态在键顺序不同的情况下哈希一致', () => {
   assert.deepEqual(hashSimulationState(stateA), hashSimulationState(stateB));
 });
 
+test('跨端哈希剔除表现消费游标、物理句柄与视觉事件队列', () => {
+  const first = baseState({
+    values: {
+      'combat.dayOrNight': true,
+      resources: { 'energy:100': 150 },
+      'logic.events': { frame: 20, nextEventId: 1, events: [] },
+      'ticker.frameInterval': 50,
+    },
+    entities: [{
+      ...baseState().entities[0],
+      flags: { isFrozen: false, attackTimer: 6, lastConsumedEventId: 3 },
+      extra: { lastConsumedEventId: 3, rigidBodyHandle: 11, hasRigidBody: true },
+    }],
+  });
+  const second = baseState({
+    values: {
+      'combat.dayOrNight': true,
+      resources: { 'energy:100': 150 },
+      'logic.events': {
+        frame: 20,
+        nextEventId: 99,
+        events: [{ frame: 20, eventId: 98, type: 'sfx', sourceId: 'entity_1', data: null }],
+      },
+      // 固定常量即便被不同构建写成不同值，也不应影响跨端判定。
+      'ticker.frameInterval': 999,
+    },
+    // 本机卡槽冷却/输入预演天然不同，不能进入跨端哈希。
+    localValues: { cardpile: { cards: [{ pid: 1, leftMs: 1234 }] } },
+    entities: [{
+      ...baseState().entities[0],
+      flags: { isFrozen: false, attackTimer: 6, lastConsumedEventId: 98 },
+      extra: { lastConsumedEventId: 98, rigidBodyHandle: 42, hasRigidBody: false },
+    }],
+  });
+
+  assert.equal(hashSimulationState(first).h64, hashSimulationState(second).h64);
+
+  const modelChanged = baseState({
+    values: {
+      'combat.dayOrNight': true,
+      resources: { 'energy:100': 150 },
+      'logic.events': { frame: 20, nextEventId: 1, events: [] },
+      'ticker.frameInterval': 50,
+    },
+    entities: [{
+      ...baseState().entities[0],
+      flags: { isFrozen: false, attackTimer: 7, lastConsumedEventId: 3 },
+      extra: { lastConsumedEventId: 3, rigidBodyHandle: 11, hasRigidBody: true },
+    }],
+  });
+  assert.notEqual(
+    hashSimulationState(first).h64,
+    hashSimulationState(modelChanged).h64,
+    '真正影响战斗的 Model 字段仍必须进入哈希',
+  );
+});
+
+test('TimerTriggered 的本机回调句柄不参与哈希，语义参数仍参与', () => {
+  const timer = (args, kind = 'TimerTriggered') => ({
+    id: 1,
+    targetFrame: 24,
+    repeat: -1,
+    interval: 20,
+    group: 'plant:0:0:1',
+    kind,
+    args,
+  });
+  const withTimer = (entry) => baseState({
+    timers: { ticker: [] },
+    entities: [{ ...baseState().entities[0], timers: [entry] }],
+  });
+
+  const handleA = withTimer(timer('callback:1'));
+  const handleB = withTimer(timer('callback:99'));
+  assert.equal(
+    hashSimulationState(handleA).h64,
+    hashSimulationState(handleB).h64,
+    'callback:N 只是本机注册表句柄，不应导致跨端分叉',
+  );
+
+  const semanticA = withTimer(timer({ row: 1 }, 'FurnaceGenerate'));
+  const semanticB = withTimer(timer({ row: 2 }, 'FurnaceGenerate'));
+  assert.notEqual(
+    hashSimulationState(semanticA).h64,
+    hashSimulationState(semanticB).h64,
+    '真正的逻辑参数必须继续参与哈希',
+  );
+});
+
 test('血量 / 移动速度 / 计时器 / PRNG 状态变化都会改变哈希', () => {
   const original = hashSimulationState(baseState()).h64;
   assert.notEqual(hashSimulationState(baseState({

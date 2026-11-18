@@ -11,6 +11,8 @@ export const TickEventNameEnums = {
   TimerTriggered: "TimerTriggered",
   /** 逻辑帧推进（可用于状态驱动帧计数）。 */
   LogicTick: "LogicTick",
+  /** 投射物生命周期结束：爆炸/激光等按纯数据 timer 销毁。 */
+  ProjectileExpire: "ProjectileExpire",
 } as const;
 
 export type TickEventNameEnums = typeof TickEventNameEnums[keyof typeof TickEventNameEnums];

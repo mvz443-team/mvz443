@@ -9,6 +9,7 @@ import { BaseEntity } from "../core/BaseEntity";
 import { Faction } from "../Enum";
 import { ObstacleModel } from "../ObstacleModel";
 import { OBSTACLE_RELATION_FIELDS } from "../../core/logic/LogicRelations";
+import type { JsonValue } from "../../core/SimulationState";
 
 export interface ObstacleConfig {
   hp: number;
@@ -26,6 +27,7 @@ export abstract class ObstacleEntity extends CombatEntity {
 
   public summoner?: BaseEntity;
   public health: number;
+  public waveId: number;
   private initialized = false;
 
   constructor(scene: Game, col: number, row: number, model: ObstacleModel, config: ObstacleConfig) {
@@ -38,6 +40,7 @@ export abstract class ObstacleEntity extends CombatEntity {
 
     this.summoner = config.summoner;
     this.health = config.hp;
+    this.waveId = config.waveId ?? -1;
   }
 
   public get oid() {
@@ -63,6 +66,16 @@ export abstract class ObstacleEntity extends CombatEntity {
 
   protected override getRelationFields(): readonly string[] {
     return OBSTACLE_RELATION_FIELDS;
+  }
+
+  protected override captureLogicState(): Record<string, JsonValue> {
+    return {
+      ...super.captureLogicState(),
+      oid: this.model.oid,
+      hp: this.currentHealth,
+      faction: this.faction,
+      waveId: this.waveId,
+    };
   }
 
   public initializeEntity(): this {
@@ -115,5 +128,28 @@ export abstract class ObstacleEntity extends CombatEntity {
     this.model.onDeath(this);
     ObstacleManager.Instance.UnregisterObstacle(this);
     super.destroy();
+  }
+
+  /** 回滚对账：只移除管理器/视图/刚体，不触发障碍死亡掉落。 */
+  protected override onSilentDestroy(): void {
+    ObstacleManager.Instance.UnregisterObstacle(this);
+  }
+
+  /** 快照中的 x/y 是刚体中心；视图与逻辑坐标必须转换回 bottom-center。 */
+  protected override applySnapshotPosition(x: number, y: number): void {
+    const bottom = PositionManager.Instance.getPlantBottomCenterByBody(x, y);
+    const dx = bottom.x - this.x;
+    const dy = bottom.y - this.y;
+    this.x = bottom.x;
+    this.y = bottom.y;
+    if (dx !== 0 || dy !== 0) {
+      this.viewGroup.getChildren().forEach((child: any) => {
+        if (child.x !== undefined) {
+          child.x += dx;
+          child.y += dy;
+        }
+      });
+    }
+    if (this.rigidBody) this.rigidBody.setTranslation({ x, y }, true);
   }
 }

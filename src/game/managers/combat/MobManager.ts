@@ -20,6 +20,7 @@ import { onlineStateManager } from "../../../store/OnlineStateManager";
 import StageHelper from "../../utils/helper/StageHelper";
 import MobHelper from "../../utils/helper/MobHelper";
 import TileItemManager from "./TileItemManager";
+import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
 
 type Mob = CombatEntity;
 
@@ -74,7 +75,7 @@ export default class MobManager extends BaseManager {
   private waves: Wave[];
   private current_wave_idx: number = 0;
 
-  private SpawnTimer: FrameTimer; // 出怪
+  private SpawnTimer: FrameTimer | null = null; // 出怪
   private Timer: FrameTimer | null = null; // 波数使用帧驱动定时器，类型为 FrameTimer
   /** 当前出怪序列的可快照状态（避免关键进度只存在于闭包里）。 */
   private spawnState: {
@@ -113,6 +114,20 @@ export default class MobManager extends BaseManager {
   public Load(): void {
     PhaserEventBus.on(PhaserEvents.RoomAllReady, this.handleRoomAllReady, this);
     PhaserEventBus.on(PhaserEvents.RoomGameStart, this.handleRoomGameStart, this);
+    // 断线 checkpoint 以 rebuild 模式恢复；全局 ticker 不会保留旧闭包，
+    // 必须在这里登记可重建的语义工厂，否则出怪/波次/胜利检查会永久丢失。
+    TickerManager.Instance.registerTimerFactory("mob.spawn", () => ({
+      callback: () => this.spawnNextMonster(),
+    }));
+    TickerManager.Instance.registerTimerFactory("mob.wave.start", () => ({
+      callback: () => this.startCurrentWave(),
+    }));
+    TickerManager.Instance.registerTimerFactory("mob.wave.next", () => ({
+      callback: () => this.nextWave(),
+    }));
+    TickerManager.Instance.registerTimerFactory("mob.victoryCheck", () => ({
+      callback: () => this.checkVictory(),
+    }));
     const roomAllReady = onlineStateManager.getRoomAllReady();
     if (roomAllReady) {
       this.seed = roomAllReady.seed;
@@ -151,9 +166,10 @@ export default class MobManager extends BaseManager {
     PhaserEventBus.off(PhaserEvents.RoomAllReady, this.handleRoomAllReady, this);
     PhaserEventBus.off(PhaserEvents.RoomGameStart, this.handleRoomGameStart, this);
     this.gameStartInitialized = false;
-    this.Timer?.remove();
+    this.clearWaveTimers();
+    this.clearSpawnTimer();
+    this.clearVictoryCheckTimer();
     this.Timer = null;
-    this.SpawnTimer?.remove();
     this.MobsByLane.clear();
     this.seed = 0;
     this.setRandomSeed(this.seed);
@@ -216,6 +232,10 @@ export default class MobManager extends BaseManager {
     this.progress = Number(state.progress) || 0;
     this.hasRequestedWin = Boolean(state.hasRequestedWin);
     this.spawnSeq = Number(state.spawnSeq) || 0;
+    // 从权威快照恢复的战局已经包含开局预设与波次状态。
+    // roomAllSync 随后到达时会再次触发 RoomGameStart，绝不能在这里
+    // 重新 startFirstWave，否则会重复创建初始植物/计时器并立刻分叉。
+    this.gameStartInitialized = true;
   }
 
   /** 出怪序列（spawn plan + 游标）的确定性状态。 */
@@ -262,14 +282,12 @@ export default class MobManager extends BaseManager {
 
   // 整局,触发开始,一局游戏只能调用一次
   startFirstWave() {
-    // 如果存在之前的帧定时器，取消之
-    if (this.Timer) {
-      this.Timer.remove(); // 取消之前的定时器
-    }
-    // 同时取消出怪定时器
-    if (this.SpawnTimer) {
-      this.SpawnTimer.remove();
-    }
+    // 如果存在之前的帧定时器，取消之。
+    // 注意必须按 kind 取消当前实例：checkpoint rebuild 后旧句柄的
+    // id 可能正好指向新重建的 timer，直接 remove() 会误删。
+    this.clearWaveTimers();
+    this.clearSpawnTimer();
+    this.clearVictoryCheckTimer();
 
     this.progress = 0;
     this.current_wave_idx = -1;
@@ -310,61 +328,59 @@ export default class MobManager extends BaseManager {
       return;
     }
 
-    const startNewWave = () => {
-      this.prev_wave_frame = TickerManager.Instance.getCurrentFrame(); // 更新时间
-
-      // 发出新波开始事件
-      const waveObj = this.currentWave();
-      this.EventBus.emit('onNewWave', waveObj.waveId, waveObj.isFlag);
-
-      // 怪物生成流程
-      this.tmpKilled_count = this.killed_count;
-      this.killed_count = 0; // 清空当前击杀数字,在生成怪物之间可能会发生击杀怪物事件
-      this.spawnMonster();
-      this.killed_count += this.tmpKilled_count;
-      this.onKilledCountUpdate(this.current_wave_idx - 1); // 之前杀的,更新击杀数
-
-      // 如果当前波为精英或BOSS, 则不启用下一波定时器，
-      // 等待精英/BOSS被击杀后由 onKilledCountUpdate 触发下一波或游戏胜利逻辑
-      if (this.currentWave().flag === 'elite' || this.currentWave().flag === 'boss') {
-        // 设置外部的progress为boss health bar,不影响 this.progress(wave 进度)
-        PhaserEventBus.emit(PhaserEvents.BossHealth, { health: 100 });
-        return;
-      }
-
-      // 启动定时器（仅适用于普通波）
-      if (this.current_wave_idx >= this.waves.length - 1) return; // 没下一波了
-
-      console.log('next wave timer', this.currentWave().maxDelay * 1000);
-      if (this.Timer) {
-        this.Timer.remove(); // 取消之前的定时器
-      }
-
-      // 使用帧驱动定时器延迟调用 nextWave
-      this.Timer = TickerManager.Instance.delayedCall({
-        callback: () => {
-          this.nextWave();
-        },
-        delay: this.currentWave().maxDelay * 1000,
-      }); // 延迟时间
-    };
-
     // 如果是isFlag,那么输出字幕等待一段时间,否则直接开始
     if (this.currentWave().isFlag) {
       this.EventBus.emit('onNotifyFlagWave', this.currentWave().waveId);
-      if (this.Timer) {
-        this.Timer.remove(); // 取消之前的定时器
-      }
+      this.clearWaveTimers();
 
       this.Timer = TickerManager.Instance.delayedCall({
-        callback: () => {
-          startNewWave();
-        },
+        callback: () => this.startCurrentWave(),
         delay: 5000,
+        snapshot: { kind: "mob.wave.start" },
       });
     } else {
-      startNewWave();
+      this.startCurrentWave();
     }
+  }
+
+  /**
+   * 真正进入当前波。拆成方法而不是 nextWave 内的闭包，
+   * 这样断线重建 global ticker 时可以用稳定工厂恢复“旗帜字幕结束后开局”的定时器。
+   */
+  private startCurrentWave(): void {
+    this.prev_wave_frame = TickerManager.Instance.getCurrentFrame(); // 更新时间
+
+    // 发出新波开始事件
+    const waveObj = this.currentWave();
+    this.EventBus.emit('onNewWave', waveObj.waveId, waveObj.isFlag);
+
+    // 怪物生成流程
+    this.tmpKilled_count = this.killed_count;
+    this.killed_count = 0; // 清空当前击杀数字,在生成怪物之间可能会发生击杀怪物事件
+    this.spawnMonster();
+    this.killed_count += this.tmpKilled_count;
+    this.onKilledCountUpdate(this.current_wave_idx - 1); // 之前杀的,更新击杀数
+
+    // 如果当前波为精英或BOSS, 则不启用下一波定时器，
+    // 等待精英/BOSS被击杀后由 onKilledCountUpdate 触发下一波或游戏胜利逻辑
+    if (this.currentWave().flag === 'elite' || this.currentWave().flag === 'boss') {
+      // 设置外部的progress为boss health bar,不影响 this.progress(wave 进度)
+      PhaserEventBus.emit(PhaserEvents.BossHealth, { health: 100 });
+      return;
+    }
+
+    // 启动定时器（仅适用于普通波）
+    if (this.current_wave_idx >= this.waves.length - 1) return; // 没下一波了
+
+    console.log('next wave timer', this.currentWave().maxDelay * 1000);
+    this.clearWaveTimers();
+
+    // 使用帧驱动定时器延迟调用 nextWave
+    this.Timer = TickerManager.Instance.delayedCall({
+      callback: () => this.nextWave(),
+      delay: this.currentWave().maxDelay * 1000,
+      snapshot: { kind: "mob.wave.next" },
+    }); // 延迟时间
   }
 
 
@@ -405,60 +421,65 @@ export default class MobManager extends BaseManager {
     };
     console.log('interval', spawnPlan.interval, 'duration', wave.duration * 1000);
 
-    if (this.SpawnTimer) this.SpawnTimer.remove();
+    this.clearSpawnTimer();
 
     this.SpawnTimer = TickerManager.Instance.addEvent({
       delay: spawnPlan.interval,
       repeat: spawnPlan.totalMonsters.length - 1,
       snapshot: { kind: "mob.spawn" },
-      callback: () => {
-        const state = this.spawnState;
-        if (this.scene == null || !state) return;
-        const monsterData = state.totalMonsters[state.monsterIndex];
-        if (!monsterData) return;
+      callback: () => this.spawnNextMonster(),
+    });
+  }
 
-        const rowResult = MobHelper.selectSpawnRow({
-          wave,
-          stageScript: this.scene.stageData.stageScript,
-          rowWeights: state.rowWeights,
-          rowPickSmoothingState: state.rowPickSmoothingState,
-          currentWaveId: wave.waveId,
-          minecartLostWaveByRow: TileItemManager.Instance.getMinecartLostWaveByRow(),
-          mid: monsterData.mid,
-          rowCount: PositionManager.Instance.Row_Number,
-          rng: this.SeedRandom,
-          rowPropertyRatio: (row, type) => GridManager.Instance.RowPropertyRatio(row, type),
-        });
-        const row = rowResult.row;
+  /** 按当前 spawnState 生成下一只怪；供正常推进与断线重建的 timer 工厂共用。 */
+  private spawnNextMonster(): void {
+    const state = this.spawnState;
+    if (this.scene == null || !state) return;
+    const monsterData = state.totalMonsters[state.monsterIndex];
+    if (!monsterData) return;
+    const wave = this.currentWave();
+    const colMax = PositionManager.Instance.Col_Number;
 
-        // 换成新版本的新建怪物函数
-        const model = MonsterLibrary.GetModel(monsterData.mid);
-        if (!model) {
-          console.error(`Monster model with mid ${monsterData.mid} not found!`);
-          return;
-        }
+    const rowResult = MobHelper.selectSpawnRow({
+      wave,
+      stageScript: this.scene.stageData.stageScript,
+      rowWeights: state.rowWeights,
+      rowPickSmoothingState: state.rowPickSmoothingState,
+      currentWaveId: wave.waveId,
+      minecartLostWaveByRow: TileItemManager.Instance.getMinecartLostWaveByRow(),
+      mid: monsterData.mid,
+      rowCount: PositionManager.Instance.Row_Number,
+      rng: this.SeedRandom,
+      rowPropertyRatio: (row, type) => GridManager.Instance.RowPropertyRatio(row, type),
+    });
+    const row = rowResult.row;
 
-        const currentMonsterIndex = state.monsterIndex;
-        DeferredManager.Instance.defer(() => {
-          if (!this.scene) return;
-          const zomb = model.createEntity(this.scene, colMax, row, wave.waveId);
-          this.spawnSeq += 1;
-          zomb.adoptStableSnapshotKey(`mob:${wave.waveId}:${this.spawnSeq}`);
-          zomb.applySpawnSeed(this.spawnSeq);
-          zomb.ExtraData.spawnSeq = this.spawnSeq;
-          this.attachLifecycle(zomb);
+    // 换成新版本的新建怪物函数
+    const model = MonsterLibrary.GetModel(monsterData.mid);
+    if (!model) {
+      console.error(`Monster model with mid ${monsterData.mid} not found!`);
+      return;
+    }
 
-          // 2. 如果当前怪物索引在carryingMonsters中，则设置携带starShards
-          if (zomb && state.carryingMonsters.has(currentMonsterIndex) && model.couldCarryStarShards) {
-            zomb.addStarShards();
-          }
-        });
+    const currentMonsterIndex = state.monsterIndex;
+    DeferredManager.Instance.defer(() => {
+      if (!this.scene) return;
+      const zomb = model.createEntity(this.scene, colMax, row, wave.waveId);
+      this.spawnSeq += 1;
+      zomb.adoptStableSnapshotKey(`mob:${wave.waveId}:${this.spawnSeq}`);
+      zomb.applySpawnSeed(this.spawnSeq);
+      zomb.ExtraData.spawnSeq = this.spawnSeq;
+      this.attachLifecycle(zomb);
 
-        state.monsterIndex++;
-        state.rowWeights = rowResult.rowWeights;
-        state.rowPickSmoothingState = rowResult.rowPickSmoothingState;
+      // 2. 如果当前怪物索引在carryingMonsters中，则设置携带starShards
+      if (zomb && state.carryingMonsters.has(currentMonsterIndex) && model.couldCarryStarShards) {
+        zomb.addStarShards();
       }
     });
+
+    state.monsterIndex++;
+    state.rowWeights = rowResult.rowWeights;
+    state.rowPickSmoothingState = rowResult.rowPickSmoothingState;
   }
 
   // 怪物生成注册
@@ -532,11 +553,11 @@ export default class MobManager extends BaseManager {
         PhaserEventBus.emit(PhaserEvents.BossDead);
         if (waveObj.flag === 'elite') {
           console.log('精英怪已击杀, 立即开始下一波');
+          this.clearWaveTimers();
           TickerManager.Instance.delayedCall({
-            callback: () => {
-              this.nextWave();
-            },
-            delay: 11000
+            callback: () => this.nextWave(),
+            delay: 11000,
+            snapshot: { kind: "mob.wave.next" },
           });
         } else if (waveObj.flag === 'boss') {
           console.log('BOSS已击杀, 游戏胜利！');
@@ -554,18 +575,12 @@ export default class MobManager extends BaseManager {
       if (this.current_wave_idx >= this.wavesLeng - 1) {
         console.log('Last wave detected, starting victory check timer...');
         // 启动一个每1.5秒检查一次的定时器
-        const victoryCheckTimer = TickerManager.Instance.addEvent({
+        this.clearVictoryCheckTimer();
+        TickerManager.Instance.addEvent({
           delay: 1500, // 1.5秒
           loop: true,
-          callback: () => {
-            if (this.MobsByLane.size === 0) {
-              console.log('No monsters left on the field, game victory!');
-              this.completeAllWaves();
-              victoryCheckTimer.remove();
-            } else {
-              console.log('Monsters still on field:', this.MobsByLane.size);
-            }
-          }
+          snapshot: { kind: "mob.victoryCheck" },
+          callback: () => this.checkVictory(),
         });
       } else if (this.current_wave_idx >= 0 && this.current_wave_idx < this.wavesLeng - 1) {
         // 非最后一波，继续下一波逻辑
@@ -577,14 +592,11 @@ export default class MobManager extends BaseManager {
           delay = 6000;
         }
 
-        if (this.Timer) {
-          this.Timer.remove(); // 取消之前的定时器
-        }
+        this.clearWaveTimers();
         this.Timer = TickerManager.Instance.delayedCall({
-          callback: () => {
-            this.nextWave();
-          },
+          callback: () => this.nextWave(),
           delay: delay,
+          snapshot: { kind: "mob.wave.next" },
         });
         return;
       } else {
@@ -595,8 +607,23 @@ export default class MobManager extends BaseManager {
     }
   }
 
+  /** 最后一波清场后的胜利检查。timer 常驻到本局结束，重建后两端状态一致。 */
+  private checkVictory(): void {
+    if (this.MobsByLane.size === 0) {
+      console.log('No monsters left on the field, game victory!');
+      this.completeAllWaves();
+    } else {
+      console.log('Monsters still on field:', this.MobsByLane.size);
+    }
+  }
+
   private handleRoomGameStart() {
     if (this.gameStartInitialized) {
+      desyncDiagnostics.record("combat", "MobManager RoomGameStart skipped (already restored/started)", {
+        currentWave: this.current_wave_idx,
+        progress: this.progress,
+        waveCount: this.wavesLeng,
+      });
       return;
     }
     const roomAllReady = onlineStateManager.getRoomAllReady();
@@ -614,5 +641,25 @@ export default class MobManager extends BaseManager {
       this.scene.params.level,
     ));
     this.startFirstWave();
+  }
+
+  /**
+   * 取消波次相关 timer。
+   * 用 kind 而不是缓存句柄：checkpoint rebuild 会替换 FrameTimer 实例，
+   * 旧句柄 remove() 可能删除同 id 的新 timer。
+   */
+  private clearWaveTimers(): void {
+    TickerManager.Instance.removeTimersByKind("mob.wave.start");
+    TickerManager.Instance.removeTimersByKind("mob.wave.next");
+    this.Timer = null;
+  }
+
+  private clearSpawnTimer(): void {
+    TickerManager.Instance.removeTimersByKind("mob.spawn");
+    this.SpawnTimer = null;
+  }
+
+  private clearVictoryCheckTimer(): void {
+    TickerManager.Instance.removeTimersByKind("mob.victoryCheck");
   }
 }

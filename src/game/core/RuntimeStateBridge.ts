@@ -26,6 +26,9 @@ import { ProjectileCmd } from "../utils/cmd/ProjectileCmd";
 import { rebindPhysicsEntities } from "./PhysicsSnapshot";
 import { registerEntityLookupProvider } from "./EntityLookup";
 import { logicEvents } from "./logic/LogicEvents";
+import { ObstacleLibrary } from "../managers/library/ObstacleLibrary";
+import { Faction } from "../models/Enum";
+import { setAuthoritativeFrame } from "./logic/EntityTickManager";
 
 let installed = false;
 
@@ -74,34 +77,47 @@ interface LiveSnapshotEntity {
   readonly SnapshotId: string;
   readonly IsAlive: boolean;
   destroy(): void;
+  destroySilently?(): void;
+}
+
+function destroyEntitySilently(entity: LiveSnapshotEntity): void {
+  if (typeof entity.destroySilently === "function") {
+    entity.destroySilently();
+  } else {
+    entity.destroy();
+  }
 }
 
 /** 植物对账：删除快照后新增的、重建快照中缺失的，再回写状态。 */
 function reconcilePlants(snapshots: EntityLogicState[], context: RestoreContext): void {
   const manager = PlantsManager.Instance;
   const snapshotIds = new Set(snapshots.map((snapshot) => String(snapshot.id)));
+  const liveById = new Map<string, LiveSnapshotEntity>();
 
   for (const plant of flattenMapValues(manager.PlantsMap) as unknown as LiveSnapshotEntity[]) {
-    if (!snapshotIds.has(plant.SnapshotId)) {
+    const id = String(plant.SnapshotId);
+    if (!snapshotIds.has(id) || !plant.IsAlive) {
       manager.UnregisterPlant(plant as never);
-      plant.destroy();
+      destroyEntitySilently(plant);
+      continue;
     }
+    liveById.set(id, plant);
   }
 
-  const liveIds = new Set(
-    (flattenMapValues(manager.PlantsMap) as unknown as LiveSnapshotEntity[])
-      .filter((plant) => plant.IsAlive)
-      .map((plant) => plant.SnapshotId),
-  );
   for (const snapshot of snapshots) {
-    if (liveIds.has(String(snapshot.id))) continue;
+    if (liveById.has(String(snapshot.id))) continue;
     const pid = Number(snapshot.flags.pid);
     if (!pid || snapshot.col === null || snapshot.row === null) {
       context.report.missing.push(`plant:${snapshot.id}`);
       continue;
     }
     const rebuilt = manager.RebuildPlant(pid, snapshot.col, snapshot.row, Number(snapshot.flags.level) || 1);
-    if (!rebuilt) context.report.missing.push(`plant:${snapshot.id}`);
+    if (!rebuilt) {
+      context.report.missing.push(`plant:${snapshot.id}`);
+      continue;
+    }
+    rebuilt.adoptStableSnapshotKey(String(snapshot.id));
+    liveById.set(String(snapshot.id), rebuilt as unknown as LiveSnapshotEntity);
   }
 
   restoreEntityValues(snapshots, flattenMapValues(manager.PlantsMap), context);
@@ -111,21 +127,20 @@ function reconcilePlants(snapshots: EntityLogicState[], context: RestoreContext)
 function reconcileMobs(snapshots: EntityLogicState[], context: RestoreContext): void {
   const manager = MobManager.Instance;
   const snapshotIds = new Set(snapshots.map((snapshot) => String(snapshot.id)));
+  const liveById = new Map<string, LiveSnapshotEntity>();
 
   for (const mob of flattenMapValues(manager.MobsByLane) as unknown as LiveSnapshotEntity[]) {
-    if (!snapshotIds.has(mob.SnapshotId)) {
+    const id = String(mob.SnapshotId);
+    if (!snapshotIds.has(id) || !mob.IsAlive) {
       manager.RemoveMonsterSilently(mob as never);
-      mob.destroy();
+      destroyEntitySilently(mob);
+      continue;
     }
+    liveById.set(id, mob);
   }
 
-  const liveIds = new Set(
-    (flattenMapValues(manager.MobsByLane) as unknown as LiveSnapshotEntity[])
-      .filter((mob) => mob.IsAlive)
-      .map((mob) => mob.SnapshotId),
-  );
   for (const snapshot of snapshots) {
-    if (liveIds.has(String(snapshot.id))) continue;
+    if (liveById.has(String(snapshot.id))) continue;
     const mid = Number(snapshot.flags.mid);
     const waveId = Number(snapshot.flags.waveID) || 0;
     const spawnSeq = Number(snapshot.flags.spawnSeq) || 0;
@@ -134,10 +149,60 @@ function reconcileMobs(snapshots: EntityLogicState[], context: RestoreContext): 
       continue;
     }
     const rebuilt = manager.RebuildMonster(mid, snapshot.col ?? 0, snapshot.row ?? 0, waveId, spawnSeq);
-    if (!rebuilt) context.report.missing.push(`mob:${snapshot.id}`);
+    if (!rebuilt) {
+      context.report.missing.push(`mob:${snapshot.id}`);
+      continue;
+    }
+    rebuilt.adoptStableSnapshotKey(String(snapshot.id));
+    liveById.set(String(snapshot.id), rebuilt as unknown as LiveSnapshotEntity);
   }
 
   restoreEntityValues(snapshots, flattenMapValues(manager.MobsByLane), context);
+}
+
+/** 障碍物对账：与植物/怪物一样支持删除快照后新增实体与重建缺失实体。 */
+function reconcileObstacles(snapshots: EntityLogicState[], context: RestoreContext): void {
+  const manager = ObstacleManager.Instance;
+  const snapshotIds = new Set(snapshots.map((snapshot) => String(snapshot.id)));
+  const liveById = new Map<string, LiveSnapshotEntity>();
+
+  for (const obstacle of flattenMapValues(manager.ObstaclesMap) as unknown as LiveSnapshotEntity[]) {
+    const id = String(obstacle.SnapshotId);
+    if (!snapshotIds.has(id) || !obstacle.IsAlive) {
+      manager.UnregisterObstacle(obstacle as never);
+      destroyEntitySilently(obstacle);
+      continue;
+    }
+    liveById.set(id, obstacle);
+  }
+
+  for (const snapshot of snapshots) {
+    if (liveById.has(String(snapshot.id))) continue;
+    const oid = Number(snapshot.flags.oid);
+    if (!oid || snapshot.col === null || snapshot.row === null) {
+      context.report.missing.push(`obstacle:${snapshot.id}`);
+      continue;
+    }
+    const model = ObstacleLibrary.GetModel(oid);
+    const scene = manager.getScene();
+    if (!model || !scene) {
+      context.report.missing.push(`obstacle:${snapshot.id}`);
+      continue;
+    }
+    const factionRaw = Number(snapshot.flags.faction);
+    const faction = factionRaw === Faction.PLANT || factionRaw === Faction.NEUTRAL
+      ? factionRaw
+      : Faction.ZOMBIE;
+    const rebuilt = model.createEntity(scene, snapshot.col, snapshot.row, {
+      hp: Number(snapshot.hp) || 1,
+      faction,
+      waveId: Number(snapshot.flags.waveId) || -1,
+    });
+    rebuilt.adoptStableSnapshotKey(String(snapshot.id));
+    liveById.set(String(snapshot.id), rebuilt as unknown as LiveSnapshotEntity);
+  }
+
+  restoreEntityValues(snapshots, flattenMapValues(manager.ObstaclesMap), context);
 }
 
 /**
@@ -165,10 +230,16 @@ export function installRuntimeStateSources(): void {
     (frameId) => {
       SyncManager.Instance.recvQueue.currentFrameId = frameId;
       SyncManager.Instance.recvQueue.lastAckFrameId = frameId;
+      // 快照回滚后，后续实体创建/计时器必须以快照帧为基准。
+      setAuthoritativeFrame(frameId);
     },
   );
 
-  simulationState.registerValue("combat.dayOrNight", () => combat.combatStatus.dayOrNight);
+  simulationState.registerValue(
+    "combat.dayOrNight",
+    () => combat.combatStatus.dayOrNight,
+    (value) => { combat.combatStatus.dayOrNight = Boolean(value); },
+  );
   simulationState.registerValue("combat.isGameEnd", () => combat.isGameEnd, (value) => {
     combat.isGameEnd = Boolean(value);
   });
@@ -217,7 +288,17 @@ export function installRuntimeStateSources(): void {
     () => tileitems.CaptureTileItemState() as unknown as JsonValue,
     (value) => { tileitems.RestoreTileItemState(value as Record<string, unknown>); },
   );
-  simulationState.registerValue("grid", () => grid.GridProperties);
+  // 关卡脚本会改写格子属性（water/void）。checkpoint 恢复后必须恢复，
+  // 否则重连端会把水面当普通地面，种植校验与出怪行选择立即分叉。
+  simulationState.registerValue(
+    "grid",
+    () => grid.GridProperties,
+    (value) => {
+      grid.setGridProperty(
+        value as unknown as Parameters<typeof grid.setGridProperty>[0],
+      );
+    },
+  );
   simulationState.registerValue(
     "logic.events",
     () => logicEvents.snapshot() as unknown as JsonValue,
@@ -251,7 +332,7 @@ export function installRuntimeStateSources(): void {
   simulationState.registerEntities(
     "obstacle",
     () => collectEntities("obstacle", flattenMapValues(ObstacleManager.Instance.ObstaclesMap)),
-    (entities, context) => restoreEntityValues(entities, flattenMapValues(ObstacleManager.Instance.ObstaclesMap), context),
+    (entities, context) => reconcileObstacles(entities, context),
   );
   simulationState.registerEntities(
     "projectile",

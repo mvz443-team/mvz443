@@ -27,6 +27,11 @@ export default class ObstacleManager extends BaseManager {
     return this._instance;
   }
 
+  /** 快照重建需要场景引用；Entity 本身不保存全局 scene。 */
+  public getScene() {
+    return this.scene;
+  }
+
   public RegisterObstacle(obstacle: ObstacleEntity) {
     const key = `${obstacle.col}-${obstacle.row}`;
     if (!this.ObstaclesMap.has(key)) {

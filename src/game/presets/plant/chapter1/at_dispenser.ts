@@ -14,9 +14,11 @@ import { SightLineEntity } from "../../../models/entities/SightLineEntity";
 import { HFireWorkConfig, HFireWorkEntity, HFireWorkModel } from "../../bullet/firework";
 import { DispenserData } from "./dispenser";
 import type { ModelHost } from "../../../core/logic/LogicModel";
+import { registerProjectileModel } from "../../../utils/cmd/ProjectileModelRegistry";
 
 // 特殊的星辰碎片烟花模型
 export class ATAirHFireWorkModel extends HFireWorkModel {
+  public static override readonly projectileKind: string = "at_air_h_firework";
   /** 十字爆炸伤害直接定义在 Model。 */
   public customExplodeDamage: number = 0;
 
@@ -47,6 +49,8 @@ export class ATAirHFireWorkModel extends HFireWorkModel {
     return new ATAirHFireWorkEntity(scene, x, row, this, config);
   }
 }
+
+registerProjectileModel(ATAirHFireWorkModel.projectileKind, ATAirHFireWorkModel);
 
 export class ATAirHFireWorkEntity extends HFireWorkEntity {
   public declare model: ATAirHFireWorkModel;

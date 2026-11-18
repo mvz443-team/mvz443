@@ -5,7 +5,6 @@ import EnumGameStage from "../../../utils/net/game_state";
 import BackendWS from "../../../utils/net/sync";
 import { PhaserEventBus, PhaserEvents } from "../../EventBus";
 import type { Game } from "../../scenes/Game";
-import type { SimulationState } from "../../core/SimulationState";
 import QueueReceive from "../../sync/queue_receive";
 import QueueSend from "../../sync/queue_send";
 import { BaseManager } from "../BaseManager";
@@ -17,6 +16,7 @@ import DepthHelper from "../../utils/helper/DepthHelper";
 import CardpileManager from "./CardpileManager";
 import PlantsManager from "./PlantsManager";
 import ResourceManager, { PlayerIdentify } from "./ResourceManager";
+import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
 
 type SyncManagerEvent = {
   onRequestPlant: (playerId: PlayerIdentify, pid: number, level: number, col: number, row: number) => void;
@@ -35,7 +35,6 @@ export type PredictedOperation = {
   level: number;
   col: number;
   row: number;
-  snapshot: SimulationState | null;
 };
 
 export default class SyncManager extends BaseManager {
@@ -132,12 +131,20 @@ export default class SyncManager extends BaseManager {
       level,
       col,
       row,
-      snapshot: this.capturePredictionSnapshot(),
     };
     this.predictedOperations.set(clientOpSeq, predicted);
-    this.applyLocalOperation(() => this.dispatchPrediction(predicted));
     this.Eventbus.emit("onPredictedOperation", predicted);
-    // 点击即反馈：先放半透明虚影，等服务端确认帧到达后再由真实实体接管。
+    desyncDiagnostics.record("sync", "prediction queued (visual only)", {
+      clientOpSeq,
+      kind: predicted.kind,
+      pid,
+      level,
+      col,
+      row,
+      frameId: this.GetFrameID(),
+    });
+    // 点击即反馈只放半透明虚影；Model 实体必须等权威帧到达后再创建，
+    // 否则本地会提前推进实体计时器/事件序号，和远端从第 1 个逻辑帧就分叉。
     if (BackendWS.isRoomSessionMode()) {
       this.spawnDeployGhost(clientOpSeq, pid, col, row);
     }
@@ -158,10 +165,8 @@ export default class SyncManager extends BaseManager {
         level: 1,
         col,
         row,
-        snapshot: this.capturePredictionSnapshot(),
       };
       this.predictedOperations.set(clientOpSeq, predicted);
-      this.applyLocalOperation(() => this.dispatchPrediction(predicted));
       this.Eventbus.emit("onPredictedOperation", predicted);
     }
   };
@@ -181,48 +186,49 @@ export default class SyncManager extends BaseManager {
         level: 1,
         col,
         row,
-        snapshot: this.capturePredictionSnapshot(),
       };
       this.predictedOperations.set(clientOpSeq, predicted);
-      this.applyLocalOperation(() => this.dispatchPrediction(predicted));
       this.Eventbus.emit("onPredictedOperation", predicted);
     }
   };
 
-  /** 权威帧到达时确认本地预测；重复帧或他端操作不会重复落地。 */
-  public confirmPredictedOperation(clientOpSeq: number): boolean {
+  /** 权威帧到达时确认本地预测；只允许操作发起者确认自己的 seq。 */
+  public confirmPredictedOperation(clientOpSeq: number, uid?: number): boolean {
     if (clientOpSeq <= 0 || this.authoritativeOperationSeqs.has(clientOpSeq)) return false;
     this.authoritativeOperationSeqs.add(clientOpSeq);
     const predicted = this.predictedOperations.get(clientOpSeq);
+    if (!predicted || (uid !== undefined && predicted.uid !== uid)) {
+      return false;
+    }
     this.predictedOperations.delete(clientOpSeq);
     this.removeGhost(clientOpSeq);
     this.Eventbus.emit("onAuthoritativeOperation", clientOpSeq);
-    if (!predicted && BackendWS.isRoomSessionMode() && !CombatManager.Instance.isDesyncOffline()) {
-      console.warn(`[sync] authoritative operation ${clientOpSeq} has no local prediction`);
-    }
-    return Boolean(predicted);
+    return true;
   }
 
-  /** 拒绝回包回滚本地预测，并重放之后仍有效的预测操作。 */
+  /** 拒绝回包撤销本地虚影与预演资源。 */
   public rejectPredictedOperation(clientOpSeq: number): void {
     this.rollbackPredictedOperation(clientOpSeq);
   }
 
   private handleRecvCardPlant = (pid: number, col: number, row: number, level: number, uid: number) => {
-    const confirmed = this.confirmPredictedOperation(this.currentResponseClientOpSeq);
-    if (uid === BackendWS.my_id && confirmed) {
-      // 本地预测已经落地；权威帧只确认预测并清理残留虚影。
+    if (uid === BackendWS.my_id) {
+      this.confirmPredictedOperation(this.currentResponseClientOpSeq, uid);
       this.clearGhostsAt(col, row);
-      return;
     }
-    // 刷新/进程重建后预测表为空：自己的历史权威操作也必须照常落地。
+    // 无论是否命中本地预测，Model 变更都只由权威帧执行一次。
+    desyncDiagnostics.record("sync", "authoritative plant applied", {
+      uid,
+      pid,
+      level,
+      col,
+      row,
+      frameId: this.GetFrameID(),
+    });
     this.Eventbus.emit("onRequestPlant", uid, pid, level, col, row);
   };
 
-  /**
-   * 预测落地：操作立即进入本地 Model；快照只记录操作前状态。
-   * 本地操作与服务端权威操作使用同一条 PlantsManager 路径，避免两套结果。
-   */
+  /** 单机/分叉离线模式下直接执行本地操作；联机预测不经过这里。 */
   private applyLocalOperation(operation: () => void): void {
     if (this.applyingPredictedOperation) return;
     this.applyingPredictedOperation = true;
@@ -232,12 +238,6 @@ export default class SyncManager extends BaseManager {
     } finally {
       this.applyingPredictedOperation = false;
     }
-  }
-
-  private capturePredictionSnapshot(): SimulationState | null {
-    if (!BackendWS.isRoomSessionMode() || CombatManager.Instance.isDesyncOffline()) return null;
-    DeferredManager.Instance.flush();
-    return CombatManager.Instance.captureState();
   }
 
   private spawnDeployGhost(clientOpSeq: number, pid: number, col: number, row: number) {
@@ -266,8 +266,11 @@ export default class SyncManager extends BaseManager {
     this.deployGhosts.set(clientOpSeq, sprite);
     this.deployGhostTweens.set(clientOpSeq, tween);
 
-    // 网络异常或确认帧长期未到时自动清理，避免虚影永久残留。
-    setTimeout(() => this.removeGhost(clientOpSeq), 2000);
+    // 网络异常或确认帧长期未到时自动清理，避免虚影和预测记录永久残留。
+    setTimeout(() => {
+      this.predictedOperations.delete(clientOpSeq);
+      this.removeGhost(clientOpSeq);
+    }, 2000);
   }
 
   private removeGhost(clientOpSeq: number) {
@@ -292,77 +295,37 @@ export default class SyncManager extends BaseManager {
     }
   }
 
-  private handleOperationRejected = (rejection: { clientOpSeq: number }) => {
-    // 服务端明确拒绝：回滚到本地预测前的权威状态，再重放之后已确认的预测。
+  private handleOperationRejected = (rejection: { uid: number; clientOpSeq: number }) => {
+    // clientOpSeq 由各客户端独立递增，不同玩家可能撞号；
+    // 只有自己的拒绝回包才能撤销自己的预测。
+    if (rejection.uid !== BackendWS.my_id) return;
+    // 服务端明确拒绝：撤销本地虚影与预演资源，Model 从未被预测改动。
     this.rejectPredictedOperation(rejection.clientOpSeq);
   };
 
   private handleRecvUseStarShards = (pid: number, col: number, row: number, uid: number) => {
-    const confirmed = this.confirmPredictedOperation(this.currentResponseClientOpSeq);
-    if (uid === BackendWS.my_id && confirmed) return;
+    if (uid === BackendWS.my_id) {
+      this.confirmPredictedOperation(this.currentResponseClientOpSeq, uid);
+    }
     this.Eventbus.emit("onRequestUseStarShards", uid, pid, col, row);
   };
 
-  private handleRecvRemovePlant = (pid: number, col: number, row: number) => {
-    const confirmed = this.confirmPredictedOperation(this.currentResponseClientOpSeq);
-    if (confirmed) return;
+  private handleRecvRemovePlant = (pid: number, col: number, row: number, uid: number) => {
+    if (uid === BackendWS.my_id) {
+      this.confirmPredictedOperation(this.currentResponseClientOpSeq, uid);
+    }
     this.Eventbus.emit("onRequestRemovePlant", pid, col, row);
   };
 
-  /** 拒绝回包按 seq 回滚；重放剩余预测，保证回滚后仍与权威状态一致。 */
+  /** 拒绝回包只撤销表现层预测；Model 从未被本地预测改动。 */
   private rollbackPredictedOperation(clientOpSeq: number): void {
     const predicted = this.predictedOperations.get(clientOpSeq);
     if (!predicted) return;
     this.predictedOperations.delete(clientOpSeq);
     this.removeGhost(clientOpSeq);
-
-    if (predicted.snapshot) {
-      CombatManager.Instance.restoreState(predicted.snapshot, "in-place");
-      ResourceManager.Instance.ClearPreviewDeltas();
-      CardpileManager.Instance.ClearPreviewCooldowns();
-      const remaining = [...this.predictedOperations.values()].sort(
-        (left, right) => left.clientOpSeq - right.clientOpSeq,
-      );
-      this.predictedOperations.clear();
-      for (const operation of remaining) {
-        operation.snapshot = this.capturePredictionSnapshot();
-        this.applyLocalOperation(() => this.dispatchPrediction(operation));
-        this.predictedOperations.set(operation.clientOpSeq, operation);
-      }
-    }
+    ResourceManager.Instance.ClearPreviewDeltas();
+    CardpileManager.Instance.ClearPreviewCooldowns();
     this.Eventbus.emit("onPredictedOperationRejected", clientOpSeq);
-  }
-
-  private dispatchPrediction(operation: PredictedOperation): void {
-    switch (operation.kind) {
-      case "plant":
-        this.Eventbus.emit(
-          "onRequestPlant",
-          operation.uid,
-          operation.pid,
-          operation.level,
-          operation.col,
-          operation.row,
-        );
-        break;
-      case "starShards":
-        this.Eventbus.emit(
-          "onRequestUseStarShards",
-          operation.uid,
-          operation.pid,
-          operation.col,
-          operation.row,
-        );
-        break;
-      case "removePlant":
-        this.Eventbus.emit(
-          "onRequestRemovePlant",
-          operation.pid,
-          operation.col,
-          operation.row,
-        );
-        break;
-    }
   }
 
   private handleRecvGameEnd = (isWin: boolean) => {
@@ -397,6 +360,10 @@ export default class SyncManager extends BaseManager {
   public Reset() {
     this.unbindQueueAndPlantEvents();
     this.clearAllGhosts();
+    this.predictedOperations.clear();
+    this.authoritativeOperationSeqs.clear();
+    this.applyingPredictedOperation = false;
+    this.currentResponseClientOpSeq = 0;
     this.scene = null;
     if (this.recvQueue) {
       this.recvQueue.Reset();

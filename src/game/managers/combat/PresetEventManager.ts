@@ -19,6 +19,7 @@ import { LOGICAL_BATTLE_HEIGHT, LOGICAL_BATTLE_WIDTH } from "../../../constants/
 import { SmallDispenserData } from "../../presets/plant/chapter1/small_dispenser";
 import { GeneratorData } from "../../presets/plant/chapter1/generator";
 import { LilyData } from "../../presets/plant/chapter1/lily";
+import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
 
 /**
  * 预设事件管理器
@@ -28,6 +29,7 @@ export class PresetEventManager extends BaseManager {
   private static _instance: PresetEventManager;
   private onNewWaveHandler: ((waveId: number, isFlag: boolean) => void) | null = null;
   private autoEnergyTimer: FrameTimer | null = null;
+  private autoEnergyStartTimer: FrameTimer | null = null;
 
   public static get Instance(): PresetEventManager {
     if (!this._instance) {
@@ -39,6 +41,22 @@ export class PresetEventManager extends BaseManager {
    * 加载预设事件
    */
   public Load(): void {
+    // checkpoint rebuild 恢复全局 ticker 时需要重新构造自动产能回调。
+    TickerManager.Instance.registerTimerFactory("preset.autoEnergy", (args) => {
+      const delta = args && typeof args === "object" && !Array.isArray(args)
+        ? Number((args as Record<string, unknown>).delta)
+        : NaN;
+      if (!Number.isFinite(delta)) return null;
+      return { callback: () => this.autoGenerateEnergyTick(delta) };
+    });
+    TickerManager.Instance.registerTimerFactory("preset.autoEnergyStart", (args) => {
+      if (!args || typeof args !== "object" || Array.isArray(args)) return null;
+      const record = args as Record<string, unknown>;
+      const delta = Number(record.delta);
+      const intervalMs = Number(record.intervalMs);
+      if (!Number.isFinite(delta) || !Number.isFinite(intervalMs)) return null;
+      return { callback: () => this.beginAutoGenerateEnergy(intervalMs, delta) };
+    });
     // 监听 MobManager 的 onNewWave 事件
     this.onNewWaveHandler = (waveId: number, isFlag: boolean) => {
       if (waveId === 0) {
@@ -103,25 +121,50 @@ export class PresetEventManager extends BaseManager {
   // 自动产能设置
   private startAutoGenerateEnergy(startAtMs: number, intervalMs: number, delta: number) {
     this.stopAutoGenerateEnergy();
-    this.autoEnergyTimer = TickerManager.Instance.addEvent({
-      delay: intervalMs,
-      loop: true,
-      startAt: startAtMs,
-      callback: () => {
-        this.playAutoGenerateEnergySfx();
-        ResourceManager.Instance.UpdateEnergy(+delta, 'all');
-      }
+    // 首次产能前是“一次性延迟”，之后才是循环；拆成两个 timer 是为了
+    // 让任意帧的 checkpoint 都能用纯数据工厂精确重建（TickerManager 的
+    // startAt 包装回调依赖闭包，rebuild 时无法恢复）。
+    this.autoEnergyStartTimer = TickerManager.Instance.delayedCall({
+      delay: startAtMs,
+      snapshot: { kind: "preset.autoEnergyStart", args: { intervalMs, delta } },
+      callback: () => this.beginAutoGenerateEnergy(intervalMs, delta),
     });
   }
 
+  private beginAutoGenerateEnergy(intervalMs: number, delta: number): void {
+    this.autoEnergyStartTimer = null;
+    // checkpoint rebuild 后旧句柄可能指向同 id 的新 timer，必须按 kind 取消。
+    TickerManager.Instance.removeTimersByKind("preset.autoEnergy");
+    this.autoEnergyTimer = TickerManager.Instance.addEvent({
+      delay: intervalMs,
+      loop: true,
+      snapshot: { kind: "preset.autoEnergy", args: { delta } },
+      callback: () => this.autoGenerateEnergyTick(delta),
+    });
+    this.autoGenerateEnergyTick(delta);
+  }
+
+  private autoGenerateEnergyTick(delta: number): void {
+    this.playAutoGenerateEnergySfx();
+    ResourceManager.Instance.UpdateEnergy(+delta, 'all');
+  }
+
   private stopAutoGenerateEnergy() {
-    this.autoEnergyTimer?.remove();
+    TickerManager.Instance.removeTimersByKind("preset.autoEnergy");
+    TickerManager.Instance.removeTimersByKind("preset.autoEnergyStart");
     this.autoEnergyTimer = null;
+    this.autoEnergyStartTimer = null;
   }
 
   // 初始能量
   private setInitialEnergy(initialEnergy: number) {
-    ResourceManager.Instance.UpdateEnergy(+initialEnergy, 'all');
+    desyncDiagnostics.record("resources", "preset initial energy", {
+      initialEnergy,
+      before: ResourceManager.Instance.CaptureCanonicalResourceState(),
+    });
+    // 初始能量必须是幂等赋值：RoomGameStart 与 wave 0 预设事件都可能触发，
+    // 用增量会重复叠加，导致不同客户端事件顺序不同就出现资源分叉。
+    ResourceManager.Instance.SetInitialEnergy(+initialEnergy);
   }
 
   private playAutoGenerateEnergySfx() {

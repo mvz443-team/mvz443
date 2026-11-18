@@ -14,7 +14,8 @@ import type { ExplosionConfig } from "../projectiles/ProjectileModels";
 export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> extends BaseEntity {
   /** BaseEntity 已克隆为实例专属 Model。 */
   public declare model: T;
-  public faction: Faction;
+  /** 同名字段必须写入 Model，否则回滚/重连会丢失阵营并改变碰撞结果。 */
+  declare public faction: Faction;
 
   // 运行时状态
   declare public currentDamage: number;
@@ -23,9 +24,9 @@ export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> exte
 
   public dealer: CombatEntity | undefined; // 伤害来源实体（比如子弹的发射者）
 
-  couldAttackFlying: boolean = false; // 是否能攻击飞行单位（默认为false，表示只能攻击地面单位）
-  debuff: _Typedebuffs = null;
-  debuffDuration: number = 0;
+  declare couldAttackFlying: boolean; // 是否能攻击飞行单位（默认为false，表示只能攻击地面单位）
+  declare debuff: _Typedebuffs;
+  declare debuffDuration: number;
 
   constructor(scene: Game, x: number, y: number, model: T, cfg: ProjectileConfig) {
     super(scene, x, y, model);

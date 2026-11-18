@@ -13,7 +13,7 @@ export const MONSTER_RELATION_FIELDS = [
   "vaultCollisionTarget",
 ] as const;
 export const OBSTACLE_RELATION_FIELDS = ["summoner", "underAttackBy"] as const;
-export const PROJECTILE_RELATION_FIELDS = ["dealer", "hasAttackedSet", "hasPenetrated"] as const;
+export const PROJECTILE_RELATION_FIELDS = ["dealer", "hasAttackedSet", "hasPenetratedSet"] as const;
 export const DEFAULT_RELATION_FIELDS = ["underAttackBy"] as const;
 
 export const PLANT_PRNG_FIELDS = ["random"] as const;

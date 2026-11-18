@@ -14,14 +14,16 @@ import { FurnaceData } from "../../src/game/presets/plant/chapter1/furnace.ts";
  *   2) Lv9 检查间隔缩短、单次产量 40。
  *   3) 睡眠时定时器到点但不产能。
  *   4) onStarShards 直接加 450 能量。
+ *   5) 在 frame 212 创建时，首个定时器 targetFrame 必须是 212 + 150。
  *
  * 预期结果：
  *   Lv1 在 18s 时产能 1 次（25），43s 时 2 次；Lv9 在 15s 时产能 1 次（40）；
- *   睡眠 30s 不产能；星碎 +450。
+ *   睡眠 30s 不产能；星碎 +450；frame 212 创建的 targetFrame=362。
  *
  * 为什么：
  *   generateEnergyCooldown = 25000 * 0.85^(level 曲线)，startAt 为冷却的 70%；
- *   generateEnergyAmount 在 9 级阈值变为 40；onGenerate 明确检查 isSleeping。
+ *   generateEnergyAmount 在 9 级阈值变为 40；onGenerate 明确检查 isSleeping；
+ *   timer 起点必须是权威创建帧（否则两端同一操作会得到不同的 targetFrame）。
  */
 
 test("Lv1 熔炉按 17.5s 首次、25s 周期产能", () => {
@@ -59,6 +61,15 @@ test("星之碎片一次性增加 450 能量", () => {
 
   model.onStarShards(entity);
   assert.deepEqual(ResourceCmd.calls, [{ kind: "energy", amount: 450 }]);
+});
+
+test("首个产能定时器锚定创建帧", () => {
+  const sim = resetSim();
+  tick(sim, 212 * 50);
+  const { model } = spawnPlant(FurnaceData, { level: 1 });
+
+  // 25000ms 冷却，startAt=70% → 首个间隔 ceil((25000-17500)/50)=150 帧。
+  assert.equal(model.captureTimers()[0].targetFrame, 212 + 150);
 });
 
 /**

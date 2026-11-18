@@ -101,7 +101,11 @@ export abstract class PlantEntity extends CombatEntity {
 
   /** 快照中记录 pid，供断线恢复时重建实体。 */
   protected override captureLogicState(): Record<string, JsonValue> {
-    return { pid: this.model.pid, level: Number((this.model as unknown as Record<string, unknown>).level ?? 1) };
+    return {
+      ...super.captureLogicState(),
+      pid: this.model.pid,
+      level: Number((this.model as unknown as Record<string, unknown>).level ?? 1),
+    };
   }
 
   private AttachBadgeView(): void {
@@ -179,7 +183,10 @@ export abstract class PlantEntity extends CombatEntity {
     this.initialized = true;
 
     // 稳定 key 让快照恢复后计时器组仍能对齐（重建实体得到同一 group）。
-    this.adoptStableSnapshotKey(`plant:${this.col}:${this.row}:${this.model.pid}`);
+    // 同一格允许承载植物叠加（例如 lily + 普通植物），因此把创建序号也纳入 key，
+    // 避免同格同 pid 的实体共享 SnapshotId / timer group。
+    const existingCount = PlantsManager.Instance.PlantsMap.get(`${this.col}-${this.row}`)?.length ?? 0;
+    this.adoptStableSnapshotKey(`plant:${this.col}:${this.row}:${this.model.pid}:${existingCount}`);
     // 子类字段初始化完成后，把同名逻辑字段迁入寄存器并安装访问器。
 
     this.buildView();
@@ -267,6 +274,30 @@ export abstract class PlantEntity extends CombatEntity {
     // 通知Manager移除自己
     PlantsManager.Instance.RegisterDestroy(this);
     super.destroy(); // 调用父类的destroy，清理实体
+  }
+
+  /** 回滚对账：不执行 Model 死亡、掉落或攻击者状态修改。 */
+  protected override onSilentDestroy(): void {
+    this.hideSleepingSfx();
+    PlantsManager.Instance.RegisterDestroy(this);
+  }
+
+  /** 快照中的 x/y 是刚体中心；视图与逻辑坐标必须转换回 bottom-center。 */
+  protected override applySnapshotPosition(x: number, y: number): void {
+    const bottom = PositionManager.Instance.getPlantBottomCenterByBody(x, y);
+    const dx = bottom.x - this.x;
+    const dy = bottom.y - this.y;
+    this.x = bottom.x;
+    this.y = bottom.y;
+    if (dx !== 0 || dy !== 0) {
+      this.viewGroup.getChildren().forEach((child: any) => {
+        if (child.x !== undefined) {
+          child.x += dx;
+          child.y += dy;
+        }
+      });
+    }
+    if (this.rigidBody) this.rigidBody.setTranslation({ x, y }, true);
   }
 
   public setSleeping(value: boolean): void {

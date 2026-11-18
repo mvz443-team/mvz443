@@ -37,6 +37,8 @@ export class FrameTimer {
   /** 可重建语义类型 / 参数；仅在需要跨会话重建时设置。 */
   public snapshotKind?: string;
   public snapshotArgs?: JsonValue;
+  /** 纯表现 timer：不进入跨端快照/哈希，也不消耗确定性 timer id。 */
+  public localOnly: boolean;
   private ticker: TickerManager;
 
   constructor(options: {
@@ -51,6 +53,7 @@ export class FrameTimer {
     ticker: TickerManager;
     snapshotKind?: string;
     snapshotArgs?: JsonValue;
+    localOnly?: boolean;
   }) {
     this.id = options.id;
     this.targetFrame = options.targetFrame;
@@ -63,6 +66,7 @@ export class FrameTimer {
     this.ticker = options.ticker;
     this.snapshotKind = options.snapshotKind;
     this.snapshotArgs = options.snapshotArgs;
+    this.localOnly = options.localOnly ?? false;
   }
 
   // 计算剩余时间(frame)
@@ -93,6 +97,7 @@ export type DelayedCallConfigType = {
   group?: string;
   /** 需要跨会话重建时提供语义描述。 */
   snapshot?: TimerSnapshotTag;
+  localOnly?: boolean;
 };
 
 export type AddEventConfigType = {
@@ -105,6 +110,7 @@ export type AddEventConfigType = {
   loop?: boolean;
   group?: string;
   snapshot?: TimerSnapshotTag;
+  localOnly?: boolean;
 };
 
 export default class TickerManager extends BaseManager {
@@ -115,6 +121,8 @@ export default class TickerManager extends BaseManager {
 
   private timers: Map<number, FrameTimer> = new Map();
   private nextTimerId: number = 1;
+  /** 纯表现 timer 使用独立 id 命名空间，避免污染确定性 timer id。 */
+  private nextLocalTimerId: number = -1;
   private startTime: number = 0;
   private readonly timerFactories = new Map<string, TimerFactory>();
 
@@ -181,13 +189,14 @@ export default class TickerManager extends BaseManager {
     context: any = null,
     repeat: number = 0,
     group: string = 'default',
-    snapshot?: TimerSnapshotTag
+    snapshot?: TimerSnapshotTag,
+    localOnly: boolean = false,
   ): FrameTimer {
     const frameDelay = Math.ceil(delay / this.frameInterval);
     const targetFrame = this.currentFrame + frameDelay;
 
     const timer: FrameTimer = new FrameTimer({
-      id: this.nextTimerId++,
+      id: localOnly ? this.nextLocalTimerId-- : this.nextTimerId++,
       targetFrame: targetFrame,
       callback: callback,
       args: args,
@@ -198,6 +207,7 @@ export default class TickerManager extends BaseManager {
       ticker: this,
       snapshotKind: snapshot?.kind,
       snapshotArgs: snapshot?.args,
+      localOnly,
     });
 
     this.timers.set(timer.id, timer);
@@ -220,6 +230,30 @@ export default class TickerManager extends BaseManager {
   /** 导出当前全部计时器（用于诊断/测试）。 */
   public getTimers(): readonly FrameTimer[] {
     return [...this.timers.values()];
+  }
+
+  /**
+   * 按快照语义查找计时器。
+   *
+   * checkpoint rebuild 会重建 FrameTimer 对象；管理器里缓存的旧句柄
+   * 仍然持有相同的 id，直接调用 remove() 可能误删重建后的新 timer。
+   * 需要取消某类全局逻辑 timer 时，必须按 kind 查找当前实例。
+   */
+  public getTimersByKind(kind: string): FrameTimer[] {
+    return [...this.timers.values()]
+      .filter((timer) => timer.snapshotKind === kind)
+      .sort((a, b) => a.id - b.id);
+  }
+
+  /** 取消指定语义类型的全部计时器，返回取消数量。 */
+  public removeTimersByKind(kind: string): number {
+    let removed = 0;
+    for (const timer of [...this.timers.values()]) {
+      if (timer.snapshotKind !== kind) continue;
+      this.timers.delete(timer.id);
+      removed++;
+    }
+    return removed;
   }
 
   /** 把某个 group 的计时器整体迁移到新的稳定 key（实体重建时使用）。 */
@@ -250,8 +284,9 @@ export default class TickerManager extends BaseManager {
       context = null,
       group = 'default',
       snapshot,
+      localOnly = false,
     } = config;
-    return this.Register(callback, delay, args, context, 0, group, snapshot);
+    return this.Register(callback, delay, args, context, 0, group, snapshot, localOnly);
   }
 
   /**
@@ -269,6 +304,7 @@ export default class TickerManager extends BaseManager {
       loop = false,
       group = 'default',
       snapshot,
+      localOnly = false,
     } = config;
 
     const finalRepeat = loop ? -1 : repeat;
@@ -299,12 +335,13 @@ export default class TickerManager extends BaseManager {
         context,
         1,
         group,
-        snapshot
+        snapshot,
+        localOnly,
       );
 
       return ret;
     } else {
-      return this.Register(callback, delay, args, context, finalRepeat, group, snapshot);
+      return this.Register(callback, delay, args, context, finalRepeat, group, snapshot, localOnly);
     }
   }
 
@@ -314,21 +351,27 @@ export default class TickerManager extends BaseManager {
   public Update(): void {
     this.currentFrame++;
 
+    // Map 的插入顺序会受实体重建/回滚影响；同一逻辑帧的定时器触发
+    // 顺序必须由稳定 id 决定，否则两端同一时刻注册的 timer 可能以
+    // 不同顺序执行，产生不同的世界变更。
+    const due = [...this.timers.values()]
+      .filter((timer) => this.currentFrame >= timer.targetFrame)
+      .sort((a, b) => a.id - b.id);
     const timersToRemove: number[] = [];
-    this.timers.forEach((timer) => {
-      if (this.currentFrame >= timer.targetFrame) {
-        timer.callback.apply(timer.context, timer.args);
+    for (const timer of due) {
+      // 前一个 timer 的回调可能已经移除了当前 timer。
+      if (!this.timers.has(timer.id)) continue;
+      timer.callback.apply(timer.context, timer.args);
 
-        if (timer.repeat < 0 || timer.repeat > 0) {
-          if (timer.repeat > 0) {
-            timer.repeat--;
-          }
-          timer.targetFrame = this.currentFrame + timer.interval;
-        } else {
-          timersToRemove.push(timer.id);
+      if (timer.repeat < 0 || timer.repeat > 0) {
+        if (timer.repeat > 0) {
+          timer.repeat--;
         }
+        timer.targetFrame = this.currentFrame + timer.interval;
+      } else {
+        timersToRemove.push(timer.id);
       }
-    });
+    }
 
     timersToRemove.forEach((id) => {
       this.timers.delete(id);
@@ -358,6 +401,7 @@ export default class TickerManager extends BaseManager {
   public GetTimerStates(): TimerState[] {
     const states: TimerState[] = [];
     this.timers.forEach((timer) => {
+      if (timer.localOnly) return;
       states.push(timerToState(timer));
     });
     return states.sort((a, b) => a.id - b.id);
@@ -378,13 +422,18 @@ export default class TickerManager extends BaseManager {
           context.report.missing.push(`timer:${snapshot.id}(${snapshot.kind ?? "untagged"})`);
         }
       }
-      this.nextTimerId = Math.max(this.nextTimerId, ...states.map((timer) => timer.id + 1), 1);
+      // 精确回退到快照值：使用 max 会让回滚后新建 timer 拿到与未回滚分支
+      // 不同的 id，随后 timer 顺序与事件顺序都会分叉。
+      this.nextTimerId = context.nextTimerId
+        ?? Math.max(...states.map((timer) => timer.id + 1), 1);
       return;
     }
 
     const snapshotIds = new Set(states.map((timer) => timer.id));
     // 关键：回滚必须删除“快照之后才创建”的计时器，否则会重复触发。
     for (const id of [...this.timers.keys()]) {
+      const timer = this.timers.get(id);
+      if (timer?.localOnly) continue;
       if (!snapshotIds.has(id)) this.timers.delete(id);
     }
 
@@ -404,7 +453,8 @@ export default class TickerManager extends BaseManager {
       }
     }
 
-    this.nextTimerId = Math.max(this.nextTimerId, ...states.map((timer) => timer.id + 1), 1);
+    this.nextTimerId = context.nextTimerId
+      ?? Math.max(...states.map((timer) => timer.id + 1), 1);
   }
 
   private rebuildTimer(snapshot: TimerState, context: RestoreContext): boolean {
@@ -441,6 +491,7 @@ export default class TickerManager extends BaseManager {
     PhaserEventBus.off(PhaserEvents.RoomGameStart, this.handleRoomGameStart, this);
     this.timers.clear();
     this.nextTimerId = 1;
+    this.nextLocalTimerId = -1;
     this.currentFrame = 0;
     this.startTime = 0;
   }

@@ -154,10 +154,32 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
   public stepMove(_alpha: number): void { }
 
   public destroy(): void {
+    this.beginDestroy(false);
+  }
+
+  /**
+   * 回滚对账专用销毁：只移除视图/刚体/计时器，不触发 Model 死亡、
+   * 掉落、击杀统计、波次推进等业务副作用。
+   */
+  public destroySilently(): void {
+    this.beginDestroy(true);
+  }
+
+  /** 子类可覆写，仅清理视图层资源；不得调用 Model 业务死亡逻辑。 */
+  protected onSilentDestroy(): void { }
+
+  private beginDestroy(silent: boolean): void {
     if (this.isDestroyQueued || this.isDestroyed) return;
     this.isDestroyQueued = true;
-    // 死亡效果由 Model 定义，Entity 只负责调度。
-    this.model?.onModelDestroy?.(this);
+    if (silent) {
+      this.onSilentDestroy();
+      // 回滚对账期间旧实体必须立即退出 timer 调度，不能等到下一个
+      // DeferredManager.flush 才停止，否则重建实体与新实体会同时 tick。
+      this.model?.disposeTickManager();
+    } else {
+      // 死亡效果由 Model 定义，Entity 只负责调度。
+      this.model?.onModelDestroy?.(this);
+    }
     DeferredManager.Instance.defer(() => {
       if (this.isDestroyed) return;
       if (this.rigidBody) {
@@ -202,6 +224,9 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
     const obj = this as unknown as Record<string, unknown>;
     const rigidBody = this.rigidBody;
     const translation = rigidBody?.translation?.();
+    const linvel = rigidBody?.linvel?.();
+    const angvel = rigidBody?.angvel?.();
+    const rotation = rigidBody?.rotation?.();
 
     return {
       kind: "entity",
@@ -217,12 +242,19 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
         ...captureRelations(this, this.getRelationFields()),
         ...capturePrngs(this, this.getPrngFields()),
         ...this.captureLogicState(),
+        // 每个实体计时器的 nextTimerId 必须随实体快照保存；它决定回滚后
+        // 新建 timer 的 id，不能借用全局 ticker 的 id。
+        nextTimerId: this.model?.tickmanager?.getNextTimerId() ?? 1,
         model: this.model ? snapshotModel(this.model) : {},
       },
       timers: this.model?.captureTimers() ?? [],
       extra: {
         rigidBodyHandle: rigidBody ? rigidBody.handle : null,
         hasRigidBody: Boolean(rigidBody),
+        linvelX: linvel?.x ?? 0,
+        linvelY: linvel?.y ?? 0,
+        angvel: angvel ?? 0,
+        rotation: rotation ?? 0,
         ...this.captureExtraState(),
       },
     };
@@ -233,13 +265,31 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
     restorePrngs(this, state.flags, this.getPrngFields(), context);
     this.restoreLogicState(state.flags, context);
     this.model?.restoreTimers(state.timers ?? [], context);
+    const nextTimerId = state.flags.nextTimerId;
+    if (this.model && typeof nextTimerId === "number" && Number.isFinite(nextTimerId)) {
+      this.model.tickmanager.setNextTimerId(Math.max(1, Math.trunc(nextTimerId)));
+    }
 
     const modelState = state.flags.model;
     if (this.model && modelState && typeof modelState === "object" && !Array.isArray(modelState)) {
       restoreModel(this.model, modelState as Record<string, JsonValue>);
     }
     this.applySnapshotPosition(state.x, state.y);
+    this.restoreRigidBodyMotion(state.extra);
     this.syncViewFromModel();
+  }
+
+  private restoreRigidBodyMotion(extra: Record<string, JsonValue>): void {
+    if (!this.rigidBody) return;
+    const linvelX = Number(extra.linvelX ?? 0);
+    const linvelY = Number(extra.linvelY ?? 0);
+    const angvel = Number(extra.angvel ?? 0);
+    const rotation = Number(extra.rotation ?? 0);
+    if (Number.isFinite(linvelX) && Number.isFinite(linvelY)) {
+      this.rigidBody.setLinvel({ x: linvelX, y: linvelY }, true);
+    }
+    if (Number.isFinite(angvel)) this.rigidBody.setAngvel(angvel, true);
+    if (Number.isFinite(rotation)) this.rigidBody.setRotation(rotation, true);
   }
 
   protected applySnapshotPosition(x: number, y: number): void {

@@ -101,23 +101,49 @@ export default class QueueSend {
     }
   }
 
+  /**
+   * checkpoint 的正文必须是可直接恢复的 inline 快照。
+   * 只上报 hash 会让服务端把 LastCheckpointFrame 推进到一个客户端无法恢复的帧，
+   * 重连时就会从“没有正文的 checkpoint+1”开始补帧，必然错位。
+   */
+  private static inlineSnapshotJson(payload: unknown): string {
+    if (!payload || typeof payload !== "object") return "";
+    const record = payload as Record<string, unknown>;
+    const body = record.payload;
+    const hasValues = "values" in record
+      || (body !== null
+        && typeof body === "object"
+        && "values" in (body as Record<string, unknown>));
+    if (!hasValues) return "";
+    try {
+      return JSON.stringify(payload);
+    } catch {
+      return "";
+    }
+  }
+
   /** 上报低频 checkpoint；服务端只在双端摘要一致时采纳。 */
   public sendCheckpoint(frameId: number, hash: string, payload: unknown): void {
     if (frameId <= 0 || !hash) return;
-    const inlineSnapshotJson = payload && typeof payload === "object" && "values" in payload
-      ? JSON.stringify(payload)
-      : "";
+    const inlineSnapshotJson = QueueSend.inlineSnapshotJson(payload);
     desyncDiagnostics.record("sync", "sendCheckpoint", {
       frameId,
       hash,
       hasInlineSnapshot: Boolean(inlineSnapshotJson),
       inlineSnapshotBytes: inlineSnapshotJson.length,
     });
+    if (!inlineSnapshotJson) {
+      // 没有正文的 checkpoint 不能作为恢复锚点；宁可不上报，让服务端继续
+      // 保留完整历史帧，也不能把 LastCheckpointFrame 推进到无法恢复的位置。
+      return;
+    }
     const request: RequestBlank = {
-      frameId: BackendWS.GetFrameID(),
+      // 进度帧与快照帧必须是同一个逻辑帧。若这里写当前帧，服务端会把
+      // 旧快照挂到新帧上，恢复后实体计时器整体错位。
+      frameId,
       ackFrameId: BackendWS.AckFrameID,
       stateHash: 0,
-      hashFrameId: 0,
+      hashFrameId: frameId,
       stateHashHex: hash,
       inlineSnapshotJson,
       stateHashVersion: SIMULATION_STATE_VERSION,

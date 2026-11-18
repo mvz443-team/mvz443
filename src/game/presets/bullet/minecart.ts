@@ -12,6 +12,7 @@ import { Faction } from "../../models/Enum";
 import { CollisionContext } from "../../types";
 import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
 import { LogicModel } from "../../core/logic/LogicModel";
+import { registerProjectileModel } from "../../utils/cmd/ProjectileModelRegistry";
 
 export interface MineCartStandConfig {
   onLost?: (row: number) => void;
@@ -20,6 +21,7 @@ export interface MineCartStandConfig {
 export type MineCartConfig = BulletConfig;
 
 export class MineCartModel extends BulletModel<MineCartConfig, MineCartEntity> {
+  public static override readonly projectileKind: string = "minecart";
   texture = 'bullet/minecart';
   public speed = legacyRapierVelocityToUnitsPerSecond(600);
   public penetratePower = 999; // 无限穿透
@@ -147,3 +149,5 @@ export class MineCartEntity extends BulletEntity {
     }
   }
 }
+
+registerProjectileModel(MineCartModel.projectileKind, MineCartModel);

@@ -9,10 +9,16 @@
 
 /**
  * 快照 / 哈希口径版本。
- * v2：cardpile 等本机专属状态移入 localValues，不再参与跨端哈希。
+ * v7：投射物使用确定性 `projectile:<seq>` 身份，运行时 faction/debuff/穿透关系
+ *     进入快照；只恢复真正影响后续模拟的字段。
+ * v6：全局 ticker 记录可重建的语义 kind/args（出怪、波次、自动产能、矿车），
+ *     保证断线 checkpoint 恢复后逻辑定时器不会丢失。
+ * v5：实体快照记录 nextTimerId、障碍稳定 key；表现 timer 使用独立 id 命名空间。
+ * v4：在 v3 基础上继续剔除 TimerTriggered 的本机回调注册表句柄。
+ * v3：跨端哈希只投影确定性逻辑状态，剔除表现消费游标、物理句柄与视觉事件队列。
  * 该值会随心跳上报，服务端用它拒绝新旧客户端混用。
  */
-export const SIMULATION_STATE_VERSION = 2;
+export const SIMULATION_STATE_VERSION = 7;
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -236,15 +242,71 @@ export interface StateHash {
   h64: string;
 }
 
+/**
+ * 跨端哈希只关心会改变后续模拟结果的状态。
+ *
+ * 快照仍然保留这些字段用于本机回滚/重连，但它们不能进入跨端比较：
+ * - `extra`：物理句柄、是否已建刚体、渲染事件消费游标；
+ * - `flags.lastConsumedEventId`：BaseEntity 的纯渲染去重游标；
+ * - `logic.events`：音效/飘字/粒子等一次性表现事件队列；
+ * - `ticker.frameInterval`：固定常量，不携带战局差异。
+ * - `TimerTriggered` 的 `args`：本机回调注册表句柄（callback:N），不是逻辑参数。
+ */
+function hashableValues(values: Record<string, JsonValue>): Record<string, JsonValue> {
+  const projected: Record<string, JsonValue> = {};
+  for (const key of sortedKeys(values)) {
+    if (key === "logic.events" || key === "ticker.frameInterval") continue;
+    projected[key] = values[key];
+  }
+  return projected;
+}
+
+function hashableTimer(timer: TimerState): TimerState {
+  // TimerTriggered 的 args 只是本机回调注册表句柄（callback:N），不是逻辑参数。
+  // 注册顺序或重连次数不同会让两端句柄编号不同，但模拟语义完全一致。
+  if (timer.kind === "TimerTriggered") {
+    const { args: _localCallbackHandle, ...rest } = timer;
+    return rest;
+  }
+  return timer;
+}
+
+function hashableEntity(entity: EntityLogicState): EntityLogicState {
+  const flags: Record<string, JsonValue> = {};
+  for (const key of sortedKeys(entity.flags)) {
+    if (key === "lastConsumedEventId") continue;
+    flags[key] = entity.flags[key];
+  }
+  return {
+    kind: entity.kind,
+    id: entity.id,
+    col: entity.col,
+    row: entity.row,
+    x: entity.x,
+    y: entity.y,
+    hp: entity.hp,
+    maxHp: entity.maxHp,
+    speed: entity.speed,
+    flags,
+    timers: entity.timers.map(hashableTimer),
+    // extra 是恢复所需的物理/表现元数据，不属于逻辑状态。
+    extra: {},
+  };
+}
+
 export function hashSimulationState(state: SimulationState): StateHash {
   const writer = new HashWriter();
   writer.u32(SIMULATION_STATE_VERSION);
   writer.f64(state.seed);
   writer.f64(state.frameId);
-  writer.value(state.values);
-  writer.value(state.timers);
+  writer.value(hashableValues(state.values));
+  const timers: Record<string, TimerState[]> = {};
+  for (const key of sortedKeys(state.timers)) {
+    timers[key] = state.timers[key].map(hashableTimer);
+  }
+  writer.value(timers);
   writer.value(state.prngs);
-  writer.value(state.entities);
+  writer.value(state.entities.map(hashableEntity));
   writer.value(state.physics);
   const bytes = writer.toBytes();
   return { h32: fnv1a32(bytes), h64: fnv1a64(bytes) };

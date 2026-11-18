@@ -34,8 +34,21 @@
 - `getState()`：`stage / roomId / myId / lordId / peers / reconnecting / reconnectAttempt / online / roomSession / frameId`
 - `openRoom({ roomName | roomId, chapterId, stageId, username })`：走与房间列表 UI 相同的 lobby 入口建房/加入
 - `sendReady / sendLoaded / chooseStage / sendEndGame / sendReturnToLobby`：按房间生命周期推进
+- `confirmLoadout(plants, stageId, chapterId)`：等价真实 UI 的“确认/准备”按钮——同时设置 `GameParams`（Phaser 挂载前提）并发送带 loadout 的 ready；联机战局 E2E 必须用这个而不是单独 `sendReady`
+- `getSimulationHash()`：最近一次确定性状态采样 `{ frameId, hash }`（每 20 帧一次）
+- `plantAt(pid, level, col, row)`：走真实“选卡 → onAttemptPlant → QueueSend”路径，不预测、不直接改 Model
 - `dropSocketForTest()`：只断底层 WebSocket，保留重连策略与业务状态
 - `configureReconnect / forceGiveUpForTest`：验证重连 UI 链路
 - `showResultForTest()`：E2E 跳过 Phaser 战斗场景时直接打开结算视图
 
 前端网络层的退避/放弃策略与消息分流由 `npm run test:core` 中的 `reconnect_controller.test.mjs` 与 `message_router.test.mjs` 覆盖。
+
+## 双无痕窗口联机确定性用例
+
+`dual-window-desync.spec.mjs` 用两个隔离的浏览器上下文（等价两个无痕窗口）真实建房、加入、选图、准备、加载并进入联机战局：
+
+- 验证权威帧在两端同步推进；
+- 两端每 20 帧比对一次确定性状态哈希（h64），要求同一帧完全一致；
+- 两端各执行真实权威种植操作后，后续采样哈希仍一致。
+
+该用例覆盖 sim 测无法覆盖的浏览器侧问题（渲染帧写回物理、rAF 节流、Phaser/WS 事件串位、checkpoint 重连冻结、结束结果矛盾等）。运行方式：先 `npm run dev-nolog`，再 `npx playwright test tests/e2e/dual-window-desync.spec.mjs`。

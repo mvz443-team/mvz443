@@ -33,6 +33,14 @@ export default class TileItemManager extends BaseManager {
 
   public Load(): void {
     this.offNewWave = MobManager.Instance.EventBus.on("onNewWave", this.handleNewWave);
+    // 断线 checkpoint rebuild 时重建尚未到点的矿车生成 timer。
+    TickerManager.Instance.registerTimerFactory("tile.minecart", (args) => {
+      const row = args && typeof args === "object" && !Array.isArray(args)
+        ? Number((args as Record<string, unknown>).row)
+        : NaN;
+      if (!Number.isFinite(row)) return null;
+      return { callback: () => this.spawnMinecartEntity(row) };
+    });
   }
 
   public Reset(): void {
@@ -108,21 +116,22 @@ export default class TileItemManager extends BaseManager {
       return;
     }
 
-    const scene = this.scene;
-    const position = PositionManager.Instance.getGridCenter(TileItemManager.MINECART_COL, row);
     this.slotsByRow.set(row, { kind: "minecart", row });
 
     TickerManager.Instance.delayedCall({
       delay,
-      callback: () => {
-        if (!this.scene || this.slotsByRow.get(row)?.kind !== "minecart") {
-          return;
-        }
+      snapshot: { kind: "tile.minecart", args: { row } },
+      callback: () => this.spawnMinecartEntity(row),
+    });
+  }
 
-        new MineCartStandEntity(scene, position.x, row, {
-          onLost: (lostRow) => this.recordMinecartLost(lostRow),
-        });
-      },
+  private spawnMinecartEntity(row: number): void {
+    if (!this.scene || this.slotsByRow.get(row)?.kind !== "minecart") {
+      return;
+    }
+    const position = PositionManager.Instance.getGridCenter(TileItemManager.MINECART_COL, row);
+    new MineCartStandEntity(this.scene, position.x, row, {
+      onLost: (lostRow) => this.recordMinecartLost(lostRow),
     });
   }
 }

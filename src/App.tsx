@@ -18,6 +18,9 @@ import { useSaveManager } from './context/save_ctx';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import SettingsPage from './pages/settings';
 import { publicUrl } from './utils/browser';
+import { PhaserEventBus, PhaserEvents } from './game/EventBus';
+import CursorManager from './game/managers/combat/CursorManager';
+import CardpileManager from './game/managers/combat/CardpileManager';
 import { initializeGameLibraries } from './game/managers/library/initializeGameLibraries';
 import {
   GAME_ASPECT_RATIO,
@@ -368,7 +371,15 @@ function App() {
     isUnlockAllCardsEnabled();
     // 测试钩子：netDebug=1 时暴露网络状态与测试配置接口，供 Playwright E2E 使用
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('netDebug') === '1') {
+      // 记录最近一次确定性状态采样，供双窗口联机 E2E 比对两端模拟是否分叉。
+      // 只在 netDebug=1 时订阅，生产环境零开销。
+      let lastHash: { frameId: number; hash: string } | null = null;
+      const onHashSampled = (sample: { frameId: number; hash: string }) => {
+        lastHash = { frameId: sample.frameId, hash: sample.hash };
+      };
+      PhaserEventBus.on(PhaserEvents.SimulationHashSampled, onHashSampled);
       (window as any).MVZ_NET = {
+        getSimulationHash: () => lastHash,
         getState: () => ({
           reconnecting: BackendWS.isReconnecting(),
           reconnectAttempt: BackendWS.getReconnectAttempt(),
@@ -403,6 +414,39 @@ function App() {
         chooseStage: (chapterId: number, stageId: number) => SendChooseMap(chapterId, stageId),
         sendEndGame: (isWin: boolean) => SendEndGame(isWin),
         sendReturnToLobby: () => SendReturnToLobby(),
+        // 走与真实“确认/准备”按钮完全相同的选卡确认路径：设置 GameParams +
+        // 发送带 loadout 的 ready。仅 sendReady 无法挂载 Phaser，权威帧永远不被消费。
+        confirmLoadout: (plants: Array<{ pid: number; level: number }>, stageId: number, chapterId: number) => {
+          const params: GameParams = {
+            level: stageId,
+            plants,
+            gold: 0,
+            gameExit: (result: StageResult) => gameExit(result),
+            gameSettings: {
+              isBluePrint: false,
+              isDebug: false,
+              isBgm: false,
+              isSoundAudio: false,
+              showCardLevelInGame: false,
+            },
+          };
+          setGameParams(params);
+          const loadout = {
+            cards: plants,
+            level: stageId,
+            initialEnergy: 0,
+            initialStarShards: 0,
+            globalModifiers: [],
+          };
+          SendReady(true, loadout);
+          return true;
+        },
+        // 走与真实鼠标点击完全相同的种植路径（选卡 → onAttemptPlant → QueueSend），
+        // 供双窗口联机 E2E 驱动权威操作。
+        plantAt: (pid: number, level: number, col: number, row: number) => {
+          CardpileManager.Instance.ClickCard(pid, level);
+          CursorManager.Instance.EventBus.emit('onAttemptPlant', col, row);
+        },
         showResultForTest: () => gameExit({
           isWin: true,
           chapterId: 1,
@@ -411,6 +455,9 @@ function App() {
           rewards: [],
           progress: 100,
         }),
+      };
+      return () => {
+        PhaserEventBus.off(PhaserEvents.SimulationHashSampled, onHashSampled);
       };
     }
   }, [saveManager]);

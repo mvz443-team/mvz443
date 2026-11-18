@@ -65,6 +65,25 @@ export async function waitForStage(page, stage, timeoutMs = 20000) {
     .toBe(stage);
 }
 
+/** 读取最近一次确定性状态采样（hash+frameId），由 MVZ_NET.getSimulationHash 暴露。 */
+export async function simHash(page) {
+  return page.evaluate(() => window.MVZ_NET?.getSimulationHash?.() ?? null);
+}
+
+/** 等待两端在“同一权威帧”都采样到哈希，返回该采样，用于跨端一致性断言。 */
+export async function waitForMatchingHashFrame(pageA, pageB, timeoutMs = 30000, minFrameId = 0) {
+  let matched = null;
+  await expect.poll(async () => {
+    const [a, b] = await Promise.all([simHash(pageA), simHash(pageB)]);
+    if (a && b && a.frameId === b.frameId && a.frameId > minFrameId) {
+      matched = { frameId: a.frameId, a: a.hash, b: b.hash };
+      return true;
+    }
+    return false;
+  }, { timeout: timeoutMs, intervals: [100, 200, 500] }).toBe(true);
+  return matched;
+}
+
 /** 通过调试钩子建房/加入房间，并等待进入等待房间阶段。 */
 export async function openRoom(page, options = {}, timeoutMs = 20000) {
   const started = await page.evaluate((opts) => window.MVZ_NET.openRoom(opts), options);

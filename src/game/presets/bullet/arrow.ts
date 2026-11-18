@@ -9,12 +9,14 @@ import { CombatEntity } from "../../models/core/CombatEntity";
 import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
 import SoundCmd from "../../utils/cmd/SoundCmd";
 import type { ModelHost } from "../../core/logic/LogicModel";
+import { registerProjectileModel } from "../../utils/cmd/ProjectileModelRegistry";
 
 export interface ArrowConfig extends BulletConfig {
   enhancement?: _TypeArrowEnhancement;
 }
 
 export class ArrowModel extends BulletModel<ArrowConfig, ArrowEntity> {
+  public static override readonly projectileKind: string = "arrow";
   texture = 'bullet/arrow';
 
   /** 附魔直接定义在 Model 上，自动进入快照。 */
@@ -248,6 +250,7 @@ export interface MutantYAxisArrowConfig extends ArrowConfig {
 }
 
 export class MutantYAxisArrowModel extends ArrowModel {
+  public static override readonly projectileKind: string = "mutant_y_axis_arrow";
   public override texture = 'bullet/arrow';
 
   /** Y 轴拦截弹道状态直接定义在 Model。 */
@@ -302,3 +305,6 @@ export class MutantYAxisArrowEntity extends ArrowEntity {
     super.stepUpdate();
   }
 }
+
+registerProjectileModel(ArrowModel.projectileKind, ArrowModel);
+registerProjectileModel(MutantYAxisArrowModel.projectileKind, MutantYAxisArrowModel);

@@ -1,5 +1,12 @@
 import { BaseManager } from "./BaseManager";
 import { Game } from "../scenes/Game";
+import { getAuthoritativeFrame, withTickFrame } from "../core/logic/EntityTickManager";
+
+type DeferredCommand = {
+  /** 注册该命令时的权威逻辑帧；创建出的实体 timer 以此帧为起点。 */
+  frame: number;
+  command: () => void;
+};
 
 /**
  * 延迟管理器
@@ -10,7 +17,7 @@ export class DeferredManager extends BaseManager {
   private static _instance: DeferredManager;
 
   // 存储所有需要延迟到帧末执行的回调函数
-  private commands: Array<() => void> = [];
+  private commands: DeferredCommand[] = [];
 
   /**
    * 获取单例实例
@@ -28,7 +35,10 @@ export class DeferredManager extends BaseManager {
    * @param command 回调函数
    */
   public defer(command: () => void): void {
-    this.commands.push(command);
+    this.commands.push({
+      frame: getAuthoritativeFrame(),
+      command,
+    });
   }
 
   /**
@@ -45,7 +55,9 @@ export class DeferredManager extends BaseManager {
 
     for (const task of tasks) {
       try {
-        task();
+        // 以注册命令时的逻辑帧执行：即使 flush 被推迟到下一帧，
+        // 新实体的计时器仍锚定在触发创建的权威帧上。
+        withTickFrame(task.frame, task.command);
       } catch (error) {
         console.error("[DeferredManager] Error executing deferred command:", error);
       }

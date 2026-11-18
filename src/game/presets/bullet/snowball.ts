@@ -5,8 +5,10 @@ import SoundCmd from "../../utils/cmd/SoundCmd";
 import ProjectileDamage from "../../../constants/damage";
 import { legacyRapierVelocityToUnitsPerSecond } from "../../../constants/physics";
 import type { ModelHost } from "../../core/logic/LogicModel";
+import { registerProjectileModel } from "../../utils/cmd/ProjectileModelRegistry";
 
 export class SnowBallModel extends BulletModel<BulletConfig, SnowBallEntity> {
+  public static override readonly projectileKind: string = "snowball";
   texture = 'bullet/snowball';
 
   public override speed: number = legacyRapierVelocityToUnitsPerSecond(700);
@@ -25,6 +27,7 @@ export class SnowBallEntity extends BulletEntity {
 
 /** 炸弹雪球的爆炸逻辑完全属于 Model；Entity 不持有任何战斗逻辑。 */
 export class BombSnowBallModel extends BulletModel<BulletConfig, BombSnowBallEntity> {
+  public static override readonly projectileKind: string = "bomb_snowball";
   texture = 'bullet/snowball';
 
   /** 爆炸伤害直接定义在 Model 上，自动进入快照。 */
@@ -50,3 +53,6 @@ export class BombSnowBallModel extends BulletModel<BulletConfig, BombSnowBallEnt
 export const BombSnowBallData = new BombSnowBallModel();
 
 export class BombSnowBallEntity extends SnowBallEntity { }
+
+registerProjectileModel(SnowBallModel.projectileKind, SnowBallModel);
+registerProjectileModel(BombSnowBallModel.projectileKind, BombSnowBallModel);

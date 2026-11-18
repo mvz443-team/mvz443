@@ -43,6 +43,7 @@ export abstract class MonsterEntity extends CombatEntity {
   /** 快照中记录 mid，供断线恢复时重建实体。 */
   protected override captureLogicState(): Record<string, import("../../../game/core/SimulationState").JsonValue> {
     return {
+      ...super.captureLogicState(),
       mid: this.model.mid,
       waveID: Number((this.model as unknown as Record<string, unknown>).waveID ?? -1),
       spawnSeq: Number(this.ExtraData?.spawnSeq ?? 0),
@@ -370,6 +371,32 @@ export abstract class MonsterEntity extends CombatEntity {
     this.animController.destroy();
     this.attachSprites.forEach((sprite) => sprite.destroy());
     super.destroy();
+  }
+
+  /** 回滚对账：只清理表现与刚体，不触发死亡、击杀统计和 destroy listeners。 */
+  protected override onSilentDestroy(): void {
+    this.stopStarShardsOrbitEffect();
+    this.animController.destroy();
+    this.attachSprites.forEach((sprite) => sprite.destroy());
+    this.destroyListeners.length = 0;
+  }
+
+  /** 快照中的 x/y 是刚体中心；逻辑坐标使用 zombie bottom-center。 */
+  protected override applySnapshotPosition(x: number, y: number): void {
+    const bottom = PositionManager.Instance.getZombieBottomCenterByBody(x, y);
+    const dx = bottom.x - this.x;
+    const dy = bottom.y - this.y;
+    this.x = bottom.x;
+    this.y = bottom.y;
+    if (dx !== 0 || dy !== 0) {
+      this.viewGroup.getChildren().forEach((child: any) => {
+        if (child.x !== undefined) {
+          child.x += dx;
+          child.y += dy;
+        }
+      });
+    }
+    if (this.rigidBody) this.rigidBody.setTranslation({ x, y }, true);
   }
 }
 

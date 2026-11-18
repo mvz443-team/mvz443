@@ -15,6 +15,7 @@ import { WebSocketTransport } from "./transport";
 import { ReconnectController } from "./reconnect_controller";
 import { routeIncoming, ResponseKind } from "./message_router";
 import { desyncDiagnostics } from "../debug/desyncDiagnostics";
+import type { InlineSnapshot } from "../../game/core/snapshot/InlineSnapshot";
 
 class WebSocketClient {
   private transport = new WebSocketTransport();
@@ -33,6 +34,21 @@ class WebSocketClient {
   private pendingSendTimers: Set<number> = new Set();
   private pendingReceiveTimers: Set<number> = new Set();
   private pendingInGameResponses: InGameResponse[] = [];
+  /**
+   * 重连快照可能在 Game 场景/CombatManager 尚未创建时到达（页面刷新后的
+   * Preload 阶段）。必须缓存到 SyncManager.setQueue 之后再派发，
+   * 否则快照恢复事件会被丢掉，客户端会从空世界重跑开局预设。
+   */
+  private pendingReplaySnapshot: { snapshot: InlineSnapshot; frameId: number } | null = null;
+  /**
+   * 战局状态源/Rapier 世界是否已经就绪。
+   *
+   * 页面刷新后 replay 快照可能在 Manager.Load() 阶段就到达，此时
+   * installRuntimeStateSources() 尚未执行，提前 restore 会得到空世界，
+   * 随后又从 checkpoint+1 开始补帧，必然立刻分叉。先缓存，等
+   * Game.prepareBattle 完成状态源/物理注册后再派发。
+   */
+  private replaySnapshotReady: boolean = true;
 
   // 重连状态：由 reconnect controller 管理，这里保留只读访问入口
   private reconnect: ReconnectController;
@@ -97,8 +113,13 @@ class WebSocketClient {
     this.sendQueue = sendQueue;
     desyncDiagnostics.record("net", "setQueue", {
       pendingInGameResponses: this.pendingInGameResponses.length,
+      pendingReplaySnapshot: this.pendingReplaySnapshot !== null,
     });
     this.trace("setQueue bound", { pendingInGameResponses: this.pendingInGameResponses.length });
+    // 必须先恢复快照，再把缓存帧灌进接收队列。
+    // restoreToFrame 会重建/裁剪接收队列；如果先灌帧，随后到达的
+    // 快照恢复会把刚刚排队的未来帧清掉，重连后便卡在缺失帧上。
+    this.flushPendingReplaySnapshot();
     this.flushPendingInGameResponses();
   }
 
@@ -109,6 +130,24 @@ class WebSocketClient {
   enqueuePendingInGameResponse(response: InGameResponse) {
     this.pendingInGameResponses.push(response);
     this.flushPendingInGameResponses();
+  }
+
+  enqueuePendingReplaySnapshot(data: { snapshot: InlineSnapshot; frameId: number }) {
+    this.pendingReplaySnapshot = data;
+    this.flushPendingReplaySnapshot();
+  }
+
+  /** 由 Game.prepareBattle 在状态源与物理世界注册完成后调用。 */
+  public setReplaySnapshotReady(ready: boolean): void {
+    this.replaySnapshotReady = ready;
+    if (ready) this.flushPendingReplaySnapshot();
+  }
+
+  private flushPendingReplaySnapshot() {
+    if (!this.receiveQueue || !this.pendingReplaySnapshot || !this.replaySnapshotReady) return;
+    const data = this.pendingReplaySnapshot;
+    this.pendingReplaySnapshot = null;
+    PhaserEventBus.emit(PhaserEvents.ReplaySnapshotReceived, data);
   }
 
   getDebugLatencyConfig() {
@@ -144,6 +183,7 @@ class WebSocketClient {
   public ResetGameData() {
     onlineStateManager.resetGameData();
     this.pendingInGameResponses = [];
+    this.pendingReplaySnapshot = null;
     if (this.receiveQueue) {
       this.receiveQueue.currentFrameId = 0;
       this.receiveQueue.lastAckFrameId = 0;
@@ -490,6 +530,7 @@ class WebSocketClient {
     this.receiveQueue = null;
     this.sendQueue = null;
     this.pendingInGameResponses = [];
+    this.pendingReplaySnapshot = null;
   }
 
   hasConnected() {

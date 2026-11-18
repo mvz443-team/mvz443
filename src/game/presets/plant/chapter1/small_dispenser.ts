@@ -10,10 +10,14 @@ import { PlantCmd } from "../../../utils/cmd/PlantCmd";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { SightLineEntity } from "../../../models/entities/SightLineEntity";
 import { SnowBallModel, BombSnowBallModel } from "../../bullet/snowball";
+import { registerProjectileModel } from "../../../utils/cmd/ProjectileModelRegistry";
 
 export class FireBallModel extends BombSnowBallModel {
+  public static override readonly projectileKind: string = "fireball";
   public override texture = 'bullet/fireball';
 }
+
+registerProjectileModel(FireBallModel.projectileKind, FireBallModel);
 
 export class SmallDispenserModel extends PlantModel {
   public override pid = 5;

@@ -11,6 +11,7 @@ import GridManager from "./GridManager";
 import ResourceManager, { PlayerIdentify } from "./ResourceManager";
 import SyncManager from "./SyncManager";
 import SoundCmd from "../../utils/cmd/SoundCmd";
+import CombatManager from "../CombatManager";
 
 type PlantsManagerEvent = {
   // 用户决定操作事件，之后要在send_queue监听
@@ -186,6 +187,10 @@ export default class PlantsManager extends BaseManager {
   PlantCard = (playerId: PlayerIdentify, pid: number, level: number, col: number, row: number) => {
     if (!this.scene) return;
     const isGiftPlant = playerId === 9961;
+    // 联机权威帧路径：服务端已确认该操作，不能再拿本地卡槽/能量/占位状态
+    // 二次拒绝，否则一端会静默跳过实体创建，另一端正常创建，下一帧立即分叉。
+    // 分叉离线单机模式没有服务端确认，仍保留完整本地校验。
+    const authoritative = !CombatManager.Instance.isDesyncOffline();
     // 种植
     const model = PlantLibrary.GetModel(pid);
     if (!model) {
@@ -194,12 +199,12 @@ export default class PlantsManager extends BaseManager {
     }
 
     // 如果playerId为我，cardpile是否有这张牌，以及是否正在冷却
-    if (!isGiftPlant && playerId === ResourceManager.Instance.mineId) {
+    if (!authoritative && !isGiftPlant && playerId === ResourceManager.Instance.mineId) {
       if (!CardpileManager.Instance.isCardActuallyReloaded(pid)) return;
     }
 
     const cost = model.cost.getValueAt(level);
-    if (!isGiftPlant && !ResourceManager.Instance.ActualEnergySufficient(cost, playerId)) {
+    if (!authoritative && !isGiftPlant && !ResourceManager.Instance.ActualEnergySufficient(cost, playerId)) {
       if (playerId === ResourceManager.Instance.mineId) {
         this.EventBus.emit('onEnergyInsufficient');
       }
@@ -212,10 +217,12 @@ export default class PlantsManager extends BaseManager {
     // 如果格子属性不存在，默认不允许种植
     if (!targetGridProperty) return false;
 
-    // 格子允许种植
-    if (!PlantHelper.CanPlantInGrid(existedPlants, pid, targetGridProperty)) return;
+    // 占位规则是本地输入校验；权威操作已经由发起端校验，不能再因另一端
+    // 暂时的实体集合差异而拒绝落地。
+    if (!authoritative && !PlantHelper.CanPlantInGrid(existedPlants, pid, targetGridProperty)) return;
 
     // 扣除资源，冷却等
+    ResourceManager.Instance.EnsurePlayerResources(playerId);
     if (!isGiftPlant) {
       ResourceManager.Instance.UpdateEnergy(-cost, playerId);
     }
@@ -250,7 +257,8 @@ export default class PlantsManager extends BaseManager {
 
   // 启动星之碎片效果
   private LaunchStarShards = (playerId: PlayerIdentify, pid: number, col: number, row: number): boolean => {
-    if (!ResourceManager.Instance.ActualStarShardsSufficient(1, playerId)) {
+    const authoritative = !CombatManager.Instance.isDesyncOffline();
+    if (!authoritative && !ResourceManager.Instance.ActualStarShardsSufficient(1, playerId)) {
       return false;
     }
 
@@ -262,6 +270,7 @@ export default class PlantsManager extends BaseManager {
         if (index >= 0) {
           const plantObj = list[index];
           // 扣除资源
+          ResourceManager.Instance.EnsurePlayerResources(playerId);
           ResourceManager.Instance.UpdateStarShards(-1, playerId);
           DeferredManager.Instance.defer(() => {
             plantObj.useStarShards();

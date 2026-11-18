@@ -19,7 +19,7 @@ export default function Card({ plantModel, level }: CardProps) {
   const [reloaded, setReloaded] = useState(false);
 
   const [isChosen, setIsChosen] = useState(false);
-  const [energy, setEnergy] = useState(0); // 从 ResourceManager 获取能量
+  const [energy, setEnergy] = useState(() => ResourceManager.Instance.getDisplayEnergy('mine'));
 
   const handleDeselect = useMemoizedFn((data: { pid: number | null }) => {
     if (data.pid !== pid) {
@@ -37,6 +37,8 @@ export default function Card({ plantModel, level }: CardProps) {
         setEnergy(newEnergy);
       }
     });
+    // 组件可能在开局能量事件之后才挂载，先同步一次当前权威值。
+    setEnergy(ResourceManager.Instance.getDisplayEnergy('mine'));
 
     // 监听冷却变化
     const offListen2 = CardpileManager.Instance.EventBus.on('onCooldownStatus', (status: Map<number, {

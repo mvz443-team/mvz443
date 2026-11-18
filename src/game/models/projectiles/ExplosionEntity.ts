@@ -6,6 +6,7 @@ import { ExplosionConfig, ExplosionModel } from "./ProjectileModels";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { SfxCmd } from "../../utils/cmd/SfxCmd";
 import { ExplosionSfx } from "../../sfx/explosion/ExplosionSfx";
+import { TickEventNameEnums } from "../../core/logic/TickEvents";
 
 export class ExplosionEntity extends ProjectileEntity<ExplosionModel> {
   public baseDepth: number;
@@ -55,11 +56,8 @@ export class ExplosionEntity extends ProjectileEntity<ExplosionModel> {
     // 在所有属性初始化后，调用视觉初始化
     this.initVisuals();
 
-    // 110ms 后自动销毁物理体 (只生效极短时间)
-    this.model.tickmanager.delayedCall({
-      delay: 110,
-      callback: () => this.destroy()
-    });
+    // 生命周期必须由可快照的纯数据 timer 驱动，不能用回调/渲染 Tween。
+    this.model.tickmanager.schedule(TickEventNameEnums.ProjectileExpire, 110);
   }
 
   buildView() {

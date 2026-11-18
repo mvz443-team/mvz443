@@ -202,11 +202,13 @@ export default class WSClientHandlers {
           frameCount: replay.frames.length,
           hasInlineSnapshot: Boolean(replay.inlineSnapshotJson),
         });
-        // 依赖倒置：把快照恢复交给战斗层处理（监听 ReplaySnapshotReceived）
+        // 依赖倒置：把快照恢复交给战斗层处理（监听 ReplaySnapshotReceived）。
+        // 页面刷新后 Preload/Game 场景可能尚未创建，这里交给 ws 缓存，
+        // 等 SyncManager.setQueue 后再派发，避免快照恢复事件被丢弃。
         if (replay.checkpointFrameId > 0 && replay.inlineSnapshotJson) {
           try {
             const snapshot = JSON.parse(replay.inlineSnapshotJson) as InlineSnapshot;
-            PhaserEventBus.emit(PhaserEvents.ReplaySnapshotReceived, {
+            this.ws.enqueuePendingReplaySnapshot({
               snapshot,
               frameId: replay.checkpointFrameId,
             });

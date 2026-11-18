@@ -9,13 +9,21 @@ import { BulletEntity } from "./BulletEntity";
 import { ExplosionEntity } from "./ExplosionEntity";
 import { LaserEntity } from "./LaserEntity";
 import { LogicModel, type ModelHost } from "../../core/logic/LogicModel";
+import { TickEventNameEnums } from "../../core/logic/TickEvents";
+import type { JsonValue } from "../../core/SimulationState";
+import { registerProjectileModel } from "../../utils/cmd/ProjectileModelRegistry";
 
 
 export abstract class ProjectileModel<TConfig, TEntity extends ProjectileEntity<any>> extends LogicModel {
+  /** 跨进程重建所需的稳定类型；派生类必须覆盖，不能依赖类名。 */
+  public static readonly projectileKind: string = "projectile";
+
   /** 发射物运行时状态全部定义在 Model，自动进入快照。 */
   public damage: number = 0;
   public currentDamage: number = 0;
   public speed: number = 0;
+  /** 投射物阵营会影响碰撞过滤与伤害，必须进入快照/哈希。 */
+  public faction: Faction = Faction.PLANT;
   public currentPenetrate: number = 1;
   public penetratePower: number = 1;
   public penetratedPunish: number = 0.5;
@@ -39,6 +47,19 @@ export abstract class ProjectileModel<TConfig, TEntity extends ProjectileEntity<
   public couldAttackFlying = false; // 是否能攻击飞行单位（默认为false，表示只能攻击地面单位）
   // 抽象工厂方法，由具体子类决定如何使用 Config 和 Scene 生成 Entity
   public abstract createEntity(scene: Game, x: number, row: number, config: TConfig): TEntity;
+
+  /** 投射物生命周期统一走纯数据 timer，重建后仍能按事件名销毁。 */
+  public override handleTickEvent(
+    eventName: TickEventNameEnums | string,
+    args: JsonValue = null,
+    timerId?: number,
+  ): void {
+    if (eventName === TickEventNameEnums.ProjectileExpire) {
+      this.host?.destroySelf();
+      return;
+    }
+    super.handleTickEvent(eventName, args, timerId);
+  }
 }
 
 export interface ProjectileConfig {
@@ -62,6 +83,7 @@ export interface BulletConfig extends ProjectileConfig {
 }
 
 export class BulletModel<TConfig extends BulletConfig = BulletConfig, TEntity extends BulletEntity = BulletEntity> extends ProjectileModel<TConfig, TEntity> {
+  public static override readonly projectileKind: string = "bullet";
   public texture: string;
   public override speed: number = legacyRapierVelocityToUnitsPerSecond(500);
   // 穿透能力
@@ -97,6 +119,7 @@ export interface ExplosionConfig extends ProjectileConfig {
 }
 
 export class ExplosionModel<TConfig extends ExplosionConfig = ExplosionConfig, TEntity extends ExplosionEntity = ExplosionEntity> extends ProjectileModel<TConfig, TEntity> {
+  public static override readonly projectileKind: string = "explosion";
   public disableAnime: boolean = false;
 
   couldAttackFlying = true;
@@ -117,6 +140,7 @@ export interface LaserConfig extends ProjectileConfig {
 }
 
 export class LaserModel<TConfig extends LaserConfig = LaserConfig, TEntity extends LaserEntity = LaserEntity> extends ProjectileModel<TConfig, TEntity> {
+  public static override readonly projectileKind: string = "laser";
   public duration: number = 400; // 激光持续时间
   public distance: number = 12; // 激光长度(格)
 
@@ -135,3 +159,6 @@ export class LaserModel<TConfig extends LaserConfig = LaserConfig, TEntity exten
     return new LaserEntity(scene, x, y0, x2, y0, this, row, config) as TEntity;
   }
 }
+
+registerProjectileModel(ExplosionModel.projectileKind, ExplosionModel);
+registerProjectileModel(LaserModel.projectileKind, LaserModel);
