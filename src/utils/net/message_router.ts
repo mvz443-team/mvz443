@@ -8,9 +8,9 @@ import type { OnlineStageProvider } from "./types";
 export type ResponseKind = "lobby" | "room" | "ingame";
 
 export interface MessageHandlers {
-  handleLobbyResponse: (data: Uint8Array) => void;
-  handleRoomResponse: (data: Uint8Array) => void;
-  handleInGameResponse: (data: Uint8Array) => void;
+  handleLobbyResponse: (data: Uint8Array | LobbyResponse) => void;
+  handleRoomResponse: (data: Uint8Array | RoomResponse) => void;
+  handleInGameResponse: (data: Uint8Array | InGameResponse) => void;
 }
 
 // protobuf 首字段 wire tag：InGameResponse.frame_id=1(varint) → 0x08
@@ -40,6 +40,8 @@ export function routeIncoming(
   handlers: MessageHandlers,
 ): ResponseKind {
   if (looksLikeInGameFrame(data)) {
+    // InGame 帧当前不在这里预解码：handleInGameResponse 还需兼容首帧 0 的 gameEnd，
+    // 且权威帧的高频路径只解码一次。
     handlers.handleInGameResponse(data);
     return "ingame";
   }
@@ -54,7 +56,8 @@ export function routeIncoming(
     try {
       const lobby = LobbyResponse.fromBinary(data);
       if (hasLobbyPayload(lobby)) {
-        handlers.handleLobbyResponse(data);
+        // 直接传已解码对象，避免 handler 再 fromBinary 一次。
+        handlers.handleLobbyResponse(lobby);
         return "lobby";
       }
     } catch {
@@ -67,7 +70,8 @@ export function routeIncoming(
   try {
     const room = RoomResponse.fromBinary(data);
     if (hasRoomPayload(room)) {
-      handlers.handleRoomResponse(data);
+      // 直接传已解码对象，避免 handler 再 fromBinary 一次。
+      handlers.handleRoomResponse(room);
       return "room";
     }
   } catch {

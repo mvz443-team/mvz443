@@ -24,8 +24,8 @@ export default class WSClientHandlers {
     this.ws = ws;
   }
 
-  public handleLobbyResponse(response: Uint8Array) {
-    const lobbyResponse = LobbyResponse.fromBinary(response);
+  public handleLobbyResponse(response: Uint8Array | LobbyResponse) {
+    const lobbyResponse = response instanceof Uint8Array ? LobbyResponse.fromBinary(response) : response;
 
     switch (lobbyResponse.payload.oneofKind) {
       case 'joinRoomFailed':
@@ -62,8 +62,8 @@ export default class WSClientHandlers {
     }
   }
 
-  public handleRoomResponse(response: Uint8Array) {
-    const roomResponse = RoomResponse.fromBinary(response);
+  public handleRoomResponse(response: Uint8Array | RoomResponse) {
+    const roomResponse = response instanceof Uint8Array ? RoomResponse.fromBinary(response) : response;
 
     switch (roomResponse.payload.oneofKind) {
       case 'roomInfo': {
@@ -296,14 +296,16 @@ export default class WSClientHandlers {
     }
   }
 
-  public handleInGameResponse(response: Uint8Array) {
-    const inGameResponse = InGameResponse.fromBinary(response);
+  public handleInGameResponse(response: Uint8Array | InGameResponse) {
+    const inGameResponse = response instanceof Uint8Array ? InGameResponse.fromBinary(response) : response;
     if (inGameResponse.frameId === 0 && inGameResponse.operations.length === 0) {
-      // 房间响应与权威帧共享二进制通道：首帧 0 时再试 RoomResponse
-      const roomResponse = RoomResponse.fromBinary(response);
-      if (roomResponse.payload.oneofKind === "gameEnd") {
-        this.handleRoomResponse(response);
-        return;
+      // 房间响应与权威帧共享二进制通道：只有拿到原始字节时才需要再试 RoomResponse。
+      if (response instanceof Uint8Array) {
+        const roomResponse = RoomResponse.fromBinary(response);
+        if (roomResponse.payload.oneofKind === "gameEnd") {
+          this.handleRoomResponse(roomResponse);
+          return;
+        }
       }
     }
     const receiveQueue = this.ws.getReceiveQueue();

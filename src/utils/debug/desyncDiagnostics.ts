@@ -24,11 +24,25 @@ type NetworkEntry = {
   iso: string;
   direction: "send" | "recv";
   size: number;
-  hex: string;
-  base64: string;
+  // 惰性编码：热路径只保存原始字节，导出日志时才转 hex/base64。
+  raw?: Uint8Array;
+  hex?: string;
+  base64?: string;
+  retired?: boolean;
   truncated: boolean;
   note?: string;
 };
+
+function materializeNetworkEntry(entry: NetworkEntry): NetworkEntry {
+  if (entry.hex !== undefined && entry.base64 !== undefined) return entry;
+  const bytes = entry.raw ?? new Uint8Array(0);
+  // 导出时若 Worker 尚未回填编码，使用同步兜底保证日志完整。
+  const slice = entry.truncated ? bytes.subarray(0, MAX_MESSAGE_BYTES) : bytes;
+  entry.hex = bytesToHex(bytes);
+  entry.base64 = bytesToBase64(slice);
+  entry.raw = undefined;
+  return entry;
+}
 
 type FrameEntry = {
   seq: number;
@@ -158,12 +172,53 @@ class DesyncDiagnostics {
   private installed = false;
   private downloadStarted = false;
   private stateProvider: (() => Record<string, unknown>) | null = null;
+  private encodeWorker: Worker | null = null;
+  private encodeWorkerNextId = 1;
+  private readonly encodeCallbacks = new Map<number, (result: { hex: string; base64: string }) => void>();
 
   constructor() {
     // 浏览器里尽早安装；Node 测试环境不劫持 console。
     if (typeof window !== "undefined" && typeof document !== "undefined") {
       this.install();
+      this.installEncodeWorker();
     }
+  }
+
+  /** 惰性创建编码 Worker；构造失败时所有调用自动回退到同步编码。 */
+  private installEncodeWorker(): void {
+    try {
+      const worker = new Worker(new URL("./networkEncode.worker.ts", import.meta.url), { type: "module" });
+      worker.onmessage = (event: MessageEvent<{ id: number; hex: string; base64: string }>) => {
+        const callback = this.encodeCallbacks.get(event.data.id);
+        if (!callback) return;
+        this.encodeCallbacks.delete(event.data.id);
+        callback({ hex: event.data.hex, base64: event.data.base64 });
+      };
+      worker.onerror = () => {
+        for (const callback of this.encodeCallbacks.values()) {
+          callback({ hex: "", base64: "" });
+        }
+        this.encodeCallbacks.clear();
+        this.encodeWorker?.terminate();
+        this.encodeWorker = null;
+      };
+      this.encodeWorker = worker;
+    } catch {
+      // Worker 不可用时保持同步降级，绝不影响联机主流程。
+      this.encodeWorker = null;
+    }
+  }
+
+  private encodeNetworkBytes(bytes: Uint8Array, callback: (result: { hex: string; base64: string }) => void): void {
+    if (!this.encodeWorker) {
+      const slice = bytes.subarray(0, Math.min(bytes.length, MAX_MESSAGE_BYTES));
+      callback({ hex: bytesToHex(bytes), base64: bytesToBase64(slice) });
+      return;
+    }
+    const id = this.encodeWorkerNextId++;
+    this.encodeCallbacks.set(id, callback);
+    const copy = new Uint8Array(bytes);
+    this.encodeWorker.postMessage({ id, bytes: copy.buffer, limit: MAX_MESSAGE_BYTES }, [copy.buffer]);
   }
 
   public install(): void {
@@ -234,21 +289,27 @@ class DesyncDiagnostics {
 
   public recordNetwork(direction: "send" | "recv", bytes: Uint8Array, note?: string): void {
     const truncated = bytes.length > MAX_MESSAGE_BYTES;
-    const slice = truncated ? bytes.subarray(0, MAX_MESSAGE_BYTES) : bytes;
-    const base64 = bytesToBase64(slice);
+    // 复制一次是为了避免底层 WebSocket buffer 被复用/回收；不在热路径做编码。
+    const raw = new Uint8Array(bytes);
     const entry: NetworkEntry = {
       seq: ++this.sequence,
       ts: Date.now(),
       iso: nowIso(),
       direction,
       size: bytes.length,
-      hex: bytesToHex(bytes),
-      base64,
+      raw,
       truncated,
       note,
     };
     this.networkEntries.push(entry);
-    this.networkBytes += base64.length;
+    this.networkBytes += Math.min(bytes.length, MAX_MESSAGE_BYTES);
+    this.encodeNetworkBytes(raw, (encoded) => {
+      // 条目可能已被环形淘汰；只有仍在缓冲中的条目才回填。
+      if (entry.retired) return;
+      entry.hex = encoded.hex;
+      entry.base64 = encoded.base64;
+      entry.raw = undefined;
+    });
 
     while (
       this.networkEntries.length > MAX_NETWORK_ENTRIES
@@ -256,7 +317,9 @@ class DesyncDiagnostics {
     ) {
       const removed = this.networkEntries.shift();
       if (!removed) break;
-      this.networkBytes -= removed.base64.length;
+      removed.retired = true;
+      removed.raw = undefined;
+      this.networkBytes -= Math.min(removed.size, MAX_MESSAGE_BYTES);
     }
   }
 
@@ -276,7 +339,7 @@ class DesyncDiagnostics {
     return {
       generatedAt: nowIso(),
       entries: [...this.entries],
-      network: [...this.networkEntries],
+      network: this.networkEntries.map(materializeNetworkEntry),
       frames: [...this.frameEntries],
     };
   }
@@ -313,7 +376,7 @@ class DesyncDiagnostics {
       meta,
       extra: extra === undefined ? null : safeValue(extra),
       entries: [...this.entries],
-      network: [...this.networkEntries],
+      network: this.networkEntries.map(materializeNetworkEntry),
       frames: [...this.frameEntries],
       counts: {
         entries: this.entries.length,

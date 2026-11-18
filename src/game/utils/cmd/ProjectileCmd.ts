@@ -92,15 +92,19 @@ export namespace ProjectileCmd {
     context: RestoreContext,
   ): void {
     const byId = new Map(snapshots.map((snapshot) => [String(snapshot.id), snapshot]));
+    // 一次遍历建立 id→entity 索引，避免对每个快照重复调用 getActiveProjectiles().find()
+    // 造成的 O(n²) 扫描与临时数组分配。
+    const activeById = new Map<string, ProjectileEntity<any>>();
     for (const entity of getActiveProjectiles()) {
+      activeById.set(entity.SnapshotId, entity);
       if (!byId.has(entity.SnapshotId)) {
         // 回滚删除是“从未存在过”，不能触发投射物命中/爆炸等业务死亡逻辑。
         entity.destroySilently();
-        activeProjectiles.delete(entity);
+        activeById.delete(entity.SnapshotId);
       }
     }
     for (const snapshot of snapshots) {
-      let target: ProjectileEntity<any> | null | undefined = getActiveProjectiles().find((entity) => entity.SnapshotId === String(snapshot.id));
+      let target: ProjectileEntity<any> | null | undefined = activeById.get(String(snapshot.id));
       if (!target) {
         const info = readRebuildInfo(snapshot) ?? rebuildInfo.get(String(snapshot.id)) ?? null;
         const factory = rebuildFactories.get(String(snapshot.id));
@@ -110,6 +114,7 @@ export namespace ProjectileCmd {
           continue;
         }
         activeProjectiles.add(target);
+        activeById.set(target.SnapshotId, target);
         context.report.restored.push(`projectile.rebuilt:${snapshot.id}`);
       }
       target.restoreSnapshot(snapshot, context);

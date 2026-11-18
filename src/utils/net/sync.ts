@@ -379,9 +379,9 @@ class WebSocketClient {
                 isRoomSession: () => this.isRoomSessionMode(),
               },
               {
-                handleLobbyResponse: (bytes) => { this.traceRoute('lobby', bytes); this.handlers.handleLobbyResponse(bytes); },
-                handleRoomResponse: (bytes) => { this.traceRoute('room', bytes); this.handlers.handleRoomResponse(bytes); },
-                handleInGameResponse: (bytes) => { this.traceRoute('ingame', bytes); this.handlers.handleInGameResponse(bytes); },
+                handleLobbyResponse: (msg) => { this.traceRoute('lobby', data); this.handlers.handleLobbyResponse(msg); },
+                handleRoomResponse: (msg) => { this.traceRoute('room', data); this.handlers.handleRoomResponse(msg); },
+                handleInGameResponse: (msg) => { this.traceRoute('ingame', data); this.handlers.handleInGameResponse(msg); },
               },
             );
             this.trace("routed", { kind, size: data.byteLength } as { kind: ResponseKind; size: number });

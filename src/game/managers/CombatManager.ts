@@ -19,6 +19,7 @@ import {
   SIMULATION_STATE_VERSION,
 } from "../core/SimulationState";
 import { resolveEntityBySnapshotId } from "../core/EntityLookup";
+import { SnapshotRingBuffer } from "../core/SnapshotRingBuffer";
 import { logicEvents } from "../core/logic/LogicEvents";
 import { setAuthoritativeFrame, updateAllTickManagers } from "../core/logic/EntityTickManager";
 import { buildInlineSnapshotOrHash } from "../core/snapshot/InlineSnapshot";
@@ -93,7 +94,9 @@ export default class CombatManager extends BaseManager {
   /** checkpoint 低频上报：10 帧采样用于检测，200 帧才构造 inline 快照。 */
   public static readonly CHECKPOINT_INTERVAL_FRAMES = 200;
   public static readonly SNAPSHOT_RING_SIZE = 20;
-  private snapshotRing: Array<{ frameId: number; state: SimulationState }> = [];
+  private snapshotRing = new SnapshotRingBuffer<{ frameId: number; state: SimulationState }>(
+    CombatManager.SNAPSHOT_RING_SIZE,
+  );
   private lastRestoreReport: ReturnType<typeof simulationState.restore> | null = null;
   private desyncOffline = false;
   private desyncReason = "";
@@ -197,7 +200,7 @@ export default class CombatManager extends BaseManager {
     this.isEndGameRequested = false;
     this.lastStateHash = null;
     this.lastStateHashFrame = 0;
-    this.snapshotRing = [];
+    this.snapshotRing.clear();
     this.pendingDeterminismCheck = null;
     this.lastRestoreReport = null;
     this.desyncOffline = false;
@@ -246,7 +249,7 @@ export default class CombatManager extends BaseManager {
     this.isGameEnd = false;
     this.isEndGameRequested = false;
     this.isPaused = false;
-    this.snapshotRing = [];
+    this.snapshotRing.clear();
     this.pendingDeterminismCheck = null;
     this.lastStateHash = null;
     this.lastStateHashFrame = 0;
@@ -281,7 +284,7 @@ export default class CombatManager extends BaseManager {
       this.restoreState(state, "rebuild");
       BackendWS.getReceiveQueue()?.restoreToFrame(frameId);
       // 旧环形快照可能来自恢复前已经分叉的分支，不能再用于后续回滚。
-      this.snapshotRing = [];
+      this.snapshotRing.clear();
       this.lastCheckpointFrame = 0;
       console.log(`[reconnect] 已恢复 checkpoint frame=${frameId}`);
     } catch (error) {
@@ -468,16 +471,13 @@ export default class CombatManager extends BaseManager {
   private recordSnapshotIfNeeded(): void {
     const frameId = SyncManager.Instance.recvQueue.currentFrameId;
     if (frameId <= 0 || frameId % CombatManager.SNAPSHOT_INTERVAL_FRAMES !== 0) return;
-    const latest = this.snapshotRing[this.snapshotRing.length - 1];
+    const latest = this.snapshotRing.last();
     if (latest?.frameId === frameId) return;
 
     // 快照必须落在干净的帧边界：先执行完延迟创建/销毁。
     DeferredManager.Instance.flush();
     const state = this.captureState();
     this.snapshotRing.push({ frameId, state });
-    if (this.snapshotRing.length > CombatManager.SNAPSHOT_RING_SIZE) {
-      this.snapshotRing.shift();
-    }
     desyncDiagnostics.record("combat", "snapshot recorded", {
       frameId,
       ringFrames: this.getSnapshotRingFrameIds(),
@@ -487,14 +487,15 @@ export default class CombatManager extends BaseManager {
   }
 
   public getSnapshotAtOrBefore(frameId: number): { frameId: number; state: SimulationState } | null {
-    for (let i = this.snapshotRing.length - 1; i >= 0; i--) {
-      if (this.snapshotRing[i].frameId <= frameId) return this.snapshotRing[i];
+    for (let i = this.snapshotRing.size - 1; i >= 0; i--) {
+      const entry = this.snapshotRing.get(i);
+      if (entry && entry.frameId <= frameId) return entry;
     }
     return null;
   }
 
   public getSnapshotRingFrameIds(): number[] {
-    return this.snapshotRing.map((entry) => entry.frameId);
+    return this.snapshotRing.toArray().map((entry) => entry.frameId);
   }
 
   /**
@@ -510,7 +511,7 @@ export default class CombatManager extends BaseManager {
   }
 
   public clearSnapshotRing(): void {
-    this.snapshotRing = [];
+    this.snapshotRing.clear();
   }
 
   /** 当前完整状态的 64 位摘要。 */
@@ -533,7 +534,7 @@ export default class CombatManager extends BaseManager {
     this.desyncReason = reason;
     this.isEndGameRequested = false;
     this.isPaused = false;
-    this.snapshotRing = [];
+    this.snapshotRing.clear();
     this.pendingDeterminismCheck = null;
   }
 
@@ -672,8 +673,6 @@ export default class CombatManager extends BaseManager {
         h32: hash.h32,
         h64: hash.h64,
         tickerFrame: TickerManager.Instance.currentFrame,
-        // 临时诊断：开局与首次操作窗口保留完整状态，便于逐字段 diff。
-        state: frameId <= 240 ? state : undefined,
       });
       PhaserEventBus.emit(PhaserEvents.SimulationHashSampled, {
         frameId,
@@ -713,8 +712,6 @@ export default class CombatManager extends BaseManager {
     if (!shouldCapture) return;
 
     try {
-      const state = this.captureState();
-      const hash = simulationState.hash(state);
       desyncDiagnostics.recordFrame({
         phase: "end",
         frameId,
@@ -722,12 +719,8 @@ export default class CombatManager extends BaseManager {
         tickerNextTimerId: TickerManager.Instance.getNextTimerId(),
         isPaused: this._isPaused,
         isGameEnd: this.isGameEnd,
-        h32: hash.h32,
-        h64: hash.h64,
-        entityCount: state.entities.length,
-        timerCount: state.timers.ticker?.length ?? 0,
-        // 临时诊断：扩大全量状态窗口，定位首次操作后的分叉字段。
-        state: frameId <= 240 ? state : undefined,
+        lastHashFrame: this.lastStateHashFrame,
+        lastHash: this.lastStateHash,
       });
     } catch (error) {
       desyncDiagnostics.record("combat", "captureDiagnosticFrame failed", {
