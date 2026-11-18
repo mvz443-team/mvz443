@@ -1,21 +1,21 @@
 {
-  "generatedAt": "2026-11-18T11:52:54.008Z",
+  "generatedAt": "2026-11-18T12:56:04.892Z",
   "results": {
     "单机-高负载": {
       "durationMs": 8000,
       "rafSamples": 473,
-      "fps": 59.00404171448531,
-      "frameTimeAvgMs": 16.94799154334038,
+      "fps": 59.11982701513617,
+      "frameTimeAvgMs": 16.91479915433404,
       "frameTimeP50Ms": 16.699999999999818,
       "frameTimeP95Ms": 16.799999999999727,
       "longTaskCount": 0,
       "longTaskTotalMs": 0,
-      "jsHeapUsedMB": 25.56119155883789,
-      "jsHeapGrowthMB": 8.95644760131836,
-      "taskDurationSec": 7.176768,
+      "jsHeapUsedMB": 25.448318481445312,
+      "jsHeapGrowthMB": 8.7962646484375,
+      "taskDurationSec": 7.578272,
       "layoutCount": 0,
       "recalcStyleCount": 0,
-      "phaserFps": 60.11100769042969,
+      "phaserFps": 59.88909912109375,
       "authoritativeFrame": 147,
       "stageAfter": 35,
       "inGameAfter": true,
@@ -32,52 +32,52 @@
         },
         "recvQueue.Consume": {
           "count": 148,
-          "totalMs": 2.999999985098839,
-          "maxMs": 0.19999999552965164
+          "totalMs": 4.000000022351742,
+          "maxMs": 0.20000000298023224
         },
         "sync.update": {
           "count": 148,
-          "totalMs": 3.3999999836087227,
-          "maxMs": 0.19999999552965164
+          "totalMs": 4.30000002682209,
+          "maxMs": 0.20000000298023224
         },
         "sampleStateHash": {
           "count": 148,
-          "totalMs": 0.3999999985098839,
+          "totalMs": 0.5,
           "maxMs": 0.10000000149011612
         },
         "captureDiagnosticFrame": {
           "count": 148,
-          "totalMs": 0.29999998956918716,
+          "totalMs": 0.5,
           "maxMs": 0.10000000149011612
         },
         "recordSnapshotIfNeeded": {
           "count": 148,
-          "totalMs": 23.5,
-          "maxMs": 4.199999995529652
+          "totalMs": 27.900000005960464,
+          "maxMs": 3.5
         }
       },
       "entityCounts": {
         "plants": 17,
         "zombies": 36,
-        "projectiles": 20
+        "projectiles": 33
       }
     },
     "联机-高负载(房主端)": {
       "durationMs": 8000,
-      "rafSamples": 288,
-      "fps": 35.85166374127049,
-      "frameTimeAvgMs": 27.892708333333335,
-      "frameTimeP50Ms": 33.29999999999973,
+      "rafSamples": 266,
+      "fps": 33.11340719531931,
+      "frameTimeAvgMs": 30.19924812030075,
+      "frameTimeP50Ms": 33.30000000000018,
       "frameTimeP95Ms": 33.400000000000546,
       "longTaskCount": 0,
       "longTaskTotalMs": 0,
-      "jsHeapUsedMB": 42.398101806640625,
-      "jsHeapGrowthMB": 16.851646423339844,
-      "taskDurationSec": 8.025483,
+      "jsHeapUsedMB": 34.517662048339844,
+      "jsHeapGrowthMB": 11.518013000488281,
+      "taskDurationSec": 7.980205000000001,
       "layoutCount": 0,
       "recalcStyleCount": 0,
-      "phaserFps": 38.6017951965332,
-      "authoritativeFrame": 153,
+      "phaserFps": 36.02104568481445,
+      "authoritativeFrame": 152,
       "stageAfter": 35,
       "inGameAfter": true,
       "desyncState": {
@@ -87,34 +87,34 @@
       },
       "sampler": {
         "stageResponseOperations": {
-          "count": 5169,
-          "totalMs": 0.7000000104308128,
+          "count": 4679,
+          "totalMs": 1.0000000149011612,
           "maxMs": 0.10000000149011612
         },
         "recvQueue.Consume": {
-          "count": 152,
-          "totalMs": 4.500000022351742,
+          "count": 151,
+          "totalMs": 7.100000016391277,
           "maxMs": 0.19999999552965164
         },
         "sync.update": {
-          "count": 152,
-          "totalMs": 5.1000000312924385,
-          "maxMs": 0.20000000298023224
+          "count": 151,
+          "totalMs": 9.100000016391277,
+          "maxMs": 1.4000000059604645
         },
         "sampleStateHash": {
-          "count": 152,
-          "totalMs": 86.30000001192093,
-          "maxMs": 16.200000002980232
+          "count": 151,
+          "totalMs": 99.59999998658895,
+          "maxMs": 21.600000001490116
         },
         "captureDiagnosticFrame": {
-          "count": 152,
-          "totalMs": 0.10000000149011612,
+          "count": 151,
+          "totalMs": 0.30000000447034836,
           "maxMs": 0.10000000149011612
         },
         "recordSnapshotIfNeeded": {
-          "count": 152,
-          "totalMs": 41.49999998509884,
-          "maxMs": 5.100000001490116
+          "count": 151,
+          "totalMs": 46.70000000298023,
+          "maxMs": 6
         }
       },
       "entityCounts": {
