@@ -22,9 +22,15 @@ const storeCookie = <T,>(key: string, value: T): void => {
   document.cookie = `${key}=${JSON.stringify(value)}; path=/; max-age=31536000`;
 };
 
+const clampFps = (value: number): number => {
+  if (!Number.isFinite(value)) return 60;
+  return Math.max(30, Math.min(120, Math.round(value)));
+};
+
 interface GameSettings {
   isFullScreen: boolean;
   width: number;
+  fps: number;
   language: Locale;
   isBluePrint: boolean;
   /** 旧“显示调试信息”：Rapier 物理体与当前帧号。 */
@@ -44,6 +50,7 @@ interface GameSettings {
   };
   toggleFullScreen: () => void;
   setWidth: (newWidth: number) => void;
+  setFps: (newFps: number) => void;
   toggleLanguage: (lang: Locale) => void;
   setIsBluePrint: (isBluePrint: boolean) => void;
   setBasicDebug: (basicDebug: boolean) => void;
@@ -72,6 +79,7 @@ export function SettingsProvider(props: Props) {
 
   const [isFullScreen, setIsFullScreen] = useState<boolean>(loadCookie('isFullScreen', false));
   const [width, setWidth] = useState<number>(loadCookie('width', 800));
+  const [fps, setFpsStatus] = useState<number>(clampFps(loadCookie('fps', 60)));
   const [language, setLanguage] = useState<Locale>(loadCookie('language', 'zh_CN'));
   const [isBluePrint, setIsBluePrintStatus] = useState<boolean>(loadCookie('isBluePrint', false));
   const [basicDebug, setBasicDebugStatus] = useState<boolean>(loadCookie('isDebug', false));
@@ -91,6 +99,12 @@ export function SettingsProvider(props: Props) {
       setIsBluePrintStatus(newVal);
       storeCookie('isBluePrint', newVal);
     }, 50)(value);
+  };
+
+  const setFps = (value: number) => {
+    const nextFps = clampFps(value);
+    setFpsStatus(nextFps);
+    storeCookie('fps', nextFps);
   };
 
   const setBasicDebug = (value: boolean) => {
@@ -209,6 +223,7 @@ export function SettingsProvider(props: Props) {
     return JSON.stringify({
       isFullScreen,
       width,
+      fps,
       language,
       isBluePrint,
       basicDebug,
@@ -220,12 +235,13 @@ export function SettingsProvider(props: Props) {
       bgmVolume,
       soundAudioVolume
     });
-  }, [isFullScreen, width, language, isBluePrint, basicDebug, netDebug, dbgCommands, unlockAll, showLevelIntroImages, showCardLevelInGame, bgmVolume, soundAudioVolume]);
+  }, [isFullScreen, width, fps, language, isBluePrint, basicDebug, netDebug, dbgCommands, unlockAll, showLevelIntroImages, showCardLevelInGame, bgmVolume, soundAudioVolume]);
 
   const importFromJson = (jsonString: string) => {
     const data = JSON.parse(jsonString);
     setIsFullScreen(data.isFullScreen);
     setWidth(data.width);
+    if (typeof data.fps === 'number') setFpsStatus(clampFps(data.fps));
     setLanguage(data.language);
     changeLocale(data.language);
     setIsBluePrintStatus(data.isBluePrint);
@@ -256,6 +272,7 @@ export function SettingsProvider(props: Props) {
     const storedLanguage = loadCookie<Locale>('language', 'zh_CN');
     setIsFullScreen(loadCookie('isFullScreen', false));
     setWidth(loadCookie('width', 800));
+    setFpsStatus(clampFps(loadCookie('fps', 60)));
     setLanguage(storedLanguage);
     changeLocale(storedLanguage);
     setIsBluePrintStatus(loadCookie('isBluePrint', false));
@@ -273,6 +290,7 @@ export function SettingsProvider(props: Props) {
   const settingsValue: GameSettings = {
     isFullScreen,
     width,
+    fps,
     language,
     isBluePrint,
     basicDebug,
@@ -288,6 +306,7 @@ export function SettingsProvider(props: Props) {
     linkOptions,
     toggleFullScreen,
     setWidth,
+    setFps,
     toggleLanguage,
     setIsBluePrint,
     setBasicDebug,

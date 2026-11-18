@@ -24,6 +24,7 @@ export interface GameParams {
 }
 
 export interface GameSettings {
+  fps?: number;
   isBluePrint: boolean;
   /** 旧 isDebug：Rapier 物理体与当前帧号显示。 */
   basicDebug: boolean;

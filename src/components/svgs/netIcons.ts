@@ -104,6 +104,18 @@ export function disconnectedIconPrimitives(options: DisconnectedIconOptions = {}
   ];
 }
 
+/** 正在等待权威帧：灰色 wifi 的三道波浪逐道点亮/熄灭。 */
+export function waitingIconPrimitives(phase: number): NetIconPrimitive[] {
+  const step = ((Math.floor(phase) % 3) + 3) % 3;
+  const activeColor = '#f5c542';
+  return [
+    wifiDot(activeColor, 1),
+    ...wifiArcs(NET_ICON_MUTED).map((arc, index): NetIconPrimitive => (
+      index === step ? { ...arc, color: activeColor } : arc
+    )),
+  ];
+}
+
 export interface DesyncIconOptions {
   branchColor?: string;
   conflictColor?: string;

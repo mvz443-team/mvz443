@@ -11,13 +11,15 @@ import BackendWS from '../../../utils/net/sync';
 import {
   createRoom,
   joinRoom,
+  leaveRoomRemotely,
   normalizeRoomKey,
   normalizeRoomName,
   ROOM_KEY_MAX_LENGTH,
   ROOM_NAME_MAX_LENGTH,
   RoomInfo,
 } from '../../../utils/net/lobby';
-import { SendKickPlayer, SendReady, SendUpdateRoom } from '../../../utils/net/room';
+import { SendChooseMap, SendKickPlayer, SendReady, SendUpdateRoom } from '../../../utils/net/room';
+import { PeerInfo, ROOM_CAPACITY } from '../../../types/online';
 import { PhaserEventBus, PhaserEvents } from '../../../game/EventBus';
 import { showAlert, showConfirm } from '../../../utils/uiDialog';
 
@@ -42,7 +44,7 @@ interface Props {
 type RoomState = {
   inRoom: boolean;
   roomName: string;
-  peers: { id: number; name?: string; ready?: boolean }[];
+  peers: PeerInfo[];
   myId: number;
   lordId: number;
 };
@@ -140,6 +142,11 @@ const RoomSidebar: React.FC<Props> = ({
   const isLord = roomState.myId === roomState.lordId;
   const myPeer = roomState.peers.find((peer) => peer.id === roomState.myId);
   const isReady = Boolean(myPeer?.ready);
+  // 房主不准备：只要其他成员全部准备，就能按下“开始”。
+  const otherPeers = roomState.peers.filter((peer) => peer.id !== roomState.myId);
+  const canStart = otherPeers.every((peer) => Boolean(peer.ready));
+  // 老服务端/mock 没有 seat 字段时，退回按数组下标占位。
+  const peersHaveSeat = roomState.peers.some((peer) => typeof peer.seat === 'number');
 
   const ensureServer = (): boolean => {
     if (!serverAddress) {
@@ -182,7 +189,7 @@ const RoomSidebar: React.FC<Props> = ({
   };
 
   const handleRoomClick = (room: RoomInfo) => {
-    if (room.player_count >= 2) {
+    if (room.player_count >= ROOM_CAPACITY) {
       void showAlert(translate('menu.online_room_full'));
       return;
     }
@@ -198,6 +205,9 @@ const RoomSidebar: React.FC<Props> = ({
   };
 
   const handleToggleReady = () => {
+    if (isLord) {
+      return;
+    }
     SendReady(!isReady);
   };
 
@@ -206,9 +216,14 @@ const RoomSidebar: React.FC<Props> = ({
     if (!confirmed) {
       return;
     }
+    const roomId = onlineStateManager.getRoomInfo().roomId;
+    // 先让服务端同步移除席位，再断开 WS：否则列表刷新会拿到注销前的快照。
+    await leaveRoomRemotely(serverAddress, username, false, { roomId });
     BackendWS.closeConnection();
     setRoomState(readRoomState());
     await onRefresh();
+    // 房间销毁从管理器移除是异步的，补一次刷新清掉可能的“幽灵房间”。
+    window.setTimeout(() => void onRefresh(), 500);
   };
 
   const handleKick = async (playerId: number) => {
@@ -341,13 +356,15 @@ const RoomSidebar: React.FC<Props> = ({
           <div style={{
             flex: 1,
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
+            gridTemplateColumns: `repeat(${ROOM_CAPACITY}, 1fr)`,
             gap: '16px',
             padding: '18px',
             minHeight: 0,
           }}>
-            {[0, 1].map((slot) => {
-              const peer = roomState.peers[slot];
+            {Array.from({ length: ROOM_CAPACITY }, (_, slot) => slot).map((slot) => {
+              // 服务端按固定座位号分配席位；老服务端/mock 无 seat 时退回数组下标。
+              const peer = roomState.peers.find((entry) => entry.seat === slot)
+                ?? (!peersHaveSeat ? roomState.peers[slot] : undefined);
               const isMe = peer?.id === roomState.myId;
               const isOwner = peer?.id === roomState.lordId;
               return (
@@ -367,6 +384,9 @@ const RoomSidebar: React.FC<Props> = ({
                     color: peer ? '#fff' : '#7a7a7a',
                   }}
                 >
+                  <span style={{ position: 'absolute', top: '10px', left: '12px', fontSize: '12px', color: '#6b7f8a' }}>
+                    #{slot}
+                  </span>
                   {peer ? (
                     <>
                       <User size={44} color={peer.ready ? '#22c55e' : '#8fa6b2'} />
@@ -421,21 +441,39 @@ const RoomSidebar: React.FC<Props> = ({
             borderTop: '1px solid rgba(100, 100, 100, 0.35)',
           }}>
             <div style={{ fontSize: '13px', color: '#9aa7ae' }}>
-              {translate('menu.online_ready_hint')}
+              {translate(isLord ? 'menu.online_start_hint' : 'menu.online_ready_hint')}
             </div>
-            <button
-              style={{
-                ...actionButtonStyle,
-                minWidth: '160px',
-                padding: '10px 20px',
-                background: isReady ? 'none' : 'linear-gradient(45deg, #4CAF50, #45a049)',
-                border: isReady ? '1px solid #666' : 'none',
-                color: isReady ? '#ddd' : '#fff',
-              }}
-              onClick={handleToggleReady}
-            >
-              {isReady ? translate('menu.online_cancel_ready') : translate('menu.online_ready')}
-            </button>
+            {isLord ? (
+              <button
+                style={{
+                  ...actionButtonStyle,
+                  minWidth: '160px',
+                  padding: '10px 20px',
+                  background: canStart ? 'linear-gradient(45deg, #4CAF50, #45a049)' : 'none',
+                  border: canStart ? 'none' : '1px solid #555',
+                  color: canStart ? '#fff' : '#777',
+                  cursor: canStart ? 'pointer' : 'not-allowed',
+                }}
+                disabled={!canStart}
+                onClick={() => SendChooseMap(chapterId, stageId)}
+              >
+                {translate('menu.online_start')}
+              </button>
+            ) : (
+              <button
+                style={{
+                  ...actionButtonStyle,
+                  minWidth: '160px',
+                  padding: '10px 20px',
+                  background: isReady ? 'none' : 'linear-gradient(45deg, #4CAF50, #45a049)',
+                  border: isReady ? '1px solid #666' : 'none',
+                  color: isReady ? '#ddd' : '#fff',
+                }}
+                onClick={handleToggleReady}
+              >
+                {isReady ? translate('menu.online_cancel_ready') : translate('menu.online_ready')}
+              </button>
+            )}
           </div>
         </>
       ) : (
@@ -577,7 +615,7 @@ const RoomSidebar: React.FC<Props> = ({
                       {room.room_name}
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: '0 0 auto' }}>
-                      {[0, 1].map((index) => (
+                      {Array.from({ length: ROOM_CAPACITY }, (_, index) => index).map((index) => (
                         <User
                           key={index}
                           size={16}

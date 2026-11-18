@@ -181,6 +181,26 @@ export class OnlineStateManager {
         return peersData ? peersData.length : 0;
     }
 
+    /**
+     * 把本地缓存的 peers 准备状态全部清空。
+     * 服务端回退到等待房间/返回房间时会广播新的 roomInfo；这里先清一次，
+     * 避免旧快照在 UI 上短暂残留“已准备”导致无法继续推进。
+     */
+    public clearRoomPeersReady(): void {
+        const peers = this.getRoomPeersData();
+        if (!peers) {
+            return;
+        }
+        this.roomPeers = JSON.stringify(peers.map(peer => ({ ...peer, ready: false })));
+        const roomInfo = {
+            roomId: this.roomId,
+            myId: this.myId,
+            lordId: this.lordId,
+            peers: this.roomPeers,
+        };
+        this.roomInfoUpdateCallbacks.forEach(callback => callback(roomInfo));
+    }
+
     public findPlayerById(playerId: number): PeerInfo | null {
         const peersData = this.getRoomPeersData();
         if (!peersData) return null;

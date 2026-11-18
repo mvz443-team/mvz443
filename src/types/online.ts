@@ -2,12 +2,16 @@
  * 在线状态相关的类型定义
  */
 
+/** 房间固定席位数；与后端 constants.RoomCapacity 保持一致。未来开多人房只需改这里。 */
+export const ROOM_CAPACITY = 2;
+
 // 玩家信息（与后端 PeerInfo 结构对应）
 export interface PeerInfo {
     addr: string; // 连接地址，如 "192.168.1.100:12345"
     id: number;   // 玩家ID
     name?: string;  // 联机昵称
     ready?: boolean; // 是否已准备
+    seat?: number;   // 房间内固定座位号（0 起）；老服务端可能不下发
 }
 
 // 房间绑定信息（等待房间展示用）

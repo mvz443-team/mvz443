@@ -73,11 +73,10 @@ export class Game extends Scene {
   gameText: Phaser.GameObjects.Text;
 
   pauseBtn: Phaser.GameObjects.Text;
-  waitText: Phaser.GameObjects.Text;
   speedText: Phaser.GameObjects.Text;
   debugFrameText: Phaser.GameObjects.Text | null = null;
   private netStatusBadge: NetStatusBadge | null = null;
-  private waitTextVisibleTarget: boolean = false;
+  private frameWaitExceeded = false;
   private cardSlotsUi: CardSlots | null = null;
   private bottomBarUi: BottomBar | MobileBottomBar | null = null;
 
@@ -263,19 +262,6 @@ export class Game extends Scene {
     if (import.meta.env.DEV) {
       (window as unknown as { __MVZ443_GAME__?: Game }).__MVZ443_GAME__ = this;
     }
-
-    // 创建一个waiting text
-    this.waitText = this.add.text(
-      gameViewport.x + gameViewport.width / 2,
-      gameViewport.y + 18 * this.scaleFactor,
-      translate("game.waiting"),
-      {
-        fontSize: `${Math.max(12, Math.round(this.scale.displaySize.width / 45))}px`,
-        color: '#ffffff',
-        backgroundColor: 'rgba(0, 0, 0, 0.35)',
-        padding: { x: 8, y: 3 },
-      }
-    ).setOrigin(0.5, 0).setDepth(DepthHelper.UI.waitingText()).setVisible(false).setAlpha(0);
 
     this.netStatusBadge = new NetStatusBadge(
       this,
@@ -463,17 +449,20 @@ export class Game extends Scene {
     this.updateNetStatusBadge();
     DebugManager.Instance.update();
     this.syncCameraLayers();
-    this.updateWaitText(delta);
     if (this.debugFrameText && this.innerSettings.basicDebug) {
       this.debugFrameText.setText(`frameId: ${BackendWS.FrameID}\nackFrameId: ${BackendWS.AckFrameID}`);
     }
   }
 
-  public setWaitTextVisibleTarget(visible: boolean) {
-    this.waitTextVisibleTarget = visible;
-    if (visible) {
-      this.waitText.setVisible(true);
-    }
+  /** 固定步之外只驱动视图表现；禁止写回 Model 或权威坐标。 */
+  public renderUpdateEntityViews(delta: number, isPaused: boolean): void {
+    if (isPaused) return;
+    this.rapierWorld?.bodies.forEach(rigidBody => {
+      const entity = rigidBody.userData;
+      if (entity instanceof BaseEntity) {
+        entity.onRenderUpdate(delta);
+      }
+    });
   }
 
   private updateNetStatusBadge(): void {
@@ -490,29 +479,17 @@ export class Game extends Scene {
     this.netStatusBadge.update(state);
   }
 
-  private updateWaitText(delta: number) {
-    if (!this.waitText) {
-      return;
-    }
-
-    const targetAlpha = this.waitTextVisibleTarget ? 0.92 : 0;
-    const fadeSpeed = Math.min(1, delta / 180);
-    const nextAlpha = Phaser.Math.Linear(this.waitText.alpha, targetAlpha, fadeSpeed);
-    this.waitText.setAlpha(nextAlpha);
-
-    if (!this.waitTextVisibleTarget && nextAlpha <= 0.03) {
-      this.waitText.setVisible(false);
-      this.waitText.setAlpha(0);
-      return;
-    }
-
-    if (this.waitTextVisibleTarget) {
-      this.waitText.setVisible(true);
-    }
-  }
-
   changeScene() {
     this.scene.start('GameOver');
+  }
+
+  public isFrameWaiting(): boolean {
+    return this.frameWaitExceeded;
+  }
+
+  public toggleFrameWaiting(waiting: boolean): void {
+    this.frameWaitExceeded = waiting;
+    this.updateNetStatusBadge();
   }
 
 
@@ -568,7 +545,7 @@ export class Game extends Scene {
     if (BackendWS.isOnlineMode()) {
       return;
     }
-    this.setWaitTextVisibleTarget(false);
+    this.toggleFrameWaiting(false);
     const pauseMenu = (this as any).pauseMenu;
     if (!pauseMenu) {
       return;

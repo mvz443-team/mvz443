@@ -212,6 +212,11 @@ export class ArrowEntity extends BulletEntity {
     this.trail.setFlipX(facingLeft);
   }
 
+  public override updateRenderPosition(alpha: number): void {
+    super.updateRenderPosition(alpha);
+    this.syncTrailPosition();
+  }
+
   public override updateView(vec: { x: number; y: number }, rotation?: number): void {
     super.updateView(vec, rotation);
     this.syncTrailPosition();

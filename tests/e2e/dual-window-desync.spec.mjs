@@ -9,7 +9,7 @@
 
 import { test, expect } from 'playwright/test';
 import {
-  openGame, openRoom, netState, waitForStage, waitForMatchingHashFrame, simHash, STAGE, SERVER_ADDRESS,
+  openGame, openRoom, netState, waitForStage, waitForMatchingHashFrame, simHash, startPreparing, STAGE, SERVER_ADDRESS,
 } from './helpers.mjs';
 
 // 每个 context 都是独立的存储分区，语义等同“两个无痕窗口”。
@@ -39,9 +39,7 @@ test('双无痕窗口联机：同帧权威操作的确定性状态哈希一致',
     expect(room.roomId).toBeGreaterThanOrEqual(0);
     await openRoom(guest, { roomId: room.roomId, chapterId: 1, stageId: 1 });
     await expect.poll(async () => (await netState(owner)).peers?.length ?? 0, { timeout: 20000 }).toBe(2);
-    await owner.evaluate(() => window.MVZ_NET.chooseStage(1, 1));
-    await waitForStage(owner, STAGE.Preparing);
-    await waitForStage(guest, STAGE.Preparing);
+    await startPreparing(owner, guest);
     const loadout = [{ pid: 1, level: 1 }];
     await owner.evaluate((cards) => window.MVZ_NET.confirmLoadout(cards, 1, 1), loadout);
     await guest.evaluate((cards) => window.MVZ_NET.confirmLoadout(cards, 1, 1), loadout);

@@ -9,10 +9,12 @@ import {
   latencyIconPrimitives,
   offlineIconPrimitives,
   resolveLatencyLevel,
+  waitingIconPrimitives,
 } from '../../components/svgs/netIcons';
 
 export type NetBadgeState =
   | { kind: 'latency'; latencyMs: number }
+  | { kind: 'waiting' }
   | { kind: 'reconnecting' }
   | { kind: 'desync' }
   | { kind: 'offline' };
@@ -31,10 +33,12 @@ function stateKey(state: NetBadgeState): string {
   return state.kind;
 }
 
-function primitivesFor(state: NetBadgeState): NetIconPrimitive[] {
+function primitivesFor(state: NetBadgeState, waitPhase: number): NetIconPrimitive[] {
   switch (state.kind) {
     case 'latency':
       return latencyIconPrimitives(resolveLatencyLevel(state.latencyMs));
+    case 'waiting':
+      return waitingIconPrimitives(waitPhase);
     case 'reconnecting':
       return disconnectedIconPrimitives();
     case 'desync':
@@ -49,6 +53,7 @@ export default class NetStatusBadge {
   private readonly graphics: Phaser.GameObjects.Graphics;
   private readonly boxSize: number;
   private lastKey: string | null = null;
+  private waitPhase = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number, boxSize: number, depth: number) {
     this.boxSize = Math.max(16, Math.round(boxSize));
@@ -56,12 +61,20 @@ export default class NetStatusBadge {
   }
 
   public update(state: NetBadgeState): void {
+    if (state.kind === 'waiting') {
+      const phase = Math.floor(this.graphics.scene.time.now / 400) % 3;
+      if (phase !== this.waitPhase) {
+        this.waitPhase = phase;
+        this.draw(waitingIconPrimitives(phase));
+      }
+      return;
+    }
     const key = stateKey(state);
     if (key === this.lastKey) {
       return;
     }
     this.lastKey = key;
-    this.draw(primitivesFor(state));
+    this.draw(primitivesFor(state, this.waitPhase));
   }
 
   public destroy(): void {

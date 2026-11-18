@@ -5,7 +5,7 @@
 
 import { test, expect } from 'playwright/test';
 import {
-  openGame, openRoom, netState, waitForStage, simHash, STAGE, SERVER_ADDRESS,
+  openGame, openRoom, netState, waitForStage, simHash, startPreparing, STAGE, SERVER_ADDRESS,
 } from './helpers.mjs';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -37,9 +37,7 @@ test('刷新页面后重连能重建 GameParams 并进入战局', async ({ brows
     await openRoom(guest, { roomId: room.roomId, chapterId: 1, stageId: 1, username: 'refresh-guest' });
 
     // 用真实 loadout 进入战局，保证 Phaser 运行并产生权威帧与快照。
-    await owner.evaluate(() => window.MVZ_NET.chooseStage(1, 1));
-    await waitForStage(owner, STAGE.Preparing);
-    await waitForStage(guest, STAGE.Preparing);
+    await startPreparing(owner, guest);
     const loadout = [{ pid: 1, level: 1 }];
     await owner.evaluate((cards) => window.MVZ_NET.confirmLoadout(cards, 1, 1), loadout);
     await guest.evaluate((cards) => window.MVZ_NET.confirmLoadout(cards, 1, 1), loadout);

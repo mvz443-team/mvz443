@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { PhaserEventBus, PhaserEvents } from '../game/EventBus';
 import BackendWS from '../utils/net/sync';
 import DisconnectedIcon from './svgs/DisconnectedIcon';
+import { WaitingIcon } from './svgs';
 
 type NetworkToast = {
   id: number;
@@ -21,15 +22,17 @@ export default function NetworkStatusOverlay() {
     reconnecting: BackendWS.isReconnecting(),
     reconnectAttempt: BackendWS.getReconnectAttempt(),
     latencyMs: BackendWS.getAverageLatencyMs(),
+    waitingFrame: false,
   }));
   const [toasts, setToasts] = useState<NetworkToast[]>([]);
 
   useEffect(() => {
-    const onStatus = (status: { reconnecting: boolean; reconnectAttempt: number; latencyMs: number | null }) => {
+    const onStatus = (status: { reconnecting: boolean; reconnectAttempt: number; latencyMs: number | null; waitingFrame?: boolean }) => {
       setNetwork({
         reconnecting: status.reconnecting,
         reconnectAttempt: status.reconnectAttempt,
         latencyMs: status.latencyMs,
+        waitingFrame: status.waitingFrame ?? false,
       });
     };
     const pushToast = (message: string, kind: NetworkToast['kind']) => {
@@ -53,6 +56,7 @@ export default function NetworkStatusOverlay() {
       reconnecting: BackendWS.isReconnecting(),
       reconnectAttempt: BackendWS.getReconnectAttempt(),
       latencyMs: BackendWS.getAverageLatencyMs(),
+      waitingFrame: false,
     });
 
     return () => {
@@ -87,6 +91,11 @@ export default function NetworkStatusOverlay() {
         >
           <DisconnectedIcon size={18} color="#eceff4" />
           <span>网络中断，正在重连（第 {network.reconnectAttempt} 次）…</span>
+        </div>
+      )}
+      {network.waitingFrame && !network.reconnecting && (
+        <div data-testid="reconnect-waiting-icon" style={{ position: 'fixed', top: 10, left: 10, zIndex: 10000 }}>
+          <WaitingIcon size={20} title="Waiting for authoritative frame" />
         </div>
       )}
       <div

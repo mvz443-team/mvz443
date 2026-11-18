@@ -112,8 +112,17 @@ class WebSocketClient {
       reconnectAttempt: this.reconnect.getAttempt(),
       latencyMs: this.getAverageLatencyMs(),
       offlineMode: this.offlineMode,
+      waitingFrame: this.waitingFrame,
     });
   }
+
+  public setWaitingFrame(waiting: boolean): void {
+    if (waiting === this.waitingFrame) return;
+    this.waitingFrame = waiting;
+    this.publishNetworkStatus();
+  }
+
+  private waitingFrame: boolean = false;
 
   private trace(_message: string, _details?: unknown) {
     // 调试日志关闭；需要时在此打开

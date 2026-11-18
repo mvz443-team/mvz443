@@ -20,6 +20,8 @@ const config: Phaser.Types.Core.GameConfig = {
   autoRound: true,
   fps: {
     target: 60,
+    forceSetTimeOut: false,
+    smoothStep: true,
   },
   scale: {
     mode: Phaser.Scale.FIT,
@@ -36,7 +38,7 @@ const config: Phaser.Types.Core.GameConfig = {
   ]
 };
 
-const StartGame = (parent: string, width: number, GameParams: GameParams, deviceType: string) => {
+const StartGame = (parent: string, width: number, GameParams: GameParams, deviceType: string, fps: number = 60) => {
   void width;
   const sceneBounds = getGameSceneChromeLayout(
     GameParams.mainViewportWidth ?? LOGICAL_BATTLE_WIDTH,
@@ -46,6 +48,11 @@ const StartGame = (parent: string, width: number, GameParams: GameParams, device
   ).sceneBounds;
   config.width = sceneBounds.width;
   config.height = sceneBounds.height;
+  config.fps = {
+    target: Math.max(30, Math.min(120, Math.round(fps))),
+    forceSetTimeOut: false,
+    smoothStep: true,
+  };
   const game = new Game({ ...config, parent })
   game.registry.set('gameParams', GameParams);
   return game;

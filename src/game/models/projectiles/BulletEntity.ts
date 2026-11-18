@@ -71,7 +71,6 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
 
     this.x = vec.x;
     this.y = vec.y;
-    this.sprite.setPosition(this.x, this.y);
 
     if (rotation !== undefined) {
       this.sprite.setRotation(rotation);
@@ -105,10 +104,14 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
     }
   }
 
-  public override stepMove(alpha: number): void {
+  public override updateRenderPosition(alpha: number): void {
     const x = Phaser.Math.Linear(this.prevRenderX, this.currentRenderX, alpha);
     const y = Phaser.Math.Linear(this.prevRenderY, this.currentRenderY, alpha);
     this.sprite.setPosition(x, y);
+  }
+
+  public override stepMove(alpha: number): void {
+    this.updateRenderPosition(alpha);
   }
 
   // Reverse horizontal velocity after a bounce.

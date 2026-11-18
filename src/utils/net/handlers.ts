@@ -115,6 +115,8 @@ export default class WSClientHandlers {
         break;
       }
       case 'quitChooseMap':
+        // 退回等待房间时服务端已清空准备状态，先清本地快照再切阶段，避免残留“已准备”。
+        onlineStateManager.clearRoomPeersReady();
         onlineStateManager.updateGameStage(EnumGameStage.InLobby);
         PhaserEventBus.emit(PhaserEvents.RoomQuitChooseMap);
         break;
@@ -250,6 +252,7 @@ export default class WSClientHandlers {
       case 'returnToLobby': {
         desyncDiagnostics.record("room", "returnToLobby", roomResponse.payload.returnToLobby);
         // 服务端确认：房间已重置回等待房间，客户端回到关卡页
+        onlineStateManager.clearRoomPeersReady();
         onlineStateManager.updateGameStage(EnumGameStage.InLobby);
         onlineStateManager.resetGameData();
         PhaserEventBus.emit(PhaserEvents.ReturnToLobby, {

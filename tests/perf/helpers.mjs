@@ -107,6 +107,12 @@ export async function startMultiplayer(owner, guest) {
   const roomId = await openRoom(owner, { roomName: 'perf-room', chapterId: 1, stageId: 1 });
   await openRoom(guest, { roomId, chapterId: 1, stageId: 1 });
   await expect.poll(async () => (await netState(owner)).peers?.length ?? 0, { timeout: 30000 }).toBe(2);
+  // 房主的“开始”需要其他成员先准备。
+  await guest.evaluate(() => globalThis.MVZ_NET.sendReady(true));
+  await expect.poll(async () => {
+    const state = await netState(owner);
+    return state?.peers?.some((peer) => peer.id !== state.myId && peer.ready) ?? false;
+  }, { timeout: 30000, intervals: [100, 200, 500] }).toBe(true);
   await owner.evaluate(() => globalThis.MVZ_NET.chooseStage(1, 1));
   await waitForStage(owner, STAGE.Preparing);
   await waitForStage(guest, STAGE.Preparing);

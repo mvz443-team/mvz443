@@ -585,6 +585,11 @@ export default class QueueReceive {
     return true;
   }
 
+  /** 只读检查下一权威帧是否就绪，不消费任何回包。 */
+  public ConsumeIsReady(): boolean {
+    return this.bufferedResponses.has(this.currentFrameId + 1);
+  }
+
   private trimPendingOperations(currentFrameId: number): void {
     for (const frameId of [...this.pendingOperations.keys()]) {
       if (frameId <= currentFrameId || frameId > currentFrameId + this.maxReplayFrames) {

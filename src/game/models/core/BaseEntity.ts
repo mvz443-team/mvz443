@@ -138,6 +138,8 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
     this.x = vec.x;
     this.y = vec.y;
 
+    if (this.viewGroup.getChildren().length === 0) return;
+
     this.viewGroup.getChildren().forEach((child: any) => {
       if (child.x !== undefined) {
         child.x += dx;
@@ -152,6 +154,9 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
   }
 
   public stepMove(_alpha: number): void { }
+
+  /** 用权威刚体位置驱动纯表现插值；不写入 Model，也不改变权威坐标。 */
+  public updateRenderPosition(_alpha: number, _position?: Vector, _rotation?: number): void { }
 
   public destroy(): void {
     this.beginDestroy(false);

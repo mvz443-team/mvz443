@@ -93,6 +93,10 @@ function normalizeRoomInfo(raw: any): RoomInfo | null {
     if (playerCount <= 0) {
         return null;
     }
+    // 房间已关闭（0xEE）时服务端可能还没从管理器移除，列表里不应再显示。
+    if (Number(raw.game_state) === 0xEE) {
+        return null;
+    }
     return {
         room_id: roomId,
         room_name: typeof raw.room_name === "string" && raw.room_name ? raw.room_name : `房间${roomId}`,

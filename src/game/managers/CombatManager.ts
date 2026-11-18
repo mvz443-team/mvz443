@@ -303,13 +303,15 @@ export default class CombatManager extends BaseManager {
       // 没有正确恢复，继续补帧会立刻分叉，先把问题暴露在控制台。
       const restoredHash = simulationState.hash();
       if (snapshot.hash && restoredHash.h32 !== snapshot.hash) {
-        console.warn(`[reconnect] 快照恢复摘要不一致 frame=${frameId}`, {
+        desyncDiagnostics.record("reconnect", "snapshot hash mismatch", {
+          frameId,
           snapshotHash: snapshot.hash,
           restoredHash: restoredHash.h32,
           report,
         });
+        console.warn(`[reconnect] 快照恢复摘要不一致 frame=${frameId}`);
       }
-      console.log(`[reconnect] 已恢复 checkpoint frame=${frameId}`);
+      desyncDiagnostics.record("reconnect", "snapshot restored", { frameId, report });
     } catch (error) {
       console.warn("[reconnect] checkpoint 快照恢复失败", error);
     }
@@ -356,6 +358,10 @@ export default class CombatManager extends BaseManager {
   }
 
   public update(time: number, delta: number) {
+    // 等待权威帧时固定步会停摆；网络状态必须在每个渲染帧更新，否则
+    // “恢复同步 → 锁住等待 UI” 的状态会一直保留到下一帧到来或永远不消失。
+    SyncManager.Instance.updateNetworkWaiting(delta);
+    this.scene?.renderUpdateEntityViews(delta, this.isPaused);
     if (this.isPaused) {
       this.elapsedFrameTime = 0;
       return;
@@ -457,9 +463,10 @@ export default class CombatManager extends BaseManager {
       }
     }
 
-    // 仍有积压时处于追帧模式：跳过渲染插值，优先把逻辑帧追平。
-    const hasBacklog = this.elapsedFrameTime >= SyncManager.Instance.frameIntervalMs;
-    if (!this.isPaused && !hasBacklog) {
+    // 渲染插值必须每个渲染帧都执行：等待权威帧/追帧时固定步可能停摆，
+    // 若在这里跳过，实体会冻结在上一帧位置并出现跳变；Tween/动画却仍在
+    // 渲染帧更新，所以箭矢会显得比特效明显卡顿。
+    if (!this.isPaused) {
       const interpolationAlpha = Math.min(
         this.elapsedFrameTime / SyncManager.Instance.frameIntervalMs,
         1,
@@ -472,7 +479,6 @@ export default class CombatManager extends BaseManager {
       });
     }
 
-    // Regular per-render work.
     SyncManager.Instance.sendQueue.Consume();
   }
 

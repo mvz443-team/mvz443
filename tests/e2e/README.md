@@ -5,6 +5,7 @@
 | Spec | 场景 | 验收点 |
 | --- | --- | --- |
 | `lobby.spec.mjs` | 两个上下文建房/加入房间 | roomId 一致、双方 stage=InLobby、peers 各 2 人 |
+| `room-seats-ready.spec.mjs` | 固定座位、房主开始门槛、退出重置 | 座位号 0/1 一致；房主离开后补位与房主转移；未全准备不能开始；退出后 ready 清零 |
 | `reconnect.spec.mjs` | InGame 断线重连 | 重连徽标出现、attempt ≥ 1、自动重连后保留房间席位 |
 | `reconnect-refresh.spec.mjs` | 页面刷新后重连 | 从服务端 profile 重建 GameParams，进入 Preloader/Game，不再出现 no game params |
 | `reconnect-giveup.spec.mjs` | 重连中止 UI | 断线徽标出现后，放弃时显示关闭 Toast 并退出在线状态 |

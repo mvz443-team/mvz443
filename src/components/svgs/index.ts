@@ -1,5 +1,6 @@
 export { default as LatencyIcon } from './LatencyIcon';
 export { default as DisconnectedIcon } from './DisconnectedIcon';
+export { default as WaitingIcon } from './WaitingIcon';
 export { default as DesyncIcon } from './DesyncIcon';
 export { default as OfflineIcon } from './OfflineIcon';
 export { default as LatencyArrowIcon } from './LatencyArrowIcon';
@@ -22,6 +23,7 @@ export {
   latencyIconPrimitives,
   offlineIconPrimitives,
   resolveLatencyLevel,
+  waitingIconPrimitives,
 } from './netIcons';
 export type {
   ArrowDirection,

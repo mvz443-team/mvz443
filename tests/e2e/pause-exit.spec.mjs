@@ -5,7 +5,7 @@
 
 import { test, expect } from 'playwright/test';
 import {
-  openGame, openRoom, netState, waitForStage, STAGE, SERVER_ADDRESS,
+  openGame, openRoom, netState, waitForStage, startPreparing, STAGE, SERVER_ADDRESS,
 } from './helpers.mjs';
 
 // 服务端使用自签证书，Node 侧 fetch 需要放行。
@@ -30,9 +30,7 @@ async function startDuel(browser, roomName) {
   await openGame(guest, { netDebug: true, save: GUEST_SAVE });
   const room = await openRoom(owner, { roomName, chapterId: 1, stageId: 1, username: 'quit-owner' });
   await openRoom(guest, { roomId: room.roomId, chapterId: 1, stageId: 1, username: 'quit-guest' });
-  await owner.evaluate(() => window.MVZ_NET.chooseStage(1, 1));
-  await waitForStage(owner, STAGE.Preparing);
-  await waitForStage(guest, STAGE.Preparing);
+  await startPreparing(owner, guest);
   const loadout = [{ pid: 1, level: 1 }];
   await owner.evaluate((cards) => window.MVZ_NET.confirmLoadout(cards, 1, 1), loadout);
   await guest.evaluate((cards) => window.MVZ_NET.confirmLoadout(cards, 1, 1), loadout);

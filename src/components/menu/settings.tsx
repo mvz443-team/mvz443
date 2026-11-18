@@ -164,6 +164,16 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
             }
           },
           {
+            titleKey: "menu.settings_general_fps",
+            descriptionKey: "menu.settings_general_fps_t",
+            controlType: "selections",
+            controlProps: {
+              options: ["30", "45", "60", "90", "120"],
+              selected: String(settingManager.fps),
+              onSelect: (val) => settingManager.setFps(Number(val)),
+            }
+          },
+          {
             titleKey: "menu.settings_general_language",
             descriptionKey: "menu.settings_general_language_t",
             controlType: "selections",

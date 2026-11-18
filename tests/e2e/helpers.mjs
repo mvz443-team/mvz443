@@ -95,11 +95,23 @@ export async function openRoom(page, options = {}, timeoutMs = 20000) {
   return { roomId: state.roomId ?? null, myId: state.myId ?? null };
 }
 
-/** 通过调试钩子完成准备 → 选图 → 加载，进入 InGame。 */
-export async function startGame(owner, guest, { chapterId = 1, stageId = 1 } = {}, timeoutMs = 30000) {
-  await owner.evaluate((id) => window.MVZ_NET.chooseStage(id[0], id[1]), [chapterId, stageId]);
+/** 等待房间：其他成员先准备，房主再点“开始”进入选卡阶段。 */
+export async function startPreparing(owner, guest, chapterId = 1, stageId = 1, timeoutMs = 20000) {
+  if (guest) {
+    await guest.evaluate(() => window.MVZ_NET.sendReady(true));
+    await expect.poll(async () => {
+      const state = await netState(owner);
+      return state?.peers?.some((peer) => peer.id !== state.myId && peer.ready) ?? false;
+    }, { timeout: timeoutMs, intervals: [100, 200, 500] }).toBe(true);
+  }
+  await owner.evaluate(([stageChapter, stageStage]) => window.MVZ_NET.chooseStage(stageChapter, stageStage), [chapterId, stageId]);
   await waitForStage(owner, STAGE.Preparing, timeoutMs);
   if (guest) await waitForStage(guest, STAGE.Preparing, timeoutMs);
+}
+
+/** 通过调试钩子完成准备 → 选图 → 加载，进入 InGame。 */
+export async function startGame(owner, guest, { chapterId = 1, stageId = 1 } = {}, timeoutMs = 30000) {
+  await startPreparing(owner, guest, chapterId, stageId, timeoutMs);
   for (const page of guest ? [owner, guest] : [owner]) {
     await page.evaluate(() => window.MVZ_NET.sendReady(true));
   }

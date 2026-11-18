@@ -360,8 +360,9 @@ export interface ResponseRoomInfo {
     myId: number;
     /**
      * 房间内玩家情况
-     * json 字段: [{"id":int,"name":string,"addr":string,"ready":bool,"state":int}]
+     * json 字段: [{"id":int,"name":string,"addr":string,"ready":bool,"state":int,"seat":int}]
      * state: 1=在线, 2=断线（等待重连）
+     * seat: 房间内固定座位号（0 起），客户端按它渲染位置而不是数组下标
      *
      * @generated from protobuf field: string peers = 4
      */

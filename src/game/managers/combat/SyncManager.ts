@@ -337,6 +337,8 @@ export default class SyncManager extends BaseManager {
     PhaserEventBus.emit(PhaserEvents.RoomGameEnd, { isWin });
   };
 
+  private static readonly WAIT_TOLERANCE_MS = 1000;
+
   public update(): boolean {
     if (CombatManager.Instance.isDesyncOffline()) {
       this.recvQueue.currentFrameId += 1;
@@ -351,11 +353,27 @@ export default class SyncManager extends BaseManager {
       this.sendQueue.ensureBlankFrame(this.recvQueue.currentFrameId);
       perfSampler.record("ensureBlankFrame", perfSampler.now() - blankStarted);
     }
-    if (this.scene?.waitText) {
-      this.scene.setWaitTextVisibleTarget(BackendWS.isOnlineMode() && !frameReady && !CombatManager.Instance.isPaused);
-    }
     return frameReady;
   }
+
+  /** 每个渲染帧检查一次权威帧缺口，避免固定步停摆时 UI 状态被永久锁住。 */
+  public updateNetworkWaiting(deltaMs: number): void {
+    const waiting = BackendWS.isOnlineMode()
+      && !CombatManager.Instance.isPaused
+      && !this.recvQueue.ConsumeIsReady();
+    if (!waiting) {
+      this.waitElapsedMs = 0;
+    } else {
+      this.waitElapsedMs += Math.max(0, deltaMs);
+    }
+    const shouldShow = waiting && this.waitElapsedMs >= SyncManager.WAIT_TOLERANCE_MS;
+    if (this.scene?.isFrameWaiting() !== shouldShow) {
+      this.scene?.toggleFrameWaiting(shouldShow);
+      BackendWS.setWaitingFrame(shouldShow);
+    }
+  }
+
+  private waitElapsedMs: number = 0;
 
   /** 每帧心跳上报的本机资源 profile；未进入房间会话时不携带。 */
   private captureUploadResources(): ResourceUploadSnapshot | null {

@@ -6,6 +6,7 @@ import {
 } from './EventBus';
 import { GameParams } from './models/GameParams';
 import type { StageResult } from '../types/stage';
+import { useSettings } from '../context/settings_ctx';
 
 export interface IRefPhaserGame {
   game: Phaser.Game | null;
@@ -27,9 +28,11 @@ interface IProps {
 
 export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame({
   currentActiveScene, isVisibility, gameParams, gameExit, width, height, mainViewportWidth, mainViewportHeight, deviceType }, ref) {
+  const { fps } = useSettings();
   if (gameParams) {
     gameParams.gameExit = gameExit;
     gameParams.deviceType = deviceType;
+    gameParams.gameSettings.fps = fps;
     gameParams.mainViewportHeight = Math.max(1, mainViewportHeight);
     gameParams.mainViewportWidth = Math.max(1, mainViewportWidth);
   }
@@ -43,7 +46,7 @@ export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame
 
     if (game.current === null) {
 
-      game.current = StartGame("game-container", width, gameParams, deviceType);
+      game.current = StartGame("game-container", width, gameParams, deviceType, fps);
 
       if (typeof ref === 'function') {
         ref({ game: game.current, scene: null });
@@ -62,6 +65,17 @@ export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame
       }
     }
   }, [deviceType, gameParams, mainViewportHeight, mainViewportWidth, ref, width]);
+
+  useEffect(() => {
+    const currentGame = game.current;
+    if (!currentGame || !gameParams) return;
+    const currentFps = currentGame.config.fps?.target ?? 60;
+    if (currentFps !== fps) {
+      currentGame.destroy(true);
+      game.current = null;
+      game.current = StartGame('game-container', width, gameParams!, deviceType, fps);
+    }
+  }, [deviceType, fps, gameParams, width]);
 
   useEffect(() => {
     const currentGame = game.current;
