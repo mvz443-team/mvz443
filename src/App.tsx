@@ -14,6 +14,15 @@ import BackendWS from './utils/net/sync';
 import { onlineStateManager } from './store/OnlineStateManager';
 import { createRoom, joinRoom } from './utils/net/lobby';
 import { SendReady, SendLoaded, SendChooseMap, SendEndGame, SendReturnToLobby } from './utils/net/room';
+import { Request } from './pb/request';
+import { PlantCmd } from './game/utils/cmd/PlantCmd';
+import MobCmd from './game/utils/cmd/MobCmd';
+import { ProjectileCmd } from './game/utils/cmd/ProjectileCmd';
+import { PlantLibrary } from './game/managers/library/PlantLibrary';
+import { MonsterLibrary } from './game/managers/library/MonsterLibrary';
+import { BulletModel } from './game/models/projectiles/ProjectileModels';
+import PlantsManager from './game/managers/combat/PlantsManager';
+import MobManager from './game/managers/combat/MobManager';
 import { useSaveManager } from './context/save_ctx';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import SettingsPage from './pages/settings';
@@ -446,6 +455,95 @@ function App() {
         plantAt: (pid: number, level: number, col: number, row: number) => {
           CardpileManager.Instance.ClickCard(pid, level);
           CursorManager.Instance.EventBus.emit('onAttemptPlant', col, row);
+        },
+        // 性能测试专用：单机 mock 房间启动。设置 GameParams 后启动 mockServer，
+        // 再复用与真实 UI 相同的 chooseMap + ready 进入 Preloader/Game。
+        startSinglePlayerForPerf: (plants: Array<{ pid: number; level: number }>, stageId: number, chapterId: number) => {
+          const params: GameParams = {
+            level: stageId,
+            plants,
+            gold: 0,
+            gameExit: (result: StageResult) => gameExit(result),
+            gameSettings: {
+              isBluePrint: false,
+              isDebug: false,
+              isBgm: false,
+              isSoundAudio: false,
+              showCardLevelInGame: false,
+            },
+          };
+          setGameParams(params);
+          BackendWS.startSinglePlayerRoom();
+          BackendWS.send(Request.toBinary({
+            payload: { chooseMap: { chapterId, stageId }, oneofKind: 'chooseMap' },
+          }));
+          BackendWS.send(Request.toBinary({
+            payload: {
+              ready: {
+                isReady: true,
+                loadout: {
+                  cards: plants,
+                  level: stageId,
+                  initialEnergy: 0,
+                  initialStarShards: 0,
+                  globalModifiers: [],
+                },
+              },
+              oneofKind: 'ready',
+            },
+          }));
+          window.setTimeout(() => {
+            BackendWS.send(Request.toBinary({
+              payload: { playerLoaded: { progress: 100 }, oneofKind: 'playerLoaded' },
+            }));
+            // UI 的 gameStart 由 RoomAllReady 触发；单机 mock 已完成 ready，这里补发一次。
+            PhaserEventBus.emit(PhaserEvents.RoomAllReady, { allPlayerCount: 1 });
+          }, 50);
+          return true;
+        },
+        // 性能测试专用：只通过 Cmd 层注入确定性的实体/投射物批次。
+        // 不直接改 Model 字段，保证 DeferredManager 与帧边界语义一致。
+        injectPerfScene: (config: {
+          plants: Array<{ pid: number; level: number; col: number; row: number }>;
+          zombies: Array<{ mid: number; col: number; row: number; wave?: number }>;
+          projectiles: Array<{ x: number; row: number; damage?: number; maxDistance?: number }>;
+        }) => {
+          const scene = (window as unknown as { __MVZ443_GAME__?: import('./game/scenes/Game').Game }).__MVZ443_GAME__;
+          const activeScene = scene ?? (phaserRef.current?.game?.scene?.getScene('Game') as import('./game/scenes/Game').Game | null | undefined) ?? undefined;
+          if (!activeScene) return false;
+          for (const item of config.plants ?? []) {
+            const model = PlantLibrary.GetModel(item.pid);
+            if (model) PlantCmd.Create(model, activeScene, item.col, item.row, item.level);
+          }
+          for (const item of config.zombies ?? []) {
+            MobCmd.Spawn(item.mid, activeScene, item.col, item.row, item.wave ?? 0);
+          }
+          for (const item of config.projectiles ?? []) {
+            ProjectileCmd.Create(BulletModel, activeScene, item.x, item.row, {
+              damage: item.damage ?? 1,
+              faction: 1,
+              maxDistance: item.maxDistance ?? 5000,
+              penetratePower: 1,
+              skipTiny: false,
+            });
+          }
+          return true;
+        },
+        getPerfCounts: () => {
+          let zombies = 0;
+          MobManager.Instance.MobsByLane.forEach((list) => { zombies += list.length; });
+          let plants = 0;
+          PlantsManager.Instance.PlantsMap.forEach((list) => { plants += list.length; });
+          const game = (window as unknown as { __MVZ443_GAME__?: import('./game/scenes/Game').Game }).__MVZ443_GAME__
+            ?? (phaserRef.current?.game?.scene?.getScene('Game') as import('./game/scenes/Game').Game | null | undefined)
+            ?? undefined;
+          return {
+            plants,
+            zombies,
+            projectiles: ProjectileCmd.getActiveProjectiles().length,
+            phaserFps: game?.game?.loop?.actualFps ?? null,
+            phaserDelta: game?.game?.loop?.delta ?? null,
+          };
         },
         showResultForTest: () => gameExit({
           isWin: true,

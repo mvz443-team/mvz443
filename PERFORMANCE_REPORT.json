@@ -1,0 +1,49 @@
+{
+  "generatedAt": "2026-11-18T11:08:12.496Z",
+  "results": {
+    "单机-高负载": {
+      "durationMs": 8000,
+      "rafSamples": 335,
+      "fps": 41.789853174157656,
+      "frameTimeAvgMs": 23.929253731343284,
+      "frameTimeP50Ms": 16.700000000000728,
+      "frameTimeP95Ms": 33.400000000000546,
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "jsHeapUsedMB": 39.94673538208008,
+      "jsHeapGrowthMB": 12.96820068359375,
+      "taskDurationSec": 7.9446959999999995,
+      "layoutCount": 0,
+      "recalcStyleCount": 0,
+      "phaserFps": 41.82933044433594,
+      "authoritativeFrame": 164,
+      "entityCounts": {
+        "plants": 17,
+        "zombies": 36,
+        "projectiles": 23
+      }
+    },
+    "联机-高负载(房主端)": {
+      "durationMs": 8000,
+      "rafSamples": 177,
+      "fps": 21.988670244484197,
+      "frameTimeAvgMs": 45.47796610169492,
+      "frameTimeP50Ms": 50,
+      "frameTimeP95Ms": 66.70000000000027,
+      "longTaskCount": 13,
+      "longTaskTotalMs": 984,
+      "jsHeapUsedMB": 38.0643424987793,
+      "jsHeapGrowthMB": 21.269275665283203,
+      "taskDurationSec": 8.027354,
+      "layoutCount": 1,
+      "recalcStyleCount": 1,
+      "phaserFps": 26.3035888671875,
+      "authoritativeFrame": 0,
+      "entityCounts": {
+        "plants": 17,
+        "zombies": 36,
+        "projectiles": 33
+      }
+    }
+  }
+}
