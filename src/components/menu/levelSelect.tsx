@@ -22,6 +22,8 @@ interface LevelSelectorProps {
   startGame: () => void;
   skipToParams?: boolean;
   chosenStage?: number;
+  /** PostGame 后回到原房间：停留在房间绑定的关卡并展开等待房间侧边栏。 */
+  initialRoomView?: boolean;
 }
 
 const LevelSelector: React.FC<LevelSelectorProps> = ({
@@ -31,7 +33,8 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
   height,
   onBack,
   skipToParams,
-  chosenStage
+  chosenStage,
+  initialRoomView,
 }) => {
   const islord = BackendWS.isLord();
   const isOnlineMode = BackendWS.isOnlineMode();
@@ -312,7 +315,16 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
 
   // 初始化时清除 localStorage（除非是 skipToParams）
   useMount(() => {
-    if (skipToParams && chosenStage) {
+    if (initialRoomView && BackendWS.isRoomSessionMode()) {
+      const meta = onlineManager.getRoomMeta();
+      const chapterId = meta.chapterId || StageDataRecords[chosenStage ?? 0]?.chapterId || null;
+      setState({ currentStep: 'stage', selectedChapterId: chapterId, selectedStageId: meta.stageId || chosenStage || null });
+      setLevelSelectorState({
+        lastChapterId: chapterId,
+        lastStageId: meta.stageId || chosenStage || null,
+        lastStep: 'stage'
+      });
+    } else if (skipToParams && chosenStage) {
       const chapterId = StageDataRecords[chosenStage].chapterId;
       setState({
         selectedChapterId: chapterId,
@@ -353,6 +365,7 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
           chapterId={state.selectedChapterId}
           onSelect={handleStageSelect}
           onBack={handleBack}
+          initialRoomView={initialRoomView}
         />
       )}
       {state.currentStep === 'params' && state.selectedChapterId !== null && state.selectedStageId !== null && (

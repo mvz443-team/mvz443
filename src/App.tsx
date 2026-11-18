@@ -12,6 +12,7 @@ import GameResultView from './components/menu/result';
 import { useDeviceType } from './hooks/useDeviceType';
 import BackendWS from './utils/net/sync';
 import { onlineStateManager } from './store/OnlineStateManager';
+import EnumGameStage from './utils/net/game_state';
 import { createRoom, joinRoom } from './utils/net/lobby';
 import { SendReady, SendLoaded, SendChooseMap, SendEndGame, SendReturnToLobby } from './utils/net/room';
 import { Request } from './pb/request';
@@ -56,7 +57,10 @@ interface GameMainWindowProps {
   phaserRef: MutableRefObject<IRefPhaserGame | null>;
   currentScene: (_scene: Phaser.Scene) => void;
   gameExit: (result: StageResult) => void;
+  /** 单机结算回主界面；联机结算回原房间。 */
   exitResultView: () => void;
+  returnToRoomView: () => void;
+  showRoomView: boolean;
   setGameParams: (gameParams: GameParams) => void;
   gameStart: () => void;
   forceLandscape: boolean;
@@ -77,6 +81,8 @@ function GameMainWindow({
   currentScene,
   gameExit,
   exitResultView,
+  returnToRoomView,
+  showRoomView,
   setGameParams,
   gameStart,
   forceLandscape,
@@ -138,6 +144,7 @@ function GameMainWindow({
           sceneRef={phaserRef}
           setGameParams={setGameParams}
           gameStart={gameStart}
+          initialRoomView={showRoomView}
         />
       }
       {showGameResult && (!showGameScreen) && (gameResult) &&
@@ -149,7 +156,7 @@ function GameMainWindow({
           progressRewards={gameResult?.rewards}
           myProgress={gameResult?.progress ? gameResult.progress : 0}
           onBack={exitResultView}
-          onReturnToRoom={exitResultView}
+          onReturnToRoom={returnToRoomView}
           width={mainWidth}
           height={mainHeight}
         />
@@ -349,6 +356,9 @@ function App() {
   const [showGameTool, setShowGameTool] = useState(false);
   const [showGameScreen, setShowGameScreen] = useState(false);
   const [showGameResult, setShowGameResult] = useState(false);
+  const [showRoomView, setShowRoomView] = useState(false);
+  const showGameResultRef = useRef(showGameResult);
+  showGameResultRef.current = showGameResult;
   const [gameParams, setGameParams] = useState<GameParams | null>(null);
   const [gameResult, setGameResult] = useState<StageResult | null>(null);
   const deviceType = useDeviceType();
@@ -608,6 +618,7 @@ function App() {
   }, []);
 
   const gameStart = useCallback(() => {
+    setShowRoomView(false);
     setShowGameScreen(true);
     setShowGameTool(true);
   }, [setShowGameScreen, setShowGameTool]);
@@ -618,6 +629,32 @@ function App() {
     setShowGameScreen(false);
     setShowGameTool(false);
   }, [setShowGameResult, setShowGameScreen, setShowGameTool]);
+
+  /** 联机结算后回到原房间等待（关卡页的联机侧边栏/等待房间）。 */
+  const returnToRoomView = useCallback(() => {
+    exitResultView();
+    setShowRoomView(true);
+  }, [exitResultView]);
+
+  /** 单机结算返回：直接回到主界面。 */
+  const exitResultToMenu = useCallback(() => {
+    setShowRoomView(false);
+    exitResultView();
+  }, [exitResultView]);
+
+  // 服务端在 PostGame 超时或玩家请求后确认回到等待房间；此时 DocFrame 可能未挂载
+  // （结算页正在显示），所以在 App 顶层监听，保证两端都能回到房间界面。
+  useEffect(() => {
+    const handleReturnToLobby = () => {
+      if (showGameResultRef.current) {
+        setShowRoomView(true);
+      }
+    };
+    PhaserEventBus.on(PhaserEvents.ReturnToLobby, handleReturnToLobby);
+    return () => {
+      PhaserEventBus.off(PhaserEvents.ReturnToLobby, handleReturnToLobby);
+    };
+  }, []);
 
   const gameExit = useCallback((result: StageResult) => {
     if (phaserRef.current) {
@@ -723,7 +760,9 @@ function App() {
             phaserRef={phaserRef}
             currentScene={currentScene}
             gameExit={gameExit}
-            exitResultView={exitResultView}
+            exitResultView={exitResultToMenu}
+            returnToRoomView={returnToRoomView}
+            showRoomView={showRoomView}
             setGameParams={setGameParams}
             gameStart={gameStart}
             forceLandscape={forceLandscape}

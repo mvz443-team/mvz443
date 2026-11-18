@@ -226,7 +226,7 @@ const RoomSidebar: React.FC<Props> = ({
   const panelWidth = roomState.inRoom ? '100%' : '70%';
 
   return (
-    <div style={{
+    <div data-testid={roomState.inRoom ? 'waiting-room' : undefined} style={{
       position: 'absolute',
       right: 0,
       top: 0,

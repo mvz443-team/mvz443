@@ -13,7 +13,6 @@ import {
 import Shop from './shop/shop';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLocaleMessages } from '../hooks/useLocaleMessages';
-import OnlineStatus from './OnlineStatus';
 import GlobalRoomListener from './GlobalRoomListener';
 import { useSaveManager } from '../context/save_ctx';
 import { joinRoom, leaveRoomRemotely, normalizeServerAddress, queryMyRoom } from '../utils/net/lobby';
@@ -32,15 +31,17 @@ interface Props {
   sceneRef: any,
   setGameParams: (gameParams: GameParams) => void,
   gameStart: () => void,
+  /** PostGame 后回到原房间：直接进入关卡页并展开联机等待房间侧边栏。 */
+  initialRoomView?: boolean,
 };
 
-export default function DocFrame({ width, height, setGameParams, gameStart }: Props) {
+export default function DocFrame({ width, height, setGameParams, gameStart, initialRoomView }: Props) {
   if (height === undefined) {
     height = width * 3 / 4;
   }
 
   // 状态管理
-  const [currentView, setCurrentView] = useState('main'); // main, levels, pokedex, shop, export, updates, about
+  const [currentView, setCurrentView] = useState(initialRoomView ? 'levels' : 'main'); // main, levels, pokedex, shop, export, updates, about
   const menuItems = [
     "menu.homepage",
     "menu.choose_level",
@@ -385,7 +386,6 @@ export default function DocFrame({ width, height, setGameParams, gameStart }: Pr
   // 根据当前视图渲染不同内容
   return (
     <div style={{ position: 'relative', width: `${width}px`, height: `${height}px` }}>
-      <OnlineStatus />
       <GlobalRoomListener
         setCurrentView={setCurrentView}
         setSkipToParams={setSkipToParams}
@@ -394,6 +394,7 @@ export default function DocFrame({ width, height, setGameParams, gameStart }: Pr
       {currentView === 'main' || currentView === 'about' ? <MainMenu /> : null}
       {currentView === 'levels' && <LevelSelect width={width} height={height} onBack={() => setCurrentView('main')}
         startGame={gameStart} setGameParams={setGameParams} skipToParams={skipToParams} chosenStage={chosenStage || undefined}
+        initialRoomView={initialRoomView}
       />}
       {currentView === 'pokedex' && <Pokedex width={width} height={height} onBack={() => setCurrentView('main')} />}
       {currentView === 'shop' && <Shop width={width} height={height} onBack={() => setCurrentView('main')} />}

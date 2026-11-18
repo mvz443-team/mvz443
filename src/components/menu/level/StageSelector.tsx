@@ -48,9 +48,11 @@ interface StageSelectorProps {
   chapterId: number;
   onSelect: (stageId: number) => void;
   onBack: () => void;
+  /** PostGame 后回到原房间：强制展开等待房间侧边栏。 */
+  initialRoomView?: boolean;
 }
 
-const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBack }) => {
+const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBack, initialRoomView }) => {
   const settings = useSettings();
   const [state, setState] = useSetState({
     selectedStage: null as number | null,
@@ -74,7 +76,7 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
   // 联机：房间列表与侧边栏
   const [roomList, setRoomList] = React.useState<RoomInfo[] | null>(null);
   const [roomPanelOpen, setRoomPanelOpen] = React.useState(false);
-  const [inRoom, setInRoom] = React.useState(false);
+  const [inRoom, setInRoom] = React.useState(Boolean(initialRoomView && BackendWS.isRoomSessionMode()));
   const serverAddress = saveManager.getOnlineConfig().serverAddr;
 
   const refreshRooms = useMemoizedFn(async () => {
