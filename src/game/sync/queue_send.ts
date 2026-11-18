@@ -11,6 +11,8 @@ import {
 import BackendWS from "../../utils/net/sync";
 import ResourceManager from "../managers/combat/ResourceManager";
 import { LEGACY_BALANCE_FRAME_INTERVAL_MS } from "../../constants/physics";
+import { desyncDiagnostics } from "../../utils/debug/desyncDiagnostics";
+import { SIMULATION_STATE_VERSION } from "../core/SimulationState";
 
 export default class QueueSend {
   queues: Denque<Request>;
@@ -48,6 +50,10 @@ export default class QueueSend {
       const request = this.queues.shift();
       if (request) {
         const refreshedRequest = this.refreshAckFrameId(request);
+        desyncDiagnostics.record("sync", "send request", {
+          kind: refreshedRequest.payload.oneofKind,
+          payload: refreshedRequest.payload,
+        });
         // console.log("[QueueSend] send request", {
         //   type: refreshedRequest.payload.oneofKind,
         //   ackFrameId: refreshedRequest.payload.oneofKind === "blank"
@@ -68,6 +74,7 @@ export default class QueueSend {
   }
 
   public sendGameEnd(result: number) {
+    desyncDiagnostics.record("sync", "sendGameEnd", { result });
     const request: RequestEndGame = {
       gameResult: result
     };
@@ -85,6 +92,10 @@ export default class QueueSend {
       return;
     }
     this.pendingStateHashes.push({ frameId, hash: hash >>> 0 });
+    desyncDiagnostics.record("sync", "sendStateHash", {
+      frameId,
+      hash: (hash >>> 0).toString(16).padStart(8, "0"),
+    });
     if (this.pendingStateHashes.length > 8) {
       this.pendingStateHashes.shift();
     }
@@ -96,6 +107,12 @@ export default class QueueSend {
     const inlineSnapshotJson = payload && typeof payload === "object" && "values" in payload
       ? JSON.stringify(payload)
       : "";
+    desyncDiagnostics.record("sync", "sendCheckpoint", {
+      frameId,
+      hash,
+      hasInlineSnapshot: Boolean(inlineSnapshotJson),
+      inlineSnapshotBytes: inlineSnapshotJson.length,
+    });
     const request: RequestBlank = {
       frameId: BackendWS.GetFrameID(),
       ackFrameId: BackendWS.AckFrameID,
@@ -103,6 +120,7 @@ export default class QueueSend {
       hashFrameId: 0,
       stateHashHex: hash,
       inlineSnapshotJson,
+      stateHashVersion: SIMULATION_STATE_VERSION,
     };
     this.queues.push({
       payload: { blank: request, oneofKind: "blank" },
@@ -120,6 +138,7 @@ export default class QueueSend {
         hashFrameId: entry.frameId,
         stateHashHex: "",
         inlineSnapshotJson: "",
+        stateHashVersion: SIMULATION_STATE_VERSION,
       };
       BackendWS.send(Request.toBinary({
         payload: { blank: request, oneofKind: "blank" }
@@ -139,6 +158,7 @@ export default class QueueSend {
         hashFrameId: 0,
         stateHashHex: "",
         inlineSnapshotJson: "",
+        stateHashVersion: SIMULATION_STATE_VERSION,
       },
       col,
       row,
@@ -158,6 +178,17 @@ export default class QueueSend {
   /** @returns 本次操作的 client_op_seq，用于关联服务端失败回包和撤销预测。 */
   public sendCardPlant(pid: number, col: number, row: number, level: number, cost: number): number {
     const base = this.createOperationBase(col, row);
+    desyncDiagnostics.record("sync", "sendCardPlant", {
+      pid,
+      col,
+      row,
+      level,
+      cost,
+      clientOpSeq: base.clientOpSeq,
+      frameId: base.base?.frameId,
+      ackFrameId: base.base?.ackFrameId,
+      processFrameId: base.processFrameId,
+    });
 
     const request: RequestCardPlant = {
       base,
@@ -178,6 +209,15 @@ export default class QueueSend {
 
   public sendRemovePlant(pid: number, col: number, row: number): number {
     const base = this.createOperationBase(col, row);
+    desyncDiagnostics.record("sync", "sendRemovePlant", {
+      pid,
+      col,
+      row,
+      clientOpSeq: base.clientOpSeq,
+      frameId: base.base?.frameId,
+      ackFrameId: base.base?.ackFrameId,
+      processFrameId: base.processFrameId,
+    });
 
     const request: RequestRemovePlant = {
       base,
@@ -194,6 +234,16 @@ export default class QueueSend {
 
   public sendStarShards(pid: number, col: number, row: number, cost: number): number {
     const base = this.createOperationBase(col, row);
+    desyncDiagnostics.record("sync", "sendStarShards", {
+      pid,
+      col,
+      row,
+      cost,
+      clientOpSeq: base.clientOpSeq,
+      frameId: base.base?.frameId,
+      ackFrameId: base.base?.ackFrameId,
+      processFrameId: base.processFrameId,
+    });
 
     const currentStarShards = ResourceManager.Instance.getStarShards('mine');
 
@@ -215,6 +265,10 @@ export default class QueueSend {
 
   public sendBlankFrame(frameId: number) {
     const now = Date.now();
+    desyncDiagnostics.record("sync", "sendBlankFrame", {
+      frameId,
+      ackFrameId: BackendWS.AckFrameID,
+    });
     const request: RequestBlank = {
       frameId,
       ackFrameId: BackendWS.AckFrameID,
@@ -222,6 +276,7 @@ export default class QueueSend {
       hashFrameId: 0,
       stateHashHex: "",
       inlineSnapshotJson: "",
+      stateHashVersion: SIMULATION_STATE_VERSION,
     };
     // console.log("[QueueSend] queue blank frame", {
     //   frameId,

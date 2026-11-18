@@ -7,7 +7,12 @@
  * - 数值一律按 IEEE-754 位模式写入 hash，避免 JSON 序列化对浮点/负零的歧义。
  */
 
-export const SIMULATION_STATE_VERSION = 1;
+/**
+ * 快照 / 哈希口径版本。
+ * v2：cardpile 等本机专属状态移入 localValues，不再参与跨端哈希。
+ * 该值会随心跳上报，服务端用它拒绝新旧客户端混用。
+ */
+export const SIMULATION_STATE_VERSION = 2;
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -52,6 +57,11 @@ export interface SimulationState {
   seed: number;
   frameId: number;
   values: Record<string, JsonValue>;
+  /**
+   * 本机专属、不参与跨端一致性哈希的状态（例如本机卡槽冷却）。
+   * 仍会进入快照，用于回滚恢复；但两端天然不同，不能参与分叉检测。
+   */
+  localValues?: Record<string, JsonValue>;
   timers: Record<string, TimerState[]>;
   prngs: PrngState[];
   entities: EntityLogicState[];
@@ -284,6 +294,7 @@ export function deserializeSimulationState(json: string): SimulationState {
  */
 export class StateRegistry {
   private readonly values = new Map<string, { provide: ValueProvider; restore?: ValueRestorer }>();
+  private readonly localValues = new Map<string, { provide: ValueProvider; restore?: ValueRestorer }>();
   private readonly timers = new Map<string, { provide: TimerProvider; restore?: TimerRestorer }>();
   private readonly entities = new Map<string, { provide: EntityProvider; restore?: EntityRestorer }>();
   private readonly prngs = new Map<string, PrngBinding>();
@@ -295,6 +306,15 @@ export class StateRegistry {
 
   registerValue(key: string, provide: ValueProvider, restore?: ValueRestorer): this {
     this.values.set(key, { provide, restore });
+    return this;
+  }
+
+  /**
+   * 注册只在本机有意义的确定性状态：会进入快照，但不进入跨端哈希。
+   * 适用于本机卡槽冷却、输入预演等两端天然不同的数据。
+   */
+  registerLocalValue(key: string, provide: ValueProvider, restore?: ValueRestorer): this {
+    this.localValues.set(key, { provide, restore });
     return this;
   }
 
@@ -332,6 +352,7 @@ export class StateRegistry {
 
   reset(): void {
     this.values.clear();
+    this.localValues.clear();
     this.timers.clear();
     this.entities.clear();
     this.prngs.clear();
@@ -346,6 +367,11 @@ export class StateRegistry {
     const values: Record<string, JsonValue> = {};
     for (const key of [...this.values.keys()].sort()) {
       values[key] = canonicalize(this.values.get(key)!.provide());
+    }
+
+    const localValues: Record<string, JsonValue> = {};
+    for (const key of [...this.localValues.keys()].sort()) {
+      localValues[key] = canonicalize(this.localValues.get(key)!.provide());
     }
 
     const timers: Record<string, TimerState[]> = {};
@@ -378,6 +404,7 @@ export class StateRegistry {
       seed: this.seedProvider?.() ?? 0,
       frameId: this.frameProvider?.() ?? 0,
       values,
+      localValues,
       timers,
       prngs,
       entities,
@@ -435,6 +462,28 @@ export class StateRegistry {
         }
       } else {
         report.missing.push(`value:${key}(只读)`);
+      }
+    }
+
+    // 本机专属状态：旧快照没有该字段时视为空，不阻塞恢复。
+    if (state.localValues) {
+      for (const [key, binding] of this.localValues) {
+        const value = state.localValues[key];
+        if (value === undefined) {
+          report.missing.push(`localValue:${key}`);
+          continue;
+        }
+        if (!binding.restore) {
+          report.missing.push(`localValue:${key}(只读)`);
+          continue;
+        }
+        try {
+          binding.restore(value);
+          report.restored.push(`localValue:${key}`);
+        } catch (error) {
+          report.ok = false;
+          report.errors.push(`localValue:${key}: ${String(error)}`);
+        }
       }
     }
 

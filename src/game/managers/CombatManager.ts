@@ -12,13 +12,19 @@ import { onlineStateManager } from "../../store/OnlineStateManager";
 import { RoomAllReadyEvent } from "../../types/online";
 import BackendWS from "../../utils/net/sync";
 import CardpileManager from "./combat/CardpileManager";
-import { simulationState, SimulationState, serializeSimulationState } from "../core/SimulationState";
+import {
+  simulationState,
+  SimulationState,
+  serializeSimulationState,
+  SIMULATION_STATE_VERSION,
+} from "../core/SimulationState";
 import { resolveEntityBySnapshotId } from "../core/EntityLookup";
 import { logicEvents } from "../core/logic/LogicEvents";
 import { updateAllTickManagers } from "../core/logic/EntityTickManager";
 import { buildInlineSnapshotOrHash } from "../core/snapshot/InlineSnapshot";
 import { restoreInlineSnapshot } from "../core/snapshot/InlineSnapshot";
 import type { InlineSnapshot } from "../core/snapshot/InlineSnapshot";
+import { desyncDiagnostics } from "../../utils/debug/desyncDiagnostics";
 
 // 单次 update 允许接受的最大 delta（切后台/断点会产生数秒级 delta）
 const MAX_FRAME_DELTA_MS = 250;
@@ -57,6 +63,21 @@ export default class CombatManager extends BaseManager {
   private isEndGameRequested: boolean = false;
   private readonly handleRoomAllReady = (data: RoomAllReadyEvent) => {
     this.seed = data.seed;
+    desyncDiagnostics.record("combat", "RoomAllReady", data);
+  };
+
+  /**
+   * 服务端判定分叉后，战斗层保留当前世界转入离线单机；
+   * 日志下载由 handlers.ts 在事件后立即触发，这里只切换状态。
+   */
+  private readonly handleDesyncOfflineMode = (payload: { message?: string } = {}) => {
+    const reason = payload?.message ?? "unknown desync";
+    desyncDiagnostics.record("combat", "DesyncOfflineMode", {
+      reason,
+      frameId: SyncManager.Instance.recvQueue?.currentFrameId ?? null,
+      ackFrameId: SyncManager.Instance.recvQueue?.lastAckFrameId ?? null,
+    });
+    this.enterDesyncOfflineMode(reason);
   };
 
   // Accumulated frame time for fixed-step simulation.
@@ -132,6 +153,8 @@ export default class CombatManager extends BaseManager {
 
     PhaserEventBus.on(PhaserEvents.RoomAllReady, this.handleRoomAllReady, this);
     PhaserEventBus.on(PhaserEvents.ReplaySnapshotReceived, this.handleReplaySnapshot, this);
+    PhaserEventBus.on(PhaserEvents.DesyncOfflineMode, this.handleDesyncOfflineMode, this);
+    desyncDiagnostics.setStateProvider(() => this.buildDesyncDiagnosticState());
     const roomAllReady = onlineStateManager.getRoomAllReady();
     if (roomAllReady) {
       this.handleRoomAllReady(roomAllReady);
@@ -146,12 +169,18 @@ export default class CombatManager extends BaseManager {
   }
 
   public Reset() {
+    desyncDiagnostics.record("combat", "Reset", {
+      seed: this.seed,
+      frameId: SyncManager.Instance.recvQueue?.currentFrameId ?? null,
+    });
     PhaserEventBus.off(PhaserEvents.TogglePause, this.handleTogglePause, this);
     PhaserEventBus.off(PhaserEvents.TimespeedToggle, this.handleTimespeedToggle, this);
     PhaserEventBus.off(PhaserEvents.RoomGameStart, this.handleRoomGameStart, this);
     PhaserEventBus.off(PhaserEvents.RoomGameEnd, this.handleRoomGameEnd, this);
     PhaserEventBus.off(PhaserEvents.RoomAllReady, this.handleRoomAllReady, this);
     PhaserEventBus.off(PhaserEvents.ReplaySnapshotReceived, this.handleReplaySnapshot, this);
+    PhaserEventBus.off(PhaserEvents.DesyncOfflineMode, this.handleDesyncOfflineMode, this);
+    desyncDiagnostics.setStateProvider(null);
 
     if (this.scene) {
       this.scene.time.timeScale = 1;
@@ -221,6 +250,13 @@ export default class CombatManager extends BaseManager {
     this.pendingDeterminismCheck = null;
     this.lastStateHash = null;
     this.lastStateHashFrame = 0;
+    desyncDiagnostics.record("combat", "RoomGameStart", {
+      seed: this.seed,
+      stageLevel: this.scene?.params?.level ?? null,
+      frameId: SyncManager.Instance.recvQueue?.currentFrameId ?? null,
+      tickerFrame: TickerManager.Instance.currentFrame,
+      roomAllReady: onlineStateManager.getRoomAllReady(),
+    });
   }
 
   /** 重连补帧：恢复 checkpoint 快照并回滚接收队列到该帧。 */
@@ -292,6 +328,15 @@ export default class CombatManager extends BaseManager {
         this.isInFixedStep = false;
         break;
       }
+      const frameId = SyncManager.Instance.recvQueue.currentFrameId;
+      desyncDiagnostics.recordFrame({
+        phase: "begin",
+        frameId,
+        tickerFrame: TickerManager.Instance.currentFrame,
+        elapsedFrameTime: this.elapsedFrameTime,
+        isPaused: this._isPaused,
+        isGameEnd: this.isGameEnd,
+      });
       this.elapsedFrameTime -= SyncManager.Instance.frameIntervalMs;
       // 一次性表现事件绑定逻辑帧号；回滚后由快照恢复队列与 eventId。
       logicEvents.setFrame(SyncManager.Instance.recvQueue.currentFrameId);
@@ -328,6 +373,7 @@ export default class CombatManager extends BaseManager {
 
       this.isInFixedStep = false;
       this.sampleStateHash();
+      this.captureDiagnosticFrame();
       this.recordSnapshotIfNeeded();
       this.finishDeterminismCheckIfNeeded();
       this.commitPendingPausedState();
@@ -398,10 +444,17 @@ export default class CombatManager extends BaseManager {
 
     // 快照必须落在干净的帧边界：先执行完延迟创建/销毁。
     DeferredManager.Instance.flush();
-    this.snapshotRing.push({ frameId, state: this.captureState() });
+    const state = this.captureState();
+    this.snapshotRing.push({ frameId, state });
     if (this.snapshotRing.length > CombatManager.SNAPSHOT_RING_SIZE) {
       this.snapshotRing.shift();
     }
+    desyncDiagnostics.record("combat", "snapshot recorded", {
+      frameId,
+      ringFrames: this.getSnapshotRingFrameIds(),
+      entityCount: state.entities.length,
+      timerCount: state.timers.ticker?.length ?? 0,
+    });
   }
 
   public getSnapshotAtOrBefore(frameId: number): { frameId: number; state: SimulationState } | null {
@@ -439,6 +492,14 @@ export default class CombatManager extends BaseManager {
   /** 分叉后不再等待权威帧；保留当前世界，按单机固定步继续模拟。 */
   public enterDesyncOfflineMode(reason: string): void {
     if (this.desyncOffline) return;
+    desyncDiagnostics.record("combat", "enterDesyncOfflineMode", {
+      reason,
+      frameId: SyncManager.Instance.recvQueue?.currentFrameId ?? null,
+      ackFrameId: SyncManager.Instance.recvQueue?.lastAckFrameId ?? null,
+      tickerFrame: TickerManager.Instance.currentFrame,
+      isPaused: this._isPaused,
+      isGameEnd: this.isGameEnd,
+    });
     this.desyncOffline = true;
     this.desyncReason = reason;
     this.isEndGameRequested = false;
@@ -455,24 +516,72 @@ export default class CombatManager extends BaseManager {
     return this.desyncReason;
   }
 
-  /** 分叉日志只在结算时下载一次，内容来自确定性模拟状态。 */
+  /** 分叉日志：立即下载一次；结算时不会重复下载。 */
   public exportDesyncLog(): void {
     if (!this.desyncOffline || this.desyncLogExported) return;
     this.desyncLogExported = true;
-    const log = {
-      type: "mvz443-desync-report",
+    desyncDiagnostics.downloadOnce("desync-offline", {
       reason: this.desyncReason,
+      report: this.buildDesyncDiagnosticState(),
+    });
+  }
+
+  /** 供临时诊断日志下载使用：汇总当前确定性状态与联机会话信息。 */
+  public buildDesyncDiagnosticState(): Record<string, unknown> {
+    let state: SimulationState | null = null;
+    let hash: ReturnType<typeof simulationState.hash> | null = null;
+    let captureError: string | null = null;
+    try {
+      state = this.captureState();
+      hash = simulationState.hash(state);
+    } catch (error) {
+      captureError = String(error);
+    }
+
+    const roomInfo = onlineStateManager.getRoomInfo();
+    return {
       seed: this.seed,
-      frameId: SyncManager.Instance.recvQueue.currentFrameId,
-      state: this.serializeState(),
+      roomId: roomInfo.roomId,
+      myId: roomInfo.myId,
+      lordId: roomInfo.lordId,
+      stageLevel: this.scene?.params?.level ?? null,
+      frameId: SyncManager.Instance.recvQueue?.currentFrameId ?? null,
+      lastAckFrameId: SyncManager.Instance.recvQueue?.lastAckFrameId ?? null,
+      tickerFrame: TickerManager.Instance.currentFrame,
+      tickerNextTimerId: TickerManager.Instance.getNextTimerId(),
+      isPaused: this._isPaused,
+      isGameEnd: this.isGameEnd,
+      desyncOffline: this.desyncOffline,
+      desyncReason: this.desyncReason,
+      lastStateHash: this.lastStateHash,
+      lastStateHashFrame: this.lastStateHashFrame,
+      stateHashVersion: SIMULATION_STATE_VERSION,
+      hash,
+      state,
+      captureError,
+      snapshotRingFrames: this.getSnapshotRingFrameIds(),
+      lastRestoreReport: this.lastRestoreReport,
+      roomAllReady: onlineStateManager.getRoomAllReady(),
+      roomSyncPlayers: onlineStateManager.getRoomSyncPlayers(),
+      timerStates: TickerManager.Instance.GetTimerStates(),
+      serverLogUrl: this.buildServerLogUrl(),
     };
-    const blob = new Blob([JSON.stringify(log, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `mvz443-desync-${Date.now()}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+  }
+
+  private buildServerLogUrl(): string | null {
+    const url = BackendWS.url;
+    const roomId = onlineStateManager.getRoomInfo().roomId;
+    if (!url || roomId < 0) return null;
+    try {
+      const parsed = new URL(url);
+      parsed.protocol = parsed.protocol === "wss:" ? "https:" : "http:";
+      parsed.pathname = "/debug/desync-log";
+      parsed.search = `?room=${roomId}`;
+      parsed.hash = "";
+      return parsed.toString();
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -525,9 +634,18 @@ export default class CombatManager extends BaseManager {
     // 由 ConsoleCmd 显式触发，避免低频 capture/序列化造成周期性卡顿。
     if (BackendWS.isMockRoomMode()) return;
     try {
-      const hash = simulationState.hash();
+      const state = this.captureState();
+      const hash = simulationState.hash(state);
       this.lastStateHash = hash.h64;
       this.lastStateHashFrame = frameId;
+      desyncDiagnostics.record("combat", "state hash sample", {
+        frameId,
+        h32: hash.h32,
+        h64: hash.h64,
+        tickerFrame: TickerManager.Instance.currentFrame,
+        // 前 60 帧保留完整状态，便于定位第 20 帧分叉字段。
+        state: frameId <= 60 ? state : undefined,
+      });
       PhaserEventBus.emit(PhaserEvents.SimulationHashSampled, {
         frameId,
         hash: this.lastStateHash,
@@ -550,6 +668,41 @@ export default class CombatManager extends BaseManager {
       }
     } catch {
       // 状态采样失败不应中断锁步推进；后续按周期重试。
+    }
+  }
+
+  /**
+   * 临时诊断：前 30 帧逐帧保存完整状态（分叉通常发生在第 20 帧），
+   * 之后每 5 帧保存一次摘要。完整状态用于两端日志逐字段 diff。
+   */
+  private captureDiagnosticFrame(): void {
+    const frameId = SyncManager.Instance.recvQueue.currentFrameId;
+    if (frameId <= 0) return;
+    const shouldCapture = frameId <= 30 || frameId % 5 === 0;
+    if (!shouldCapture) return;
+
+    try {
+      const state = this.captureState();
+      const hash = simulationState.hash(state);
+      desyncDiagnostics.recordFrame({
+        phase: "end",
+        frameId,
+        tickerFrame: TickerManager.Instance.currentFrame,
+        tickerNextTimerId: TickerManager.Instance.getNextTimerId(),
+        isPaused: this._isPaused,
+        isGameEnd: this.isGameEnd,
+        h32: hash.h32,
+        h64: hash.h64,
+        entityCount: state.entities.length,
+        timerCount: state.timers.ticker?.length ?? 0,
+        // 只在前 30 帧保存全量状态，避免长局日志无限膨胀。
+        state: frameId <= 30 ? state : undefined,
+      });
+    } catch (error) {
+      desyncDiagnostics.record("combat", "captureDiagnosticFrame failed", {
+        frameId,
+        error,
+      });
     }
   }
 

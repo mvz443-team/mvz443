@@ -51,6 +51,7 @@ import { MobileBottomBar } from '../ui/bottom_mobile';
 import { installRuntimeStateSources, registerPhysicsSource } from '../core/RuntimeStateBridge';
 import { onlineStateManager } from '../../store/OnlineStateManager';
 import NetStatusBadge, { type NetBadgeState } from '../ui/NetStatusBadge';
+import { desyncDiagnostics } from '../../utils/debug/desyncDiagnostics';
 
 
 export class Game extends Scene {
@@ -109,6 +110,15 @@ export class Game extends Scene {
       return;
     }
     BackendWS.FrameID = 0;
+    desyncDiagnostics.record('game', 'prepareBattle', {
+      level: params.level,
+      deviceType: params.deviceType,
+      plants: params.plants,
+      rows: stageData.rows,
+      stageScript: stageData.stageScript,
+      roomAllReady: onlineStateManager.getRoomAllReady(),
+      frameId: BackendWS.FrameID,
+    });
     scene.params = params;
     scene.stageData = stageData;
     scene.innerSettings = params.gameSettings;
@@ -155,6 +165,11 @@ export class Game extends Scene {
     installRuntimeStateSources();
     registerPhysicsSource(scene);
     Game.preparedScene = scene;
+    desyncDiagnostics.record('game', 'prepareBattle complete', {
+      level: params.level,
+      isInGame: onlineStateManager.isInGame(),
+      frameId: BackendWS.FrameID,
+    });
 
     // 重连回已开战的房间时，roomAllSync/RoomGameStart 可能早于这里的订阅到达；
     // 战局初始化完成后补发一次，确保 CombatManager/TickerManager 真正进入运行态。

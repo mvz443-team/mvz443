@@ -8,6 +8,7 @@ import SyncManager from "../managers/combat/SyncManager";
 import { MonsterLibrary } from "../managers/library/MonsterLibrary";
 import { PositionManager } from "../managers/view/PositionManager";
 import type { Game } from "../scenes/Game";
+import { desyncDiagnostics } from "../../utils/debug/desyncDiagnostics";
 
 export type ConsoleResourceKind = "energy" | "starshards" | "starShards" | "star" | "stars" | "星之碎片" | "星碎" | "能量";
 
@@ -35,6 +36,7 @@ export type DebugConsoleCommands = {
   cooldownCard: (slot: number) => unknown;
   cards: () => CardInfo[] | null;
   cardInfo: () => CardInfo[] | null;
+  downloadLogs: () => void;
   help: () => void;
 };
 
@@ -77,6 +79,7 @@ namespace ConsoleCmd {
       cooldownCard: cooldownCard,
       cards: printCardInfo,
       cardInfo: printCardInfo,
+      downloadLogs,
       help: printHelp,
     };
   }
@@ -185,6 +188,11 @@ namespace ConsoleCmd {
     });
   }
 
+  function downloadLogs() {
+    desyncDiagnostics.download("manual");
+    printOk("Downloaded full desync diagnostics log.");
+  }
+
   function normalizeResourceKind(kind: ConsoleResourceKind) {
     const value = String(kind).trim().toLowerCase();
     if (["energy", "能量"].includes(value)) return "energy";
@@ -217,6 +225,7 @@ namespace ConsoleCmd {
     console.log(`${command(" DBG.addResource('energy' | 'starshards', amount) ")} 为 all 玩家增加资源`);
     console.log(`${command(" DBG.reloadCard(slot) ")} 冷却指定卡槽，slot 从 0 开始`);
     console.log(`${command(" DBG.cards() ")} 查看卡槽 pid / level / 冷却 ms 和 frame`);
+    console.log(`${command(" DBG.downloadLogs() ")} 下载当前完整联机诊断日志`);
   }
 
   function printOk(message: string) {

@@ -14,6 +14,7 @@ import mockServer, { MockPacket } from "./mock_server";
 import { WebSocketTransport } from "./transport";
 import { ReconnectController } from "./reconnect_controller";
 import { routeIncoming, ResponseKind } from "./message_router";
+import { desyncDiagnostics } from "../debug/desyncDiagnostics";
 
 class WebSocketClient {
   private transport = new WebSocketTransport();
@@ -94,6 +95,9 @@ class WebSocketClient {
   setQueue(receiveQueue: QueueReceive, sendQueue: QueueSend) {
     this.receiveQueue = receiveQueue;
     this.sendQueue = sendQueue;
+    desyncDiagnostics.record("net", "setQueue", {
+      pendingInGameResponses: this.pendingInGameResponses.length,
+    });
     this.trace("setQueue bound", { pendingInGameResponses: this.pendingInGameResponses.length });
     this.flushPendingInGameResponses();
   }
@@ -206,6 +210,7 @@ class WebSocketClient {
 
   public startSinglePlayerRoom() {
     if (this.mockRoomMode) return;
+    desyncDiagnostics.record("net", "startSinglePlayerRoom");
     this.ResetGameData();
     this.mockRoomMode = true;
     this.dispatchMockPackets(mockServer.startSingleRoom());
@@ -213,6 +218,12 @@ class WebSocketClient {
 
   /** 分叉后进入不可恢复的离线单机模式 */
   public enterDesyncOfflineMode(): void {
+    desyncDiagnostics.record("net", "enterDesyncOfflineMode", {
+      roomId: this.room_id,
+      myId: this.my_id,
+      frameId: this.GetFrameID(),
+      ackFrameId: this.AckFrameID,
+    });
     this.offlineMode = "desync";
     this.reconnect.cancel();
     this.clearPendingTimers();
@@ -225,6 +236,10 @@ class WebSocketClient {
   }
 
   public exitDesyncOfflineMode(): void {
+    desyncDiagnostics.record("net", "exitDesyncOfflineMode", {
+      roomId: this.room_id,
+      myId: this.my_id,
+    });
     this.offlineMode = "none";
     this.publishNetworkStatus();
   }
@@ -268,6 +283,7 @@ class WebSocketClient {
   }
 
   startConnection() {
+    desyncDiagnostics.record("net", "startConnection", { url: this.url });
     this.ResetGameData();
     onlineStateManager.updateRoomInfo(-1, 51, 50);
     if (onlineStateManager.getIsOnlineMode()) {
@@ -292,6 +308,12 @@ class WebSocketClient {
 
     this.transport.setCallbacks({
       onOpen: () => {
+        desyncDiagnostics.record("net", "socket open", {
+          isReconnect,
+          url,
+          frameId: this.GetFrameID(),
+          ackFrameId: this.AckFrameID,
+        });
         console.log(isReconnect ? "WebSocket reconnected." : "WebSocket connection established.");
         if (isReconnect) {
           this.reconnect.markConnected();
@@ -303,6 +325,7 @@ class WebSocketClient {
         this.publishNetworkStatus();
       },
       onMessage: (data) => {
+        desyncDiagnostics.recordNetwork("recv", data, "websocket");
         this.messageCounter++;
         if (this.lastSentAt > 0) this.recordLatencySample(performance.now() - this.lastSentAt);
         this.scheduleIncomingPacket(() => {
@@ -332,8 +355,18 @@ class WebSocketClient {
           }
         });
       },
-      onError: (error) => console.error("WebSocket error: ", error),
+      onError: (error) => {
+        desyncDiagnostics.record("net", "socket error", { error });
+        console.error("WebSocket error: ", error);
+      },
       onClose: (event) => {
+        desyncDiagnostics.record("net", "socket close", {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          onlineMode: onlineStateManager.getIsOnlineMode(),
+          gameStage: onlineStateManager.getGameStageName(),
+        });
         this.clearPendingTimers();
         if (this.offlineMode === "desync") return;
         const stage = onlineStateManager.getCurrentGameStage();
@@ -369,11 +402,13 @@ class WebSocketClient {
   }
 
   private onReconnectAttempt(attempt: number, delayMs: number): void {
+    desyncDiagnostics.record("net", "reconnect attempt", { attempt, delayMs });
     console.log(`[BackendWS] reconnect attempt ${attempt} in ${delayMs}ms`);
     this.publishNetworkStatus();
   }
 
   private giveUpReconnect(message: string): void {
+    desyncDiagnostics.record("net", "giveUpReconnect", { message });
     this.reconnect.cancel();
     onlineStateManager.updateOnlineMode(false);
     this.publishNetworkStatus();
@@ -381,6 +416,7 @@ class WebSocketClient {
   }
 
   sendMessage(message: string) {
+    desyncDiagnostics.record("net", "sendMessage(text)", { message });
     if (this.transport.isOpen()) {
       this.transport.currentSocket()!.send(message);
     } else {
@@ -397,6 +433,7 @@ class WebSocketClient {
   }
 
   send(message: Uint8Array<ArrayBufferLike>) {
+    desyncDiagnostics.recordNetwork("send", message, "websocket");
     const sendNow = () => this.dispatchBinaryMessage(message);
     this.lastSentAt = performance.now();
 
@@ -423,6 +460,13 @@ class WebSocketClient {
   }
 
   closeConnection() {
+    desyncDiagnostics.record("net", "closeConnection", {
+      roomId: this.room_id,
+      myId: this.my_id,
+      frameId: this.GetFrameID(),
+      ackFrameId: this.AckFrameID,
+      offlineMode: this.offlineMode,
+    });
     this.reconnect.cancel();
     this.clearPendingTimers();
     if (this.mockRoomMode) {

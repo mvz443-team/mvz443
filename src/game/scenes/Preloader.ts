@@ -12,9 +12,11 @@ import { translate } from '../../i18n';
 import { publicUrl } from '../../utils/browser';
 import { PhaserEventBus, PhaserEvents } from '../EventBus';
 import { SendPlayerLoaded } from '../../utils/net/room';
+import BackendWS from '../../utils/net/sync';
 import { onlineStateManager } from '../../store/OnlineStateManager';
 import type { PlayerSyncInfo } from '../../types/online';
 import { Game } from './Game';
+import { desyncDiagnostics } from '../../utils/debug/desyncDiagnostics';
 
 type LoadPhase = 'loadAssets' | 'loadAudio' | 'initBattle' | 'waitSync';
 
@@ -83,6 +85,12 @@ export class Preloader extends Scene {
 
     // 重连回到已开战的房间：仍需预热战局，但不再等待同步信号。
     const reconnectInGame = onlineStateManager.isInGame();
+    desyncDiagnostics.record('preloader', 'create', {
+      reconnectInGame,
+      level: params.level,
+      frameId: BackendWS.FrameID,
+      roomAllReady: onlineStateManager.getRoomAllReady(),
+    });
     try {
       const stageData = await this.loadStageJson(params);
       await this.runLoaderPhase('loadAssets', 1, 50, () => {
@@ -108,6 +116,10 @@ export class Preloader extends Scene {
       await Game.prepareBattle(gameScene, params, stageData);
       this.reportProgress(96);
       this.battleReady = true;
+      desyncDiagnostics.record('preloader', 'battle ready', {
+        frameId: BackendWS.FrameID,
+        allSyncReceived: this.allSyncReceived,
+      });
 
       // 100 = 资源与战局全部就绪，进入等待同步。
       this.reportProgress(100);
@@ -129,6 +141,10 @@ export class Preloader extends Scene {
       this.renderPlayers();
     };
     const onRoomAllSync = () => {
+      desyncDiagnostics.record('preloader', 'RoomAllSync', {
+        battleReady: this.battleReady,
+        frameId: BackendWS.FrameID,
+      });
       this.allSyncReceived = true;
       this.switchToGame();
     };
@@ -151,6 +167,10 @@ export class Preloader extends Scene {
     if (this.switching || !this.battleReady) {
       return;
     }
+    desyncDiagnostics.record('preloader', 'switchToGame', {
+      frameId: BackendWS.FrameID,
+      allSyncReceived: this.allSyncReceived,
+    });
     this.switching = true;
     this.scene.start('Game');
   }

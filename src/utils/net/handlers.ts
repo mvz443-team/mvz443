@@ -15,6 +15,7 @@ import { PeerInfo, RoomAllReadyEvent } from "../../types/online";
 import { normalizeSyncPlayers } from "./player_sync";
 import { computeLoadoutHash } from "./loadout";
 import type { InlineSnapshot } from "../../game/core/snapshot/InlineSnapshot";
+import { desyncDiagnostics } from "../debug/desyncDiagnostics";
 
 export default class WSClientHandlers {
   private ws: WebSocketClient;
@@ -38,6 +39,10 @@ export default class WSClientHandlers {
         break;
       case 'joinRoomSuccess': {
         const joinRoomSuccess = lobbyResponse.payload.joinRoomSuccess;
+        desyncDiagnostics.record("room", "joinRoomSuccess", {
+          roomId: joinRoomSuccess.roomId,
+          myId: joinRoomSuccess.myId,
+        });
         onlineStateManager.updateOnlineMode(true);
         onlineStateManager.updateGameStage(EnumGameStage.InLobby);
         onlineStateManager.updateRoomInfo(joinRoomSuccess.roomId, joinRoomSuccess.myId, 50);
@@ -63,6 +68,15 @@ export default class WSClientHandlers {
     switch (roomResponse.payload.oneofKind) {
       case 'roomInfo': {
         const roomInfo = roomResponse.payload.roomInfo;
+        desyncDiagnostics.record("room", "roomInfo", {
+          roomId: roomInfo.roomId,
+          myId: roomInfo.myId,
+          lordId: roomInfo.lordId,
+          peers: roomInfo.peers,
+          roomName: roomInfo.roomName,
+          chapterId: roomInfo.chapterId,
+          stageId: roomInfo.stageId,
+        });
         onlineStateManager.updateRoomInfo(roomInfo.roomId, roomInfo.myId, roomInfo.lordId, roomInfo.peers, {
           roomName: roomInfo.roomName,
           chapterId: roomInfo.chapterId,
@@ -94,6 +108,7 @@ export default class WSClientHandlers {
       }
       case 'chooseMap': {
         const chooseMap = roomResponse.payload.chooseMap;
+        desyncDiagnostics.record("room", "chooseMap", chooseMap);
         onlineStateManager.updateGameStage(EnumGameStage.Preparing);
         PhaserEventBus.emit(PhaserEvents.RoomChooseMap, chooseMap);
         break;
@@ -112,6 +127,13 @@ export default class WSClientHandlers {
       }
       case 'allReady': {
         const allReady = roomResponse.payload.allReady;
+        desyncDiagnostics.record("room", "allReady", {
+          allPlayerCount: allReady.allPlayerCount,
+          seed: allReady.seed,
+          myId: allReady.myId,
+          playerIds: allReady.playerIds,
+          loadouts: allReady.loadouts,
+        });
         const allReadyEvent: RoomAllReadyEvent = {
           allPlayerCount: allReady.allPlayerCount,
           seed: allReady.seed,
@@ -135,11 +157,17 @@ export default class WSClientHandlers {
       }
       case 'roomSync': {
         const players = normalizeSyncPlayers(roomResponse.payload.roomSync.players);
+        desyncDiagnostics.record("room", "roomSync", players);
         onlineStateManager.updateRoomSync(players);
         PhaserEventBus.emit(PhaserEvents.RoomSync, { players: onlineStateManager.getRoomSyncPlayers() });
         break;
       }
       case 'roomAllSync': {
+        desyncDiagnostics.record("room", "roomAllSync", {
+          roomId: onlineStateManager.getRoomInfo().roomId,
+          myId: onlineStateManager.getRoomInfo().myId,
+          frameId: this.currentFrameId(),
+        });
         onlineStateManager.updateGameStage(EnumGameStage.InGame);
         const roomInfo = onlineStateManager.getRoomInfo();
         PhaserEventBus.emit(PhaserEvents.RoomAllSync, {});
@@ -147,6 +175,10 @@ export default class WSClientHandlers {
         break;
       }
       case 'allLoaded': {
+        desyncDiagnostics.record("room", "allLoaded(compat)", {
+          roomId: onlineStateManager.getRoomInfo().roomId,
+          myId: onlineStateManager.getRoomInfo().myId,
+        });
         // 兼容旧服务端 / mock：语义与 roomAllSync 一致。
         onlineStateManager.updateGameStage(EnumGameStage.InGame);
         const roomInfo = onlineStateManager.getRoomInfo();
@@ -156,11 +188,20 @@ export default class WSClientHandlers {
       }
       case 'checkpointAccepted': {
         const accepted = roomResponse.payload.checkpointAccepted;
+        desyncDiagnostics.record("room", "checkpointAccepted", {
+          frameId: accepted.frameId,
+          snapshotKind: accepted.snapshotKind,
+        });
         console.log('[checkpoint] accepted', accepted.frameId, accepted.snapshotKind);
         break;
       }
       case 'replayFrames': {
         const replay = roomResponse.payload.replayFrames;
+        desyncDiagnostics.record("room", "replayFrames", {
+          checkpointFrameId: replay.checkpointFrameId,
+          frameCount: replay.frames.length,
+          hasInlineSnapshot: Boolean(replay.inlineSnapshotJson),
+        });
         // 依赖倒置：把快照恢复交给战斗层处理（监听 ReplaySnapshotReceived）
         if (replay.checkpointFrameId > 0 && replay.inlineSnapshotJson) {
           try {
@@ -182,6 +223,12 @@ export default class WSClientHandlers {
       }
       case 'gameEnd': {
         const gameEnd = roomResponse.payload.gameEnd;
+        desyncDiagnostics.record("room", "gameEnd", {
+          gameResult: gameEnd.gameResult,
+          endFrameId: gameEnd.endFrameId,
+          frameId: this.currentFrameId(),
+          ackFrameId: this.currentAckFrameId(),
+        });
         const receiveQueue = this.ws.getReceiveQueue();
         if (onlineStateManager.getCurrentGameStage() === EnumGameStage.InGame && receiveQueue) {
           receiveQueue.handleGameEndResponse(gameEnd.gameResult === 1, gameEnd.endFrameId);
@@ -192,6 +239,7 @@ export default class WSClientHandlers {
         break;
       }
       case 'returnToLobby': {
+        desyncDiagnostics.record("room", "returnToLobby", roomResponse.payload.returnToLobby);
         // 服务端确认：房间已重置回等待房间，客户端回到关卡页
         onlineStateManager.updateGameStage(EnumGameStage.InLobby);
         onlineStateManager.resetGameData();
@@ -202,6 +250,7 @@ export default class WSClientHandlers {
       }
       case 'roomClosed': {
         const roomClosed = roomResponse.payload.roomClosed;
+        desyncDiagnostics.record("room", "roomClosed", { message: roomClosed.message });
         onlineStateManager.resetAllState();
         this.ws.closeConnection();
         PhaserEventBus.emit(PhaserEvents.RoomClosed, { message: roomClosed.message });
@@ -209,11 +258,33 @@ export default class WSClientHandlers {
       }
       case 'error': {
         const error = roomResponse.payload.error;
-        if (error.message.includes('状态分叉')) {
-          this.ws.enterDesyncOfflineMode();
+        const isStateDivergence = error.message.includes('状态分叉');
+        const isVersionMismatch = error.message.includes('客户端版本不一致');
+        if (isStateDivergence || isVersionMismatch) {
+          const report = {
+            message: error.message,
+            roomId: onlineStateManager.getRoomInfo().roomId,
+            myId: onlineStateManager.getRoomInfo().myId,
+            frameId: this.currentFrameId(),
+            ackFrameId: this.currentAckFrameId(),
+            serverLogUrl: this.buildServerLogUrl(),
+          };
+          desyncDiagnostics.record(
+            "desync",
+            isVersionMismatch ? "server reported client version mismatch" : "server reported state divergence",
+            report,
+          );
           PhaserEventBus.emit(PhaserEvents.DesyncOfflineMode, { message: error.message });
+          // 立即下载：此时 CombatManager 已通过事件进入离线态，状态提供器仍能
+          // 捕获当前 Model 全量状态。downloadOnce 保证结算时不会重复下载。
+          desyncDiagnostics.downloadOnce(
+            isVersionMismatch ? "client-version-mismatch" : "server-desync",
+            report,
+          );
+          this.ws.enterDesyncOfflineMode();
           return;
         }
+        desyncDiagnostics.record("room", "error", { message: error.message });
         PhaserEventBus.emit(PhaserEvents.RoomError, { message: error.message });
         break;
       }
@@ -238,6 +309,31 @@ export default class WSClientHandlers {
       receiveQueue.handleInGameResponse(inGameResponse);
     } else {
       this.ws.enqueuePendingInGameResponse(inGameResponse);
+    }
+  }
+
+  /** 服务端诊断日志下载地址：与 WS 同源，仅在临时诊断期间使用。 */
+  private currentFrameId(): number | null {
+    return typeof this.ws.GetFrameID === "function" ? this.ws.GetFrameID() : null;
+  }
+
+  private currentAckFrameId(): number | null {
+    return typeof this.ws.AckFrameID === "number" ? this.ws.AckFrameID : null;
+  }
+
+  private buildServerLogUrl(): string | null {
+    const url = this.ws.url;
+    const roomId = onlineStateManager.getRoomInfo().roomId;
+    if (!url || roomId < 0) return null;
+    try {
+      const parsed = new URL(url);
+      parsed.protocol = parsed.protocol === "wss:" ? "https:" : "http:";
+      parsed.pathname = "/debug/desync-log";
+      parsed.search = `?room=${roomId}`;
+      parsed.hash = "";
+      return parsed.toString();
+    } catch {
+      return null;
     }
   }
 }

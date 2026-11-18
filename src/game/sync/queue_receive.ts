@@ -7,6 +7,7 @@ import { EventBus } from "../../utils/eventBus";
 import BackendWS from "../../utils/net/sync";
 import { PhaserEventBus, PhaserEvents } from "../EventBus";
 import SyncManager from "../managers/combat/SyncManager";
+import { desyncDiagnostics } from "../../utils/debug/desyncDiagnostics";
 
 type InGameEvent = {
   onCardPlant: (pid: number, col: number, row: number, level: number, uid: number) => void;
@@ -34,6 +35,71 @@ const inGameOperationTypePriority: Record<string, number> = {
   gameEvent: 3,
   error: 4
 };
+
+function describeOperation(operation: InGameOperation): Record<string, unknown> {
+  const kind = operation.payload.oneofKind ?? "unknown";
+  const base = (payload: { base?: { uid?: number; col?: number; row?: number } | null } | undefined) => ({
+    uid: payload?.base?.uid ?? null,
+    col: payload?.base?.col ?? null,
+    row: payload?.base?.row ?? null,
+  });
+  switch (operation.payload.oneofKind) {
+    case "cardPlant":
+      return {
+        kind,
+        processFrameId: operation.processFrameId,
+        operationIndex: operation.operationIndex,
+        responseClientOpSeq: operation.responseClientOpSeq,
+        ...base(operation.payload.cardPlant),
+        pid: operation.payload.cardPlant.pid,
+        level: operation.payload.cardPlant.level,
+      };
+    case "removePlant":
+      return {
+        kind,
+        processFrameId: operation.processFrameId,
+        operationIndex: operation.operationIndex,
+        responseClientOpSeq: operation.responseClientOpSeq,
+        ...base(operation.payload.removePlant),
+        pid: operation.payload.removePlant.pid,
+      };
+    case "useStarShards":
+      return {
+        kind,
+        processFrameId: operation.processFrameId,
+        operationIndex: operation.operationIndex,
+        responseClientOpSeq: operation.responseClientOpSeq,
+        ...base(operation.payload.useStarShards),
+        pid: operation.payload.useStarShards.pid,
+      };
+    case "gameEvent":
+      return {
+        kind,
+        processFrameId: operation.processFrameId,
+        operationIndex: operation.operationIndex,
+        eventType: operation.payload.gameEvent.eventType,
+        message: operation.payload.gameEvent.message,
+      };
+    case "error":
+      return {
+        kind,
+        processFrameId: operation.processFrameId,
+        operationIndex: operation.operationIndex,
+        message: operation.payload.error.message,
+        uid: operation.payload.error.uid,
+        clientOpSeq: operation.payload.error.clientOpSeq,
+        col: operation.payload.error.col,
+        row: operation.payload.error.row,
+        errorProcessFrameId: operation.payload.error.processFrameId,
+      };
+    default:
+      return {
+        kind,
+        processFrameId: operation.processFrameId,
+        operationIndex: operation.operationIndex,
+      };
+  }
+}
 
 export default class QueueReceive {
   private readonly backupRetainFrames: number = 120;
@@ -68,6 +134,11 @@ export default class QueueReceive {
    * 配合状态快照使用，可在原地重放历史操作以验证/恢复到当前进度。
    */
   public restoreToFrame(frameId: number): void {
+    desyncDiagnostics.record("sync", "restoreToFrame", {
+      frameId,
+      previousFrameId: this.currentFrameId,
+      replayFrames: [...this.replayLog.keys()].sort((a, b) => a - b),
+    });
     this.queues.clear();
     this.bufferedResponses.clear();
     this.currentFrameId = frameId;
@@ -241,6 +312,7 @@ export default class QueueReceive {
   }
 
   Consume(): boolean {
+    const beforeFrameId = this.currentFrameId;
     while (!this.queues.isEmpty()) {
       const response = this.queues.shift();
       if (!response) {
@@ -273,9 +345,22 @@ export default class QueueReceive {
     this.replayLog.set(nextFrameID, response);
 
     const operations = [...response.operations].sort((a, b) => this.compareInGameOperations(a, b));
+    desyncDiagnostics.record("sync", "consume frame", {
+      beforeFrameId,
+      frameId: nextFrameID,
+      operations: operations.map(describeOperation),
+      bufferedFrameIds: [...this.bufferedResponses.keys()].sort((a, b) => a - b),
+      replayFrameIds: [...this.replayLog.keys()].sort((a, b) => a - b),
+      ackFrameId: this.lastAckFrameId,
+    });
 
     for (const operation of operations) {
       if (operation.processFrameId !== nextFrameID) {
+        desyncDiagnostics.record("sync", "mismatched processFrameId", {
+          frameId: nextFrameID,
+          processFrameId: operation.processFrameId,
+          operation: describeOperation(operation),
+        });
         console.warn(
           "Lockstep response contains mismatched processFrameId:",
           operation.processFrameId,

@@ -16,7 +16,7 @@ const {
 
 function baseState(overrides = {}) {
   return {
-    version: 1,
+    version: core.SIMULATION_STATE_VERSION,
     seed: 12345,
     frameId: 20,
     values: { 'combat.dayOrNight': true, resources: { 'energy:100': 150 } },
@@ -79,6 +79,34 @@ test('血量 / 移动速度 / 计时器 / PRNG 状态变化都会改变哈希', 
   assert.notEqual(hashSimulationState(baseState({
     seed: 12346,
   })).h64, original);
+});
+
+test('本机专属状态不参与跨端哈希，但仍可进入快照并恢复', () => {
+  const registry = new StateRegistry();
+  const runtime = { local: 1 };
+  registry.registerLocalValue(
+    'cardpile',
+    () => ({ cards: [{ pid: 1, leftMs: runtime.local }] }),
+    (value) => {
+      runtime.local = value.cards[0].leftMs;
+    },
+  );
+
+  const first = registry.capture();
+  runtime.local = 2;
+  const second = registry.capture();
+
+  assert.notDeepEqual(first.localValues, second.localValues);
+  assert.equal(
+    registry.hash(first).h64,
+    registry.hash(second).h64,
+    '本机卡槽等本地状态不应导致跨端哈希分叉',
+  );
+
+  runtime.local = 99;
+  const report = registry.restore(first);
+  assert.equal(report.ok, true, JSON.stringify(report));
+  assert.equal(runtime.local, 1);
 });
 
 test('快照序列化 / 反序列化后哈希保持一致', () => {

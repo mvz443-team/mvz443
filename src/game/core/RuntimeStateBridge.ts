@@ -194,7 +194,9 @@ export function installRuntimeStateSources(): void {
   simulationState.registerValue("resources", () => resources.CaptureCanonicalResourceState(), (value) => {
     resources.RestoreResourceState(value as Record<string, number>);
   });
-  simulationState.registerValue(
+  // 卡槽冷却只属于本机玩家：两端卡组不同，放入跨端哈希会在首个 20 帧采样点
+  // 必然分叉。它仍需要进入快照，供本地回滚/重连恢复。
+  simulationState.registerLocalValue(
     "cardpile",
     () => cardpile.CaptureCanonicalCardpileState() as unknown as JsonValue,
     (value) => { cardpile.RestoreCardpileState(value as Record<string, unknown>); },

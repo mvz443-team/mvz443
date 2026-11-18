@@ -225,6 +225,13 @@ export interface RequestBlank {
      * @generated from protobuf field: string inline_snapshot_json = 6
      */
     inlineSnapshotJson: string;
+    /**
+     * 客户端确定性哈希口径版本（SimulationState.version）。
+     * 0 表示旧客户端未上报；服务端发现版本不一致时应拒绝比较哈希。
+     *
+     * @generated from protobuf field: uint32 state_hash_version = 7
+     */
+    stateHashVersion: number;
 }
 /**
  * RequestGridOperation 格子操作请求
@@ -837,7 +844,8 @@ class RequestBlank$Type extends MessageType<RequestBlank> {
             { no: 3, name: "state_hash", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 4, name: "hash_frame_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 5, name: "state_hash_hex", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 6, name: "inline_snapshot_json", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 6, name: "inline_snapshot_json", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "state_hash_version", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<RequestBlank>): RequestBlank {
@@ -848,6 +856,7 @@ class RequestBlank$Type extends MessageType<RequestBlank> {
         message.hashFrameId = 0;
         message.stateHashHex = "";
         message.inlineSnapshotJson = "";
+        message.stateHashVersion = 0;
         if (value !== undefined)
             reflectionMergePartial<RequestBlank>(this, message, value);
         return message;
@@ -874,6 +883,9 @@ class RequestBlank$Type extends MessageType<RequestBlank> {
                     break;
                 case /* string inline_snapshot_json */ 6:
                     message.inlineSnapshotJson = reader.string();
+                    break;
+                case /* uint32 state_hash_version */ 7:
+                    message.stateHashVersion = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -905,6 +917,9 @@ class RequestBlank$Type extends MessageType<RequestBlank> {
         /* string inline_snapshot_json = 6; */
         if (message.inlineSnapshotJson !== "")
             writer.tag(6, WireType.LengthDelimited).string(message.inlineSnapshotJson);
+        /* uint32 state_hash_version = 7; */
+        if (message.stateHashVersion !== 0)
+            writer.tag(7, WireType.Varint).uint32(message.stateHashVersion);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
