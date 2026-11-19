@@ -23,6 +23,7 @@ import {
   restoreRelations,
 } from "../../core/EntitySnapshot";
 import { forgetRigidBody, rememberRigidBody } from "../../core/PhysicsSnapshot";
+import { createEntityRandom, reseedEntityRandom, type EntityRandom } from "../../core/DeterministicRandom";
 
 const NO_RELATION_FIELDS: readonly string[] = [];
 
@@ -36,6 +37,7 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
 
   public abstract baseDepth: number;
   private snapshotKeyId: string = "";
+  private entityRandomSeed: { worldSeed: number; salt: string } | null = null;
   public get SnapshotId(): string { return this.snapshotKeyId; }
   public get id(): string { return this.SnapshotId; }
   public get snapshotKey(): string { return this.snapshotKeyId; }
@@ -46,6 +48,11 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
     if (!key || key === this.snapshotKeyId) return;
     this.snapshotKeyId = key;
     this.model?.setTickOwnerId(key);
+    const seed = this.entityRandomSeed;
+    if (seed) {
+      const random = (this as Record<string, unknown>).random as EntityRandom | undefined;
+      if (random) reseedEntityRandom(random, seed.worldSeed, seed.salt, key);
+    }
   }
 
   /** @deprecated 使用 adoptStableSnapshotKey；实体已不持有 TimerKey。 */
@@ -89,6 +96,13 @@ export abstract class BaseEntity implements Restorable<EntityLogicState>, ModelH
   public setLogicFrame(frame: number): void {
     if (this.model) setModelFrame(this.model, frame, logicEvents);
     else logicEvents.setFrame(frame);
+  }
+
+  /** 子类声明自己的随机用途；用稳定身份补足 seed 后仍保持 StatefulPRNG 引用不变。 */
+  protected initializeEntityRandom(salt: string, worldSeed = 0): EntityRandom {
+    const random = createEntityRandom(worldSeed, salt, this.snapshotKeyId);
+    this.entityRandomSeed = { worldSeed, salt };
+    return random;
   }
 
   public onRenderUpdate(_renderDt: number): void { }

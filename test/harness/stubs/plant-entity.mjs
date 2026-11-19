@@ -3,6 +3,7 @@ import { attachModelAccessors } from "../../../src/game/core/logic/LogicModel.ts
 import { ProjectileCmd } from "./cmd-projectile.mjs";
 import { SfxCmd } from "./cmd-sfx.mjs";
 import manager from "./manager-generic.mjs";
+import seedrandom from "seedrandom";
 
 /** PlantEntity 替身：只保留 Model 访问的字段/方法。 */
 export class PlantEntity extends CombatEntity {
@@ -28,7 +29,7 @@ export class PlantEntity extends CombatEntity {
     model.healthMax = model.maxHealth.getValueAt(level);
     model.health = model.healthMax;
     this.viewCalls = [];
-    this.randomState = 20261117;
+    this.random = seedrandom.alea(`plant:${col}:${row}:${model.pid}`, { state: true });
     // 真实 GeneratorEntity 在 Entity 上累计伤害；这里保持同名字段供 Model 读取。
     this.damagedSum = 0;
     // 真实 TntMinesEntity 在构造时把自己设为埋藏状态。
@@ -121,9 +122,5 @@ export class PlantEntity extends CombatEntity {
   }
   createExplosion(config, x, _y, row) {
     ProjectileCmd.CreateExplosion(this.scene, x ?? this.x, row ?? this.row, config);
-  }
-  random() {
-    this.randomState = (Math.imul(this.randomState, 1664525) + 1013904223) >>> 0;
-    return this.randomState / 0x100000000;
   }
 }

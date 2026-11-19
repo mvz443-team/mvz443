@@ -103,7 +103,7 @@ export function capturePrngs(
   const out: Record<string, JsonValue> = {};
   for (const field of fields) {
     const value = obj[field] as { state?: () => unknown } | undefined;
-    if (value && typeof value.state === "function") {
+    if (value && typeof value.state === "function" && value.state.length === 0) {
       out[field] = value.state() as JsonValue;
     }
   }
@@ -122,7 +122,7 @@ export function restorePrngs(
     const snapshot = flags[field];
     if (snapshot === undefined) continue;
     const value = obj[field] as { state?: (state: unknown) => void } | undefined;
-    if (value && typeof value.state === "function") {
+    if (value && typeof value.state === "function" && value.state.length > 0) {
       value.state(snapshot);
     } else {
       context.report.missing.push(`prng:${field}`);

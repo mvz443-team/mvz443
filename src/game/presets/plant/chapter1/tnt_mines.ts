@@ -1,5 +1,5 @@
 import PlantsManager from "../../../managers/combat/PlantsManager";
-import seedrandom from "seedrandom";
+import type { EntityRandom } from "../../../core/DeterministicRandom";
 import { GetDecValue, LevelScaledValue } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
@@ -204,7 +204,7 @@ export class TntMinesEntity extends PlantEntity {
   /** 逻辑状态由 Model 持有。 */
   public declare isBuried: boolean;
   public declare hasExploded: boolean;
-  public random: seedrandom.StatefulPRNG<seedrandom.State.Alea>;
+  public random: EntityRandom;
 
   private declare buriedSprite: Phaser.GameObjects.Sprite;
   private declare mainSprite: Phaser.GameObjects.Sprite;
@@ -220,7 +220,7 @@ export class TntMinesEntity extends PlantEntity {
     super(scene, col, row, TntMinesData, level);
     this.isBuried = true;
     this.hasExploded = false;
-    this.random = seedrandom.alea(String(CombatManager.Instance.seed * 3), { state: true });
+    this.random = this.initializeEntityRandom("tnt_mines", CombatManager.Instance.seed * 3);
     this.game = scene;
   }
 

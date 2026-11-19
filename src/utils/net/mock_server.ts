@@ -13,6 +13,7 @@ import {
 import type { LoadoutSnapshot } from "../../pb/common";
 import { toPlayerLoadout } from "./loadout";
 import { isNetDebugEnabled } from "../debugFlags";
+import { defaultRandom } from "../random";
 
 export type MockPacketChannel = "lobby" | "room" | "ingame";
 
@@ -79,7 +80,7 @@ class MockServer {
   startSingleRoom(): MockPacket[] {
     const now = Date.now();
     this.isRunning = true;
-    this.seed = Math.floor(Math.random() * 2147483647);
+    this.seed = Math.floor(defaultRandom() * 2147483647);
     this.serverFrameId = 0;
     this.operationSerial = 0;
     this.gameStartedAt = 0;

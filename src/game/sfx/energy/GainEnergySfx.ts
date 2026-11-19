@@ -6,6 +6,7 @@ import { PositionManager } from "../../managers/view/PositionManager";
 import DepthHelper from "../../utils/helper/DepthHelper";
 import { getMobileSideBarLayout } from "../../ui/mobileSideBarLayout";
 import { BaseSfx, BaseSfxArgs } from "../BaseSfx";
+import { defaultRandom } from "../../../utils/random";
 
 export type GainEnergySfxSize = "small" | "medium" | "large";
 
@@ -84,8 +85,8 @@ export class GainEnergySfx extends BaseSfx<GainEnergySfxArgs> {
     }
 
     const spread = PositionManager.Instance.GRID_SIZEX * 0.5;
-    const angle = Math.random() * Math.PI * 2;
-    const distance = Math.random() * spread;
+    const angle = defaultRandom() * Math.PI * 2;
+    const distance = defaultRandom() * spread;
 
     return {
       x: this.args.x + Math.cos(angle) * distance,

@@ -1,4 +1,4 @@
-import seedrandom from "seedrandom";
+import type { EntityRandom } from "../../../core/DeterministicRandom";
 import { LevelScaledValue } from "../../../../utils/numbervalue";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
@@ -138,13 +138,13 @@ export const TntData = new TntModel();
 
 export class TntEntity extends PlantEntity {
   public explosionDamage: number = 0;
-  public random: seedrandom.StatefulPRNG<seedrandom.State.Alea>;
+  public random: EntityRandom;
   public game: Game;
   public declare mainSprite: Phaser.GameObjects.Sprite;
 
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, TntData, level);
-    this.random = seedrandom.alea(String(CombatManager.Instance.seed * 5), { state: true });
+    this.random = this.initializeEntityRandom("tnt", CombatManager.Instance.seed * 5);
     this.game = scene;
   }
 

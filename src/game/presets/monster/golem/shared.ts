@@ -1,4 +1,4 @@
-import seedrandom from "seedrandom";
+import type { EntityRandom } from "../../../core/DeterministicRandom";
 import { PhaserEventBus, PhaserEvents } from "../../../EventBus";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { createGolemAnimController } from "../../../models/monster/anims/LegacyMonsterAnimControllers";
@@ -137,12 +137,12 @@ export class GolemModel extends PresetMonsterModel {
 export abstract class BaseGolemEntity extends BaseMonsterEntity {
   declare public model: GolemModel;
   /** PRNG 状态单独走 PRNG 快照；callCount 由 Model 自动追踪。 */
-  protected readonly random: seedrandom.StatefulPRNG<seedrandom.State.Alea>;
+  protected readonly random: EntityRandom;
 
   protected constructor(scene: Game, col: number, row: number, model: GolemModel, waveID: number, seedFactor: number) {
     super(scene, col, row, model, waveID);
     this.callCount = 0;
-    this.random = seedrandom.alea(String(CombatManager.Instance.seed * seedFactor), { state: true });
+    this.random = this.initializeEntityRandom(`golem:${seedFactor}`, CombatManager.Instance.seed * seedFactor);
     PhaserEventBus.emit(PhaserEvents.BossHealth, { health: 100 });
     SoundCmd.CoverBgm("bgm1");
   }
@@ -155,7 +155,7 @@ export abstract class BaseGolemEntity extends BaseMonsterEntity {
   protected abstract getCastDelay(): number;
   protected abstract getRecoverDelay(): number;
 
-  public getRandom(): seedrandom.StatefulPRNG<seedrandom.State.Alea> { return this.random; }
+  public getRandom(): EntityRandom { return this.random; }
   public randomInt(maxExclusive: number): number { return Math.floor(this.random() * maxExclusive); }
   public shuffleRandom<T>(items: T[]): void {
     for (let i = items.length - 1; i > 0; i--) {

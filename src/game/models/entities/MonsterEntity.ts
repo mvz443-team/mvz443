@@ -17,6 +17,7 @@ import { DeathRotateSfx } from "../../sfx/death/DeathRotateSfx";
 import { DeathSmokeSfx } from "../../sfx/death/DeathSmokeSfx";
 import SoundCmd from "../../utils/cmd/SoundCmd";
 import { MONSTER_PRNG_FIELDS, MONSTER_RELATION_FIELDS } from "../../core/logic/LogicRelations";
+import { defaultRandom } from "../../../utils/random";
 
 type DeathSmokeSpawn = {
   x: number;
@@ -248,7 +249,7 @@ export abstract class MonsterEntity extends CombatEntity {
   }
 
   protected playSpawnAudio() {
-    const idx = Math.floor(Math.random() * 3) + 1;
+    const idx = Math.floor(defaultRandom() * 3) + 1;
     SoundCmd.PlayZombieSpawn(idx);
   }
 
