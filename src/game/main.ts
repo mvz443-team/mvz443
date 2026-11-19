@@ -46,14 +46,18 @@ const StartGame = (parent: string, width: number, GameParams: GameParams, device
     deviceType,
     true,
   ).sceneBounds;
-  config.width = sceneBounds.width;
-  config.height = sceneBounds.height;
-  config.fps = {
-    target: Math.max(30, Math.min(120, Math.round(fps))),
-    forceSetTimeOut: false,
-    smoothStep: true,
+  const gameConfig: Phaser.Types.Core.GameConfig = {
+    ...config,
+    width: sceneBounds.width,
+    height: sceneBounds.height,
+    parent,
+    fps: {
+      target: Math.max(30, Math.min(120, Math.round(fps))),
+      forceSetTimeOut: false,
+      smoothStep: true,
+    },
   };
-  const game = new Game({ ...config, parent })
+  const game = new Game(gameConfig);
   game.registry.set('gameParams', GameParams);
   return game;
 
