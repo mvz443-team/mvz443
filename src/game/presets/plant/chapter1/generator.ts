@@ -7,9 +7,14 @@ import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import { BaseEntity } from "../../../models/core/BaseEntity";
 import { PlantCmd } from "../../../utils/cmd/PlantCmd";
-
+import { DEFAULT_TICK_EVENT_NAMES, TickEventNameEnums } from "../../../core/logic/TickEvents";
+import { getAuthoritativeFrame } from "../../../core/logic/EntityTickManager";
+import type { JsonValue } from "../../../core/SimulationState";
 
 export class GeneratorModel extends PlantModel {
+  public visualFrameUntilFrame = 0;
+  public visualFrameValue = 0;
+
   public override pid = 8;
   public override nameKey = 'name_generator';
   public override descriptionKey = 'generator_description';
@@ -27,13 +32,47 @@ export class GeneratorModel extends PlantModel {
   // 夜间植物标记
   isNightPlant = true;
 
+  public override readonly tickEventNames: readonly string[] = [
+    ...DEFAULT_TICK_EVENT_NAMES,
+    TickEventNameEnums.GeneratorResetVisualFrame,
+  ];
+
+  public override handleTickEvent(
+    eventName: string,
+    args: JsonValue = null,
+    timerId?: number,
+  ): void {
+    if (eventName === TickEventNameEnums.GeneratorResetVisualFrame) {
+      this.visualFrameUntilFrame = 0;
+      this.visualFrameValue = 0;
+      (this.host as GeneratorEntity | null)?.syncViewFromModel();
+      return;
+    }
+    super.handleTickEvent(eventName, args, timerId);
+  }
+
+  private scheduleVisualFlash(entity: GeneratorEntity, durationMs: number): void {
+    this.visualFrameValue = 1;
+    this.visualFrameUntilFrame = getAuthoritativeFrame() + Math.max(1, Math.ceil(durationMs / 50));
+    entity.syncViewFromModel();
+    this.tickmanager.delayedCall({
+      delay: durationMs,
+      callback: () => {
+        this.visualFrameValue = 0;
+        this.visualFrameUntilFrame = 0;
+        (this.host as GeneratorEntity | null)?.syncViewFromModel();
+      },
+      snapshot: { kind: TickEventNameEnums.GeneratorResetVisualFrame, args: {} },
+    });
+  }
+
   onHurt(entity: GeneratorEntity, damage: number, realDamage: number, dealer?: BaseEntity): void {
     // 累计伤害，每20点伤害产生能量
-    entity.damagedSum += damage;
+    this.damagedSum += damage;
     let energyToAdd = 0;
 
-    while (entity.damagedSum >= 20) {
-      entity.damagedSum -= 20;
+    while (this.damagedSum >= 20) {
+      this.damagedSum -= 20;
 
       // 根据等级和睡眠状态计算产生的能量
       let energy = 5;
@@ -57,6 +96,7 @@ export class GeneratorModel extends PlantModel {
     // 通过 ResourceManager 更新全体能量
     if (energyToAdd > 0) {
       ResourceManager.Instance.UpdateEnergy(energyToAdd, 'all');
+      this.scheduleVisualFlash(entity, 300);
       entity.playGenerateAnimation();
     }
   }
@@ -86,6 +126,7 @@ export class GeneratorModel extends PlantModel {
 
     // 恢复自己的血量
     PlantCmd.SetHealth(entity, entity.maxHealth);
+    this.scheduleVisualFlash(entity, 300);
     entity.playAwakAnimation();
   }
 
@@ -95,8 +136,9 @@ export class GeneratorModel extends PlantModel {
 }
 
 export class GeneratorEntity extends PlantEntity {
-  // 运行时状态：用于伤害累积
-  public damagedSum: number = 0;
+  declare public damagedSum: number;
+  declare public visualFrameUntilFrame: number;
+  declare public visualFrameValue: number;
 
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, GeneratorData, level);
@@ -115,35 +157,19 @@ export class GeneratorEntity extends PlantEntity {
   }
 
   public playGenerateAnimation() {
-    const sprite = this.viewGroup.getChildren()[0] as Phaser.GameObjects.Sprite;
-    if (!sprite) return;
-
-    // 简单的闪烁动画：切换到第二帧表示发光
-    sprite.setFrame(1);
-
-    // 使用 scene.time 处理动画时序（表现层）
-    this.scene.time.delayedCall(300, () => {
-      if (this && this.currentHealth && this.currentHealth > 0) {
-        sprite.setFrame(0);
-      }
-    });
+    this.syncViewFromModel();
   }
 
   public playAwakAnimation() {
-    const sprite = this.viewGroup.getChildren()[0] as Phaser.GameObjects.Sprite;
-    if (!sprite) return;
+    this.syncViewFromModel();
+  }
 
-    // 唤醒动画：快速闪烁两次
-    sprite.setFrame(1);
-    this.scene.time.delayedCall(100, () => {
-      if (sprite) sprite.setFrame(0);
-    });
-    this.scene.time.delayedCall(200, () => {
-      if (sprite) sprite.setFrame(1);
-    });
-    this.scene.time.delayedCall(300, () => {
-      if (sprite) sprite.setFrame(0);
-    });
+  public override syncViewFromModel(): void {
+    super.syncViewFromModel();
+    const sprite = this.viewGroup.getChildren()[0] as Phaser.GameObjects.Sprite | undefined;
+    if (!sprite?.frame) return;
+    const frame = this.currentHealth > 0 && this.visualFrameUntilFrame > 0 ? this.visualFrameValue : 0;
+    if (sprite.frame.name !== String(frame)) sprite.setFrame(frame);
   }
 }
 

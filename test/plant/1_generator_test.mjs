@@ -34,6 +34,7 @@ test("每 20 点伤害转化一次能量", () => {
   const { model, entity } = spawnPlant(GeneratorData, { level: 1 });
 
   model.onHurt(entity, 40, 40);
+  assert.equal(model.damagedSum, 0);
   assert.equal(entity.damagedSum, 0);
   assert.deepEqual(getResourceState().energyCalls, [10]);
 

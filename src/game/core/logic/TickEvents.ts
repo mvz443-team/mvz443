@@ -13,6 +13,8 @@ export const TickEventNameEnums = {
   LogicTick: "LogicTick",
   /** 投射物生命周期结束：爆炸/激光等按纯数据 timer 销毁。 */
   ProjectileExpire: "ProjectileExpire",
+  /** 植物表现帧复位：随 Model 快照回滚，避免 scene.time 产生幽灵表现。 */
+  GeneratorResetVisualFrame: "GeneratorResetVisualFrame",
 } as const;
 
 export type TickEventNameEnums = typeof TickEventNameEnums[keyof typeof TickEventNameEnums];

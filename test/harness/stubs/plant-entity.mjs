@@ -30,8 +30,6 @@ export class PlantEntity extends CombatEntity {
     model.health = model.healthMax;
     this.viewCalls = [];
     this.random = seedrandom.alea(`plant:${col}:${row}:${model.pid}`, { state: true });
-    // 真实 GeneratorEntity 在 Entity 上累计伤害；这里保持同名字段供 Model 读取。
-    this.damagedSum = 0;
     // 真实 TntMinesEntity 在构造时把自己设为埋藏状态。
     if (model.pid === 4) model.isBuried = true;
 

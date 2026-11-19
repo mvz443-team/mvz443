@@ -271,12 +271,18 @@ export interface StateHash {
  * - `flags.lastConsumedEventId`：BaseEntity 的纯渲染去重游标；
  * - `logic.events`：音效/飘字/粒子等一次性表现事件队列；
  * - `ticker.frameInterval`：固定常量，不携带战局差异。
+ * - `*.visualFrame*`：由本机权威帧推算的表现倒计时，不参与跨端比较。
  * - `TimerTriggered` 的 `args`：本机回调注册表句柄（callback:N），不是逻辑参数。
  */
 function hashableValues(values: Record<string, JsonValue>): Record<string, JsonValue> {
   const projected: Record<string, JsonValue> = {};
   for (const key of sortedKeys(values)) {
-    if (key === "logic.events" || key === "ticker.frameInterval") continue;
+    if (
+      key === "logic.events" ||
+      key === "ticker.frameInterval" ||
+      key.endsWith(".visualFrameUntilFrame") ||
+      key.endsWith(".visualFrameValue")
+    ) continue;
     projected[key] = values[key];
   }
   return projected;

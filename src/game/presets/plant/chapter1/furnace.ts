@@ -14,6 +14,9 @@ const FURNACE_EVENTS = {
 } as const;
 
 export class FurnaceModel extends PlantModel {
+  public visualFrameUntilFrame = 0;
+  public visualFrameValue = 0;
+
   public override pid = 2;
   public override nameKey = 'name_furnace';
   public override descriptionKey = 'furnace_description';
@@ -123,6 +126,9 @@ export class FurnaceModel extends PlantModel {
 }
 
 export class FurnaceEntity extends PlantEntity {
+  declare public visualFrameUntilFrame: number;
+  declare public visualFrameValue: number;
+
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, FurnaceData, level);
   }
@@ -145,7 +151,8 @@ export class FurnaceEntity extends PlantEntity {
     if (!sprite?.frame) return;
 
     const model = this.model as FurnaceModel;
-    const frame = model.generating && this.currentHealth > 0 ? 1 : 0;
+    const active = model.generating && this.currentHealth > 0;
+    const frame = active && model.visualFrameUntilFrame > 0 ? model.visualFrameValue : (active ? 1 : 0);
     if (sprite.frame.name !== String(frame)) sprite.setFrame(frame);
   }
 }

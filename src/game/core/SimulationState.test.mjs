@@ -73,6 +73,7 @@ test('跨端哈希剔除表现消费游标、物理句柄与视觉事件队列',
     entities: [{
       ...baseState().entities[0],
       flags: { isFrozen: false, attackTimer: 6, lastConsumedEventId: 3 },
+      model: { visualFrameUntilFrame: 20, visualFrameValue: 1 },
       extra: { lastConsumedEventId: 3, rigidBodyHandle: 11, hasRigidBody: true },
     }],
   });
@@ -93,6 +94,7 @@ test('跨端哈希剔除表现消费游标、物理句柄与视觉事件队列',
     entities: [{
       ...baseState().entities[0],
       flags: { isFrozen: false, attackTimer: 6, lastConsumedEventId: 98 },
+      model: { visualFrameUntilFrame: 999, visualFrameValue: 0 },
       extra: { lastConsumedEventId: 98, rigidBodyHandle: 42, hasRigidBody: false },
     }],
   });
