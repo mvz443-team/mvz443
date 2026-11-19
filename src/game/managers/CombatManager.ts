@@ -8,6 +8,7 @@ import SyncManager from "./combat/SyncManager";
 import TickerManager from "./combat/TickerManager";
 import { BaseEntity } from "../models/core/BaseEntity";
 import { DeferredManager } from "./DeferredManager";
+import type { DeferredCommand } from "./DeferredManager";
 import { onlineStateManager } from "../../store/OnlineStateManager";
 import { RoomAllReadyEvent } from "../../types/online";
 import BackendWS from "../../utils/net/sync";
@@ -100,6 +101,7 @@ export default class CombatManager extends BaseManager {
     CombatManager.SNAPSHOT_RING_SIZE,
   );
   private lastRestoreReport: ReturnType<typeof simulationState.restore> | null = null;
+  private deferredCommandsBeforeRestore: DeferredCommand[] = [];
   private desyncOffline = false;
   private desyncReason = "";
   private desyncLogExported = false;
@@ -159,6 +161,8 @@ export default class CombatManager extends BaseManager {
     PhaserEventBus.on(PhaserEvents.TogglePause, this.handleTogglePause, this);
     PhaserEventBus.on(PhaserEvents.TimespeedToggle, this.handleTimespeedToggle, this);
 
+    SyncManager.Instance.recvQueue?.setLateOperationRollback(this.rollbackForLateOperation);
+
     PhaserEventBus.on(PhaserEvents.RoomGameStart, this.handleRoomGameStart, this);
     PhaserEventBus.on(PhaserEvents.RoomGameEnd, this.handleRoomGameEnd, this);
 
@@ -185,6 +189,7 @@ export default class CombatManager extends BaseManager {
       seed: this.seed,
       frameId: SyncManager.Instance.recvQueue?.currentFrameId ?? null,
     });
+    SyncManager.Instance.recvQueue?.setLateOperationRollback(null);
     PhaserEventBus.off(PhaserEvents.TogglePause, this.handleTogglePause, this);
     PhaserEventBus.off(PhaserEvents.TimespeedToggle, this.handleTimespeedToggle, this);
     PhaserEventBus.off(PhaserEvents.RoomGameStart, this.handleRoomGameStart, this);
@@ -502,6 +507,16 @@ export default class CombatManager extends BaseManager {
     return simulationState.capture();
   }
 
+  /**
+   * 回滚环中的快照必须与运行时对象彻底解耦。restoreState("in-place") 会把
+   * 快照里的 JsonValue 容器直接写回实体/管理器；如果环里保存的是 capture
+   * 时的同一对象引用，第一次回滚重放就会改写旧快照，后续回滚必然字段错位。
+   * 这里只在低频快照记录路径做 JSON 往返。
+   */
+  private static cloneSnapshotState(state: SimulationState): SimulationState {
+    return JSON.parse(serializeSimulationState(state)) as SimulationState;
+  }
+
   public serializeState(): string {
     return serializeSimulationState(this.captureState());
   }
@@ -510,6 +525,7 @@ export default class CombatManager extends BaseManager {
   public restoreState(state: SimulationState, mode: "in-place" | "rebuild" = "in-place") {
     // 快照恢复前清空延迟队列：否则旧世界排队中的创建/销毁会在恢复后
     // 才执行，凭空多出实体或删掉快照中的实体。
+    const pendingDeferred = DeferredManager.Instance.TakePending();
     DeferredManager.Instance.Reset();
     // 实体重建发生在 simulationState.restore 内部；先锚定快照帧，
     // 让重建实体在 onCreate 里创建的计时器以快照帧为起点，
@@ -530,6 +546,7 @@ export default class CombatManager extends BaseManager {
     }
     this.lastStateHash = null;
     this.lastStateHashFrame = 0;
+    this.deferredCommandsBeforeRestore = pendingDeferred;
     return report;
   }
 
@@ -548,7 +565,7 @@ export default class CombatManager extends BaseManager {
     // 快照必须落在干净的帧边界：先执行完延迟创建/销毁。
     DeferredManager.Instance.flush();
     // 快照需要独立对象：同一帧的 h32/checkpoint 会交给服务端，不能共享引用。
-    const state = this.captureState();
+    const state = CombatManager.cloneSnapshotState(this.captureState());
     this.snapshotRing.push({ frameId, state });
     desyncDiagnostics.record("combat", "snapshot recorded", {
       frameId,
@@ -579,8 +596,23 @@ export default class CombatManager extends BaseManager {
     if (!entry) return null;
     const report = this.restoreState(entry.state, "in-place");
     SyncManager.Instance.recvQueue.restoreToFrame(entry.frameId);
+    DeferredManager.Instance.RestorePending(this.deferredCommandsBeforeRestore);
+    this.deferredCommandsBeforeRestore = [];
     return { frameId: entry.frameId, report };
   }
+
+  /** 迟到权威操作：回滚到可重放的历史帧，再把已消费帧按顺序重新执行。 */
+  private rollbackForLateOperation = (processFrameId: number): boolean => {
+    const targetFrame = Math.max(0, processFrameId - 1);
+    const result = this.rollbackToFrame(targetFrame);
+    desyncDiagnostics.record("sync", "late operation rollback result", {
+      targetFrame,
+      processFrameId,
+      restoredFrame: result?.frameId ?? null,
+      ok: result?.report.ok ?? false,
+    });
+    return result !== null && result.report.ok;
+  };
 
   public clearSnapshotRing(): void {
     this.snapshotRing.clear();
@@ -627,6 +659,15 @@ export default class CombatManager extends BaseManager {
     this.desyncLogExported = true;
     desyncDiagnostics.downloadOnce("desync-offline", {
       reason: this.desyncReason,
+      report: this.buildDesyncDiagnosticState(),
+    });
+  }
+
+  /** netDebug 正常结算/主动退出时导出完整战斗日志。 */
+  public exportNetDebugLog(reason: string): void {
+    if (!desyncDiagnostics.isEnabled()) return;
+    desyncDiagnostics.downloadOnce(`netdebug-${reason}`, {
+      reason,
       report: this.buildDesyncDiagnosticState(),
     });
   }
@@ -707,7 +748,7 @@ export default class CombatManager extends BaseManager {
 
     this.pendingDeterminismCheck = {
       targetFrame: currentFrame,
-      expectedHash: this.hashState(),
+      expectedHash: simulationState.hash(this.captureFrameState()).h64,
       restoreFrame: entry.frameId,
     };
     this.rollbackToFrame(entry.frameId);
@@ -721,7 +762,7 @@ export default class CombatManager extends BaseManager {
     if (currentFrame < check.targetFrame) return;
 
     this.pendingDeterminismCheck = null;
-    const actualHash = this.hashState();
+    const actualHash = simulationState.hash(this.captureFrameState()).h64;
     PhaserEventBus.emit(PhaserEvents.DeterminismSelfCheckResult, {
       ok: actualHash === check.expectedHash,
       restoreFrame: check.restoreFrame,

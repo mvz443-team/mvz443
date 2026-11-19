@@ -2,7 +2,7 @@ import { BaseManager } from "./BaseManager";
 import { Game } from "../scenes/Game";
 import { getAuthoritativeFrame, withTickFrame } from "../core/logic/EntityTickManager";
 
-type DeferredCommand = {
+export type DeferredCommand = {
   /** 注册该命令时的权威逻辑帧；创建出的实体 timer 以此帧为起点。 */
   frame: number;
   command: () => void;
@@ -77,5 +77,17 @@ export class DeferredManager extends BaseManager {
   public Reset(): void {
     // 重置时清空所有延迟命令
     this.commands = [];
+  }
+
+  /** 清空尚未执行的命令，但保留每条命令注册时的权威帧。 */
+  public TakePending(): DeferredCommand[] {
+    const pending = this.commands;
+    this.commands = [];
+    return pending;
+  }
+
+  /** 回滚后按原权威帧重新排队尚未执行的命令。 */
+  public RestorePending(commands: readonly DeferredCommand[]): void {
+    this.commands.push(...commands.map((command) => ({ ...command })));
   }
 }

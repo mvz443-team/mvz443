@@ -10,8 +10,10 @@ import CursorManager from "./CursorManager";
 import GridManager from "./GridManager";
 import ResourceManager, { PlayerIdentify } from "./ResourceManager";
 import SyncManager from "./SyncManager";
+import type { AuthoritativeOperationRequest, OperationApplyResult } from "./SyncManager";
 import SoundCmd from "../../utils/cmd/SoundCmd";
 import CombatManager from "../CombatManager";
+import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
 
 type PlantsManagerEvent = {
   // 用户决定操作事件，之后要在send_queue监听
@@ -183,9 +185,97 @@ export default class PlantsManager extends BaseManager {
     return this.SightLineReflectorsByLane.get(row);
   }
 
+  /**
+   * 权威帧执行前的合法性检查。服务端只校验目标帧的格子冲突，玩家延迟不同
+   * 时 A/B 可能分别排到相邻帧并在同一格种下两株植物；客户端必须在权威历史
+   * 重放到该帧后，根据恢复出的实体/资源/冷却状态再校验一次。
+   */
+  public CanApplyAuthoritativeOperation(
+    kind: "plant" | "removePlant" | "starShards",
+    playerId: PlayerIdentify,
+    pid: number,
+    level: number,
+    col: number,
+    row: number,
+    requireSelfResources: boolean,
+  ): boolean {
+    const isGiftPlant = playerId === 9961;
+    const existedPlants = this.PlantsMap.get(`${col}-${row}`) || [];
+    const targetPlant = existedPlants.find((plant) => plant.model.pid === pid);
+    const authoritative = !CombatManager.Instance.isDesyncOffline();
+
+    if (kind === "plant") {
+      const model = PlantLibrary.GetModel(pid);
+      if (!model) return false;
+      const cost = model.cost.getValueAt(level);
+      // 只有操作发起端能校验自己的资源；远端不持有发起者资源账本。
+      if (requireSelfResources && !isGiftPlant
+        && !ResourceManager.Instance.ActualEnergySufficient(cost, playerId)) {
+        this.rejectAuthoritativeOperation(kind, playerId, pid, col, row, "energy insufficient");
+        return false;
+      }
+      if (requireSelfResources && !isGiftPlant && playerId === ResourceManager.Instance.mineId) {
+        if (!CardpileManager.Instance.isCardActuallyReloaded(pid) && !authoritative) {
+          this.rejectAuthoritativeOperation(kind, playerId, pid, col, row, "card cooldown");
+          return false;
+        }
+      }
+      const targetGridProperty = GridManager.Instance.GetGridProperty(col, row);
+      if (!targetGridProperty || !PlantHelper.CanPlantInGrid(existedPlants, pid, targetGridProperty)) {
+        this.rejectAuthoritativeOperation(kind, playerId, pid, col, row, "grid occupied");
+        return false;
+      }
+      return true;
+    }
+
+    if (!targetPlant) {
+      this.rejectAuthoritativeOperation(kind, playerId, pid, col, row, "target missing");
+      return false;
+    }
+    if (kind === "starShards"
+      && requireSelfResources
+      && !ResourceManager.Instance.ActualStarShardsSufficient(1, playerId)) {
+      this.rejectAuthoritativeOperation(kind, playerId, pid, col, row, "star shards insufficient");
+      return false;
+    }
+    return true;
+  }
+
+  private rejectAuthoritativeOperation(
+    kind: string,
+    playerId: PlayerIdentify,
+    pid: number,
+    col: number,
+    row: number,
+    reason: string,
+  ): void {
+    desyncDiagnostics.record("sync", "authoritative operation rejected by restored state", {
+      kind,
+      playerId,
+      pid,
+      col,
+      row,
+      reason,
+      frameId: SyncManager.Instance.GetFrameID(),
+    });
+  }
+
+  private canApplyAuthoritativeRequest(request: AuthoritativeOperationRequest): boolean {
+    return this.CanApplyAuthoritativeOperation(
+      request.kind,
+      request.playerId,
+      request.pid,
+      request.level,
+      request.col,
+      request.row,
+      request.playerId === ResourceManager.Instance.mineId,
+    );
+  }
+
   // 种植植物
-  PlantCard = (playerId: PlayerIdentify, pid: number, level: number, col: number, row: number) => {
-    if (!this.scene) return;
+  PlantCard = (request: AuthoritativeOperationRequest): OperationApplyResult => {
+    if (!this.scene) return { ok: false, reason: "scene missing" };
+    const { playerId, pid, level, col, row } = request;
     const isGiftPlant = playerId === 9961;
     // 联机权威帧路径：服务端已确认该操作，不能再拿本地卡槽/能量/占位状态
     // 二次拒绝，否则一端会静默跳过实体创建，另一端正常创建，下一帧立即分叉。
@@ -195,12 +285,14 @@ export default class PlantsManager extends BaseManager {
     const model = PlantLibrary.GetModel(pid);
     if (!model) {
       console.error(`[SpawnPlant] Failed to spawn: Plant with pid ${pid} does not exist.`);
-      return;
+      return { ok: false, reason: "plant model missing" };
     }
 
     // 如果playerId为我，cardpile是否有这张牌，以及是否正在冷却
     if (!authoritative && !isGiftPlant && playerId === ResourceManager.Instance.mineId) {
-      if (!CardpileManager.Instance.isCardActuallyReloaded(pid)) return;
+      if (!CardpileManager.Instance.isCardActuallyReloaded(pid)) {
+        return { ok: false, reason: "card cooldown" };
+      }
     }
 
     const cost = model.cost.getValueAt(level);
@@ -208,18 +300,27 @@ export default class PlantsManager extends BaseManager {
       if (playerId === ResourceManager.Instance.mineId) {
         this.EventBus.emit('onEnergyInsufficient');
       }
-      return;
+      return { ok: false, reason: "energy insufficient" };
     }
 
     const existedPlants = this.PlantsMap.get(`${col}-${row}`) || [];
     const targetGridProperty = GridManager.Instance.GetGridProperty(col, row);
 
     // 如果格子属性不存在，默认不允许种植
-    if (!targetGridProperty) return false;
+    if (!targetGridProperty) return { ok: false, reason: "invalid grid" };
+
+    if (authoritative
+      && !this.canApplyAuthoritativeRequest(request)) {
+      // 服务端已确认，但本地权威历史判定该操作非法；放弃落地，防止同格双植物。
+      // 预演由 SyncManager 按操作最终成功/失败结果统一收口。
+      return { ok: false, reason: "authoritative plant rejected" };
+    }
 
     // 占位规则是本地输入校验；权威操作已经由发起端校验，不能再因另一端
     // 暂时的实体集合差异而拒绝落地。
-    if (!authoritative && !PlantHelper.CanPlantInGrid(existedPlants, pid, targetGridProperty)) return;
+    if (!authoritative && !PlantHelper.CanPlantInGrid(existedPlants, pid, targetGridProperty)) {
+      return { ok: false, reason: "grid occupied" };
+    }
 
     // 扣除资源，冷却等
     ResourceManager.Instance.EnsurePlayerResources(playerId);
@@ -235,10 +336,38 @@ export default class PlantsManager extends BaseManager {
       if (!this.scene) return;
       model.createEntity(this.scene, col, row, level);
     });
+    return { ok: true };
   }
 
+  /** 关卡预设的赠送植物不经过网络，仍使用原有调用形状。 */
+  PlantCardDirect = (
+    playerId: PlayerIdentify,
+    pid: number,
+    level: number,
+    col: number,
+    row: number,
+  ): OperationApplyResult => this.PlantCard({
+    kind: "plant",
+    playerId,
+    pid,
+    level,
+    col,
+    row,
+    clientOpSeq: 0,
+    cost: PlantLibrary.GetModel(pid)?.cost.getValueAt(level) ?? 0,
+  });
+
   // 铲子移除植物
-  private UprootPlant = (pid: number, col: number, row: number) => {
+  private UprootPlant = (request: AuthoritativeOperationRequest): OperationApplyResult => {
+    const { pid, col, row } = request;
+    const authoritative = !CombatManager.Instance.isDesyncOffline();
+    const target = (this.PlantsMap.get(`${col}-${row}`) ?? [])
+      .find((plant) => plant.model.pid === pid);
+    if (!target) return { ok: false, reason: "target missing" };
+    if (authoritative && !this.canApplyAuthoritativeRequest(request)) {
+      return { ok: false, reason: "authoritative remove rejected" };
+    }
+    // 铲除没有 playerId：接受任意存活植物，只按 pid/格校验权威历史。
     DeferredManager.Instance.defer(() => {
       const key = `${col}-${row}`;
       if (this.PlantsMap.has(key)) {
@@ -253,13 +382,19 @@ export default class PlantsManager extends BaseManager {
         }
       }
     });
+    return { ok: true };
   }
 
   // 启动星之碎片效果
-  private LaunchStarShards = (playerId: PlayerIdentify, pid: number, col: number, row: number): boolean => {
+  private LaunchStarShards = (request: AuthoritativeOperationRequest): OperationApplyResult => {
+    const { playerId, pid, col, row } = request;
     const authoritative = !CombatManager.Instance.isDesyncOffline();
+    if (authoritative
+      && !this.canApplyAuthoritativeRequest(request)) {
+      return { ok: false, reason: "authoritative star shards rejected" };
+    }
     if (!authoritative && !ResourceManager.Instance.ActualStarShardsSufficient(1, playerId)) {
-      return false;
+      return { ok: false, reason: "star shards insufficient" };
     }
 
     const key = `${col}-${row}`;
@@ -276,11 +411,11 @@ export default class PlantsManager extends BaseManager {
             plantObj.useStarShards();
           });
 
-          return true;
+          return { ok: true };
         }
       }
     }
-    return false;
+    return { ok: false, reason: "target missing" };
   }
 
   handleAttemptUseStarShards = (col: number, row: number, aspect: 'up' | 'down') => {
@@ -289,7 +424,8 @@ export default class PlantsManager extends BaseManager {
     if (!targetPlant) return;
     // 如果星之碎片余量充足,则发动效果
     if (ResourceManager.Instance.StarShardsSufficient(1, 'mine')) {
-      ResourceManager.Instance.ApplyPreviewStarShards(-1, 'mine');
+      // 联机预演统一由 SyncManager 在请求成功入队后应用；这里重复预演会让
+      // 失败路径只撤销一份，HUD 永久残留已撤销的花费。
       this.EventBus.emit('onDetermineUseStarShards', targetPlant.pid, col, row, 1);
     }
   }
@@ -327,9 +463,6 @@ export default class PlantsManager extends BaseManager {
 
     // 格子允许种植
     if (!PlantHelper.CanPlantInGrid(existedPlants, pid, targetGridProperty)) return;
-
-    ResourceManager.Instance.ApplyPreviewEnergy(-cost, 'mine');
-    CardpileManager.Instance.previewReloadCard(pid);
 
     // 种植
     this.EventBus.emit('onDeterminePlant', pid, level, col, row, cost);

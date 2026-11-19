@@ -189,6 +189,7 @@ class DesyncDiagnostics {
   private encodeWorker: Worker | null = null;
   private encodeWorkerNextId = 1;
   private readonly encodeCallbacks = new Map<number, (result: { hex: string; base64: string }) => void>();
+  private readonly downloadedReasons = new Set<string>();
   private readonly fullNetworkDiagnostics: boolean;
   private readonly enabled: boolean;
 
@@ -404,6 +405,7 @@ class DesyncDiagnostics {
   /** 手动下载；不会清空缓冲，也不会被一次性标记拦截。 */
   public download(reason: string, extra?: unknown): void {
     if (!this.enabled) return;
+    this.downloadedReasons.add(reason);
     if (typeof document === "undefined" || typeof Blob === "undefined") {
       this.record("diagnostics", "download skipped: no document/Blob", { reason });
       return;
@@ -469,10 +471,9 @@ class DesyncDiagnostics {
     window.setTimeout(() => URL.revokeObjectURL(url), 2_000);
   }
 
-  /** 分叉告警只下载一次，避免结算时重复弹下载。 */
+  /** 同一 reason 只下载一次；分叉和正常结算/主动退出使用不同 reason。 */
   public downloadOnce(reason: string, extra?: unknown): void {
-    if (this.downloadStarted) return;
-    this.downloadStarted = true;
+    if (this.downloadedReasons.has(reason)) return;
     this.download(reason, extra);
   }
 
@@ -482,6 +483,7 @@ class DesyncDiagnostics {
 
   public resetDownloadFlag(): void {
     this.downloadStarted = false;
+    this.downloadedReasons.clear();
   }
 
   public clear(): void {

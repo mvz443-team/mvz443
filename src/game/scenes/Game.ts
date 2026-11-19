@@ -745,6 +745,7 @@ export class Game extends Scene {
     if (CombatManager.Instance.isDesyncOffline()) {
       CombatManager.Instance.exportDesyncLog();
     }
+    CombatManager.Instance.exportNetDebugLog("game-end");
     this.cleanupSceneListeners();
 
     ConsoleCmd.uninstall(this);

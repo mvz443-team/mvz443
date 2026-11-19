@@ -143,3 +143,80 @@ test('恢复 checkpoint 时保留尚未 Consume 的队列回包', () => {
   assert.equal(queue.currentFrameId, 5);
   assert.equal(applied.length, 1, 'queued frame 4 的操作必须执行且只执行一次');
 });
+
+test('补帧乱序到达时回滚仍按首次执行集合重放', () => {
+  const queue = new QueueReceive();
+  const applied = [];
+  queue.InGameEventBus.on('onCardPlant', (_pid, col) => applied.push(col));
+
+  queue.handleInGameResponse({ frameId: 1, operations: [] });
+  queue.handleInGameResponse({ frameId: 2, operations: [cardPlantOperation(2, 2)] });
+  assert.equal(queue.Consume(), true);
+
+  // 服务端补帧到达顺序为 4 → 3；客户端必须先把 frame 4 排进历史。
+  queue.handleInGameResponse({ frameId: 4, operations: [cardPlantOperation(4, 4)] });
+  queue.handleInGameResponse({ frameId: 3, operations: [cardPlantOperation(3, 3)] });
+  for (let step = 2; step <= 4; step += 1) {
+    assert.equal(queue.Consume(), true, `首次运行必须消费 frame ${step}`);
+  }
+  assert.equal(queue.currentFrameId, 4);
+  assert.deepEqual(applied, [2, 3, 4], '入队可乱序，但权威帧必须按帧号推进');
+
+  queue.restoreToFrame(1);
+  assert.deepEqual(queue.getReplayFrameIds(), [1, 2, 3, 4]);
+  for (let step = 2; step <= 4; step += 1) {
+    assert.equal(queue.Consume(), true, `重放 frame ${step} 必须成功`);
+  }
+  assert.equal(queue.currentFrameId, 4);
+  assert.deepEqual(applied, [2, 3, 4, 2, 3, 4], '重放必须复用首次执行集合');
+});
+
+test('重复补发同一操作不得二次执行', () => {
+  const queue = new QueueReceive();
+  const applied = trackApplied(queue);
+
+  queue.handleInGameResponse({ frameId: 1, operations: [cardPlantOperation(1)] });
+  assert.equal(queue.Consume(), true);
+  assert.equal(applied.length, 1);
+
+  queue.handleInGameResponse({ frameId: 1, operations: [cardPlantOperation(1)] });
+  assert.equal(queue.Consume(), false);
+  assert.equal(applied.length, 1, '同一签名的历史操作必须忽略');
+});
+
+test('服务器改写后的迟到操作先回滚再重放', () => {
+  const queue = new QueueReceive();
+  const applied = [];
+  queue.InGameEventBus.on('onCardPlant', (_pid, col) => applied.push(col));
+  let rollbackTarget = null;
+  let rollbackCount = 0;
+  queue.setLateOperationRollback((frameId) => {
+    rollbackTarget = frameId;
+    rollbackCount += 1;
+    queue.restoreToFrame(frameId - 1);
+    return true;
+  });
+
+  for (let frame = 1; frame <= 5; frame += 1) {
+    queue.handleInGameResponse({ frameId: frame, operations: [] });
+    assert.equal(queue.Consume(), true);
+  }
+
+  queue.stageResponseOperationsForTest({
+    frameId: 3,
+    operations: [cardPlantOperation(3, 9)],
+  });
+  assert.equal(rollbackTarget, null, '回滚必须延迟到 Consume 入口统一执行');
+  assert.equal(rollbackCount, 0);
+  assert.equal(queue.currentFrameId, 5);
+  assert.deepEqual(applied, [], '初始空帧没有操作');
+
+  assert.equal(queue.Consume(), true);
+  assert.equal(rollbackTarget, 3, '目标帧 3 的操作必须先回滚到该帧');
+  assert.equal(rollbackCount, 1);
+  assert.equal(queue.currentFrameId, 3);
+  assert.deepEqual(applied, [9], '迟到操作必须在恢复后的目标帧执行');
+  assert.equal(queue.Consume(), true);
+  assert.equal(queue.currentFrameId, 4);
+  assert.deepEqual(applied, [9], '历史帧重放不得重复执行操作');
+});

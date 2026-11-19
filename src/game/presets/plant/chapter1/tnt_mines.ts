@@ -137,7 +137,7 @@ export class TntMinesModel extends PlantModel {
       // 第一遍：保证分布在不同的行和列中
       for (let col = PositionManager.Instance.Col_Number - 1; col >= 0 && leftCount > 0; col--) {
         const rows = Array.from({ length: PositionManager.Instance.Row_Number }, (_, i) => i);
-        rows.sort(() => entity.random() - 0.5);
+        shuffleRows(rows, entity);
 
         for (const row of rows) {
           if (leftCount <= 0) break;
@@ -161,7 +161,7 @@ export class TntMinesModel extends PlantModel {
       if (leftCount > 0) {
         for (let col = PositionManager.Instance.Col_Number - 1; col >= 0 && leftCount > 0; col--) {
           const rows = Array.from({ length: PositionManager.Instance.Row_Number }, (_, i) => i);
-          rows.sort(() => entity.random() - 0.5);
+          shuffleRows(rows, entity);
 
           for (const row of rows) {
             if (leftCount <= 0) break;
@@ -337,6 +337,13 @@ export class TntMinesEntity extends PlantEntity {
 
 function canVaultOverMine(monster: MonsterEntity, mine: PlantEntity): boolean {
   return (monster as VaultingMonster).canVaultOverPlant?.(mine) === true;
+}
+
+function shuffleRows(rows: number[], entity: TntMinesEntity): void {
+  for (let index = rows.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(entity.random() * (index + 1));
+    [rows[index], rows[target]] = [rows[target], rows[index]];
+  }
 }
 
 export default TntMinesData;

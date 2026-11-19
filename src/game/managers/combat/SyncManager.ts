@@ -20,12 +20,41 @@ import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
 import { perfSampler } from "../../../utils/debug/perfSampler";
 
 type SyncManagerEvent = {
-  onRequestPlant: (playerId: PlayerIdentify, pid: number, level: number, col: number, row: number) => void;
-  onRequestUseStarShards: (playerId: PlayerIdentify, pid: number, col: number, row: number) => void;
-  onRequestRemovePlant: (pid: number, col: number, row: number) => void;
+  onRequestPlant: (request: AuthoritativeOperationRequest) => OperationApplyResult;
+  onRequestUseStarShards: (request: AuthoritativeOperationRequest) => OperationApplyResult;
+  onRequestRemovePlant: (request: AuthoritativeOperationRequest) => OperationApplyResult;
+  onOperationSucceeded: (result: AuthoritativeOperationResult) => void;
+  onOperationFailed: (result: AuthoritativeOperationResult) => void;
   onPredictedOperation: (operation: PredictedOperation) => void;
   onAuthoritativeOperation: (clientOpSeq: number) => void;
   onPredictedOperationRejected: (clientOpSeq: number) => void;
+};
+
+export type AuthoritativeOperationKind = PredictedOperation["kind"];
+
+export type AuthoritativeOperationRequest = {
+  kind: AuthoritativeOperationKind;
+  playerId: PlayerIdentify;
+  pid: number;
+  level: number;
+  col: number;
+  row: number;
+  clientOpSeq: number;
+  cost: number;
+  reason?: string;
+};
+
+export type AuthoritativeOperationResult = AuthoritativeOperationRequest & {
+  ok: boolean;
+};
+
+export type OperationApplyResult = {
+  ok: boolean;
+  reason?: string;
+};
+
+type OperationOutcome = OperationApplyResult & {
+  authoritativeCostApplied: boolean;
 };
 
 export type PredictedOperation = {
@@ -61,6 +90,82 @@ export default class SyncManager extends BaseManager {
   /** 由 QueueReceive 在消费每个权威操作时设置，用于把回包关联到本地预测。 */
   public setCurrentOperationResponseSeq(clientOpSeq: number): void {
     this.currentResponseClientOpSeq = clientOpSeq;
+  }
+
+  /** 服务端确认且权威状态合法：只消费该操作自己的点击预演。 */
+  public consumeOperationPreview(
+    clientOpSeq: number,
+    options: { authoritativeCostApplied?: boolean } = {},
+  ): void {
+    const predicted = this.predictedOperations.get(clientOpSeq);
+    if (!predicted) return;
+    // PlantsManager 在权威落地时已经扣过资源并调用了 reconcilePreviewDelta。
+    // 此时再 consume 一次会重复撤销预演，失败方会残留负数预演和满冷却。
+    const costAlreadyApplied = options.authoritativeCostApplied ?? true;
+    if (predicted.kind === "plant") {
+      if (!costAlreadyApplied) {
+        const cost = PlantLibrary.GetModel(predicted.pid)?.cost.getValueAt(predicted.level) ?? 0;
+        ResourceManager.Instance.ConsumePreviewDelta(-cost, "energy", predicted.uid);
+        CardpileManager.Instance.ConsumePreviewCooldown(predicted.pid);
+      }
+    } else if (predicted.kind === "starShards") {
+      if (!costAlreadyApplied) {
+        ResourceManager.Instance.ConsumePreviewDelta(-1, "starShards", predicted.uid);
+      }
+    }
+  }
+
+  private finalizeOperationOutcome(
+    request: AuthoritativeOperationRequest,
+    outcome: OperationOutcome,
+  ): boolean {
+    const localPredicted = request.playerId === BackendWS.my_id
+      && request.clientOpSeq > 0
+      && this.predictedOperations.has(request.clientOpSeq);
+    const result: AuthoritativeOperationResult = { ...request, ok: outcome.ok, reason: outcome.reason };
+    desyncDiagnostics.record("sync", "user operation outcome", {
+      kind: request.kind,
+      clientOpSeq: request.clientOpSeq,
+      uid: request.playerId,
+      pid: request.pid,
+      level: request.level,
+      col: request.col,
+      row: request.row,
+      cost: request.cost,
+      ok: outcome.ok,
+      reason: outcome.reason ?? null,
+      authoritativeCostApplied: outcome.authoritativeCostApplied,
+      frameId: this.GetFrameID(),
+    });
+
+    if (!outcome.ok) {
+      if (localPredicted) {
+        this.rollbackPredictedOperation(request.clientOpSeq);
+        this.Eventbus.emit("onAuthoritativeOperation", request.clientOpSeq);
+      }
+      desyncDiagnostics.record("sync", "authoritative operation failed", {
+        kind: request.kind,
+        uid: request.playerId,
+        pid: request.pid,
+        col: request.col,
+        row: request.row,
+        clientOpSeq: request.clientOpSeq,
+        reason: outcome.reason ?? "unknown",
+        frameId: this.GetFrameID(),
+      });
+      this.Eventbus.emit("onOperationFailed", result);
+      return false;
+    }
+
+    if (localPredicted) {
+      this.consumeOperationPreview(request.clientOpSeq, {
+        authoritativeCostApplied: outcome.authoritativeCostApplied,
+      });
+      this.confirmPredictedOperation(request.clientOpSeq, request.playerId);
+      this.removeGhost(request.clientOpSeq);
+    }
+    this.Eventbus.emit("onOperationSucceeded", result);
+    return true;
   }
 
   constructor() {
@@ -122,11 +227,21 @@ export default class SyncManager extends BaseManager {
   private handleDeterminePlant = (pid: number, level: number, col: number, row: number, cost: number) => {
     if (CombatManager.Instance.isDesyncOffline()) {
       this.applyLocalOperation(() => {
-        this.Eventbus.emit("onRequestPlant", BackendWS.my_id, pid, level, col, row);
+        this.applyAuthoritativeOperation({
+          kind: "plant",
+          playerId: BackendWS.my_id,
+          pid,
+          level,
+          col,
+          row,
+          clientOpSeq: 0,
+          cost,
+        });
       });
       return;
     }
-    const clientOpSeq = this.sendQueue.sendCardPlant(pid, col, row, level, cost);
+    const clientOpSeq = this.sendQueue.sendCardPlant(pid, col, row, level, cost) ?? 0;
+    if (clientOpSeq <= 0) return;
     const predicted: PredictedOperation = {
       clientOpSeq,
       uid: BackendWS.my_id,
@@ -137,7 +252,25 @@ export default class SyncManager extends BaseManager {
       row,
     };
     this.predictedOperations.set(clientOpSeq, predicted);
+    if (BackendWS.isRoomSessionMode()) {
+      ResourceManager.Instance.ApplyPreviewEnergy(-cost, BackendWS.my_id);
+      CardpileManager.Instance.previewReloadCard(pid);
+    }
     this.Eventbus.emit("onPredictedOperation", predicted);
+    desyncDiagnostics.record("sync", "user operation attempt", {
+      kind: "plant",
+      clientOpSeq,
+      uid: predicted.uid,
+      pid,
+      level,
+      col,
+      row,
+      cost,
+      requestedFrameId: this.GetFrameID(),
+      processFrameId: clientOpSeq > 0 ? this.sendQueue.lastOperationProcessFrameId : 0,
+      frameId: this.GetFrameID(),
+      phase: "queued",
+    });
     desyncDiagnostics.record("sync", "prediction queued (visual only)", {
       clientOpSeq,
       kind: predicted.kind,
@@ -156,7 +289,16 @@ export default class SyncManager extends BaseManager {
 
   private handleDetermineUseStarShards = (pid: number, col: number, row: number, cost: number) => {
     if (CombatManager.Instance.isDesyncOffline()) {
-      this.Eventbus.emit("onRequestUseStarShards", BackendWS.my_id, pid, col, row);
+      this.applyAuthoritativeOperation({
+        kind: "starShards",
+        playerId: BackendWS.my_id,
+        pid,
+        level: 1,
+        col,
+        row,
+        clientOpSeq: 0,
+        cost,
+      });
       return;
     }
     const clientOpSeq = this.sendQueue.sendStarShards(pid, col, row, cost) ?? 0;
@@ -171,13 +313,39 @@ export default class SyncManager extends BaseManager {
         row,
       };
       this.predictedOperations.set(clientOpSeq, predicted);
+      if (BackendWS.isRoomSessionMode()) {
+        ResourceManager.Instance.ApplyPreviewStarShards(-cost, BackendWS.my_id);
+      }
       this.Eventbus.emit("onPredictedOperation", predicted);
+      desyncDiagnostics.record("sync", "user operation attempt", {
+        kind: "starShards",
+        clientOpSeq,
+        uid: predicted.uid,
+        pid,
+        level: 1,
+        col,
+        row,
+        cost,
+        requestedFrameId: this.GetFrameID(),
+        processFrameId: clientOpSeq > 0 ? this.sendQueue.lastOperationProcessFrameId : 0,
+        frameId: this.GetFrameID(),
+        phase: "queued",
+      });
     }
   };
 
   private handleDetermineRemovePlant = (pid: number, col: number, row: number) => {
     if (CombatManager.Instance.isDesyncOffline()) {
-      this.Eventbus.emit("onRequestRemovePlant", pid, col, row);
+      this.applyAuthoritativeOperation({
+        kind: "removePlant",
+        playerId: BackendWS.my_id,
+        pid,
+        level: 1,
+        col,
+        row,
+        clientOpSeq: 0,
+        cost: 0,
+      });
       return;
     }
     const clientOpSeq = this.sendQueue.sendRemovePlant(pid, col, row) ?? 0;
@@ -193,6 +361,20 @@ export default class SyncManager extends BaseManager {
       };
       this.predictedOperations.set(clientOpSeq, predicted);
       this.Eventbus.emit("onPredictedOperation", predicted);
+      desyncDiagnostics.record("sync", "user operation attempt", {
+        kind: "removePlant",
+        clientOpSeq,
+        uid: predicted.uid,
+        pid,
+        level: 1,
+        col,
+        row,
+        cost: 0,
+        requestedFrameId: this.GetFrameID(),
+        processFrameId: clientOpSeq > 0 ? this.sendQueue.lastOperationProcessFrameId : 0,
+        frameId: this.GetFrameID(),
+        phase: "queued",
+      });
     }
   };
 
@@ -216,20 +398,31 @@ export default class SyncManager extends BaseManager {
   }
 
   private handleRecvCardPlant = (pid: number, col: number, row: number, level: number, uid: number) => {
-    if (uid === BackendWS.my_id) {
-      this.confirmPredictedOperation(this.currentResponseClientOpSeq, uid);
-      this.clearGhostsAt(col, row);
-    }
-    // 无论是否命中本地预测，Model 变更都只由权威帧执行一次。
-    desyncDiagnostics.record("sync", "authoritative plant applied", {
-      uid,
+    const request: AuthoritativeOperationRequest = {
+      kind: "plant",
+      playerId: uid,
       pid,
       level,
       col,
       row,
-      frameId: this.GetFrameID(),
-    });
-    this.Eventbus.emit("onRequestPlant", uid, pid, level, col, row);
+      clientOpSeq: this.currentResponseClientOpSeq,
+      cost: PlantLibrary.GetModel(pid)?.cost.getValueAt(level) ?? 0,
+    };
+    if (uid === BackendWS.my_id) {
+      const predicted = this.predictedOperations.get(this.currentResponseClientOpSeq);
+      request.level = predicted?.kind === "plant" ? predicted.level : level;
+      request.cost = PlantLibrary.GetModel(pid)?.cost.getValueAt(request.level) ?? 0;
+      if (!this.canApplyConfirmedOperation("plant", pid, col, row, request.level, uid)) {
+        this.finalizeOperationOutcome(request, {
+          ok: false,
+          authoritativeCostApplied: false,
+          reason: "restored state rejected plant",
+        });
+        return;
+      }
+    }
+    this.applyAuthoritativeOperation(request);
+    this.clearGhostsAt(col, row);
   };
 
   /** 单机/分叉离线模式下直接执行本地操作；联机预测不经过这里。 */
@@ -299,36 +492,122 @@ export default class SyncManager extends BaseManager {
     }
   }
 
-  private handleOperationRejected = (rejection: { uid: number; clientOpSeq: number }) => {
+  private handleOperationRejected = (rejection: {
+    uid: number;
+    clientOpSeq: number;
+    message?: string;
+  }) => {
     // clientOpSeq 由各客户端独立递增，不同玩家可能撞号；
     // 只有自己的拒绝回包才能撤销自己的预测。
     if (rejection.uid !== BackendWS.my_id) return;
-    // 服务端明确拒绝：撤销本地虚影与预演资源，Model 从未被预测改动。
-    this.rejectPredictedOperation(rejection.clientOpSeq);
+    const predicted = this.predictedOperations.get(rejection.clientOpSeq);
+    if (!predicted) return;
+    this.finalizeOperationOutcome({
+      kind: predicted.kind,
+      playerId: predicted.uid,
+      pid: predicted.pid,
+      level: predicted.level,
+      col: predicted.col,
+      row: predicted.row,
+      clientOpSeq: predicted.clientOpSeq,
+      cost: predicted.kind === "plant"
+        ? PlantLibrary.GetModel(predicted.pid)?.cost.getValueAt(predicted.level) ?? 0
+        : predicted.kind === "starShards" ? 1 : 0,
+    }, {
+      ok: false,
+      authoritativeCostApplied: false,
+      reason: rejection.message,
+    });
   };
 
   private handleRecvUseStarShards = (pid: number, col: number, row: number, uid: number) => {
-    if (uid === BackendWS.my_id) {
-      this.confirmPredictedOperation(this.currentResponseClientOpSeq, uid);
+    const request: AuthoritativeOperationRequest = {
+      kind: "starShards",
+      playerId: uid,
+      pid,
+      level: 1,
+      col,
+      row,
+      clientOpSeq: this.currentResponseClientOpSeq,
+      cost: 1,
+    };
+    if (uid === BackendWS.my_id
+      && !this.canApplyConfirmedOperation("starShards", pid, col, row, 1, uid)) {
+      this.finalizeOperationOutcome(request, {
+        ok: false,
+        authoritativeCostApplied: false,
+        reason: "restored state rejected star shards",
+      });
+      return;
     }
-    this.Eventbus.emit("onRequestUseStarShards", uid, pid, col, row);
+    this.applyAuthoritativeOperation(request);
   };
 
   private handleRecvRemovePlant = (pid: number, col: number, row: number, uid: number) => {
-    if (uid === BackendWS.my_id) {
-      this.confirmPredictedOperation(this.currentResponseClientOpSeq, uid);
+    const request: AuthoritativeOperationRequest = {
+      kind: "removePlant",
+      playerId: uid,
+      pid,
+      level: 1,
+      col,
+      row,
+      clientOpSeq: this.currentResponseClientOpSeq,
+      cost: 0,
+    };
+    if (uid === BackendWS.my_id
+      && !this.canApplyConfirmedOperation("removePlant", pid, col, row, 1, uid)) {
+      this.finalizeOperationOutcome(request, {
+        ok: false,
+        authoritativeCostApplied: false,
+        reason: "restored state rejected remove plant",
+      });
+      return;
     }
-    this.Eventbus.emit("onRequestRemovePlant", pid, col, row);
+    this.applyAuthoritativeOperation(request);
   };
+
+  /** 唯一操作执行入口：所有权威操作都经此进入 PlantsManager，并统一收口结果。 */
+  private applyAuthoritativeOperation(request: AuthoritativeOperationRequest): void {
+    const outcomes = request.kind === "plant"
+      ? this.Eventbus.emit("onRequestPlant", request)
+      : request.kind === "starShards"
+        ? this.Eventbus.emit("onRequestUseStarShards", request)
+        : this.Eventbus.emit("onRequestRemovePlant", request);
+    const applied: OperationApplyResult | undefined = outcomes[0];
+    this.finalizeOperationOutcome(request, {
+      ok: applied?.ok ?? false,
+      authoritativeCostApplied: applied?.ok ?? false,
+      reason: applied?.reason ?? "no operation handler",
+    });
+  }
+
+  /** 服务端已确认、但本地权威历史判定非法时，撤销发起端的点击预演。 */
+  private canApplyConfirmedOperation(
+    kind: PredictedOperation["kind"],
+    pid: number,
+    col: number,
+    row: number,
+    level: number,
+    uid: number,
+  ): boolean {
+    return PlantsManager.Instance.CanApplyAuthoritativeOperation(
+      kind,
+      uid,
+      pid,
+      level,
+      col,
+      row,
+      true,
+    );
+  }
 
   /** 拒绝回包只撤销表现层预测；Model 从未被本地预测改动。 */
   private rollbackPredictedOperation(clientOpSeq: number): void {
     const predicted = this.predictedOperations.get(clientOpSeq);
     if (!predicted) return;
+    this.consumeOperationPreview(clientOpSeq, { authoritativeCostApplied: false });
     this.predictedOperations.delete(clientOpSeq);
     this.removeGhost(clientOpSeq);
-    ResourceManager.Instance.ClearPreviewDeltas();
-    CardpileManager.Instance.ClearPreviewCooldowns();
     this.Eventbus.emit("onPredictedOperationRejected", clientOpSeq);
   }
 

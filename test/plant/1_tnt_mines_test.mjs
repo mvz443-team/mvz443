@@ -118,6 +118,46 @@ test("星之碎片立即出土，并安排 2 颗新地雷", () => {
 });
 
 /**
+ * 星碎落点必须由固定次数的 PRNG 消费决定。旧实现用
+ * rows.sort(() => entity.random() - 0.5)，比较器次数/顺序随 JS 引擎而异，
+ * 同一 seed 在回滚重放或不同客户端上会得到不同落点，最终在爆炸时分叉。
+ */
+test("星之碎片落点使用确定性洗牌，同 seed 重建后完全一致", () => {
+  const collectSpawnTimers = () => {
+    resetSim();
+    const { model, entity } = spawnPlant(TntMinesData, { level: 1, row: 2 });
+    const originalRandom = (() => {
+      let state = 0x9e3779b9;
+      return () => {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        return state / 0x100000000;
+      };
+    })();
+    const randomCalls = [];
+    entity.random = () => {
+      const value = originalRandom();
+      randomCalls.push(value);
+      return value;
+    };
+    model.onStarShards(entity);
+    return {
+      spawnTimers: model.tickmanager
+        .capture()
+        .filter((timer) => timer.kind === "TntMinesSpawnMine")
+        .map((timer) => ({ col: timer.args.col, row: timer.args.row, level: timer.args.level })),
+      randomCalls,
+    };
+  };
+
+  const first = collectSpawnTimers();
+  const second = collectSpawnTimers();
+
+  assert.equal(first.spawnTimers.length, 2);
+  assert.deepEqual(second, first);
+  assert.equal(first.randomCalls.length, 8);
+});
+
+/**
  * 逐级验收（Lv1–Lv9）：
  *   出土时间按 0.8 的对数曲线从 15000ms 缩短到 12000ms；
  *   5 级冷却从 30s 降到 25s；爆炸伤害固定 1500。

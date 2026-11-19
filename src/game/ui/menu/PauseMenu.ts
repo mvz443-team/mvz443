@@ -211,6 +211,8 @@ export class PauseMenu {
     if (!confirmed) {
       return;
     }
+    // 必须在 App 销毁 Phaser / Reset 管理器之前导出，否则拿不到完整战斗状态。
+    CombatManager.Instance.exportNetDebugLog("client-exit");
     // 隐藏菜单，交由 App 层执行“永久离房 + 回主菜单”；
     // 单机也走同一路径，仅关闭 mock 房间，不进入结算页。
     this.hide();

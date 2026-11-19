@@ -25,6 +25,7 @@ import { publicUrl } from './utils/browser';
 import { PhaserEventBus, PhaserEvents } from './game/EventBus';
 import { LOGICAL_BATTLE_WORLD_WIDTH } from './constants/gameLayout';
 import { serverStatus } from './utils/net/server_status';
+import CombatManager from './game/managers/CombatManager';
 
 function App() {
   const { ready: librariesReady, error: librariesError } = useGameLibraries();
@@ -167,6 +168,7 @@ function App() {
   // 对局中确认退出：直接回主菜单，不进结算页；联机永久离房并取消房间。
   useEffect(() => {
     const handleRequestExit = async ({ online }: { online: boolean }) => {
+      CombatManager.Instance.exportNetDebugLog("client-exit");
       if (online) {
         // 先取消自动重连再发退房请求：否则退出方收到服务端 roomClosed 后
         // transport 的 close 事件会立刻重新排入重连，导致房间取消后仍回到房间。

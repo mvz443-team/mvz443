@@ -246,6 +246,24 @@ export default class CardpileManager extends BaseManager {
     }
   }
 
+  /** 只撤销指定卡片尚未被权威更新抵消的冷却预演。 */
+  public ClearPreviewCooldownForCard(pid: number): void {
+    const status = this.cardpileStatus.get(pid);
+    if (!status || status.previewLeftMs <= 0) return;
+    status.previewLeftMs = 0;
+    this.cardpileStatus.set(pid, status);
+    this.EventBus.emit('onCooldownStatus', this.GetDisplayCooldownStatus());
+  }
+
+  /** 权威操作落地时消费一次预演冷却；没有预演时保持权威冷却不变。 */
+  public ConsumePreviewCooldown(pid: number): void {
+    const status = this.cardpileStatus.get(pid);
+    if (!status || status.previewLeftMs <= 0) return;
+    status.previewLeftMs = 0;
+    this.cardpileStatus.set(pid, status);
+    this.EventBus.emit('onCooldownStatus', this.GetDisplayCooldownStatus());
+  }
+
   /** 本地调试用快照：包含表现层预演冷却。 */
   public CaptureCardpileState(): Record<string, unknown> {
     return {

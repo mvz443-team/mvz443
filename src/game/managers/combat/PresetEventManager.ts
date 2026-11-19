@@ -22,7 +22,7 @@ import { LilyData } from "../../presets/plant/chapter1/lily";
 import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
 
 /**
- * 预设事件管理器
+ * 预设事件管理�?
  * 负责预设事件的加载、管理和重置
  */
 export class PresetEventManager extends BaseManager {
@@ -41,7 +41,7 @@ export class PresetEventManager extends BaseManager {
    * 加载预设事件
    */
   public Load(): void {
-    // checkpoint rebuild 恢复全局 ticker 时需要重新构造自动产能回调。
+    // checkpoint rebuild 恢复全局 ticker 时需要重新构造自动产能回调�?
     TickerManager.Instance.registerTimerFactory("preset.autoEnergy", (args) => {
       const delta = args && typeof args === "object" && !Array.isArray(args)
         ? Number((args as Record<string, unknown>).delta)
@@ -57,7 +57,7 @@ export class PresetEventManager extends BaseManager {
       if (!Number.isFinite(delta) || !Number.isFinite(intervalMs)) return null;
       return { callback: () => this.beginAutoGenerateEnergy(intervalMs, delta) };
     });
-    // 监听 MobManager 的 onNewWave 事件
+    // 监听 MobManager �?onNewWave 事件
     this.onNewWaveHandler = (waveId: number, isFlag: boolean) => {
       if (waveId === 0) {
         this.triggerCombatStartEvent();
@@ -97,7 +97,7 @@ export class PresetEventManager extends BaseManager {
   }
 
   /**
-   * 特定波数触发的事件
+   * 特定波数触发的事�?
    */
   private triggerSpecifiedWaveEvent(waveId: number, isFlag: boolean): void {
     console.log(`Specified wave event triggered at wave ${waveId}, isFlag: ${isFlag}`);
@@ -105,7 +105,7 @@ export class PresetEventManager extends BaseManager {
   }
 
   /**
-   * 重置预设事件状态
+   * 重置预设事件状�?
    */
   public Reset(): void {
     // 移除事件监听
@@ -121,9 +121,9 @@ export class PresetEventManager extends BaseManager {
   // 自动产能设置
   private startAutoGenerateEnergy(startAtMs: number, intervalMs: number, delta: number) {
     this.stopAutoGenerateEnergy();
-    // 首次产能前是“一次性延迟”，之后才是循环；拆成两个 timer 是为了
-    // 让任意帧的 checkpoint 都能用纯数据工厂精确重建（TickerManager 的
-    // startAt 包装回调依赖闭包，rebuild 时无法恢复）。
+    // 首次产能前是“一次性延迟”，之后才是循环；拆成两�?timer 是为�?
+    // 让任意帧�?checkpoint 都能用纯数据工厂精确重建（TickerManager �?
+    // startAt 包装回调依赖闭包，rebuild 时无法恢复）�?
     this.autoEnergyStartTimer = TickerManager.Instance.delayedCall({
       delay: startAtMs,
       snapshot: { kind: "preset.autoEnergyStart", args: { intervalMs, delta } },
@@ -133,7 +133,7 @@ export class PresetEventManager extends BaseManager {
 
   private beginAutoGenerateEnergy(intervalMs: number, delta: number): void {
     this.autoEnergyStartTimer = null;
-    // checkpoint rebuild 后旧句柄可能指向同 id 的新 timer，必须按 kind 取消。
+    // checkpoint rebuild 后旧句柄可能指向�?id 的新 timer，必须按 kind 取消�?
     TickerManager.Instance.removeTimersByKind("preset.autoEnergy");
     this.autoEnergyTimer = TickerManager.Instance.addEvent({
       delay: intervalMs,
@@ -162,8 +162,8 @@ export class PresetEventManager extends BaseManager {
       initialEnergy,
       before: ResourceManager.Instance.CaptureCanonicalResourceState(),
     });
-    // 初始能量必须是幂等赋值：RoomGameStart 与 wave 0 预设事件都可能触发，
-    // 用增量会重复叠加，导致不同客户端事件顺序不同就出现资源分叉。
+    // 初始能量必须是幂等赋值：RoomGameStart �?wave 0 预设事件都可能触发，
+    // 用增量会重复叠加，导致不同客户端事件顺序不同就出现资源分叉�?
     ResourceManager.Instance.SetInitialEnergy(+initialEnergy);
   }
 
@@ -194,31 +194,31 @@ export class PresetEventManager extends BaseManager {
 
 
     if (stageId === 1) {
-      PlantsManager.Instance.PlantCard(9961, DispenserData.pid, 1, 0, 0);
-      PlantsManager.Instance.PlantCard(9961, DispenserData.pid, 1, 0, 4);
-      PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 1);
-      PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 2);
-      PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 3);
+      PlantsManager.Instance.PlantCardDirect(9961, DispenserData.pid, 1, 0, 0);
+      PlantsManager.Instance.PlantCardDirect(9961, DispenserData.pid, 1, 0, 4);
+      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 1);
+      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 2);
+      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 3);
     }
 
     if (stageId === 2) {
-      PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 1);
-      PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 2);
-      PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 3);
+      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 1);
+      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 2);
+      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 3);
     }
 
     if (stageId === 3) {
       //darker
       game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.3).setDepth(DepthHelper.Scene.presetOverlay());
 
-      PlantsManager.Instance.PlantCard(9961, SmallDispenserData.pid, 1, 4, 1);
-      PlantsManager.Instance.PlantCard(9961, SmallDispenserData.pid, 1, 4, 2);
+      PlantsManager.Instance.PlantCardDirect(9961, SmallDispenserData.pid, 1, 4, 1);
+      PlantsManager.Instance.PlantCardDirect(9961, SmallDispenserData.pid, 1, 4, 2);
     }
 
     if (stageId === 4) {
       game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
-      PlantsManager.Instance.PlantCard(9961, GeneratorData.pid, 1, 5, 1);
-      PlantsManager.Instance.PlantCard(9961, GeneratorData.pid, 1, 5, 4);
+      PlantsManager.Instance.PlantCardDirect(9961, GeneratorData.pid, 1, 5, 1);
+      PlantsManager.Instance.PlantCardDirect(9961, GeneratorData.pid, 1, 5, 4);
     }
 
     if (stageId === 5 || stageId === 8) {
@@ -228,10 +228,10 @@ export class PresetEventManager extends BaseManager {
         GridManager.Instance.setSingleGridProperty(col, 2, { type: 'water' });
         GridManager.Instance.setSingleGridProperty(col, 3, { type: 'water' });
       }
-      PlantsManager.Instance.PlantCard(9961, LilyData.pid, 1, 0, 2);
-      PlantsManager.Instance.PlantCard(9961, LilyData.pid, 1, 0, 3);
-      PlantsManager.Instance.PlantCard(9961, LilyData.pid, 1, 1, 2);
-      PlantsManager.Instance.PlantCard(9961, LilyData.pid, 1, 1, 3);
+      PlantsManager.Instance.PlantCardDirect(9961, LilyData.pid, 1, 0, 2);
+      PlantsManager.Instance.PlantCardDirect(9961, LilyData.pid, 1, 0, 3);
+      PlantsManager.Instance.PlantCardDirect(9961, LilyData.pid, 1, 1, 2);
+      PlantsManager.Instance.PlantCardDirect(9961, LilyData.pid, 1, 1, 3);
     }
 
     if (stageId === 6) {
@@ -241,21 +241,21 @@ export class PresetEventManager extends BaseManager {
     if (stageId === 7) {
       game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
 
-      PlantsManager.Instance.PlantCard(9961, SmallDispenserData.pid, 1, 4, 1);
-      PlantsManager.Instance.PlantCard(9961, SmallDispenserData.pid, 1, 4, 2);
-      PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 1);
-      PlantsManager.Instance.PlantCard(9961, FurnaceData.pid, 1, 1, 2);
+      PlantsManager.Instance.PlantCardDirect(9961, SmallDispenserData.pid, 1, 4, 1);
+      PlantsManager.Instance.PlantCardDirect(9961, SmallDispenserData.pid, 1, 4, 2);
+      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 1);
+      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 2);
     }
 
     if (stageId === 9) {
       setCentipedeHooks({
         onSpawn: () => {
-          // 关卡开局即自动产能；boss 出场时停产
+          // 关卡开局即自动产能；boss 出场时停�?
           this.stopAutoGenerateEnergy();
           game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
         },
         onHalfHealth: () => {
-          // 到达 50% 血量时再恢复
+          // 到达 50% 血量时再恢�?
           // this.startAutoGenerateEnergy(0, 20000, 25);
         }
       });

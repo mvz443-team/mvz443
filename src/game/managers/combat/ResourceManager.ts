@@ -397,6 +397,38 @@ export default class ResourceManager extends BaseManager {
     }
   }
 
+  /** 只撤销指定玩家尚未被权威更新抵消的资源预演。 */
+  public ClearPreviewDeltasForPlayer(playerId: PlayerIdentify | 'mine'): void {
+    if (playerId === 'mine') {
+      playerId = this.mineId;
+    }
+    const hadEnergyPreview = this.previewEnergyDeltaMaps.delete(playerId);
+    const hadStarShardsPreview = this.previewStarShardsDeltaMaps.delete(playerId);
+    if (!hadEnergyPreview && !hadStarShardsPreview) return;
+    this.Eventbus.emit('onEnergyUpdate', this.getDisplayEnergy(playerId), playerId);
+    this.Eventbus.emit('onStarShardsUpdate', this.getDisplayStarShards(playerId), playerId);
+  }
+
+  /** 撤销与本次权威操作等额的预演；保留之后新点击产生的预演。 */
+  public ConsumePreviewDelta(
+    delta: number,
+    kind: "energy" | "starShards",
+    playerId: PlayerIdentify | 'mine',
+  ): void {
+    if (playerId === 'mine') playerId = this.mineId;
+    const map = kind === "energy" ? this.previewEnergyDeltaMaps : this.previewStarShardsDeltaMaps;
+    const previewDelta = map.get(playerId) ?? 0;
+    if (previewDelta === 0 || delta === 0 || Math.sign(previewDelta) !== Math.sign(delta)) return;
+    const remaining = previewDelta - delta;
+    if (remaining === 0) map.delete(playerId);
+    else map.set(playerId, remaining);
+    if (kind === "energy") {
+      this.Eventbus.emit('onEnergyUpdate', this.getDisplayEnergy(playerId), playerId);
+    } else {
+      this.Eventbus.emit('onStarShardsUpdate', this.getDisplayStarShards(playerId), playerId);
+    }
+  }
+
   private reconcilePreviewDelta(
     previewMap: Map<PlayerIdentify, number>,
     actualDelta: number,

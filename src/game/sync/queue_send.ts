@@ -26,6 +26,8 @@ export default class QueueSend {
   private readonly pendingStateHashes: Denque<{ frameId: number; hash: number }> = new Denque();
   // 与 Go server constants.CommandLeadFrames 对齐：点击后最少 2 帧进入权威帧。
   private readonly commandLeadFrames: number = 2;
+  /** 最近一次上行操作被服务器改写前的目标帧，用于日志离线复现。 */
+  public lastOperationProcessFrameId: number = 0;
   private readonly frameIntervalMsProvider: () => number;
   private readonly resourceProvider: (() => ResourceUploadSnapshot | null) | null;
   private lastBlankAckFrameIdSent: number = -1;
@@ -222,6 +224,7 @@ export default class QueueSend {
   private createOperationBase(col: number, row: number): RequestGridOperation {
     const currentFrameId = BackendWS.GetFrameID();
     const processFrameId = currentFrameId + this.getCommandDelayFrames();
+    this.lastOperationProcessFrameId = processFrameId;
 
     return {
       base: {
