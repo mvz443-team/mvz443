@@ -45,7 +45,6 @@ export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame
     }
 
     if (game.current === null) {
-
       game.current = StartGame("game-container", width, gameParams, deviceType, fps);
 
       if (typeof ref === 'function') {
@@ -53,18 +52,8 @@ export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame
       } else if (ref) {
         ref.current = { game: game.current, scene: null };
       }
-
     }
-
-    return () => {
-      if (game.current) {
-        game.current.destroy(true);
-        if (game.current !== null) {
-          game.current = null;
-        }
-      }
-    }
-  }, [deviceType, gameParams, mainViewportHeight, mainViewportWidth, ref, width]);
+  }, [deviceType, fps, gameParams, ref, width]);
 
   useEffect(() => {
     const currentGame = game.current;
@@ -73,7 +62,15 @@ export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame
     if (currentFps !== fps) {
       currentGame.destroy(true);
       game.current = null;
-      game.current = StartGame('game-container', width, gameParams!, deviceType, fps);
+      const nextFps = Math.max(30, Math.min(120, Math.round(fps)));
+      gameParams.gameSettings.fps = nextFps;
+      game.current = StartGame('game-container', width, gameParams, deviceType, nextFps);
+
+      if (typeof ref === 'function') {
+        ref({ game: game.current, scene: null });
+      } else if (ref) {
+        ref.current = { game: game.current, scene: null };
+      }
     }
   }, [deviceType, fps, gameParams, width]);
 
