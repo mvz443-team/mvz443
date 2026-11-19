@@ -35,6 +35,7 @@ class WebSocketClient {
   private pendingSendTimers: Set<number> = new Set();
   private pendingReceiveTimers: Set<number> = new Set();
   private pendingInGameResponses: InGameResponse[] = [];
+  private lobbyHeartbeatTimer: number | null = null;
   /**
    * 已收到的最大权威帧号，不依赖 QueueReceive 是否已绑定。
    * 正式战局由 QueueReceive.currentFrameId 推进；这里只用于 E2E 在
@@ -269,6 +270,60 @@ class WebSocketClient {
     this.pendingReceiveTimers.clear();
   }
 
+  /**
+   * 服务端对所有阶段都做 15s 心跳超时，但等待房间的客户端此前没有任何上行流量，
+   * 导致玩家入房约 15s 后被服务端静默断线。战斗阶段的 blank 由 SyncManager 驱动；
+   * 这里只负责进入战局之前的阶段，避免和高频帧心跳重复。
+   */
+  private static readonly LOBBY_HEARTBEAT_INTERVAL_MS = 5000;
+
+  private isLobbyHeartbeatStage(stage: number): boolean {
+    return stage === EnumGameStage.InLobby
+      || stage === EnumGameStage.Preparing
+      || stage === EnumGameStage.Loading
+      || stage === EnumGameStage.PostGame;
+  }
+
+  private stopLobbyHeartbeat(): void {
+    if (this.lobbyHeartbeatTimer !== null) {
+      window.clearInterval(this.lobbyHeartbeatTimer);
+      this.lobbyHeartbeatTimer = null;
+    }
+  }
+
+  private startLobbyHeartbeat(): void {
+    this.stopLobbyHeartbeat();
+    this.lobbyHeartbeatTimer = window.setInterval(() => {
+      if (!this.transport.isOpen()) {
+        this.stopLobbyHeartbeat();
+        return;
+      }
+      if (!this.isLobbyHeartbeatStage(onlineStateManager.getCurrentGameStage())) {
+        this.stopLobbyHeartbeat();
+        return;
+      }
+      this.send(Request.toBinary({
+        payload: {
+          oneofKind: "blank",
+          blank: {
+            frameId: 0,
+            ackFrameId: 0,
+            stateHash: 0,
+            hashFrameId: 0,
+            stateHashHex: "",
+            inlineSnapshotJson: "",
+            stateHashVersion: 0,
+            clientLatencyMs: 0,
+            energy: 0,
+            starShards: 0,
+            cardCooldowns: [],
+            resourcesReported: false,
+          },
+        },
+      }));
+    }, WebSocketClient.LOBBY_HEARTBEAT_INTERVAL_MS);
+  }
+
   private flushPendingInGameResponses() {
     if (!this.receiveQueue || this.pendingInGameResponses.length === 0) return;
     for (const response of this.pendingInGameResponses) {
@@ -372,6 +427,7 @@ class WebSocketClient {
 
   startConnection() {
     desyncDiagnostics.record("net", "startConnection", { url: this.url });
+    this.stopLobbyHeartbeat();
     this.ResetGameData();
     onlineStateManager.updateRoomInfo(-1, 51, 50);
     if (onlineStateManager.getIsOnlineMode()) {
@@ -411,6 +467,9 @@ class WebSocketClient {
           // 立刻用当前帧/ACK 触发服务端从断点补发
           this.sendQueue?.sendBlankFrame(this.receiveQueue?.currentFrameId ?? 0);
           this.sendQueue?.Consume();
+        }
+        if (this.isLobbyHeartbeatStage(onlineStateManager.getCurrentGameStage())) {
+          this.startLobbyHeartbeat();
         }
         this.publishNetworkStatus();
       },
@@ -458,6 +517,7 @@ class WebSocketClient {
           gameStage: onlineStateManager.getGameStageName(),
         });
         this.clearPendingTimers();
+        this.stopLobbyHeartbeat();
         if (this.offlineMode === "desync") return;
         const stage = onlineStateManager.getCurrentGameStage();
         if (this.netDebugEnabled) {
@@ -476,6 +536,16 @@ class WebSocketClient {
             this.publishNetworkStatus();
             return;
           }
+        }
+        // 等待房间/选卡阶段的断线不再保留席位：服务端会在读循环退出后立即移除玩家，
+        // 房间空了就销毁。客户端必须同步清空会话，避免展示“我还在 #0”的幽灵房间，
+        // 否则重连会用已释放的席位造成 #0 空、#1 有人的错位状态。
+        onlineStateManager.resetAllState();
+        this.ResetGameData();
+        if (stage === EnumGameStage.InLobby || stage === EnumGameStage.Preparing) {
+          PhaserEventBus.emit(PhaserEvents.RoomClosed, {
+            message: "无法连接到服务器，已退出房间",
+          });
         }
         onlineStateManager.updateOnlineMode(false);
         this.publishNetworkStatus();
@@ -563,6 +633,7 @@ class WebSocketClient {
     });
     this.reconnect.cancel();
     this.clearPendingTimers();
+    this.stopLobbyHeartbeat();
     if (this.mockRoomMode) {
       this.closeMockRoom();
       return;

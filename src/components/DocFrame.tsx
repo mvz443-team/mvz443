@@ -68,7 +68,18 @@ export default function DocFrame({ width, height, setGameParams, gameStart, init
     const config = saveManager.getOnlineConfig();
     const address = normalizeServerAddress(config.serverAddr);
     if (address && config.username) {
-      const membership = await queryMyRoom(address, config.username);
+      let membership: Awaited<ReturnType<typeof queryMyRoom>> = null;
+      try {
+        membership = await queryMyRoom(address, config.username);
+      } catch (error) {
+        // 服务器不可达 / 证书未信任：查询请求失败，不能沿用可能残留的本地房间会话。
+        console.error('Query user room failed:', error);
+        BackendWS.cancelReconnect();
+        BackendWS.closeConnection();
+        onlineStateManager.resetAllState();
+        void showAlert(translate('menu.settings_server_unreachable'));
+        return;
+      }
       if (membership) {
         const reconnect = await showConfirm(translate('menu.online_reconnect_message'), {
           title: translate('menu.online_reconnect_title'),

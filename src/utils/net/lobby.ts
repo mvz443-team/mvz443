@@ -149,7 +149,7 @@ export async function getRoomsInfo(baseUrl: string, chapterId?: number, stageId?
 
 /**
  * 查询昵称对应的玩家是否仍在某个房间中。
- * 返回 null 表示不在任何房间（或服务器不可达）。
+ * 返回 null 表示不在任何房间；服务器不可达时抛错，由调用方区分处理。
  */
 export async function queryMyRoom(baseUrl: string, username: string): Promise<UserRoomMembership | null> {
     const address = normalizeServerAddress(baseUrl);
@@ -160,7 +160,7 @@ export async function queryMyRoom(baseUrl: string, username: string): Promise<Us
     try {
         const response = await fetch(`https://${address}/user-room?${params.toString()}`, { cache: "no-store" });
         if (!response.ok) {
-            return null;
+            throw new Error(`user-room HTTP ${response.status}`);
         }
         const data = await response.json();
         if (!data || typeof data !== "object" || typeof data.room_id !== "number") {
@@ -177,7 +177,7 @@ export async function queryMyRoom(baseUrl: string, username: string): Promise<Us
         };
     } catch (error) {
         console.error("Error querying user room:", error);
-        return null;
+        throw error instanceof Error ? error : new Error(String(error));
     }
 }
 
