@@ -18,7 +18,14 @@ export namespace SfxCmd {
     args: ConstructorParameters<SfxCtor<T>>[0]
   ): T {
     const sfx = new ctor(args);
-    sfx.play();
+    // 特效只做表现，不参与权威模拟。场景销毁/回滚空窗期里 scene.add / tweens
+    // 可能为 null；此时跳过播放，绝不能让异常冒泡到 tick/DeferredManager 循环
+    // （否则会中断物理步进，表现为“僵尸刷出后不动”）。
+    try {
+      sfx.play();
+    } catch (error) {
+      console.warn("[SfxCmd] play skipped because the view is no longer available.", error);
+    }
     return sfx;
   }
 }

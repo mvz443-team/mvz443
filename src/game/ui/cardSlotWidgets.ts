@@ -411,13 +411,22 @@ export class EnergyPanelView {
   }
 
   public setEnergy(energy: number) {
-    this.valueText.setText(String(energy));
-    setTextSizeToFit(
-      this.valueText,
-      this.width * 0.72,
-      Math.max(10, Math.round(this.height * 0.27)),
-      9,
-    );
+    // 场景切换/回滚时 Text 的 CanvasTexture 可能已随容器销毁（context=null），
+    // 重绘会抛 drawImage 异常。这里属于表现层，必须吞掉异常，否则会中断
+    // ApplyPreviewEnergy → handleAttemptPlant，导致点击后无法种植。
+    const text = this.valueText;
+    if (!text?.scene) return;
+    try {
+      text.setText(String(energy));
+      setTextSizeToFit(
+        text,
+        this.width * 0.72,
+        Math.max(10, Math.round(this.height * 0.27)),
+        9,
+      );
+    } catch (error) {
+      console.warn("[EnergyPanelView] setEnergy skipped because the view is no longer available.", error);
+    }
   }
 
   /** 调试/E2E：当前能量面板显示的数字文本。 */
@@ -426,12 +435,19 @@ export class EnergyPanelView {
   }
 
   public flashInsufficient() {
-    this.valueText.setColor("#f44336");
-    this.flashTimer?.remove(false);
-    this.flashTimer = this.scene.time.delayedCall(350, () => {
-      this.valueText.setColor("#111111");
-      this.flashTimer = null;
-    });
+    const text = this.valueText;
+    if (!text?.scene || !this.scene?.time) return;
+    try {
+      text.setColor("#f44336");
+      this.flashTimer?.remove(false);
+      this.flashTimer = this.scene.time.delayedCall(350, () => {
+        if (!this.valueText?.scene) return;
+        this.valueText.setColor("#111111");
+        this.flashTimer = null;
+      });
+    } catch (error) {
+      console.warn("[EnergyPanelView] flashInsufficient skipped because the view is no longer available.", error);
+    }
   }
 
   public destroy() {

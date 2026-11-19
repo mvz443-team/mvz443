@@ -19,15 +19,17 @@ export class ThrottledAudio {
   ) { }
 
   play(key: string, config?: Phaser.Types.Sound.SoundConfig) {
-    if (!this.scene.cache.audio.exists("sfx")) {
-      return;
-    }
-    const now = this.scene.time.now;
+    // 场景销毁或尚未就绪时 cache/sound 会变成 null；音频是纯表现层，
+    // 任何异常都不能打断调用方（DeferredManager 出怪、技能 tick 等）。
+    const scene = this.scene;
+    if (!scene?.cache?.audio?.exists?.("sfx")) return;
+    if (!scene?.time || !scene?.sound?.playAudioSprite) return;
+    const now = scene.time.now;
     const last = this.lastPlayTime.get(key) ?? Number.NEGATIVE_INFINITY;
     if (now - last < this.throttleDelay) return;
 
     this.lastPlayTime.set(key, now);
-    this.scene.sound.playAudioSprite("sfx", key, {
+    scene.sound.playAudioSprite("sfx", key, {
       ...config,
       volume: (config?.volume ?? 1) * this.getVolume(),
     });
@@ -46,6 +48,7 @@ export class AudioPool {
     private getVolume: () => number = () => 1,
     private throttleDelay = 0,
   ) {
+    if (!this.scene?.sound?.addAudioSprite) return;
     for (let i = 0; i < poolSize; i++) {
       const snd = this.scene.sound.addAudioSprite(this.spriteKey);
       this.pool.push({ sound: snd, inUse: false, baseVolume: 1 });
@@ -53,6 +56,7 @@ export class AudioPool {
   }
 
   play(loop: boolean = false, config: Phaser.Types.Sound.SoundConfig = {}): Phaser.Sound.BaseSound | null {
+    if (!this.scene?.time) return null;
     const now = this.scene.time.now;
     if (this.throttleDelay > 0 && now - this.lastPlayTime < this.throttleDelay) return null;
 
@@ -180,12 +184,18 @@ export default class SoundManager extends BaseManager {
 
   private applyMusicVolume(sound: Phaser.Sound.BaseSound | null, volume = this.bgmVolume) {
     if (!sound) return;
-    const mutableSound = sound as Phaser.Sound.BaseSound & { setVolume?: (value: number) => void; volume?: number };
-    if (mutableSound.setVolume) {
-      mutableSound.setVolume(volume);
-      return;
+    // 音频底层对象可能已被场景 shutdown 释放（setVolume 内部访问空节点），
+    // 音量调整属于表现层，异常不能冒泡打断 RoomGameStart 等事件链。
+    try {
+      const mutableSound = sound as Phaser.Sound.BaseSound & { setVolume?: (value: number) => void; volume?: number };
+      if (mutableSound.setVolume) {
+        mutableSound.setVolume(volume);
+        return;
+      }
+      mutableSound.volume = volume;
+    } catch (error) {
+      console.warn("[SoundManager] applyMusicVolume skipped because audio is no longer available.", error);
     }
-    mutableSound.volume = volume;
   }
 
   public setBgmVolume(volume: number) {
@@ -222,7 +232,12 @@ export default class SoundManager extends BaseManager {
 
   public playCurrent() {
     this.applyMusicVolume(this.music);
-    this.music?.play();
+    if (!this.music) return;
+    try {
+      this.music.play();
+    } catch (error) {
+      console.warn("[SoundManager] playCurrent skipped because audio is no longer available.", error);
+    }
   }
 
   public coverCurrent(key: string) {

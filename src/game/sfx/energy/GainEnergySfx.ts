@@ -31,6 +31,8 @@ export class GainEnergySfx extends BaseSfx<GainEnergySfxArgs> {
   private tweens: Phaser.Tweens.Tween[] = [];
 
   play(): void {
+    // 场景回滚/销毁空窗期可能拿到失效的 scene；纯表现失败直接跳过。
+    if (!this.scene?.add || !this.scene?.tweens || !this.scene?.time) return;
     const pos = PositionManager.Instance;
     const diameter = pos.GRID_SIZEX * SIZE_RATIO[this.args.size ?? "medium"];
     const startWorld = this.getStartWorldPoint();
