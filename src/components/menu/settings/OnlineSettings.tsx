@@ -94,7 +94,7 @@ export default function OnlineSettings() {
 
   // 进入页面时恢复存档里的服务器地址并开始探测
   useEffect(() => {
-    void serverStatus.attach(saveManager.getOnlineConfig().serverAddr);
+    serverStatus.resume(saveManager.getOnlineConfig().serverAddr);
   }, [saveManager]);
 
   const serverOptions = useMemo(() => {

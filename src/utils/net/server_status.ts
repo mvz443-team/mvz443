@@ -51,6 +51,7 @@ class ServerStatusMonitor {
   private failureCount: number = 0;
   private timer: number | null = null;
   private probing: boolean = false;
+  private suspended: boolean = false;
   private listeners: Set<Listener> = new Set();
 
   subscribe(listener: Listener): () => void {
@@ -78,6 +79,7 @@ class ServerStatusMonitor {
 
   /** 校验地址并开始每 10 秒一次的探测 */
   async connect(input: string): Promise<ProbeResult> {
+    this.suspended = false;
     const address = normalizeServerAddress(input);
     if (!address) {
       return { ok: false, failure: "network", message: "服务器地址为空" };
@@ -127,13 +129,27 @@ class ServerStatusMonitor {
     this.emit();
   }
 
+  /** 对局中暂停探测：不再发送 /ping，也不允许在途请求重启定时器。 */
+  suspend(): void {
+    if (!this.suspended) {
+      this.suspended = true;
+      this.stopTimer();
+    }
+  }
+
+  /** 回到设置页时恢复存档地址的探测。 */
+  resume(input: string): void {
+    this.suspended = false;
+    void this.attach(input);
+  }
+
   /** 手动触发一次探测，用于"连接"按钮之外的刷新场景 */
   async probeNow(): Promise<ProbeResult> {
     if (!this.address) {
       return { ok: false, failure: "network", message: "未配置服务器地址" };
     }
     const probe = await this.probe();
-    if (probe.ok) {
+    if (probe.ok && !this.suspended) {
       this.state = "connected";
       this.latency = probe.latency ?? null;
       this.failureCount = 0;
@@ -150,6 +166,9 @@ class ServerStatusMonitor {
   }
 
   private startTimer(): void {
+    if (this.suspended) {
+      return;
+    }
     this.stopTimer();
     this.timer = window.setInterval(() => {
       void this.tick();
@@ -164,7 +183,7 @@ class ServerStatusMonitor {
   }
 
   private async tick(): Promise<void> {
-    if (!this.address || this.probing) {
+    if (!this.address || this.probing || this.suspended) {
       return;
     }
     const probe = await this.probe();

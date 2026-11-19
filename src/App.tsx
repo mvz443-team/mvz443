@@ -24,6 +24,7 @@ import SettingsPage from './pages/settings';
 import { publicUrl } from './utils/browser';
 import { PhaserEventBus, PhaserEvents } from './game/EventBus';
 import { LOGICAL_BATTLE_WORLD_WIDTH } from './constants/gameLayout';
+import { serverStatus } from './utils/net/server_status';
 
 function App() {
   const { ready: librariesReady, error: librariesError } = useGameLibraries();
@@ -108,6 +109,7 @@ function App() {
     setShowRoomView(false);
     setShowGameScreen(true);
     setShowGameTool(true);
+    serverStatus.suspend();
   }, [saveManager, setGameParams, setShowGameScreen, setShowGameTool]);
 
   const exitResultView = useCallback(() => {
@@ -115,7 +117,8 @@ function App() {
     setShowGameResult(false);
     setShowGameScreen(false);
     setShowGameTool(false);
-  }, [setShowGameResult, setShowGameScreen, setShowGameTool]);
+    serverStatus.resume(saveManager.getOnlineConfig().serverAddr);
+  }, [saveManager, setShowGameResult, setShowGameScreen, setShowGameTool]);
 
   /** 联机结算后回到原房间等待（关卡页的联机侧边栏/等待房间）。 */
   const returnToRoomView = useCallback(() => {
@@ -154,11 +157,12 @@ function App() {
     // 结算
     setGameResult(result);
     setShowGameResult(true);
+    serverStatus.resume(saveManager.getOnlineConfig().serverAddr);
     // 单机 mock 房间结算后关闭；联机房间保持连接，等待玩家点“返回房间”后
     // 由服务端广播 ReturnToLobby 事件再回到等待房间。
     BackendWS.closeMockRoom();
     BackendWS.ResetGameData();
-  }, [setShowGameScreen, setShowGameTool]);
+  }, [saveManager, setShowGameScreen, setShowGameTool]);
 
   // 对局中确认退出：直接回主菜单，不进结算页；联机永久离房并取消房间。
   useEffect(() => {
@@ -190,6 +194,7 @@ function App() {
       setShowGameScreen(false);
       setShowGameTool(false);
       setShowRoomView(false);
+      serverStatus.resume(saveManager.getOnlineConfig().serverAddr);
     };
     PhaserEventBus.on(PhaserEvents.RequestExitGame, handleRequestExit);
     return () => {
