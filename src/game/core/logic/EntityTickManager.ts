@@ -80,6 +80,13 @@ export interface ITickManagerProxy {
   restore(states: TimerState[], context: RestoreContext): void;
   setNextTimerId(nextId: number): void;
   getNextTimerId(): number;
+  /**
+   * 按事件名清除本 Model 的定时器。
+   *
+   * Entity 上的 timer 句柄不进入快照，跨进程重连重建后已经失效；
+   * 需要"停掉某类循环"时必须能只凭事件名清理，否则重连端的旧循环会继续跑。
+   */
+  removeByEvent(eventName: TickEventNameEnums | string): number;
   clear(): void;
 }
 
@@ -336,6 +343,16 @@ export class EntityTickManager implements ITickManagerProxy {
   public remove(timerId: number): void {
     this.timers.delete(timerId);
     this.handles.delete(timerId);
+  }
+
+  public removeByEvent(eventName: TickEventNameEnums | string): number {
+    const name = String(eventName);
+    const ids: number[] = [];
+    for (const timer of this.timers.values()) {
+      if (timer.eventName === name) ids.push(timer.id);
+    }
+    for (const id of ids) this.remove(id);
+    return ids.length;
   }
 
   public capture(): TimerState[] {

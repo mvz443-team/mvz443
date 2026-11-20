@@ -8,6 +8,7 @@ import CombatManager from "../CombatManager";
 import { PlantLibrary } from "../library/PlantLibrary";
 import PlantsManager from "./PlantsManager";
 import PlantHelper from "../../utils/helper/PlantHelper";
+import { isShieldPlantPid } from "../../utils/helper/PlantTargeting";
 import type { PlantEntity } from "../../models/entities/PlantEntity";
 
 type CursorManagerEvent = {
@@ -16,6 +17,25 @@ type CursorManagerEvent = {
   onAttemptUseStarShards: (col: number, row: number, aspect: 'up' | 'down') => void;
   onAttemptRemovePlant: (col: number, row: number, aspect: 'up' | 'down') => void;
 }
+
+/** 高亮副本的来源精灵快照（只读表现数据，不引用实体）。 */
+type HighlightPart = {
+  x: number;
+  y: number;
+  textureKey: string;
+  frame: string | number;
+  originX: number;
+  originY: number;
+  displayWidth: number;
+  displayHeight: number;
+  angle: number;
+  flipX: boolean;
+  flipY: boolean;
+  depth: number;
+};
+
+/** 会悬浮高亮目标植物的工具。 */
+type TargetGlowMode = 'starshards' | 'pickaxe';
 
 export default class CursorManager extends BaseManager {
   private static _instance: CursorManager;
@@ -29,13 +49,18 @@ export default class CursorManager extends BaseManager {
   private highlightSprite: Phaser.GameObjects.Sprite | null = null;
   private highlightTween: Phaser.Tweens.Tween | null = null;
 
-  /** 星之碎片：悬浮目标植物的白色发光 + 边框。 */
-  private starGlowSprite: Phaser.GameObjects.Sprite | null = null;
-  private starBorder: Phaser.GameObjects.Rectangle | null = null;
-  private starGlowTween: Phaser.Tweens.Tween | null = null;
-  private starPrevCol = -1;
-  private starPrevRow = -1;
-  private starPrevAspect: 'up' | 'down' = 'up';
+  /**
+   * 工具悬浮高亮（星之碎片 / 铲子）：按目标植物自身的精灵轮廓叠一层发光副本。
+   *
+   * 不再画整格方框——护盾外壳和被罩住的内部植物都在同一格，
+   * 方框会让两者看起来一模一样，也盖住格子里的其它植物。
+   */
+  private glowSprites: Phaser.GameObjects.Sprite[] = [];
+  private glowTweens: Phaser.Tweens.Tween[] = [];
+  private glowCol = -1;
+  private glowRow = -1;
+  private glowAspect: 'up' | 'down' = 'up';
+  private glowMode: TargetGlowMode | null = null;
 
   prevCol: number = -1;
   prevRow: number = -1;
@@ -126,8 +151,6 @@ export default class CursorManager extends BaseManager {
       }
     } else if (mode === 'starshards') {
       this.starSprite.setVisible(true);
-      this.starPrevCol = -1;
-      this.starPrevRow = -1;
       try {
         const pointer = this.scene.input.activePointer;
         this.starSprite.setPosition(pointer.x, pointer.y);
@@ -171,6 +194,8 @@ export default class CursorManager extends BaseManager {
       const newX = Phaser.Math.Linear(currentX, targetX, speed);
       const newY = Phaser.Math.Linear(currentY, targetY, speed);
       this.pickaxeSprite.setPosition(newX, newY);
+      // 高亮"即将被铲掉"的那株植物。
+      this.updateTargetHighlight(pointer, 'pickaxe');
       return;
     }
 
@@ -183,8 +208,8 @@ export default class CursorManager extends BaseManager {
       const newX = Phaser.Math.Linear(currentX, targetX, speed);
       const newY = Phaser.Math.Linear(currentY, targetY, speed);
       this.starSprite.setPosition(newX, newY);
-      // 高亮"即将被使用星之碎片"的那株植物（白色发光 + 边框）。
-      this.updateStarShardsHighlight(pointer);
+      // 高亮"即将被使用星之碎片"的那株植物。
+      this.updateTargetHighlight(pointer, 'starshards');
       return;
     }
 
@@ -262,12 +287,14 @@ export default class CursorManager extends BaseManager {
   }
 
   /**
-   * 悬浮在格子上时，把"将被使用星之碎片的植物"高亮出来。
+   * 悬浮在格子上时，把"这次点击真正会作用到的那株植物"高亮出来。
    *
-   * 目标选择与 `PlantsManager.handleAttemptUseStarShards` 共用
-   * `PlantHelper.GetStarShardsTarget`，保证预览与真正生效的目标完全一致。
+   * 目标选择与实际执行共用同一份规则：
+   * - 星之碎片 → `PlantHelper.GetStarShardsTarget`（`PlantsManager.handleAttemptUseStarShards`）；
+   * - 铲子 → `PlantHelper.GetRemovePlantTarget`（`PlantsManager.handleAttemptRemovePlant`）。
+   * 这样预览与执行永远一致，不会出现"高亮 A、实际作用到 B"。
    */
-  private updateStarShardsHighlight(pointer: Phaser.Input.Pointer) {
+  private updateTargetHighlight(pointer: Phaser.Input.Pointer, mode: TargetGlowMode) {
     if (!this.scene) return;
 
     const time = this.scene.time.now;
@@ -277,75 +304,166 @@ export default class CursorManager extends BaseManager {
     const worldPoint = this.scene.getBattleWorldPoint(pointer);
     const { col, row, aspect } = PositionManager.Instance.GetGridByPos(worldPoint.x, worldPoint.y);
     if (col < 0 || row < 0) {
-      this.stopStarShardsHighlight(true);
+      this.stopTargetGlow(true);
       return;
     }
 
     const plants = PlantsManager.Instance.PlantsMap.get(`${col}-${row}`) ?? [];
-    const target = PlantHelper.GetStarShardsTarget(plants, aspect);
+    const target = mode === 'pickaxe'
+      ? PlantHelper.GetRemovePlantTarget(plants, aspect)
+      : PlantHelper.GetStarShardsTarget(plants, aspect);
     if (!target) {
-      this.stopStarShardsHighlight(true);
+      this.stopTargetGlow(true);
       return;
     }
 
-    if (this.starGlowSprite && col === this.starPrevCol && row === this.starPrevRow && aspect === this.starPrevAspect) {
+    if (this.glowSprites.length > 0
+      && mode === this.glowMode
+      && col === this.glowCol
+      && row === this.glowRow
+      && aspect === this.glowAspect) {
       return;
     }
 
-    this.starPrevCol = col;
-    this.starPrevRow = row;
-    this.starPrevAspect = aspect;
-    this.startStarShardsHighlight(target.plantEntity);
+    this.glowMode = mode;
+    this.glowCol = col;
+    this.glowRow = row;
+    this.glowAspect = aspect;
+    this.startTargetGlow(target.plantEntity, mode);
   }
 
-  private startStarShardsHighlight(plant: PlantEntity) {
+  /**
+   * 高亮被选中的那株植物。
+   *
+   * 形状只覆盖目标自己的精灵轮廓（护盾高亮的是壳，内部植物高亮的是植物本体），
+   * 颜色区分工具与身份：
+   * - 星之碎片：护盾外壳暖金色、被罩住的内部植物冷青色；
+   * - 铲子：统一的警示红。
+   */
+  private startTargetGlow(plant: PlantEntity, mode: TargetGlowMode) {
     if (!this.scene) return;
-    this.stopStarShardsHighlight(false);
+    this.stopTargetGlow(false);
 
-    const size = PositionManager.Instance.getPlantDisplaySize();
-    const depth = plant.baseDepth + 6;
+    const isShield = isShieldPlantPid(plant.model.pid);
+    const tint = mode === 'pickaxe' ? 0xff5340 : (isShield ? 0xffb62e : 0x5fdcff);
+    const coreAlpha = mode === 'pickaxe' ? 0.85 : (isShield ? 0.9 : 0.78);
+    const haloAlpha = mode === 'pickaxe' ? 0.38 : (isShield ? 0.4 : 0.32);
 
-    // 白色发光：用同贴图的加色副本做呼吸，不改变植物自身的 tint/透明度。
-    this.starGlowSprite = this.scene.add.sprite(plant.x, plant.y, plant.model.texturePath, 0)
-      .setOrigin(0.5, 1)
-      .setDisplaySize(size.sizeX, size.sizeY)
-      .setTint(0xffffff)
-      .setBlendMode(Phaser.BlendModes.ADD)
-      .setAlpha(0.45)
-      .setDepth(depth);
+    const parts = this.collectHighlightParts(plant);
+    if (parts.length === 0) return;
 
-    // 边框
-    this.starBorder = this.scene.add.rectangle(plant.x, plant.y, size.sizeX * 0.92, size.sizeY * 0.92, 0xffffff, 0.06)
-      .setOrigin(0.5, 1)
-      .setStrokeStyle(3, 0xffffff, 0.95)
-      .setDepth(depth + 1);
+    const coreSprites: Phaser.GameObjects.Sprite[] = [];
+    const haloSprites: Phaser.GameObjects.Sprite[] = [];
+    for (const part of parts) {
+      // 只比原精灵高半个层级：被护盾外壳罩住的植物，高光仍然会被外壳挡住，
+      // 不会出现"光从壳里透出来"的错觉。外层光晕略微放大，让发光更明显。
+      haloSprites.push(this.createHighlightSprite(part, tint, haloAlpha, 1.12, part.depth + 0.4));
+      coreSprites.push(this.createHighlightSprite(part, tint, coreAlpha, 1, part.depth + 0.6));
+    }
 
-    this.starGlowTween = this.scene.tweens.add({
-      targets: [this.starGlowSprite, this.starBorder],
-      alpha: { from: 0.45, to: 0.15 },
-      duration: 450,
-      yoyo: true,
-      repeat: -1,
-    });
+    this.glowSprites = [...haloSprites, ...coreSprites];
+    this.glowTweens = [
+      this.scene.tweens.add({
+        targets: haloSprites,
+        alpha: { from: haloAlpha, to: haloAlpha * 0.25 },
+        duration: 420,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      }),
+      this.scene.tweens.add({
+        targets: coreSprites,
+        alpha: { from: coreAlpha, to: coreAlpha * 0.45 },
+        duration: 420,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      }),
+    ];
   }
 
-  private stopStarShardsHighlight(resetGrid: boolean) {
-    if (this.starGlowTween) {
-      this.starGlowTween.stop();
-      this.starGlowTween.remove();
-      this.starGlowTween = null;
+  /** 收集目标植物实际显示中的精灵部件（跳过碰撞盒、文字与隐藏部件）。 */
+  private collectHighlightParts(plant: PlantEntity): HighlightPart[] {
+    const parts: HighlightPart[] = [];
+    for (const child of plant.viewGroup.getChildren()) {
+      if (!(child instanceof Phaser.GameObjects.Sprite)) continue;
+      const sprite = child as Phaser.GameObjects.Sprite;
+      if (!sprite.visible || sprite.alpha <= 0.01) continue;
+      if (!sprite.texture?.key || !sprite.frame) continue;
+      parts.push({
+        x: sprite.x,
+        y: sprite.y,
+        textureKey: sprite.texture.key,
+        frame: sprite.frame.name,
+        originX: sprite.originX,
+        originY: sprite.originY,
+        displayWidth: sprite.displayWidth,
+        displayHeight: sprite.displayHeight,
+        angle: sprite.angle,
+        flipX: sprite.flipX,
+        flipY: sprite.flipY,
+        depth: sprite.depth,
+      });
     }
-    if (this.starGlowSprite) {
-      this.starGlowSprite.destroy();
-      this.starGlowSprite = null;
+
+    if (parts.length === 0) {
+      // 兜底：没有可复制的精灵时（例如尚未构建视图），至少给整株贴图打亮。
+      const size = PositionManager.Instance.getPlantDisplaySize();
+      parts.push({
+        x: plant.x,
+        y: plant.y,
+        textureKey: plant.model.texturePath,
+        frame: 0,
+        originX: 0.5,
+        originY: 1,
+        displayWidth: size.sizeX,
+        displayHeight: size.sizeY,
+        angle: 0,
+        flipX: false,
+        flipY: false,
+        depth: plant.baseDepth + 6,
+      });
     }
-    if (this.starBorder) {
-      this.starBorder.destroy();
-      this.starBorder = null;
+    return parts;
+  }
+
+  private createHighlightSprite(
+    part: HighlightPart,
+    tint: number,
+    alpha: number,
+    sizeScale: number,
+    depth: number,
+  ): Phaser.GameObjects.Sprite {
+    const sprite = this.scene!.add.sprite(part.x, part.y, part.textureKey, part.frame)
+      .setOrigin(part.originX, part.originY)
+      .setDepth(depth)
+      .setTint(tint)
+      .setAlpha(alpha)
+      .setBlendMode(Phaser.BlendModes.ADD);
+
+    sprite.setDisplaySize(part.displayWidth * sizeScale, part.displayHeight * sizeScale);
+    if (part.flipX) sprite.setFlipX(true);
+    if (part.flipY) sprite.setFlipY(true);
+    if (part.angle !== 0) sprite.setAngle(part.angle);
+    return sprite;
+  }
+
+  private stopTargetGlow(resetGrid: boolean) {
+    for (const tween of this.glowTweens) {
+      tween.stop();
+      tween.remove();
     }
+    this.glowTweens = [];
+
+    for (const sprite of this.glowSprites) {
+      sprite.destroy();
+    }
+    this.glowSprites = [];
+
     if (resetGrid) {
-      this.starPrevCol = -1;
-      this.starPrevRow = -1;
+      this.glowCol = -1;
+      this.glowRow = -1;
+      this.glowMode = null;
     }
   }
 
@@ -376,7 +494,7 @@ export default class CursorManager extends BaseManager {
   }
 
   private stopHighlight() {
-    this.stopStarShardsHighlight(true);
+    this.stopTargetGlow(true);
     if (this.highlightTween) {
       this.highlightTween.stop();
       this.highlightTween.remove();

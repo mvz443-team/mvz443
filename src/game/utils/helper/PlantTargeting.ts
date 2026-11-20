@@ -22,12 +22,19 @@ export const CARRIER_PLANT_PIDS: readonly number[] = [6, 100];
 /** 护盾植物：可以叠在其它植物外面、优先承受伤害的保护壳。 */
 export const SHIELD_PLANT_PIDS: readonly number[] = [19];
 
+/** 粉尘植物：可以随意叠种在任意格子上。 */
+export const POWDER_PLANT_PIDS: readonly number[] = [10, 17];
+
 export function isCarrierPlantPid(pid: number): boolean {
   return CARRIER_PLANT_PIDS.includes(pid);
 }
 
 export function isShieldPlantPid(pid: number): boolean {
   return SHIELD_PLANT_PIDS.includes(pid);
+}
+
+export function isPowderPlantPid(pid: number): boolean {
+  return POWDER_PLANT_PIDS.includes(pid);
 }
 
 function isAlive(plant: PlantTargetLike): boolean {

@@ -8,6 +8,7 @@ import {
   isShieldPlantPid,
   pickShieldPlant,
   pickStarShardsTarget,
+  POWDER_PLANT_PIDS,
   SHIELD_PLANT_PIDS,
 } from "./PlantTargeting";
 
@@ -15,7 +16,7 @@ import {
 export const SHIELD_PLANT: readonly number[] = SHIELD_PLANT_PIDS; // 护盾植物,铲除上方时铲除,可以和任何非护盾器械兼容
 export const WATER_ONLY_PLANT: number[] = [6];// 水中植物,只能种植在水中
 export const SKY_ONLY_PLANT: number[] = [100]; // 船只,只能种植在天空中
-export const POWDER_PLANT: number[] = [10, 17]; // 粉尘植物,可以随意种植
+export const POWDER_PLANT: readonly number[] = POWDER_PLANT_PIDS; // 粉尘植物,可以随意种植
 
 export const ADVANCED_PLANT: Map<number, number> = new Map([
   [11, 9], [14, 1]
@@ -83,6 +84,17 @@ namespace PlantHelper {
 
   export function isPowder(pid: number): boolean {
     return POWDER_PLANT.includes(pid);
+  }
+
+  /**
+   * 铲子（pickaxe）要移除的同格植物。
+   * 与悬停预览共用同一份规则，保证"看到哪个就铲哪个"。
+   */
+  export function GetRemovePlantTarget(
+    plants: PlantEntity[],
+    aspect: 'up' | 'down',
+  ): { pid: number, plantEntity: PlantEntity } | null {
+    return GetHighestPriorityPlant(plants, aspect);
   }
 
   /**

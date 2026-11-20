@@ -5,6 +5,7 @@ const PLANT_DEPTH_OFFSET = 500;
 export type PlantPart =
   | "lilyBody"
   | "dispenserBase"
+  | "shieldShellBack"
   | "body"
   | "badge"
   | "sfx"
@@ -14,6 +15,8 @@ export type PlantPart =
 const PLANT_PART_OFFSET: Record<PlantPart, number> = {
   lilyBody: -2,
   dispenserBase: -1,
+  // 护盾外壳的后壁：必须画在同格内部植物的所有部件之后。
+  shieldShellBack: -4,
   body: 0,
   badge: 1,
   sfx: 1,
@@ -57,5 +60,10 @@ export const PlantDepth = {
   /** 护盾植物外壳：同格叠加时画在内部植物之上。 */
   shieldShell(baseDepth: number): number {
     return this.part(baseDepth, "shieldShell");
+  },
+
+  /** 护盾植物外壳的后壁：画在内部植物之下，形成"植物装在壳里"的层次。 */
+  shieldShellBack(baseDepth: number): number {
+    return this.part(baseDepth, "shieldShellBack");
   },
 };

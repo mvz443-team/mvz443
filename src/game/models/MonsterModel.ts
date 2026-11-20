@@ -10,6 +10,12 @@ import type { ITickTimerHandle } from "../core/logic/EntityTickManager";
 import { DEFAULT_TICK_EVENT_NAMES } from "../core/logic/TickEvents";
 import { Faction } from "./Enum";
 import PlantHelper from "../utils/helper/PlantHelper";
+import {
+  isCarrierPlantPid,
+  isPowderPlantPid,
+  isShieldPlantPid,
+} from "../utils/helper/PlantTargeting";
+import type { PlantEntity } from "./entities/PlantEntity";
 import CombatManager from "../managers/CombatManager";
 import { PositionManager } from "../managers/view/PositionManager";
 import ResourceCmd from "../utils/cmd/ResourceCmd";
@@ -22,6 +28,20 @@ const MONSTER_EVENTS = {
 
 /** 死亡表现时长（与 DeathRotateSfx 的 400ms 对齐），仅决定纯表现何时结束。 */
 const DEATH_SETTLE_MS = 400;
+
+/**
+ * 同格接力目标的优先级：护盾外壳 0 → 粉尘植物 1 → 普通植物 2 → 承载物 3。
+ *
+ * 必须是显式全序，不能靠 `IsMorePriorityPlant` 折叠候选列表：那条规则里
+ * 粉尘植物与护盾互相"高于"对方（非传递），折叠结果会随 `PlantsMap` 数组顺序变化，
+ * 而断线重连按快照 id 重建实体后数组顺序与连续运行的客户端不同 → desync。
+ */
+export function attackTargetRank(pid: number): number {
+  if (isShieldPlantPid(pid)) return 0;
+  if (isPowderPlantPid(pid)) return 1;
+  if (isCarrierPlantPid(pid)) return 3;
+  return 2;
+}
 
 export abstract class MonsterModel extends LogicModel {
   public override readonly tickEventNames: readonly string[] = [
@@ -93,9 +113,24 @@ export abstract class MonsterModel extends LogicModel {
     this.inVoid = this.isDefaultInVoid;
   }
 
-  /** 普攻定时器由 Model 创建；Entity 只保存句柄用于停止。 */
+  /**
+   * 普攻定时器由 Model 创建；Entity 只保存句柄用于停止。
+   *
+   * 每次都必须先按事件名清掉旧循环：同格叠了多株植物时一次接触就会连续触发
+   * 多次 `tryStartAttack`，而 Entity 上的句柄在跨进程重连重建后已经失效
+   * （快照里只有 timer 的 id/帧号，没有句柄）。不清旧循环会出现两条普攻定时器，
+   * 重连端攻击速度翻倍 → 与对端/服务端分叉。
+   */
   public beginAttackTimer(_entity: MonsterEntity, intervalMs: number): ITickTimerHandle {
+    this.tickmanager.removeByEvent(MONSTER_EVENTS.Attack);
     return this.tickmanager.schedule(MONSTER_EVENTS.Attack, intervalMs, { loop: true });
+  }
+
+  /** 清掉普攻循环：句柄可能已失效，必须再按事件名兜底清理。 */
+  private clearAttackTimer(entity: MonsterEntity): void {
+    (entity as any).attackTimer?.remove();
+    (entity as any).attackTimer = null;
+    this.tickmanager.removeByEvent(MONSTER_EVENTS.Attack);
   }
 
   public override handleTickEvent(
@@ -157,8 +192,7 @@ export abstract class MonsterModel extends LogicModel {
     entity.attacking = null;
     this.attackingId = null;
     entity.animController.stopArmSwing();
-    (entity as any).attackTimer?.remove();
-    (entity as any).attackTimer = null;
+    this.clearAttackTimer(entity);
     this.isStop = false;
     this.onAttackStopped(entity);
     entity.startMove();
@@ -171,11 +205,83 @@ export abstract class MonsterModel extends LogicModel {
   public hurtTarget(entity: MonsterEntity): void {
     const target = entity.attacking;
     if (!target || !this.isValidAttackTarget(target)) {
-      this.stopAttacking(entity);
+      this.onAttackTargetDestroyed(entity, target);
       return;
     }
     target.takeDamage(this.attackDamage, entity as any);
-    if (!this.isValidAttackTarget(entity.attacking)) this.stopAttacking(entity);
+    if (!this.isValidAttackTarget(entity.attacking)) {
+      this.onAttackTargetDestroyed(entity, entity.attacking);
+    }
+  }
+
+  /**
+   * 当前普攻目标消失（被打碎 / 被铲除）时的权威帧补判。
+   *
+   * Rapier 的 sensor 只在 overlap-start 派发事件：僵尸停下来啃护盾植物（南瓜护照）时，
+   * 与同格内部植物的那次碰撞早已消耗掉，护盾碎了以后不会有新的碰撞事件。
+   * 因此必须在护盾破碎的这一帧主动接管同格的下一个目标，否则僵尸会无视内部植物继续前进。
+   */
+  public onAttackTargetDestroyed(entity: MonsterEntity, destroyed: BaseEntity | null): void {
+    // 已经被别的路径换过目标，不再重复处理。
+    if (destroyed && entity.attacking && entity.attacking !== destroyed) return;
+    if (this.tryRetargetInCell(entity, destroyed)) return;
+    this.stopAttacking(entity);
+  }
+
+  /** 在同格找下一个可攻击目标并原地换目标；普攻节奏保持不变。 */
+  private tryRetargetInCell(entity: MonsterEntity, lost: BaseEntity | null): boolean {
+    const cell = lost as unknown as { col?: number; row?: number } | null;
+    if (!cell || typeof cell.col !== "number" || typeof cell.row !== "number") return false;
+
+    const next = this.pickPlantInCell(cell.col, cell.row, lost);
+    return next ? this.retargetAttack(entity, next) : false;
+  }
+
+  /**
+   * 选出同格里的下一个普攻目标。
+   *
+   * 结果必须与 `PlantsMap` 里的数组顺序无关：断线重连时实体是按快照顺序
+   * （稳定 id 排序）重建的，插入顺序与"连续运行"的客户端不同。
+   * 用 `IsMorePriorityPlant` 折叠会退化成顺序相关（粉尘植物与护盾会互相"高于"对方），
+   * 于是这里改成显式全序：护盾外壳 → 粉尘植物 → 普通植物 → 承载物，同级再按 pid / 稳定 id 兜底。
+   */
+  private pickPlantInCell(col: number, row: number, exclude: BaseEntity | null): PlantEntity | null {
+    const candidates: PlantEntity[] = [];
+    for (const plant of PlantHelper.GetPlantsInGrid(col, row)) {
+      if ((plant as unknown as BaseEntity) === exclude) continue;
+      if (!this.canStartAttack(plant)) continue;
+      candidates.push(plant);
+    }
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) => {
+      const rank = attackTargetRank(a.pid) - attackTargetRank(b.pid);
+      if (rank !== 0) return rank;
+      if (a.pid !== b.pid) return a.pid - b.pid;
+      const aId = a.SnapshotId ?? "";
+      const bId = b.SnapshotId ?? "";
+      return aId < bId ? -1 : aId > bId ? 1 : 0;
+    });
+    return candidates[0];
+  }
+
+  /**
+   * 换目标但不重置攻击计时器：护盾碎了以后接着啃内部植物，节奏不断档。
+   *
+   * 只改 Model 记录的目标与关系集合，不新建定时器，因此与 flush/渲染时刻无关。
+   */
+  public retargetAttack(entity: MonsterEntity, target: BaseEntity): boolean {
+    if (this.isFrozen || this.isDying) return false;
+    if (entity.currentHealth <= 0) return false;
+    if (!this.canStartAttack(target)) return false;
+
+    entity.attacking?.underAttackBy?.delete(entity);
+    entity.attacking = target as any;
+    this.attackingId = target.SnapshotId;
+    this.isStop = true;
+    entity.stopMove();
+    (target as any).underAttackBy?.add(entity);
+    return true;
   }
 
   public isValidAttackTarget(target: BaseEntity | null): boolean {

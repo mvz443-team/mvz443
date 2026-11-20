@@ -435,7 +435,8 @@ export default class PlantsManager extends BaseManager {
 
   handleAttemptRemovePlant = (col: number, row: number, aspect: 'up' | 'down') => {
     const plants = this.PlantsMap.get(`${col}-${row}`) || [];
-    const targetPlant = PlantHelper.GetHighestPriorityPlant(plants, aspect);
+    // 与悬停高亮共用同一份规则：看到哪个就铲哪个。
+    const targetPlant = PlantHelper.GetRemovePlantTarget(plants, aspect);
     if (!targetPlant) return;
     this.EventBus.emit('onDetermineRemovePlant', targetPlant.pid, col, row);
   }

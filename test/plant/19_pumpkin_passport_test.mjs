@@ -22,6 +22,7 @@ import {
  *   同格有其它植物时，护盾先替内部植物承受伤害。
  *   星之碎片：回满生命值并进入尖刺状态；尖刺状态下每次受到近战伤害，
  *   返还一半给伤害源；已经处于尖刺状态时星之碎片只回血。
+ *   血量降到一半以下时外壳显示破损（分层前后壁、破损帧与尖刺外露都由 Entity 只读 Model 状态）。
  *
  * 验收路径：
  *   1) spawnPlant 读取基础数值 / tiny / 护盾 pid 表。
@@ -29,19 +30,22 @@ import {
  *   3) 直接调用真实 onHurt 传入僵尸 dealer（近战）与投射物 source（远程）。
  *   4) 同格注册「内部植物 + 护照」，对内部植物调用 takeDamage 观察护盾路由。
  *   5) 用真实 PlantTargeting 校验「护照 + 植物 + 睡莲」时星之碎片的目标。
+ *   6) 读取 brokenHealthRatio 并校验血量阈值分界。
  *
  * 预期结果：
  *   pid 19 / cost 125 / maxHealth 2500 / tiny = true；
  *   星碎后 health = 2500 且 isSpiky = true；二次星碎只回血、不再播放激活动画；
  *   尖刺下 100 近战伤害 → 僵尸掉 50；非尖刺或带 source 的伤害 → 不返还；
  *   内部植物挨打时护照掉血、内部植物不掉血；护照死亡后内部植物才掉血；
- *   同格「护照 + 植物 + 睡莲」：上半区给内部植物，下半区给护照；只有睡莲时兜底给睡莲。
+ *   同格「护照 + 植物 + 睡莲」：上半区给内部植物，下半区给护照；只有睡莲时兜底给睡莲；
+ *   brokenHealthRatio = 0.5：2500 血时未破损，1250 血起进入破损外观。
  *
  * 为什么：
  *   onStarShards 里 PlantCmd.SetHealth + isSpiky 置位；onHurt 里用
  *   spikeReflectRatio=0.5 且只在 dealer 存在、source 为空时返还；
  *   PlantModel.redirectDamageToShield 通过 PlantTargeting.pickShieldPlant 找同格护照，
- *   pickStarShardsTarget 按「承载物 < 内部植物 < 护盾外壳(aspect=down)」排序。
+ *   pickStarShardsTarget 按「承载物 < 内部植物 < 护盾外壳(aspect=down)」排序；
+ *   Entity 的 isShellBroken 用 currentHealth <= maxHealth * brokenHealthRatio 选破损帧。
  */
 
 function plantByPid(plants, pid) {
@@ -152,6 +156,22 @@ test("护盾植物自己不会把伤害转给自己", () => {
 
   passport.entity.takeDamage(500);
   assert.equal(passport.model.health, 2000);
+});
+
+test("血量降到一半时外壳进入破损外观阈值", () => {
+  resetSim();
+  const { model } = spawnPlant(PumpkinPassportData, { level: 1, col: 2, row: 2 });
+
+  assert.equal(model.brokenHealthRatio, 0.5);
+  const brokenAt = model.healthMax * model.brokenHealthRatio;
+
+  model.health = brokenAt + 1;
+  assert.equal(model.health <= brokenAt, false);
+
+  // 只剩一半（含）就破损：1250 血时进入破损帧。
+  model.health = brokenAt;
+  assert.equal(model.health <= brokenAt, true);
+  assert.equal(brokenAt, 1250);
 });
 
 test("护照 + 植物 + 睡莲：上半区给内部植物，下半区给护照", () => {

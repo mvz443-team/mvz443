@@ -270,7 +270,9 @@ export abstract class PlantEntity extends CombatEntity {
     this.hideSleepingSfx();
     for (const attacker of [...this.underAttackBy]) {
       if (attacker instanceof MonsterEntity) {
-        attacker.stopAttacking?.();
+        // 不要直接 stopAttacking：同格可能还有内部植物（例如护盾碎了露出器械），
+        // 由 Model 在权威帧决定换目标还是继续前进。
+        attacker.onAttackTargetDestroyed(this);
       }
     }
     this.underAttackBy.clear();

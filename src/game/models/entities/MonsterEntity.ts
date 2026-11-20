@@ -185,6 +185,11 @@ export abstract class MonsterEntity extends CombatEntity {
     this.model.stopAttacking(this);
   }
 
+  /** 目标植物消失：由 Model 决定是同格接力还是放弃前进。 */
+  public onAttackTargetDestroyed(target: CombatEntity | null) {
+    this.model.onAttackTargetDestroyed(this, target);
+  }
+
   public hurtTarget() {
     this.model.hurtTarget(this);
   }
