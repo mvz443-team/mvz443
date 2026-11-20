@@ -79,15 +79,19 @@ test('对局中确认退出：取消房间、不能重连、对方收到房间�
     await expect(owner.locator('#app')).toBeVisible();
 
     // 房间被取消：服务端的席位查询不再返回任何玩家，无法重连。
-    await expect.poll(async () => {
+    // 必须查询真实玩家昵称（退出方 quit-owner、另一方 quit-guest），
+    // 查一个不存在的昵称会让断言永远成立，无法发现玩家残留。
+    const membershipOf = async (user) => {
       try {
-        const res = await fetch(`https://${SERVER_ADDRESS}/user-room?user=tester`);
+        const res = await fetch(`https://${SERVER_ADDRESS}/user-room?user=${encodeURIComponent(user)}`);
         if (!res.ok) return null;
         return await res.json();
       } catch {
         return null;
       }
-    }, { timeout: 20000 }).toBeFalsy();
+    };
+    await expect.poll(() => membershipOf('quit-owner'), { timeout: 20000 }).toBeFalsy();
+    await expect.poll(() => membershipOf('quit-guest'), { timeout: 20000 }).toBeFalsy();
 
     // 对方：房间关闭，在线状态被清空且显示 Toast。
     await expect.poll(async () => (await netState(guest))?.online, { timeout: 20000 }).toBe(false);

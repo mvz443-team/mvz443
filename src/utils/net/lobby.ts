@@ -189,6 +189,14 @@ export async function queryMyRoom(baseUrl: string, username: string): Promise<Us
     }
 }
 
+/**
+ * 退房信号最大发送次数。仅当请求未送达（fetch 抛错，如瞬时连接失败）时重试，
+ * 因为这类失败时服务端根本没收到信号，重试不会造成重复移除。
+ * 一旦拿到 HTTP 响应，无论 ok 与否都直接返回：ok:false 可能是席位已被移除
+ * （幂等）或昵称/房间号不匹配，重复请求都不会改变结果。
+ */
+const LEAVE_ROOM_MAX_ATTEMPTS = 3;
+
 /** 玩家选择“不重连”时，请服务端把自己从房间里彻底移除。 */
 export async function leaveRoomRemotely(
     baseUrl: string,
@@ -208,20 +216,25 @@ export async function leaveRoomRemotely(
     if (identity && identity.roomId >= 0) {
         params.set('room_id', String(identity.roomId));
     }
-    try {
-        const response = await fetch(`https://${address}/user-room/leave?${params.toString()}`, {
-            method: "POST",
-            cache: "no-store",
-        });
-        if (!response.ok) {
-            return false;
+    const url = `https://${address}/user-room/leave?${params.toString()}`;
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < LEAVE_ROOM_MAX_ATTEMPTS; attempt++) {
+        try {
+            const response = await fetch(url, {
+                method: "POST",
+                cache: "no-store",
+            });
+            if (!response.ok) {
+                return false;
+            }
+            const data = await response.json();
+            return Boolean(data?.ok);
+        } catch (error) {
+            lastError = error;
         }
-        const data = await response.json();
-        return Boolean(data?.ok);
-    } catch (error) {
-        console.error("Error leaving user room:", error);
-        return false;
     }
+    console.error("Error leaving user room:", lastError);
+    return false;
 }
 
 /**
