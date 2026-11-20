@@ -28,6 +28,9 @@ export type RoomInfo = {
 export const ROOM_NAME_MAX_LENGTH = 6;
 export const ROOM_KEY_MAX_LENGTH = 8;
 
+/** 房间名为空时使用的默认占位名：输入框以灰色 placeholder 展示，创建时直接采用 */
+export const DEFAULT_ROOM_NAME = '方块人互砍';
+
 /** /user-room 返回的玩家已有房间会话 */
 export interface UserRoomMembership {
     roomId: number;
@@ -74,6 +77,11 @@ export function normalizeServerAddress(input: string): string {
 /** 房间名：去掉控制字符，最多 6 个字符 */
 export function normalizeRoomName(value: string): string {
     return Array.from((value || "").replace(CONTROL_CHARS, "")).slice(0, ROOM_NAME_MAX_LENGTH).join("");
+}
+
+/** 归一化房间名；为空时回退到灰色占位名，避免创建房间时提示"请填写房间名" */
+export function resolveRoomName(value: string): string {
+    return normalizeRoomName(value) || DEFAULT_ROOM_NAME;
 }
 
 /** 房间密码：去掉空白与控制字符，最多 8 个字符 */
@@ -261,7 +269,7 @@ function buildRoomUrl(options: RoomSessionOptions): string {
         }
         return base;
     }
-    const name = encodeURIComponent(normalizeRoomName(options.roomName || ""));
+    const name = encodeURIComponent(resolveRoomName(options.roomName || ""));
     const chapterId = options.chapterId ?? 0;
     const stageId = options.stageId ?? 0;
     return `wss://${address}/ws?create=1&name=${name}&key=${key}&chapter_id=${chapterId}&stage_id=${stageId}&user=${user}`;

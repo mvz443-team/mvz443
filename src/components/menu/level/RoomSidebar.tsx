@@ -10,10 +10,12 @@ import EnumGameStage from '../../../utils/net/game_state';
 import BackendWS from '../../../utils/net/sync';
 import {
   createRoom,
+  DEFAULT_ROOM_NAME,
   joinRoom,
   leaveRoomRemotely,
   normalizeRoomKey,
   normalizeRoomName,
+  resolveRoomName,
   ROOM_KEY_MAX_LENGTH,
   ROOM_NAME_MAX_LENGTH,
   RoomInfo,
@@ -157,17 +159,12 @@ const RoomSidebar: React.FC<Props> = ({
   };
 
   const handleCreateRoom = () => {
-    const name = normalizeRoomName(createName);
-    if (!name) {
-      void showAlert(translate('menu.online_room_name_required'));
-      return;
-    }
     if (!ensureServer()) {
       return;
     }
     createRoom({
       baseUrl: serverAddress,
-      roomName: name,
+      roomName: resolveRoomName(createName),
       key: createKey,
       chapterId,
       stageId,
@@ -520,7 +517,7 @@ const RoomSidebar: React.FC<Props> = ({
                 type="text"
                 value={createName}
                 maxLength={ROOM_NAME_MAX_LENGTH}
-                placeholder={translate('menu.online_room_name_placeholder')}
+                placeholder={DEFAULT_ROOM_NAME}
                 onChange={(event) => setCreateName(normalizeRoomName(event.target.value))}
                 style={{ ...inputStyle, width: '120px' }}
               />
@@ -552,8 +549,6 @@ const RoomSidebar: React.FC<Props> = ({
               style={{
                 ...actionButtonStyle,
                 marginLeft: 'auto',
-                opacity: createName ? 1 : 0.5,
-                cursor: createName ? 'pointer' : 'not-allowed',
               }}
               onClick={handleCreateRoom}
             >
