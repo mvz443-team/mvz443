@@ -17,7 +17,6 @@ import MobManager from "../managers/combat/MobManager";
 import PlantsManager from "../managers/combat/PlantsManager";
 import ObstacleManager from "../managers/combat/ObstacleManager";
 import ResourceManager from "../managers/combat/ResourceManager";
-import CardpileManager from "../managers/combat/CardpileManager";
 import GridManager from "../managers/combat/GridManager";
 import TileItemManager from "../managers/combat/TileItemManager";
 import SyncManager from "../managers/combat/SyncManager";
@@ -216,7 +215,6 @@ export function installRuntimeStateSources(): void {
   const ticker = TickerManager.Instance;
   const mobs = MobManager.Instance;
   const resources = ResourceManager.Instance;
-  const cardpile = CardpileManager.Instance;
   const grid = GridManager.Instance;
   const tileitems = TileItemManager.Instance;
 
@@ -265,13 +263,9 @@ export function installRuntimeStateSources(): void {
   simulationState.registerValue("resources", () => resources.CaptureCanonicalResourceState(), (value) => {
     resources.RestoreResourceState(value as Record<string, number>);
   });
-  // 卡槽冷却只属于本机玩家：两端卡组不同，放入跨端哈希会在首个 20 帧采样点
-  // 必然分叉。它仍需要进入快照，供本地回滚/重连恢复。
-  simulationState.registerLocalValue(
-    "cardpile",
-    () => cardpile.CaptureCanonicalCardpileState() as unknown as JsonValue,
-    (value) => { cardpile.RestoreCardpileState(value as Record<string, unknown>); },
-  );
+  // 卡槽冷却不再进入回滚快照：它是一个纯帧函数（权威种植帧 + 当前逻辑帧），
+  // 回滚后用 QueueReceive 的权威操作回放日志重建，避免 14 卡时快照与逐帧 hash
+  // 都携带整份冷却数组。服务端心跳 profile 仍上报，供页面刷新式重连使用。
   simulationState.registerValue("wave", () => mobs.GetWaveState(), (value) => {
     mobs.RestoreWaveState(value as Record<string, number | boolean>);
   });

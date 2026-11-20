@@ -17,8 +17,9 @@ function makeClient({ myId, energyPreview, cardPreview }) {
   resources.ApplyPreviewStarShards(1, 101);
 
   const cardpile = new CardpileManager();
-  cardpile.cardpileStatus.set(1, { level: 2, leftMs: 500, previewLeftMs: cardPreview, totalMs: 1000 });
-  cardpile.cardpileStatus.set(3, { level: 1, leftMs: 250, previewLeftMs: 0, totalMs: 800 });
+  // 冷却按权威帧推导，previewPending 属于本机预演，不得进入跨端状态。
+  cardpile.cardpileStatus.set(1, { level: 2, cooldownEndFrame: 10, previewPending: Boolean(cardPreview), totalMs: 1000 });
+  cardpile.cardpileStatus.set(3, { level: 1, cooldownEndFrame: 5, previewPending: false, totalMs: 800 });
 
   const registry = new StateRegistry();
   registry.registerValue('resources', () => resources.CaptureCanonicalResourceState());
@@ -27,10 +28,13 @@ function makeClient({ myId, energyPreview, cardPreview }) {
 }
 
 test('不同 myId 与本地预演值的两端哈希一致', () => {
-  const host = makeClient({ myId: 100, energyPreview: -25, cardPreview: 1000 });
-  const guest = makeClient({ myId: 101, energyPreview: -10, cardPreview: 300 });
+  const host = makeClient({ myId: 100, energyPreview: -25, cardPreview: 1 });
+  const guest = makeClient({ myId: 101, energyPreview: -10, cardPreview: 0 });
 
   assert.equal(host.registry.hash().h64, guest.registry.hash().h64);
+  // 权威冷却数组里不应出现预演字段。
+  const canonical = host.cardpile.CaptureCanonicalCardpileState();
+  assert.deepEqual(Object.keys(canonical.cards[0]).sort(), ['leftMs', 'level', 'pid', 'totalMs']);
 });
 
 test('权威资源变化仍会改变哈希', () => {
@@ -40,8 +44,8 @@ test('权威资源变化仍会改变哈希', () => {
   assert.notEqual(a.registry.hash().h64, b.registry.hash().h64);
 });
 
-test('恢复权威快照不会覆盖本机 myId，且清除本地预演', () => {
-  const client = makeClient({ myId: 101, energyPreview: -25, cardPreview: 700 });
+test('恢复 profile 按帧重建冷却且清除本地预演', () => {
+  const client = makeClient({ myId: 101, energyPreview: -25, cardPreview: 1 });
   const snapshot = client.resources.GetResourceState();
   client.resources.RestoreResourceState({
     'energy:100': 120,
@@ -55,8 +59,10 @@ test('恢复权威快照不会覆盖本机 myId，且清除本地预演', () => 
   assert.equal(client.resources.getDisplayEnergy(101), 80);
 
   client.cardpile.RestoreCardpileState({
-    cards: [{ pid: 1, level: 2, leftMs: 500, previewLeftMs: 700, totalMs: 1000 }],
-  });
-  assert.equal(client.cardpile.cardpileStatus.get(1).previewLeftMs, 0);
+    cards: [{ pid: 1, level: 2, leftMs: 500, totalMs: 1000 }],
+  }, 0);
+  assert.equal(client.cardpile.cardpileStatus.get(1).previewPending, false);
+  // leftMs=500、帧间隔 50ms → 结束帧 10；当前帧 0 → 剩余 500ms。
+  assert.equal(client.cardpile.getCardLeftMs(1), 500);
   assert.ok(Object.keys(snapshot).includes('mineId'));
 });

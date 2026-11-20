@@ -173,8 +173,8 @@ namespace ConsoleCmd {
 
   function getCardInfo(): CardInfo[] {
     return [...CardpileManager.Instance.cardpileStatus.entries()].map(([pid, status], slot) => {
-      const leftMs = Math.max(0, status.leftMs);
-      const previewLeftMs = Math.max(0, status.previewLeftMs);
+      const leftMs = CardpileManager.Instance.getCardLeftMs(pid);
+      const previewLeftMs = status.previewPending ? status.totalMs : 0;
       const displayLeftMs = Math.max(leftMs, previewLeftMs);
       return {
         slot,

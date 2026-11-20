@@ -142,7 +142,7 @@ function buildNetTestHooks({ saveManager, phaserRef, setGameParams, gameExit }: 
         cardpile: [...CardpileManager.Instance.cardpileStatus.entries()].map(([pid, status]) => ({
           pid,
           level: status.level,
-          leftMs: status.leftMs,
+          leftMs: CardpileManager.Instance.getCardLeftMs(pid),
           totalMs: status.totalMs,
         })),
       };

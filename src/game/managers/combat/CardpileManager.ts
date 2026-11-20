@@ -1,4 +1,5 @@
 import { EventBus } from "../../../utils/eventBus";
+import { LEGACY_BALANCE_FRAME_INTERVAL_MS } from "../../../constants/physics";
 import { onlineStateManager } from "../../../store/OnlineStateManager";
 import BackendWS from "../../../utils/net/sync";
 import { PhaserEventBus, PhaserEvents } from "../../EventBus";
@@ -12,12 +13,30 @@ import PlantsManager from "./PlantsManager";
 import ResourceManager from "./ResourceManager";
 import SyncManager from "./SyncManager";
 import SoundCmd from "../../utils/cmd/SoundCmd";
+import { getAuthoritativeFrame } from "../../core/logic/EntityTickManager";
+import {
+  cooldownEndFrameFromProfile,
+  cooldownLeftMsAt,
+  computeCooldownEndFrame,
+} from "../../utils/helper/CardCooldown";
 
 /**
  * profile 只在本地帧号“刚好追上”时套用；落后超过该窗口说明本地是跳帧恢复
  * （checkpoint/备用快照），跳帧得到的状态更权威，profile 已过期。
  */
 const PROFILE_APPLY_WINDOW_FRAMES = 8;
+
+type CardStatus = {
+  level: number; // 卡片等级
+  /**
+   * 冷却结束的权威逻辑帧；<= 当前帧即已就绪。
+   * 不逐帧递减、不进入快照，回滚后用权威种植帧重建。
+   */
+  cooldownEndFrame: number;
+  /** 点击后等待权威确认：期间显示满冷却，确认后用权威帧换算剩余时间。 */
+  previewPending: boolean;
+  totalMs: number; // 总冷却时间，单位毫秒
+};
 
 type CardpileManagerEvent = {
   onChosenCard: (pid: number, level: number) => void;
@@ -46,26 +65,18 @@ export default class CardpileManager extends BaseManager {
   // 铁镐
   usePickaxe: boolean = false;
 
-  // 卡槽状态
-  cardpileStatus: Map<number, {
-    level: number; // 卡片等级
-    leftMs: number; // 正式剩余冷却时间，单位毫秒
-    previewLeftMs: number; // 表现层预演剩余冷却时间，单位毫秒；远端确认前保持满值不倒计时
-    totalMs: number; // 总冷却时间，单位毫秒
-  }> = new Map();
+  // 卡槽状态：冷却由权威帧推导，不保存逐帧递减的剩余毫秒。
+  cardpileStatus: Map<number, CardStatus> = new Map();
   private readonly handlePointerUp = (pointer: Phaser.Input.Pointer) => {
     if (pointer.rightButtonReleased()) {
       this.handleRightClick();
     }
   };
-  /** 是否已经用权威快照恢复过冷却；之后到达的 profile 不得回退冷却。 */
-  private restoredFromSnapshot = false;
   /** 待应用的本人卡槽 profile：等本地模拟追到 profile.frameId 再套用。 */
   private pendingOwnProfile: { frameId: number; cooldowns: CardCooldownState[] } | null = null;
   private readonly handleRoomAllReady = (data: RoomAllReadyEvent) => {
     // 页面刷新重连：服务端保存了刷新前每帧上报的卡槽冷却。
-    // 快照恢复更新，发生过后以快照为准。
-    if (this.restoredFromSnapshot) return;
+    // 冷却改为按帧推导后，profile 的 leftMs 会被换算成 cooldownEndFrame。
     const ownProfile = data.resources?.find((profile) => profile.playerId === data.myId);
     if (!ownProfile || ownProfile.cardCooldowns.length === 0) return;
     // 不能在 AllReady 到达时立刻套用：页面刷新后本地要从初始冷却重演，
@@ -84,10 +95,6 @@ export default class CardpileManager extends BaseManager {
   public applyPendingOwnProfile(frameId: number): void {
     const pending = this.pendingOwnProfile;
     if (!pending) return;
-    if (this.restoredFromSnapshot) {
-      this.pendingOwnProfile = null;
-      return;
-    }
     if (frameId <= 0 || frameId < pending.frameId) return;
     // 超过窗口说明本地是跳帧恢复（checkpoint/快照），冷却状态已权威，丢弃 profile。
     if (frameId - pending.frameId > PROFILE_APPLY_WINDOW_FRAMES) {
@@ -95,19 +102,7 @@ export default class CardpileManager extends BaseManager {
       return;
     }
     this.pendingOwnProfile = null;
-    this.cardpileStatus.clear();
-    for (const cooldown of pending.cooldowns) {
-      const pid = Number(cooldown.pid);
-      if (!Number.isFinite(pid)) continue;
-      const totalMs = Number(cooldown.totalMs) || 0;
-      const leftMs = Math.max(0, Math.min(totalMs, Number(cooldown.leftMs) || 0));
-      this.cardpileStatus.set(pid, {
-        level: Number(cooldown.level) || 1,
-        leftMs,
-        previewLeftMs: 0,
-        totalMs,
-      });
-    }
+    this.RestoreCardpileState({ cards: pending.cooldowns }, frameId);
   }
 
   constructor() {
@@ -135,15 +130,16 @@ export default class CardpileManager extends BaseManager {
 
     // 获取本用户选择的卡组并更新；联机/房间会话优先使用服务端下发的 canonical loadout
     const chosenPlants = this.resolveChosenPlants();
+    const startFrame = this.currentFrame();
     chosenPlants.forEach(({ pid, level }) => {
       const plantModel = PlantLibrary.GetModel(pid);
       if (plantModel) {
         const totalMs = plantModel.cooldown.getValueAt(level);
-        const leftMs = plantModel.cooldownStartAtRatio * totalMs;
+        const initialMs = plantModel.cooldownStartAtRatio * totalMs;
         this.cardpileStatus.set(pid, {
           level,
-          leftMs,
-          previewLeftMs: 0,
+          cooldownEndFrame: startFrame + Math.ceil(initialMs / this.frameIntervalMs()),
+          previewPending: false,
           totalMs,
         });
       }
@@ -175,7 +171,6 @@ export default class CardpileManager extends BaseManager {
   public Reset() {
     this.scene?.input.off('pointerup', this.handlePointerUp);
     PhaserEventBus.off(PhaserEvents.RoomAllReady, this.handleRoomAllReady, this);
-    this.restoredFromSnapshot = false;
     this.pendingOwnProfile = null;
     this.prePlantPid = null;
     this.useStarShards = false;
@@ -185,132 +180,165 @@ export default class CardpileManager extends BaseManager {
     this.scene = null;
   }
 
-  stepUpdate() {
-    const elasp = SyncManager.Instance.frameIntervalMs;
-    const newStatus = new Map<number, {
-      hasReloaded: boolean;
-      leftPercent: number;
-    }>();
-
-    for (const pid of this.cardpileStatus.keys()) {
-      const status = this.cardpileStatus.get(pid);
-      if (status) {
-        const { leftMs, totalMs, previewLeftMs } = status;
-        const newLeftMs = Math.max(0, leftMs - elasp);
-        const displayLeftMs = Math.max(newLeftMs, previewLeftMs);
-        this.cardpileStatus.set(pid, {
-          ...status,
-          leftMs: newLeftMs,
-        });
-        newStatus.set(pid, {
-          hasReloaded: displayLeftMs === 0,
-          leftPercent: totalMs > 0 ? displayLeftMs / totalMs : 0,
-        });
-      }
-    }
-    this.EventBus.emit('onCooldownStatus', newStatus);
+  /** 当前显示的逻辑帧：权威帧优先，未连接时退回到实体逻辑帧。 */
+  private currentFrame(): number {
+    return SyncManager.Instance.recvQueue?.currentFrameId ?? getAuthoritativeFrame();
   }
 
-  reloadCard(pid: number) {
-    // 开始冷却某张卡片，通常在使用后调用
+  private frameIntervalMs(): number {
+    return SyncManager.Instance.frameIntervalMs || LEGACY_BALANCE_FRAME_INTERVAL_MS;
+  }
+
+  /** 权威冷却剩余毫秒（不含点击预演）。 */
+  private authoritativeLeftMs(status: CardStatus, currentFrame: number): number {
+    return cooldownLeftMsAt(status.cooldownEndFrame, currentFrame, this.frameIntervalMs());
+  }
+
+  /** 展示用剩余毫秒：权威确认前预演保持满冷却。 */
+  private displayLeftMs(status: CardStatus, currentFrame: number): number {
+    return status.previewPending ? status.totalMs : this.authoritativeLeftMs(status, currentFrame);
+  }
+
+  stepUpdate() {
+    // 冷却本身是全帧推导，不需要在这里递减；只广播当前帧的展示进度给 UI。
+    this.EventBus.emit('onCooldownStatus', this.GetDisplayCooldownStatus());
+  }
+
+  /** 权威种植落地：以操作所在权威帧为起点重新计算冷却结束帧。 */
+  reloadCard(pid: number, plantFrame?: number) {
     const status = this.cardpileStatus.get(pid);
-    if (status) {
-      status.leftMs = status.totalMs;
-      status.previewLeftMs = 0;
-      this.cardpileStatus.set(pid, status);
-    }
+    if (!status) return;
+    const frame = plantFrame ?? getAuthoritativeFrame();
+    status.cooldownEndFrame = computeCooldownEndFrame(frame, status.totalMs, this.frameIntervalMs());
+    status.previewPending = false;
   }
 
   cooldownCard(pid: number) {
-    // 立即冷却某张卡片
+    // 立即就绪（调试指令）：冷却结束帧设为当前帧。
     const status = this.cardpileStatus.get(pid);
-    if (status) {
-      status.leftMs = 0;
-      status.previewLeftMs = 0;
-      this.cardpileStatus.set(pid, status);
-    }
+    if (!status) return;
+    status.cooldownEndFrame = this.currentFrame();
+    status.previewPending = false;
   }
 
   previewReloadCard(pid: number) {
+    // 点击种植但权威帧未到：保持满冷却，确认后按权威帧换算已过时间。
     const status = this.cardpileStatus.get(pid);
-    if (status) {
-      status.previewLeftMs = Math.max(status.previewLeftMs, status.totalMs);
-      this.cardpileStatus.set(pid, status);
-    }
+    if (!status) return;
+    status.previewPending = true;
   }
 
   /** 拒绝预测后清除预演冷却，使回滚后的卡槽显示与权威状态一致。 */
   public ClearPreviewCooldowns(): void {
     for (const status of this.cardpileStatus.values()) {
-      status.previewLeftMs = 0;
+      status.previewPending = false;
     }
   }
 
   /** 只撤销指定卡片尚未被权威更新抵消的冷却预演。 */
   public ClearPreviewCooldownForCard(pid: number): void {
     const status = this.cardpileStatus.get(pid);
-    if (!status || status.previewLeftMs <= 0) return;
-    status.previewLeftMs = 0;
-    this.cardpileStatus.set(pid, status);
+    if (!status || !status.previewPending) return;
+    status.previewPending = false;
     this.EventBus.emit('onCooldownStatus', this.GetDisplayCooldownStatus());
   }
 
   /** 权威操作落地时消费一次预演冷却；没有预演时保持权威冷却不变。 */
   public ConsumePreviewCooldown(pid: number): void {
     const status = this.cardpileStatus.get(pid);
-    if (!status || status.previewLeftMs <= 0) return;
-    status.previewLeftMs = 0;
-    this.cardpileStatus.set(pid, status);
+    if (!status || !status.previewPending) return;
+    status.previewPending = false;
     this.EventBus.emit('onCooldownStatus', this.GetDisplayCooldownStatus());
   }
 
-  /** 本地调试用快照：包含表现层预演冷却。 */
+  /** 本地调试用快照：包含展示用的预演冷却。 */
   public CaptureCardpileState(): Record<string, unknown> {
-    return {
-      cards: [...this.cardpileStatus.entries()]
-        .map(([pid, status]) => ({ pid, ...status }))
-        .sort((a, b) => a.pid - b.pid),
-    };
-  }
-
-  /**
-   * 跨端一致性哈希使用：只保留权威冷却状态。
-   * previewLeftMs 是远端确认前的本地预演值，两端输入时序不同必然不一致。
-   */
-  public CaptureCanonicalCardpileState(): Record<string, unknown> {
+    const current = this.currentFrame();
     return {
       cards: [...this.cardpileStatus.entries()]
         .map(([pid, status]) => ({
           pid,
           level: status.level,
-          leftMs: status.leftMs,
+          leftMs: this.authoritativeLeftMs(status, current),
+          previewLeftMs: status.previewPending ? status.totalMs : 0,
+          totalMs: status.totalMs,
+          cooldownEndFrame: status.cooldownEndFrame,
+        }))
+        .sort((a, b) => a.pid - b.pid),
+    };
+  }
+
+  /**
+   * 心跳 profile 用：只保留权威冷却。
+   * previewPending 是远端确认前的本地预演值，两端输入时序不同必然不一致。
+   */
+  public CaptureCanonicalCardpileState(): Record<string, unknown> {
+    const current = this.currentFrame();
+    return {
+      cards: [...this.cardpileStatus.entries()]
+        .map(([pid, status]) => ({
+          pid,
+          level: status.level,
+          leftMs: this.authoritativeLeftMs(status, current),
           totalMs: status.totalMs,
         }))
         .sort((a, b) => a.pid - b.pid),
     };
   }
 
-  public RestoreCardpileState(state: Record<string, unknown>): void {
+  /** 由服务端 profile（或回滚重建）恢复冷却：把 leftMs 换算成权威帧。 */
+  public RestoreCardpileState(state: Record<string, unknown>, profileFrame?: number): void {
     this.cardpileStatus.clear();
-    this.restoredFromSnapshot = true;
+    const frame = profileFrame ?? this.currentFrame();
+    const interval = this.frameIntervalMs();
     const cards = Array.isArray(state.cards)
-      ? (state.cards as Array<{ pid: number; level: number; leftMs: number; previewLeftMs?: number; totalMs: number }>)
+      ? (state.cards as Array<{ pid: number; level: number; leftMs: number; totalMs: number }>)
       : [];
     for (const card of cards) {
+      const totalMs = Number(card.totalMs) || 0;
+      const leftMs = Math.max(0, Math.min(totalMs, Number(card.leftMs) || 0));
       this.cardpileStatus.set(Number(card.pid), {
         level: Number(card.level) || 1,
-        leftMs: Number(card.leftMs) || 0,
-        previewLeftMs: 0,
-        totalMs: Number(card.totalMs) || 0,
+        cooldownEndFrame: cooldownEndFrameFromProfile(frame, leftMs, interval),
+        previewPending: false,
+        totalMs,
       });
     }
+  }
+
+  /**
+   * 回滚到权威帧后重建冷却：冷却不再进入快照，改用回放日志中的权威种植帧。
+   * 早于回放窗口的种植冷却视为已就绪（冷却通常远短于窗口，且权威操作不会
+   * 因本地冷却被拒，不影响一致性）。
+   */
+  public restoreCooldownsToFrame(frameId: number): void {
+    for (const status of this.cardpileStatus.values()) {
+      status.cooldownEndFrame = frameId;
+      status.previewPending = false;
+    }
+    if (this.pendingOwnProfile && this.pendingOwnProfile.frameId <= frameId) {
+      this.pendingOwnProfile = null;
+    }
+    const lastPlantFrames = SyncManager.Instance.recvQueue
+      ?.collectLastPlantFramesBefore(frameId, BackendWS.my_id);
+    if (lastPlantFrames) {
+      const interval = this.frameIntervalMs();
+      for (const [pid, plantFrame] of lastPlantFrames) {
+        const status = this.cardpileStatus.get(pid);
+        if (status) {
+          status.cooldownEndFrame = computeCooldownEndFrame(plantFrame, status.totalMs, interval);
+        }
+      }
+    }
+    this.EventBus.emit('onCooldownStatus', this.GetDisplayCooldownStatus());
   }
 
   /** 当前卡槽冷却的展示副本；UI 首次挂载时用于同步（避免错过 stepUpdate 事件）。 */
   public GetDisplayCooldownStatus(): Map<number, { hasReloaded: boolean; leftPercent: number }> {
     const status = new Map<number, { hasReloaded: boolean; leftPercent: number }>();
+    const current = this.currentFrame();
     for (const [pid, card] of this.cardpileStatus) {
-      const leftMs = Math.max(card.leftMs, card.previewLeftMs);
+      const leftMs = this.displayLeftMs(card, current);
       status.set(pid, {
         hasReloaded: leftMs <= 0,
         leftPercent: card.totalMs > 0 ? leftMs / card.totalMs : 0,
@@ -319,20 +347,23 @@ export default class CardpileManager extends BaseManager {
     return status;
   }
 
+  /** 供控制台 / 调试钩子读取的权威剩余毫秒。 */
+  public getCardLeftMs(pid: number): number {
+    const status = this.cardpileStatus.get(pid);
+    if (!status) return 0;
+    return this.authoritativeLeftMs(status, this.currentFrame());
+  }
+
   isCardDisplayReloaded(pid: number): boolean {
     const status = this.cardpileStatus.get(pid);
-    if (!status) {
-      return false;
-    }
-    return Math.max(status.leftMs, status.previewLeftMs) <= 0;
+    if (!status) return false;
+    return !status.previewPending && this.authoritativeLeftMs(status, this.currentFrame()) <= 0;
   }
 
   isCardActuallyReloaded(pid: number): boolean {
     const status = this.cardpileStatus.get(pid);
-    if (!status) {
-      return false;
-    }
-    return status.leftMs <= 0;
+    if (!status) return false;
+    return this.authoritativeLeftMs(status, this.currentFrame()) <= 0;
   }
 
   // 获得当前选择的对象，用于左键后执行

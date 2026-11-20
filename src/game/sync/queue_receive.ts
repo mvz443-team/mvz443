@@ -360,6 +360,28 @@ export default class QueueReceive {
     return [...this.replayLog.keys()].sort((a, b) => a - b);
   }
 
+  /**
+   * 回滚到 frameId 时重建本机卡槽冷却用：找出该帧及之前，本人最后一次
+   * 权威种植每张卡的帧号。冷却改为按帧推导后不再进入快照，靠这里还原。
+   */
+  public collectLastPlantFramesBefore(frameId: number, uid: number): Map<number, number> {
+    const result = new Map<number, number>();
+    for (const [responseFrame, response] of this.replayLog) {
+      if (responseFrame > frameId) continue;
+      for (const operation of response.operations) {
+        if (operation.payload.oneofKind !== "cardPlant") continue;
+        const cardPlant = operation.payload.cardPlant;
+        if ((cardPlant.base?.uid ?? -1) !== uid) continue;
+        const pid = cardPlant.pid;
+        const previous = result.get(pid);
+        if (previous === undefined || responseFrame > previous) {
+          result.set(pid, responseFrame);
+        }
+      }
+    }
+    return result;
+  }
+
   handleInGameResponse(response: InGameResponse) {
     // console.log("[QueueReceive] enqueue response", {
     //   frameId: response.frameId,

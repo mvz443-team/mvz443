@@ -300,6 +300,8 @@ export default class CombatManager extends BaseManager {
       state.frameId = frameId;
       const report = this.restoreState(state, "rebuild");
       BackendWS.getReceiveQueue()?.restoreToFrame(frameId);
+      // 冷却不在快照里；checkpoint 帧之后由回放日志/心跳 profile 重建。
+      CardpileManager.Instance.restoreCooldownsToFrame(frameId);
       // 旧环形快照可能来自恢复前已经分叉的分支，不能再用于后续回滚。
       this.snapshotRing.clear();
       this.frameStateCache.clear();
@@ -596,6 +598,8 @@ export default class CombatManager extends BaseManager {
     if (!entry) return null;
     const report = this.restoreState(entry.state, "in-place");
     SyncManager.Instance.recvQueue.restoreToFrame(entry.frameId);
+    // 卡槽冷却不进入快照；用权威操作回放日志按帧重建。
+    CardpileManager.Instance.restoreCooldownsToFrame(entry.frameId);
     DeferredManager.Instance.RestorePending(this.deferredCommandsBeforeRestore);
     this.deferredCommandsBeforeRestore = [];
     return { frameId: entry.frameId, report };
