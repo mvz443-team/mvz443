@@ -8,7 +8,8 @@ export type PlantPart =
   | "body"
   | "badge"
   | "sfx"
-  | "shootBurst";
+  | "shootBurst"
+  | "shieldShell";
 
 const PLANT_PART_OFFSET: Record<PlantPart, number> = {
   lilyBody: -2,
@@ -17,6 +18,7 @@ const PLANT_PART_OFFSET: Record<PlantPart, number> = {
   badge: 1,
   sfx: 1,
   shootBurst: 2,
+  shieldShell: 1,
 };
 
 export const PlantDepth = {
@@ -50,5 +52,10 @@ export const PlantDepth = {
 
   shootBurst(baseDepth: number): number {
     return this.part(baseDepth, "shootBurst");
+  },
+
+  /** 护盾植物外壳：同格叠加时画在内部植物之上。 */
+  shieldShell(baseDepth: number): number {
+    return this.part(baseDepth, "shieldShell");
   },
 };

@@ -2,7 +2,7 @@
 
 覆盖 `src/game/presets/plant` 与 `src/game/presets/monster` 下全部 preset：
 
-- plant：18 个文件，逐级覆盖 Lv1–Lv9 的普通效果与星之碎片效果。
+- plant：19 个文件，逐级覆盖 Lv1–Lv9 的普通效果与星之碎片效果。
 - mob：20 个文件，覆盖基础数值、攻击节奏、装备、技能与 Boss 阶段。
 
 ## 运行
@@ -52,6 +52,11 @@ Manager、Cmd 使用测试替身。逻辑统一按 50ms/帧推进，与游戏平
   植物死亡后仍会完成已排队的 5 次爆炸。
 - `ElasticPutin` 的反弹判定在 Model：只反弹己方、可反弹且自身清醒时的
   子弹；闪电窗口内会为带附魔接口的箭追加 `lightning`。
+- 星之碎片的目标规则集中在 `src/game/utils/helper/PlantTargeting.ts`：
+  承载物（睡莲/船）永远不是默认目标，护盾植物靠 `aspect='down'` 选中，
+  测试直接 import 该纯函数断言选择结果。
+- 护盾植物（`SHIELD_PLANT_PIDS`）会替同格植物吸收伤害：
+  `PlantEntity.takeDamage → PlantModel.redirectDamageToShield`，测试替身已同步这条路由。
 - 气球僵尸（mid 19）与气球帽子僵尸（mid 20）的飞行载具只有 1 点血：
   `bullet` 命中时载具吸收全部伤害（本体不掉血），`laser` / `explosion`
   命中时载具爆炸且本体照常结算；载具破碎后 `flying = false`。

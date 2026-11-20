@@ -2,9 +2,16 @@ import { GridProperty } from "../../managers/combat/GridManager";
 import PlantsManager from "../../managers/combat/PlantsManager";
 import { PlantEntity } from "../../models/entities/PlantEntity";
 import { MagicPowderData } from "../../presets/plant/chapter1/magic_powder";
+import {
+  isCarrierPlantPid,
+  isShieldPlantPid,
+  pickShieldPlant,
+  pickStarShardsTarget,
+  SHIELD_PLANT_PIDS,
+} from "./PlantTargeting";
 
 // 特殊的植物种植规则
-export const SHIELD_PLANT: number[] = []; // 护盾植物,铲除上方时铲除,可以和任何非护盾器械兼容
+export const SHIELD_PLANT: readonly number[] = SHIELD_PLANT_PIDS; // 护盾植物,铲除上方时铲除,可以和任何非护盾器械兼容
 export const GROUND_ONLY_PLANT: number[] = [4];// 地面植物,只能种植在地面
 export const WATER_ONLY_PLANT: number[] = [6];// 水中植物,只能种植在水中
 export const SKY_ONLY_PLANT: number[] = [100]; // 船只,只能种植在天空中
@@ -48,7 +55,30 @@ namespace PlantHelper {
 
   // 是否是承载物
   export function isCarrier(pid: number): boolean {
-    return pid === lilyPid || pid === boatPid;
+    return isCarrierPlantPid(pid);
+  }
+
+  /** 是否是护盾植物（南瓜护照这类包在内部植物外面的壳）。 */
+  export function isShield(pid: number): boolean {
+    return isShieldPlantPid(pid);
+  }
+
+  /** 同格中替内部植物吸收伤害的护盾植物。 */
+  export function GetShieldPlant(plants: PlantEntity[], exclude?: PlantEntity | null): PlantEntity | null {
+    return pickShieldPlant(plants, exclude);
+  }
+
+  /**
+   * 星之碎片的目标植物。
+   * 与悬停预览共用同一份规则，保证"看到哪个就打到哪个"。
+   */
+  export function GetStarShardsTarget(
+    plants: PlantEntity[],
+    aspect: 'up' | 'down',
+  ): { pid: number, plantEntity: PlantEntity } | null {
+    const target = pickStarShardsTarget(plants, aspect);
+    if (!target) return null;
+    return { pid: target.pid, plantEntity: target };
   }
 
   export function isPowder(pid: number): boolean {

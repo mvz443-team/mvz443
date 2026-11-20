@@ -41,6 +41,7 @@
 | 16 | `double_dispenser` 双向发射器 | — | — | — | |
 | 17 | `glow_powder` 萤石粉 | — | — | — | 不攻击 |
 | 18 | `bouncing_anvil` 蹦蹦铁砧 | — | — | — | |
+| 19 | `pumpkin_passport` 南瓜护照 | ✓ | — | — | 低矮护盾植物，替同格植物挡伤害 |
 
 ### 2.1 植物衍生的射击物 / 召唤物
 
@@ -89,6 +90,9 @@
 - **18 `bouncing_anvil`**
   - 落地 `LaserModel`（0.8→1.5 格）— tiny ✓ / flying — / void —
   - 星碎分身 `LaserModel`（`flying: true`）— tiny ✓ / flying ✓ / void —
+- **19 `pumpkin_passport` 南瓜护照**
+  - 无衍生投射物；尖刺反伤是直接调用伤害源的 `takeDamage`（不算投射物）
+  - 自身 `tiny = true`，地面子弹打不到；护盾路由见 `docs/star-shards-and-shield-plants.md`
 
 ## 3. 怪物
 

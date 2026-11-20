@@ -420,7 +420,8 @@ export default class PlantsManager extends BaseManager {
 
   handleAttemptUseStarShards = (col: number, row: number, aspect: 'up' | 'down') => {
     const plants = this.PlantsMap.get(`${col}-${row}`) || [];
-    const targetPlant = PlantHelper.GetHighestPriorityPlant(plants, aspect);
+    // 与悬停预览共用同一份规则：看到哪个就打哪个。
+    const targetPlant = PlantHelper.GetStarShardsTarget(plants, aspect);
     if (!targetPlant) return;
     // 如果星之碎片余量充足,则发动效果
     if (ResourceManager.Instance.StarShardsSufficient(1, 'mine')) {

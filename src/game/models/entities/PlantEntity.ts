@@ -202,7 +202,14 @@ export abstract class PlantEntity extends CombatEntity {
     return this;
   }
 
+  /** 同格植物列表（仅查询，供 Model 决定护盾路由/优先级）。 */
+  public getCellPlants(): PlantEntity[] {
+    return [...(PlantsManager.Instance.PlantsMap.get(`${this.col}-${this.row}`) ?? [])];
+  }
+
   public takeDamage(amount: number, dealer?: BaseEntity, source?: BaseEntity) {
+    // 同格护盾植物（南瓜护照）先挡伤害；路由判定在 Model。
+    if (this.model.redirectDamageToShield(this, amount, dealer, source)) return;
     SoundCmd.PlayPlant('plantHit');
     super.takeDamage(amount, dealer, source);
   }

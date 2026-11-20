@@ -4,6 +4,7 @@ import { Game } from "../scenes/Game";
 import { BaseEntity } from "./core/BaseEntity";
 import { PlantEntity } from "./entities/PlantEntity";
 import { LogicModel } from "../core/logic/LogicModel";
+import { isShieldPlantPid, pickShieldPlant } from "../utils/helper/PlantTargeting";
 
 export abstract class PlantModel extends LogicModel {
   /** 以下运行时字段全部自动进入快照；新增字段直接写在这里即可。 */
@@ -54,6 +55,25 @@ export abstract class PlantModel extends LogicModel {
   public onHurt(_entity: PlantEntity, _damage: number, _realDamage: number, _dealer?: BaseEntity, _source?: BaseEntity) {
 
   };
+
+  /**
+   * 同格护盾植物优先承受伤害（南瓜护照这类保护壳）。
+   *
+   * @returns true 表示这次伤害已被护盾植物吸收，内部植物不再结算。
+   */
+  public redirectDamageToShield(
+    entity: PlantEntity,
+    amount: number,
+    dealer?: BaseEntity,
+    source?: BaseEntity,
+  ): boolean {
+    // 护盾植物自己不再转一次，避免自伤递归。
+    if (isShieldPlantPid(this.pid)) return false;
+    const shield = pickShieldPlant(entity.getCellPlants(), entity);
+    if (!shield) return false;
+    shield.takeDamage(amount, dealer, source);
+    return true;
+  }
 
   public onDeath(_entity: PlantEntity) { };
 

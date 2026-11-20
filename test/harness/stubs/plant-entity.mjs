@@ -49,6 +49,25 @@ export class PlantEntity extends CombatEntity {
 
   get pid() { return this.model.pid; }
   get isSleeping() { return this.model.isSleeping; }
+
+  /** 与真实 PlantEntity.getCellPlants 一致：同格植物列表，仅供 Model 查询。 */
+  getCellPlants() {
+    const map = manager.Instance?.PlantsMap;
+    return [...(map?.get(`${this.col}-${this.row}`) ?? [])];
+  }
+
+  /** 与真实 PlantEntity.takeDamage 一致：先走 Model 的护盾路由判定。 */
+  takeDamage(amount, dealer, source) {
+    if (this.model.redirectDamageToShield?.(this, amount, dealer, source)) return;
+    super.takeDamage(amount, dealer, source);
+  }
+
+  onHurt(amount, realDamage, dealer, source) {
+    this.model.onHurt?.(this, amount, realDamage, dealer, source);
+  }
+
+  playSpikeActivateAnimation() { this.viewCalls.push("playSpikeActivateAnimation"); }
+  syncSpikyView() { this.viewCalls.push(`syncSpikyView:${this.model.isSpiky}`); }
   get inBruteShoot() { return this.model.inBruteShoot; }
   set inBruteShoot(value) { this.model.inBruteShoot = value; }
 

@@ -6,6 +6,9 @@ import CardpileManager from "./CardpileManager";
 import { EventBus } from "../../../utils/eventBus";
 import CombatManager from "../CombatManager";
 import { PlantLibrary } from "../library/PlantLibrary";
+import PlantsManager from "./PlantsManager";
+import PlantHelper from "../../utils/helper/PlantHelper";
+import type { PlantEntity } from "../../models/entities/PlantEntity";
 
 type CursorManagerEvent = {
   // cursor只管有在某个格子有‘尝试种植’事件发生，具体种植什么 或 是否种植成功 由其他mangager负责
@@ -25,6 +28,14 @@ export default class CursorManager extends BaseManager {
 
   private highlightSprite: Phaser.GameObjects.Sprite | null = null;
   private highlightTween: Phaser.Tweens.Tween | null = null;
+
+  /** 星之碎片：悬浮目标植物的白色发光 + 边框。 */
+  private starGlowSprite: Phaser.GameObjects.Sprite | null = null;
+  private starBorder: Phaser.GameObjects.Rectangle | null = null;
+  private starGlowTween: Phaser.Tweens.Tween | null = null;
+  private starPrevCol = -1;
+  private starPrevRow = -1;
+  private starPrevAspect: 'up' | 'down' = 'up';
 
   prevCol: number = -1;
   prevRow: number = -1;
@@ -115,6 +126,8 @@ export default class CursorManager extends BaseManager {
       }
     } else if (mode === 'starshards') {
       this.starSprite.setVisible(true);
+      this.starPrevCol = -1;
+      this.starPrevRow = -1;
       try {
         const pointer = this.scene.input.activePointer;
         this.starSprite.setPosition(pointer.x, pointer.y);
@@ -170,6 +183,8 @@ export default class CursorManager extends BaseManager {
       const newX = Phaser.Math.Linear(currentX, targetX, speed);
       const newY = Phaser.Math.Linear(currentY, targetY, speed);
       this.starSprite.setPosition(newX, newY);
+      // 高亮"即将被使用星之碎片"的那株植物（白色发光 + 边框）。
+      this.updateStarShardsHighlight(pointer);
       return;
     }
 
@@ -246,6 +261,94 @@ export default class CursorManager extends BaseManager {
     }
   }
 
+  /**
+   * 悬浮在格子上时，把"将被使用星之碎片的植物"高亮出来。
+   *
+   * 目标选择与 `PlantsManager.handleAttemptUseStarShards` 共用
+   * `PlantHelper.GetStarShardsTarget`，保证预览与真正生效的目标完全一致。
+   */
+  private updateStarShardsHighlight(pointer: Phaser.Input.Pointer) {
+    if (!this.scene) return;
+
+    const time = this.scene.time.now;
+    if (time - this.prevMovementTime < this.UPDATE_INTERVAL) return;
+    this.prevMovementTime = time;
+
+    const worldPoint = this.scene.getBattleWorldPoint(pointer);
+    const { col, row, aspect } = PositionManager.Instance.GetGridByPos(worldPoint.x, worldPoint.y);
+    if (col < 0 || row < 0) {
+      this.stopStarShardsHighlight(true);
+      return;
+    }
+
+    const plants = PlantsManager.Instance.PlantsMap.get(`${col}-${row}`) ?? [];
+    const target = PlantHelper.GetStarShardsTarget(plants, aspect);
+    if (!target) {
+      this.stopStarShardsHighlight(true);
+      return;
+    }
+
+    if (this.starGlowSprite && col === this.starPrevCol && row === this.starPrevRow && aspect === this.starPrevAspect) {
+      return;
+    }
+
+    this.starPrevCol = col;
+    this.starPrevRow = row;
+    this.starPrevAspect = aspect;
+    this.startStarShardsHighlight(target.plantEntity);
+  }
+
+  private startStarShardsHighlight(plant: PlantEntity) {
+    if (!this.scene) return;
+    this.stopStarShardsHighlight(false);
+
+    const size = PositionManager.Instance.getPlantDisplaySize();
+    const depth = plant.baseDepth + 6;
+
+    // 白色发光：用同贴图的加色副本做呼吸，不改变植物自身的 tint/透明度。
+    this.starGlowSprite = this.scene.add.sprite(plant.x, plant.y, plant.model.texturePath, 0)
+      .setOrigin(0.5, 1)
+      .setDisplaySize(size.sizeX, size.sizeY)
+      .setTint(0xffffff)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setAlpha(0.45)
+      .setDepth(depth);
+
+    // 边框
+    this.starBorder = this.scene.add.rectangle(plant.x, plant.y, size.sizeX * 0.92, size.sizeY * 0.92, 0xffffff, 0.06)
+      .setOrigin(0.5, 1)
+      .setStrokeStyle(3, 0xffffff, 0.95)
+      .setDepth(depth + 1);
+
+    this.starGlowTween = this.scene.tweens.add({
+      targets: [this.starGlowSprite, this.starBorder],
+      alpha: { from: 0.45, to: 0.15 },
+      duration: 450,
+      yoyo: true,
+      repeat: -1,
+    });
+  }
+
+  private stopStarShardsHighlight(resetGrid: boolean) {
+    if (this.starGlowTween) {
+      this.starGlowTween.stop();
+      this.starGlowTween.remove();
+      this.starGlowTween = null;
+    }
+    if (this.starGlowSprite) {
+      this.starGlowSprite.destroy();
+      this.starGlowSprite = null;
+    }
+    if (this.starBorder) {
+      this.starBorder.destroy();
+      this.starBorder = null;
+    }
+    if (resetGrid) {
+      this.starPrevCol = -1;
+      this.starPrevRow = -1;
+    }
+  }
+
   private startHighlight(col: number, row: number, texture: string = 'plant/peashooter') {
     if (!this.scene) return;
 
@@ -273,6 +376,7 @@ export default class CursorManager extends BaseManager {
   }
 
   private stopHighlight() {
+    this.stopStarShardsHighlight(true);
     if (this.highlightTween) {
       this.highlightTween.stop();
       this.highlightTween.remove();
