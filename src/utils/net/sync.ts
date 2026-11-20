@@ -173,6 +173,12 @@ class WebSocketClient {
   }
 
   enqueuePendingReplaySnapshot(data: { snapshot: InlineSnapshot; frameId: number }) {
+    // 服务端可能先发 checkpoint 回放，再转发在线玩家提供的较新快照。
+    // 只允许帧号最大的快照胜出：恢复旧快照后再套用新快照的操作会被判成
+    // 迟到帧并重放，重连端会立刻与权威状态分叉。
+    if (this.pendingReplaySnapshot && this.pendingReplaySnapshot.frameId >= data.frameId) {
+      return;
+    }
     this.pendingReplaySnapshot = data;
     this.flushPendingReplaySnapshot();
   }
@@ -187,6 +193,11 @@ class WebSocketClient {
     if (!this.receiveQueue || !this.pendingReplaySnapshot || !this.replaySnapshotReady) return;
     const data = this.pendingReplaySnapshot;
     this.pendingReplaySnapshot = null;
+    // 快照正文已经包含 frameId 及其之前的全部状态。同帧或更早的回包若还
+    // 留在待注入队列里，恢复后会被当成迟到权威操作触发回滚并重复执行。
+    this.pendingInGameResponses = this.pendingInGameResponses.filter(
+      (response) => response.frameId > data.frameId,
+    );
     PhaserEventBus.emit(PhaserEvents.ReplaySnapshotReceived, data);
   }
 

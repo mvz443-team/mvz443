@@ -31,6 +31,7 @@ import { DeferredManager } from '../managers/DeferredManager';
 import { PresetEventManager } from '../managers/combat/PresetEventManager';
 import TileItemManager from '../managers/combat/TileItemManager';
 import ConsoleCmd from '../utils/ConsoleCmd';
+import { ProjectileCmd } from '../utils/cmd/ProjectileCmd';
 import {
   BATTLE_GRID_CELL_HEIGHT,
   BATTLE_GRID_CELL_WIDTH,
@@ -196,6 +197,10 @@ export class Game extends Scene {
     scene.rapierEventQueue = new RAPIER.EventQueue(true);
     installRuntimeStateSources();
     registerPhysicsSource(scene);
+    // 投射物重建依赖 activeScene：页面刷新后的新进程还没创建任何投射物，
+    // 若此时恢复快照，ProjectileCmd 的重建工厂会因为 activeScene 为空而
+    // 丢弃快照里的投射物，恢复出的状态摘要与快照摘要不一致，重连后立即分叉。
+    ProjectileCmd.setScene(scene);
     // 状态源与物理世界已就绪，可以安全恢复页面刷新前缓存的 checkpoint。
     BackendWS.setReplaySnapshotReady(true);
     Game.preparedScene = scene;
