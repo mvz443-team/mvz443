@@ -1,8 +1,8 @@
 import type { Game } from "../../../scenes/Game";
 import type { BaseEntity } from "../../../models/core/BaseEntity";
 import type { ModelHost } from "../../../core/logic/LogicModel";
+import type { CollisionContext } from "../../../types";
 import { PositionManager } from "../../../managers/view/PositionManager";
-import MobManager from "../../../managers/combat/MobManager";
 import { MonsterEntity, PresetMonsterModel, type MonsterDefinition } from "../../../models/entities/MonsterEntity";
 import { Faction } from "../../../models/Enum";
 import { MonsterSpeed } from "../../../../constants/game";
@@ -42,6 +42,19 @@ export class BalloonTntCloneModel extends PresetMonsterModel {
     return false;
   }
 
+  /** 碰到第一个僵尸立即爆炸（碰撞事件驱动，怪物 collider 已开 KINEMATIC_KINEMATIC）。 */
+  public override onCollision(entity: BalloonTntCloneEntity, ctx: CollisionContext): void {
+    if (this.hasExploded || this.isDying) return;
+    if (entity.currentHealth <= 0) return;
+
+    const target = ctx.targetEntity as BaseEntity | undefined;
+    if (!target || target.faction !== Faction.ZOMBIE) return;
+    if ((target.currentHealth ?? 0) <= 0) return;
+
+    this.explode(entity);
+  }
+
+  /** 只保留右边界判定：飞出场地最右侧时自爆。 */
   public override onModelStep(host: ModelHost): void {
     const entity = host as BalloonTntCloneEntity;
     if (this.hasExploded || this.isDying) return;
@@ -50,22 +63,7 @@ export class BalloonTntCloneModel extends PresetMonsterModel {
     const gridX = PositionManager.Instance.GRID_SIZEX;
     const lastCol = Math.max(0, PositionManager.Instance.Col_Number - 1);
     const rightEdgeX = PositionManager.Instance.getGridTopLeft(lastCol, entity.row).x + gridX * 0.5;
-    if (entity.x >= rightEdgeX) {
-      this.explode(entity);
-      return;
-    }
-
-    const mobs = MobManager.Instance.MobsByLane.get(entity.row) ?? [];
-    for (const mob of mobs) {
-      const target = mob as unknown as BaseEntity;
-      if (target === (entity as unknown as BaseEntity)) continue;
-      if (target.faction !== Faction.ZOMBIE) continue;
-      if (target.currentHealth <= 0) continue;
-      if (Math.abs(target.x - entity.x) > gridX * 0.55) continue;
-
-      this.explode(entity);
-      return;
-    }
+    if (entity.x >= rightEdgeX) this.explode(entity);
   }
 
   public explode(entity: BalloonTntCloneEntity): void {

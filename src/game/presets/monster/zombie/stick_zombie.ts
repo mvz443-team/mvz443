@@ -6,6 +6,9 @@ import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
 import type { CombatEntity } from "../../../models/core/CombatEntity";
 import type { CollisionContext } from "../../../types";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
+import PlantsManager from "../../../managers/combat/PlantsManager";
+import PlantHelper from "../../../utils/helper/PlantHelper";
+import type { ModelHost } from "../../../core/logic/LogicModel";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
 import { BaseZombieEntity } from "./zombie";
 import { withWeaponEntity, withWeaponModel, type EquipmentDef } from "../../../models/equipment/Equipment";
@@ -30,18 +33,63 @@ export class StickZombieModel extends StickModelBase {
     this.equipWeapon(entity, STICK_WEAPON);
   }
 
+  /** 起跳判定线长度（格）：从身体中心沿移动方向延伸。 */
+  public readonly vaultDetectRange = 0.7;
+  /** 一次撑杆跳的飞行距离（格）。 */
+  public readonly vaultDistance = 1.4;
+
   public canVaultOverPlant(target: PlantEntity): boolean {
     return this.hasStick && Boolean(target) && typeof target.col === "number";
   }
 
-  public tryStartVault(entity: MonsterEntity, target: CombatEntity): boolean {
-    if (!this.canVaultOverPlant(target as PlantEntity)) return false;
+  /** 起跳：不再依赖"撞到植物"，判定线命中后直接飞固定距离。 */
+  public tryStartVault(entity: MonsterEntity): boolean {
+    if (!this.hasStick || this.flying || this.isDying || this.isFrozen) return false;
     this.hasStick = false;
     this.flying = true;
     entity.setVelocityX(-this.originalSpeed * 2.2);
-    this.vaultTargetX = PositionManager.Instance.getGridTopLeft((target as PlantEntity).col, entity.row).x
-      - PositionManager.Instance.GRID_SIZEX * 0.25;
+    this.vaultTargetX = entity.x - PositionManager.Instance.GRID_SIZEX * this.vaultDistance;
     return true;
+  }
+
+  /**
+   * 判定线：身体中心沿移动方向（向左）0.7 格内的第一个存活植物。
+   *
+   * 用判定线而不是碰撞，是为了在"已经出地的 TNT 地雷""气球TNT"这类
+   * 低矮/体积小或刚出现的目标前也能及时起跳。
+   */
+  public findPlantOnVaultLine(entity: MonsterEntity): PlantEntity | null {
+    const gridX = PositionManager.Instance.GRID_SIZEX;
+    const left = entity.x - gridX * this.vaultDetectRange;
+    const plants = PlantsManager.Instance.GetPlantsByLane(entity.row) ?? [];
+
+    let found: PlantEntity | null = null;
+    for (const plant of plants) {
+      if (!(plant instanceof PlantEntity)) continue;
+      if (plant.currentHealth <= 0) continue;
+      if (plant.x < left || plant.x > entity.x) continue;
+      if (!found || plant.x < found.x) found = plant;
+    }
+    return found;
+  }
+
+  /** 落地补判：脚下格子里的植物（跳跃期间不会收到新的 overlap 事件）。 */
+  public findPlantUnderfoot(entity: MonsterEntity): PlantEntity | null {
+    const col = PositionManager.Instance.getColByX(entity.x);
+    const plants = PlantHelper.GetPlantsInGrid(col, entity.row);
+    let target: PlantEntity | null = null;
+    for (const plant of plants) {
+      if (plant.currentHealth <= 0) continue;
+      if (!target || PlantHelper.IsMorePriorityPlant(target, plant)) target = plant;
+    }
+    return target;
+  }
+
+  public override onModelStep(host: ModelHost): void {
+    const entity = host as MonsterEntity;
+    if (this.flying || !this.hasStick || this.isDying || this.isFrozen || this.isStop) return;
+    if (!this.findPlantOnVaultLine(entity)) return;
+    this.tryStartVault(entity);
   }
 
   public onVaultCollision(entity: MonsterEntity, target: unknown): boolean {
@@ -59,10 +107,10 @@ export class StickZombieModel extends StickModelBase {
     this.speed = this.originalSpeed * 0.5;
     this.consumeWeapon(entity);
 
-    const target = (entity as any).vaultCollisionTarget as PlantEntity | null;
+    const underfoot = this.findPlantUnderfoot(entity);
     (entity as any).vaultCollisionTarget = null;
-    if (target && target.currentHealth > 0) {
-      this.tryStartAttack(entity, target);
+    if (underfoot) {
+      this.tryStartAttack(entity, underfoot);
       return;
     }
     entity.startMove();
@@ -83,8 +131,9 @@ export class StickZombieEntity extends StickEntityBase {
   }
 
   public override startAttacking(target: CombatEntity): void {
-    if (this.model.tryStartVault(this, target)) return;
     if (this.model.flying) return;
+    // 判定线是主路径；这里保留碰撞兜底（例如植物正好被种在脚下）。
+    if (this.model.canVaultOverPlant(target as PlantEntity) && this.model.tryStartVault(this)) return;
     super.startAttacking(target);
   }
 

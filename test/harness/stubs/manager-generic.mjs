@@ -34,6 +34,16 @@ const sharedInstance = {
     resourceState.starShards += amount;
     resourceState.starCalls.push(amount);
   },
+  /** 与真实 PlantsManager.GetPlantsByLane 一致：按行汇总同格植物（插入顺序）。 */
+  GetPlantsByLane(row) {
+    const result = [];
+    for (const [key, plants] of plantsMap) {
+      if (!key.endsWith(`-${row}`)) continue;
+      result.push(...plants);
+    }
+    return result;
+  },
+
   GetGridProperty(col, row) {
     const type = gridTypes.get(`${col}-${row}`) ?? "ground";
     return {

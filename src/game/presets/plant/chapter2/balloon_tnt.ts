@@ -5,8 +5,8 @@ import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import { readBodyLayers } from "../../../core/logic/BodyTraits";
-import type { ModelHost } from "../../../core/logic/LogicModel";
 import type { JsonValue } from "../../../core/SimulationState";
+import type { CollisionContext } from "../../../types";
 import { Faction } from "../../../models/Enum";
 import MobCmd from "../../../utils/cmd/MobCmd";
 import DepthHelper from "../../../utils/helper/DepthHelper";
@@ -96,9 +96,11 @@ export class BalloonTntModel extends PlantModel {
     });
   }
 
-  /** 充满：解除低矮、进入可引爆状态。 */
+  /** 充满：解除低矮、进入可引爆状态，并补一次"升空瞬间已在格内"的判定。 */
   public completeInflation(): void {
     this.applyStage(BALLOON_TNT_STAGE.Airborne);
+    const entity = this.host as BalloonTntEntity | null;
+    if (entity) this.checkAirborneCollisionOnce(entity);
   }
 
   private applyStage(stage: number): void {
@@ -108,21 +110,45 @@ export class BalloonTntModel extends PlantModel {
     (this.host as BalloonTntEntity | null)?.syncInflateView();
   }
 
-  /** 升空后固定逻辑帧轮询：只被飞行怪物引爆。 */
-  public override onModelStep(host: ModelHost): void {
-    const entity = host as BalloonTntEntity;
-    if (this.hasExploded) return;
+  /**
+   * 碰撞入口（Entity.onCollision 转发）：升空后只被飞行怪物引爆。
+   *
+   * 充气阶段完全不响应碰撞；地面僵尸可以啃掉它，但不会引爆。
+   */
+  public handleCollision(entity: BalloonTntEntity, target: unknown): boolean {
+    if (this.hasExploded) return false;
+    if (this.inflateStage !== BALLOON_TNT_STAGE.Airborne) return false;
+    if (entity.currentHealth <= 0) return false;
+    if (!this.isAirborneTarget(target)) return false;
+
+    this.explode(entity, target);
+    return true;
+  }
+
+  private isAirborneTarget(target: unknown): boolean {
+    const mob = target as PlantEntity | null;
+    if (!mob || typeof mob.x !== "number") return false;
+    if ((mob.currentHealth ?? 0) <= 0) return false;
+    if (mob.faction !== Faction.ZOMBIE) return false;
+    return readBodyLayers(mob).flying;
+  }
+
+  /**
+   * 升空瞬间的一次性补判。
+   *
+   * 飞行怪物在充气阶段就已经和本体重叠时，overlap-start 事件不会在升空后重发，
+   * 所以充满的那一刻检查一次格内是否已有飞行怪物（只此一次，不做每帧轮询）。
+   */
+  public checkAirborneCollisionOnce(entity: BalloonTntEntity): void {
+    if (this.hasExploded || entity.currentHealth <= 0) return;
     if (this.inflateStage !== BALLOON_TNT_STAGE.Airborne) return;
-    if (entity.currentHealth <= 0) return;
 
     const mobs = MobManager.Instance.MobsByLane.get(entity.row) ?? [];
+    const halfGrid = PositionManager.Instance.GRID_SIZEX * 0.5;
     for (const mob of mobs) {
       const target = mob as unknown as PlantEntity;
-      if (target.currentHealth <= 0) continue;
-      if (target.faction !== Faction.ZOMBIE) continue;
-      if (!readBodyLayers(target).flying) continue;
-      if (Math.abs(target.x - entity.x) > PositionManager.Instance.GRID_SIZEX * 0.5) continue;
-
+      if (Math.abs(target.x - entity.x) > halfGrid) continue;
+      if (!this.isAirborneTarget(target)) continue;
       this.explode(entity, target);
       return;
     }
@@ -164,6 +190,11 @@ export class BalloonTntEntity extends PlantEntity {
   public override syncViewFromModel(): void {
     super.syncViewFromModel();
     this.syncInflateView();
+  }
+
+  /** 碰撞由 Model 判定：升空后只被飞行怪物引爆。 */
+  public override onCollision(ctx: CollisionContext): void {
+    (this.model as BalloonTntModel).handleCollision(this, ctx.targetEntity);
   }
 
   protected buildView(): void {

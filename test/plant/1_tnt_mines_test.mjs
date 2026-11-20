@@ -9,6 +9,7 @@ import {
   ProjectileCmd,
   SfxCmd,
   getObstaclesMap,
+  getMobsByLane,
   levelValues,
 } from "../harness/sim.mjs";
 import { TntMinesData } from "../../src/game/presets/plant/chapter1/tnt_mines.ts";
@@ -18,7 +19,9 @@ import { GetDecValue } from "../../src/utils/numbervalue.ts";
 /**
  * 描述（tnt_mines_description）：
  *   地雷初始埋在地下，约 15s 后出土；出土前被踩不会爆炸，出土后接触敌人立即爆炸；
- *   飞行单位经过时等待其落地；星之碎片立即出土并在场上再布置 2 颗地雷。
+ *   飞行单位从上方经过不引爆；星之碎片立即出土并在场上再布置 2 颗地雷。
+ *   爆炸判定以碰撞事件为主：出土瞬间会做一次（且仅一次）补判，
+ *   不做每帧轮询。
  *
  * 验收路径：
  *   1) 用 tick 推进 15s，检查 isBuried 的翻转时刻。
@@ -28,13 +31,15 @@ import { GetDecValue } from "../../src/utils/numbervalue.ts";
  *
  * 预期结果：
  *   Lv1 15000ms 出土；爆炸伤害 1500、rightGrid 1（9 级 1.5）、leftGrid 0.5；
- *   埋藏/同阵营返回 ignore，飞行返回 pending，普通敌人返回 explode；
+ *   埋藏/同阵营/飞行返回 ignore，普通敌人返回 explode；
+ *   出土瞬间已在格内的普通敌人会被一次性补判引爆；
  *   星碎后 2 个生成地雷事件，每个延迟 1000ms。
  *
  * 为什么：
  *   onCreate 用 GetDecValue(15000, 0.8, level) 排 Wakeup；
  *   explode 先检查 hasExploded 再创建爆炸并 destroySelf；
  *   handleContact 按 isBuried / faction / flying 分支；
+ *   Wakeup tick 事件里先 wakeup 再 checkContactOnce；
  *   onStarShards 对 2 个目标位置各 schedule 一次 SpawnMine。
  */
 
@@ -69,7 +74,7 @@ test("出土后接触普通敌人立即爆炸，且只爆炸一次", () => {
   assert.equal(ProjectileCmd.calls.length, 1);
 });
 
-test("埋藏、同阵营、飞行单位分别返回 ignore/pending", () => {
+test("埋藏、同阵营、飞行单位分别返回 ignore", () => {
   resetSim();
   const { model, entity } = spawnPlant(TntMinesData, { level: 1, row: 2 });
   const ally = makePlantTarget({ col: 1, row: 2, pid: 1 });
@@ -81,10 +86,41 @@ test("埋藏、同阵营、飞行单位分别返回 ignore/pending", () => {
   assert.equal(model.handleContact(entity, ally), "ignore");
 
   zombie.model.flying = true;
-  assert.equal(model.handleContact(entity, zombie.entity), "pending");
+  assert.equal(model.handleContact(entity, zombie.entity), "ignore");
 
   zombie.model.flying = false;
   assert.equal(model.handleContact(entity, zombie.entity), "explode");
+});
+
+test("出土瞬间一次性补判：已在格内的敌人会被引爆", () => {
+  resetSim();
+  const { model, entity } = spawnPlant(TntMinesData, { level: 1, col: 2, row: 2 });
+  const zombie = spawnMob(ZombieData, { col: 2, row: 2 });
+  getMobsByLane().set(2, [zombie.entity]);
+
+  // 埋藏期间不引爆
+  model.checkContactOnce(entity);
+  assert.equal(ProjectileCmd.calls.filter((call) => call.kind === "explosion").length, 0);
+
+  // 出土瞬间补判：怪物在格内 → 立即爆炸
+  model.isBuried = false;
+  model.checkContactOnce(entity);
+  assert.equal(ProjectileCmd.calls.filter((call) => call.kind === "explosion").length, 1);
+  assert.equal(model.hasExploded, true);
+});
+
+test("出土补判对飞行单位无效（只在地面踩踏时引爆）", () => {
+  resetSim();
+  const { model, entity } = spawnPlant(TntMinesData, { level: 1, col: 2, row: 2 });
+  const zombie = spawnMob(ZombieData, { col: 2, row: 2 });
+  zombie.model.flying = true;
+  getMobsByLane().set(2, [zombie.entity]);
+
+  model.isBuried = false;
+  model.checkContactOnce(entity);
+
+  assert.equal(ProjectileCmd.calls.filter((call) => call.kind === "explosion").length, 0);
+  assert.equal(model.hasExploded, false);
 });
 
 test("Lv9 爆炸右范围扩大到 1.5 格", () => {

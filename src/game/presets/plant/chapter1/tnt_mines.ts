@@ -29,7 +29,7 @@ const TNT_MINES_EVENTS = {
   SpawnMine: "TntMinesSpawnMine",
 } as const;
 
-type TntContactResult = "explode" | "pending" | "ignore";
+type TntContactResult = "explode" | "ignore";
 
 export class TntMinesModel extends PlantModel {
   public override pid = 4;
@@ -75,9 +75,32 @@ export class TntMinesModel extends PlantModel {
     if (target instanceof MonsterEntity) {
       if (target.model.inVoid) return "ignore";
       if (canVaultOverMine(target, host)) return "ignore";
-      if (target.model.flying) return "pending";
+      // 飞行单位从上方经过不引爆；落地后重新进入碰撞范围才会触发。
+      if (target.model.flying) return "ignore";
     }
     return "explode";
+  }
+
+  /**
+   * 出土瞬间的一次性接触判定（不做每帧轮询）。
+   *
+   * 只检查本行、本格范围内的怪物；结果只取决于"是否有可引爆目标"，
+   * 与遍历顺序无关，因此回滚重放不会分叉。
+   */
+  public checkContactOnce(host: TntMinesEntity): void {
+    if (this.isBuried || this.hasExploded || host.currentHealth <= 0) return;
+
+    const range = PositionManager.Instance.GRID_SIZEX * 0.5;
+    const mobs = MobManager.Instance.MobsByLane.get(host.row);
+    if (!mobs) return;
+    for (const mob of mobs) {
+      if (!(mob instanceof MonsterEntity)) continue;
+      if (mob.currentHealth <= 0 || mob.model.isDying) continue;
+      if (Math.abs(mob.x - host.x) > range) continue;
+      if (this.handleContact(host, mob) !== "explode") continue;
+      this.explode(host, host.level);
+      return;
+    }
   }
 
   public isNightPlant = false;
@@ -105,7 +128,13 @@ export class TntMinesModel extends PlantModel {
     timerId?: number,
   ): void {
     if (eventName === TNT_MINES_EVENTS.Wakeup) {
-      (this.host as TntMinesEntity | null)?.wakeup();
+      const entity = this.host as TntMinesEntity | null;
+      if (entity) {
+        entity.wakeup();
+        // 出土瞬间一次性补判：碰撞事件只在 overlap-start 派发，
+        // 埋藏期间已经重叠的怪物不会在出土后重发事件。
+        this.checkContactOnce(entity);
+      }
       return;
     }
     if (eventName === TNT_MINES_EVENTS.SpawnMine) {
@@ -221,7 +250,6 @@ export class TntMinesEntity extends PlantEntity {
   // Flying monsters whose overlap-start was skipped while airborne. We re-check
   // them each step in case they land while still over the mine — Rapier only
   // dispatches `started` events so the landing alone wouldn't re-trigger.
-  private pendingFlyingMonsters: Set<MonsterEntity> = new Set();
 
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, TntMinesData, level);
@@ -277,57 +305,8 @@ export class TntMinesEntity extends PlantEntity {
   public override onCollision(ctx: CollisionContext): void {
     if (this.currentHealth <= 0) return;
 
-    const action = this.model.handleContact(this, ctx.targetEntity);
-    if (action === "pending" && ctx.targetEntity instanceof MonsterEntity) {
-      this.pendingFlyingMonsters.add(ctx.targetEntity);
-      return;
-    }
-    if (action === "explode") this.model.explode(this, this.level);
-  }
-
-  public override stepUpdate(): void {
-    if (this.model.hasExploded || this.model.isBuried || this.currentHealth <= 0) {
-      if (this.pendingFlyingMonsters.size > 0) this.pendingFlyingMonsters.clear();
-      return;
-    }
-
-    const range = PositionManager.Instance.GRID_SIZEX * 0.5;
-    const mobs = MobManager.Instance.MobsByLane.get(this.row);
-    if (mobs) {
-      for (const mob of mobs) {
-        if (!(mob instanceof MonsterEntity)) continue;
-        if (mob.currentHealth <= 0 || mob.model.isDying || mob.model.inVoid) continue;
-
-        const action = this.model.handleContact(this, mob);
-        if (action === "pending") {
-          this.pendingFlyingMonsters.add(mob);
-          continue;
-        }
-        if (action === "ignore") {
-          this.pendingFlyingMonsters.delete(mob);
-          continue;
-        }
-        if (mob.row !== this.row || Math.abs(mob.x - this.x) > range) continue;
-        this.model.explode(this, this.level);
-        return;
-      }
-    }
-
-    if (this.pendingFlyingMonsters.size === 0) return;
-    for (const m of this.pendingFlyingMonsters) {
-      if (m.model.isDying || m.currentHealth <= 0 || m.model.inVoid ||
-        m.row !== this.row || Math.abs(m.x - this.x) > range) {
-        this.pendingFlyingMonsters.delete(m);
-        continue;
-      }
-      if (!m.model.flying) {
-        const action = this.model.handleContact(this, m);
-        if (action === "explode") {
-          this.model.explode(this, this.level);
-          return;
-        }
-        if (action === "ignore") this.pendingFlyingMonsters.delete(m);
-      }
+    if (this.model.handleContact(this, ctx.targetEntity) === "explode") {
+      this.model.explode(this, this.level);
     }
   }
 

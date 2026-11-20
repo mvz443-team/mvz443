@@ -68,6 +68,11 @@ export class PlantEntity extends CombatEntity {
 
   playSpikeActivateAnimation() { this.viewCalls.push("playSpikeActivateAnimation"); }
   syncInflateView() { this.viewCalls.push("syncInflateView"); }
+
+  /** 与真实 BalloonTntEntity.onCollision 一致：碰撞交给 Model 判定。 */
+  onCollision(ctx) {
+    this.model.handleCollision?.(this, ctx?.targetEntity);
+  }
   syncSpikyView() { this.viewCalls.push(`syncSpikyView:${this.model.isSpiky}`); }
   get inBruteShoot() { return this.model.inBruteShoot; }
   set inBruteShoot(value) { this.model.inBruteShoot = value; }

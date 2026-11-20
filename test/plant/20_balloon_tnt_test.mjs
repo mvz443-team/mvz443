@@ -29,14 +29,15 @@ import { PositionManager } from "../harness/sim.mjs";
  * 验收路径：
  *   1) spawnPlant 后读取数值、tiny、inflateStage。
  *   2) tick 到 3000/6000ms 观察阶段与 tiny 变化；Lv5 用 1500/3000ms。
- *   3) 把地面僵尸 / 飞行僵尸放进 MobsByLane，驱动 onModelStep 观察爆炸与销毁。
+ *   3) 直接调用实体 onCollision / 模型 checkAirborneCollisionOnce 观察爆炸与销毁。
  *   4) 直接调用 onStarShards，检查 MobCmd.Spawn 的 mid 与伤害回写。
  *   5) 单独 spawnMob(BalloonTntCloneData) 验证分身向右飞、200 血、不索敌、边界爆炸。
  *
  * 预期结果：
  *   pid 20 / cost 125 / maxHealth 450 / damage 350（Lv9 400）/ cooldown 14000；
  *   初始 stage=0 且 tiny=true；3s 后 stage=1；6s 后 stage=2 且 tiny=false；
- *   地面僵尸经过不爆炸，飞行僵尸在格内触发一次 3x3 爆炸并销毁本体；
+ *   地面僵尸碰撞不爆炸，飞行僵尸碰撞触发一次 3x3 爆炸并销毁本体；
+ *   充满瞬间已在格内的飞行僵尸由一次性补判引爆；
  *   星碎后 stage=2 且 Spawn 参数为 (21, waveID=-10)，回写 explosionDamage=350；
  *   分身 speed 为负（startMove 后向右）、canStartAttack 恒 false、到最右列爆炸。
  *
@@ -99,30 +100,35 @@ test("Lv5 起充气时间缩短到 3 秒", () => {
   assert.equal(model.inflateStage, BALLOON_TNT_STAGE.Airborne);
 });
 
-test("充气未完成时地面怪物不会引爆", () => {
+test("充气未完成时飞行怪物碰撞也不引爆", () => {
   resetSim();
   const { model, entity } = spawnPlant(BalloonTntData, { level: 1, col: 3, row: 1 });
   const zombie = spawnMob(ZombieData, { col: 3, row: 1 });
   zombie.model.flying = true;
   putInLane(1, [zombie.entity]);
 
-  model.onModelStep(entity);
+  entity.onCollision({ targetEntity: zombie.entity });
   assert.equal(model.hasExploded, false);
   assert.equal(ProjectileCmd.calls.filter((call) => call.kind === "explosion").length, 0);
 });
 
-test("升空后只被飞行怪物引爆，地面僵尸不触发", () => {
+test("升空后只被飞行怪物碰撞引爆，地面僵尸碰撞不触发", () => {
   resetSim();
   const { model, entity } = spawnPlant(BalloonTntData, { level: 1, col: 3, row: 1 });
-  const ground = spawnMob(ZombieData, { col: 3, row: 1 });
-  putInLane(1, [ground.entity]);
+  const zombie = spawnMob(ZombieData, { col: 3, row: 1 });
 
-  model.completeInflation();
-  model.onModelStep(entity);
+  // 充气阶段：碰撞被忽略
+  entity.onCollision({ targetEntity: zombie.entity });
   assert.equal(model.hasExploded, false);
 
-  ground.model.flying = true;
-  model.onModelStep(entity);
+  model.completeInflation();
+  // 地面僵尸：不引爆
+  entity.onCollision({ targetEntity: zombie.entity });
+  assert.equal(model.hasExploded, false);
+
+  // 飞行怪物：碰撞即引爆
+  zombie.model.flying = true;
+  entity.onCollision({ targetEntity: zombie.entity });
 
   assert.equal(model.hasExploded, true);
   const explosions = ProjectileCmd.calls.filter((call) => call.kind === "explosion");
@@ -133,8 +139,26 @@ test("升空后只被飞行怪物引爆，地面僵尸不触发", () => {
   assert.equal(explosions[0].cfg.upGrid, 1);
   assert.equal(explosions[0].row, 1);
 
-  // 一次性：再走一帧不会二次爆炸
-  model.onModelStep(entity);
+  // 一次性：再次碰撞不会二次爆炸
+  entity.onCollision({ targetEntity: zombie.entity });
+  assert.equal(ProjectileCmd.calls.filter((call) => call.kind === "explosion").length, 1);
+});
+
+test("充满瞬间补判一次：已在格内的飞行僵尸被引爆", () => {
+  resetSim();
+  const { model, entity } = spawnPlant(BalloonTntData, { level: 1, col: 3, row: 1 });
+  const zombie = spawnMob(ZombieData, { col: 3, row: 1 });
+  zombie.model.flying = true;
+  putInLane(1, [zombie.entity]);
+
+  model.completeInflation();
+
+  const explosions = ProjectileCmd.calls.filter((call) => call.kind === "explosion");
+  assert.equal(explosions.length, 1);
+  assert.equal(model.hasExploded, true);
+
+  // 补判只做一次，不会每帧触发
+  model.checkAirborneCollisionOnce(entity);
   assert.equal(ProjectileCmd.calls.filter((call) => call.kind === "explosion").length, 1);
 });
 
@@ -183,13 +207,12 @@ test("分身：200 血、向右飞、不索敌、到最右列爆炸", () => {
   assert.equal(explosions[0].cfg.damage, clone.model.explosionDamage);
 });
 
-test("分身碰到第一个僵尸立即爆炸", () => {
+test("分身碰到第一个僵尸立即爆炸（碰撞事件）", () => {
   resetSim();
   const clone = spawnMob(BalloonTntCloneData, { col: 2, row: 1 });
   const zombie = spawnMob(ZombieData, { col: 2, row: 1 });
-  putInLane(1, [clone.entity, zombie.entity]);
 
-  clone.model.onModelStep(clone.entity);
+  clone.entity.onCollision({ targetEntity: zombie.entity });
 
   const explosions = ProjectileCmd.calls.filter((call) => call.kind === "explosion");
   assert.equal(explosions.length, 1);

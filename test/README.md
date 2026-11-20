@@ -58,7 +58,12 @@ Manager、Cmd 使用测试替身。逻辑统一按 50ms/帧推进，与游戏平
 - 种植地块限制写在 `PlantModel.allowedPlantSlots`（白名单，`null` = 不限）：
   TNT 地雷配 `['ground']`，因此不能种在水面/睡莲上；气球TNT 不限制。
 - 气球TNT 的充气阶段与引爆判定在 Model：`inflateStage` 0/1/2，升空后只被
-  `flying` 怪物引爆；星碎分身是 mid 21 的 PLANT 阵营召唤物（waveID=-10，不计击杀）。
+  `flying` 怪物**碰撞**引爆，充满瞬间只做一次补判（不轮询）；星碎分身是
+  mid 21 的 PLANT 阵营召唤物（waveID=-10，不计击杀），接触判定同样走碰撞事件。
+- TNT 地雷同样是碰撞为主：出土瞬间做一次补判（`checkContactOnce`），
+  飞行单位从上方经过不再进入 pending 队列。
+- 手杖僵尸改为判定线起跳：从身体中心沿移动方向 0.7 格内检测植物，
+  命中后固定飞 1.4 格，落地用 `PlantHelper.GetPlantsInGrid` 补判脚下植物。
 - 护盾植物（`SHIELD_PLANT_PIDS`）会替同格植物吸收伤害：
   `PlantEntity.takeDamage → PlantModel.redirectDamageToShield`，测试替身已同步这条路由。
 - 气球僵尸（mid 19）与气球帽子僵尸（mid 20）的飞行载具只有 1 点血：
