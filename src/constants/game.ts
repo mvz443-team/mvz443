@@ -38,6 +38,8 @@ export const MonsterSpeed = {
   Warden: 0,
   Vindicator: getOneGridVelocityForSeconds(4.0),
   StickZombie: getOneGridVelocityForSeconds(2.5),
+  BalloonZombie: NormalZombieSpeed,
+  BalloonCapZombie: NormalZombieSpeed,
 } as const;
 
 export const ZombieAttackInterval = {
@@ -54,4 +56,6 @@ export const ZombieAttackInterval = {
   VindicatorSolider: 200,
   TurtleZombie: 200,
   TurtleSkeletonBow: 200,
+  BalloonZombie: 200,
+  BalloonCapZombie: 200,
 } as const;

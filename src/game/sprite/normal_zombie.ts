@@ -1,7 +1,7 @@
 import { Game } from "../scenes/Game";
 import IZombieAnim, { ZombieAnimProps } from "./zombie";
 
-const NormalZombieAnimProps: ZombieAnimProps = {
+export const NormalZombieAnimProps: ZombieAnimProps = {
     Species: 'Zombie',
     bodyKey: 'sprZombieBody',
     headKey: 'sprZombieHead',

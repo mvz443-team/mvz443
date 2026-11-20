@@ -12,6 +12,8 @@ function controller() {
     stopArmSwing() {},
     destroy() {},
     getTargets() { return []; },
+    setAirborne(value) { this.airborne = value; },
+    getHangPivot() { return null; },
     raw: {},
   };
 }
@@ -33,6 +35,7 @@ export class LegacyMonsterAnimController {
 }
 
 export function createZombieAnimController() { return controller(); }
+export function createFlyingZombieAnimController() { return controller(); }
 export function createGolemAnimController() { return controller(); }
 export function createMutantAnimController() { return controller(); }
 export function createSkeletonAnimController() { return controller(); }

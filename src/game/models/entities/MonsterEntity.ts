@@ -157,6 +157,8 @@ export abstract class MonsterEntity extends CombatEntity {
 
   public override stepUpdate() {
     this.model.checkOutOfBounds(this);
+    // 固定逻辑帧的 Model 侧轮询（如飞行载具落地后补判脚下植物）。
+    this.model.onModelStep?.(this);
   }
 
   public setVelocityX(vx: number) {
@@ -419,6 +421,8 @@ export type MonsterDefinition = {
   isDefaultFlying?: boolean;
   isDefaultInVoid?: boolean;
   couldCarryStarShards?: boolean;
+  /** 飞行载具（气球等）血量；配置后该怪物有第二条血条，归零即迫降。 */
+  vehicleHealth?: number;
   createEntity: (scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) => MonsterEntity;
 };
 
@@ -545,7 +549,21 @@ export abstract class BaseMonsterEntity extends MonsterEntity {
     const offset = this.fixedAttachmentOffsets.get(key);
     if (!sprite || !offset) return;
 
-    sprite.setPosition(this.x + this.offsetX + offset.x, this.y + this.offsetY + offset.y);
+    const x = this.x + this.offsetX + offset.x;
+    const y = this.y + this.offsetY + offset.y;
+
+    // 飞行中僵尸把整套纸片零件刚性旋转 90°，固定挂件（帽子等）必须跟随同一旋转。
+    const pivot = this.animController?.getHangPivot?.() ?? null;
+    if (pivot) {
+      const dx = x - pivot.x;
+      const dy = y - pivot.y;
+      sprite.setPosition(pivot.x + dy, pivot.y - dx);
+      sprite.setAngle(-90);
+      return;
+    }
+
+    sprite.setPosition(x, y);
+    sprite.setAngle(0);
   }
 
   public getLegacyController() {

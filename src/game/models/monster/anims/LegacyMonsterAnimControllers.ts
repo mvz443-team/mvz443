@@ -1,5 +1,12 @@
 import GolemAnim, { GolemAnimProps } from "../../../sprite/golem";
-import { newNormalEvokerAnim, newNormalSkeletonAnim, newNormalVindicatorAnim, newNormalZombieAnim } from "../../../sprite/normal_zombie";
+import { FlyingZombieAnim } from "../../../sprite/flying_zombie";
+import {
+  NormalZombieAnimProps,
+  newNormalEvokerAnim,
+  newNormalSkeletonAnim,
+  newNormalVindicatorAnim,
+  newNormalZombieAnim,
+} from "../../../sprite/normal_zombie";
 import IMutantAnim, { MutantAnimProps } from "../../../sprite/zombie_mutant";
 import type { Game } from "../../../scenes/Game";
 import type { IMonsterAnimController, MonsterHandAnchor } from "./IMonsterAnimController";
@@ -36,6 +43,7 @@ const TARGET_KEYS = [
   "handObject",
   "backObject",
   "dirt",
+  "balloon",
 ] as const;
 
 export class LegacyMonsterAnimController<TAnim extends LegacyAnimLike> implements IMonsterAnimController {
@@ -81,6 +89,14 @@ export class LegacyMonsterAnimController<TAnim extends LegacyAnimLike> implement
     this.raw.stopArmSwing();
   }
 
+  public setAirborne(airborne: boolean): void {
+    (this.raw as { setAirborne?: (value: boolean) => void }).setAirborne?.(airborne);
+  }
+
+  public getHangPivot(): MonsterHandAnchor | null {
+    return (this.raw as { getHangPivot?: () => MonsterHandAnchor | null }).getHangPivot?.() ?? null;
+  }
+
   public destroy(): void {
     this.raw.destroy();
   }
@@ -111,6 +127,11 @@ export function createZombieAnimController(
   } as const;
 
   return new LegacyMonsterAnimController(map[type](scene, x, y));
+}
+
+/** 飞行中僵尸：气球在上方，僵尸整体旋转 90° 悬吊在下方。 */
+export function createFlyingZombieAnimController(scene: Game, x: number, y: number) {
+  return new LegacyMonsterAnimController(new FlyingZombieAnim(scene, x, y, NormalZombieAnimProps));
 }
 
 export function createGolemAnimController(scene: Game, x: number, y: number, props: GolemAnimProps) {

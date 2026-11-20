@@ -294,6 +294,7 @@ export class Preloader extends Scene {
     this.load.image('attach/hd_axe', 'attach/hd_axe.png');
     this.load.spritesheet('attach/hd_shield', 'attach/hd_shield.png', { frameWidth: 32, frameHeight: 32 });
     this.load.image('attach/sign', 'attach/sign.png');
+    this.load.image('attach/balloon', 'attach/balloon.png');
     this.load.image('attach/boat1', 'attach/sprBoat/sprBoat_0.png');
     this.load.image('attach/boat2', 'attach/sprBoat/sprBoat_1.png');
   }

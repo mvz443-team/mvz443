@@ -3,7 +3,7 @@
 覆盖 `src/game/presets/plant` 与 `src/game/presets/monster` 下全部 preset：
 
 - plant：18 个文件，逐级覆盖 Lv1–Lv9 的普通效果与星之碎片效果。
-- mob：18 个文件，覆盖基础数值、攻击节奏、装备、技能与 Boss 阶段。
+- mob：20 个文件，覆盖基础数值、攻击节奏、装备、技能与 Boss 阶段。
 
 ## 运行
 
@@ -52,6 +52,11 @@ Manager、Cmd 使用测试替身。逻辑统一按 50ms/帧推进，与游戏平
   植物死亡后仍会完成已排队的 5 次爆炸。
 - `ElasticPutin` 的反弹判定在 Model：只反弹己方、可反弹且自身清醒时的
   子弹；闪电窗口内会为带附魔接口的箭追加 `lightning`。
+- 气球僵尸（mid 19）与气球帽子僵尸（mid 20）的飞行载具只有 1 点血：
+  `bullet` 命中时载具吸收全部伤害（本体不掉血），`laser` / `explosion`
+  命中时载具爆炸且本体照常结算；载具破碎后 `flying = false`。
+  体态判定统一走 `BodyTraits.canReachBody()`，飞行中的气球僵尸只有带
+  `flying` 的投射物/判定线能命中。
 - `BouncingAnvil` 的警戒线为种植中心左右各 1.4 格，只响应地面、非飞行、
   非虚空敌人；起跳时锁定目标中心，300ms 后落地生成隐形激光。
   Lv1–Lv4 激光长 0.8 格，Lv5 起为 1.5 格并显示左侧分身；

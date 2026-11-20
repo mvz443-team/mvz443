@@ -1,4 +1,6 @@
 export {
+  BalloonCapZombieData,
+  BalloonZombieData,
   CapZombieData,
   EvokerData,
   HelmetZombieData,
