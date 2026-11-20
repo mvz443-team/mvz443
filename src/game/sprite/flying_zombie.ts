@@ -103,6 +103,7 @@ export class FlyingZombieAnim extends IZombieAnim {
       part.setAngle(-90);
     }
 
-    this.balloon.setPosition(pivotX, pivotY - PositionManager.Instance.GRID_SIZEY * 0.05);
+    // 旋转后躯体中心落在 pivot.x + lift，气球要对齐躯体中心而不是旋转轴。
+    this.balloon.setPosition(pivotX + lift, pivotY - PositionManager.Instance.GRID_SIZEY * 0.05);
   }
 }

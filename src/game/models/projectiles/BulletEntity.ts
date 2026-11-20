@@ -169,7 +169,8 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
     if (target instanceof PlantEntity) {
       const row = target.row;
       const col = target.col;
-      const plants = [...PlantHelper.GetPlantsInGrid(col, row)];
+      // 同格穿透同样要遵守体态规则：打不到的低矮/飞行目标不能被顺带命中。
+      const plants = PlantHelper.GetPlantsInGrid(col, row).filter((plant) => this.model.canHit(plant));
 
       penetrateHighestPriorityPlant(plants, target);
       return;
