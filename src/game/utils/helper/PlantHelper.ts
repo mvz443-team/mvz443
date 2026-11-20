@@ -94,11 +94,11 @@ namespace PlantHelper {
   targetGridProperty: GridProperty,
   model?: PlantModel | null,
 ): boolean {
-  // 地块白名单：Model 声明 allowedPlantSlots 时，只允许列表内的地块类型。
-  const allowedSlots = model?.allowedPlantSlots ?? null;
-  if (allowedSlots && !allowedSlots.includes(targetGridProperty.type as PlantSlot)) {
-    return false;
-  }
+    // 地块白名单：Model 声明 allowedPlantSlots 时，只允许列表内的地块类型。
+    const allowedSlots = model?.allowedPlantSlots ?? null;
+    if (allowedSlots && !allowedSlots.includes(targetGridProperty.type as PlantSlot)) {
+      return false;
+    }
 
     // 高级植物专门通道判断
     if (ADVANCED_PLANT.has(pid)) {
