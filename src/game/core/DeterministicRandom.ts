@@ -11,15 +11,31 @@ export type EntityRandom = StatefulAlea;
  * seedrandom 的 alea state() 只有 getter，传入 state 只是“下次调用时重播种”，
  * 调用方无法读取/写回当前状态。这里用一个闭包包装器提供即时可读写的 state。
  */
+/**
+ * 用 seed + 可选 alea 内部状态构造随机流。
+ *
+ * seedrandom 的 alea `.state()` 是只读 getter：向它传 state 只会被静默忽略，
+ * 得到的仍是按 seed 重新播种的全新随机流。恢复快照时必须把状态交给工厂，
+ * 在构造阶段直接载入，否则回滚/重连后随机序列必然与源端分叉。
+ */
+export function createAleaWithState(
+  seed: string,
+  state?: seedrandom.State.Alea,
+): seedrandom.StatefulPRNG<seedrandom.State.Alea> {
+  return state
+    ? seedrandom.alea(seed, { state: { ...state } })
+    : seedrandom.alea(seed, { state: true });
+}
+
 function createStatefulAlea(seed: string): EntityRandom {
-  let generator = seedrandom.alea(seed, { state: true }) as seedrandom.StatefulPRNG<seedrandom.State.Alea>;
+  let generator = createAleaWithState(seed);
   const random = (() => generator()) as EntityRandom;
   random.int32 = () => generator.int32();
   random.double = () => generator.double();
   random.quick = () => generator();
   random.state = ((next?: seedrandom.State.Alea) => {
     if (next !== undefined) {
-      generator = seedrandom.alea(seed, { state: { ...next } }) as seedrandom.StatefulPRNG<seedrandom.State.Alea>;
+      generator = createAleaWithState(seed, next);
       return undefined;
     }
     return { ...generator.state() };

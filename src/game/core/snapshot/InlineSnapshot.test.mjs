@@ -3,6 +3,7 @@ import test from 'node:test';
 
 const { createInlineSnapshot, estimateInlineSnapshotBytes, buildInlineSnapshotOrHash, restoreInlineSnapshot } =
   await import('./InlineSnapshot.ts');
+const { SIMULATION_STATE_VERSION } = await import('../SimulationState.ts');
 
 const state = {
   version: 1,
@@ -27,13 +28,13 @@ test('超过阈值时只保留 hash，避免膨胀 WS 包', () => {
     values: { text: 'x'.repeat(8000) },
   };
   assert.ok(estimateInlineSnapshotBytes(createInlineSnapshot(big, 'abc')) > 6000);
-  assert.deepEqual(buildInlineSnapshotOrHash(big, 'abc'), { hash: 'abc', snapshot: null });
+  assert.deepEqual(buildInlineSnapshotOrHash(big, 'abc', 6000), { hash: 'abc', snapshot: null });
 });
 
 test('inline 快照可还原为不含 physics 的 SimulationState', () => {
   const snapshot = createInlineSnapshot(state, 'abc');
   const restored = restoreInlineSnapshot(snapshot);
-  assert.equal(restored.version, 1);
+  assert.equal(restored.version, SIMULATION_STATE_VERSION);
   assert.equal(restored.seed, 1);
   assert.equal(restored.frameId, 2);
   assert.deepEqual(restored.values, { a: 1 });

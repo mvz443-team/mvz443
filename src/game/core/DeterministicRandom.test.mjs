@@ -6,6 +6,7 @@ const {
   copyRandomState,
   restoreRandomState,
   reseedEntityRandom,
+  createAleaWithState,
 } = await import('./DeterministicRandom.ts');
 
 const consume = (random, count) => Array.from({ length: count }, () => random());
@@ -42,4 +43,23 @@ test('reseed 原地重播种，保持 PRNG 对象引用供快照系统继续使�
 
   assert.equal(random, reference);
   assert.deepEqual(consume(random, 6), consume(expected, 6));
+});
+
+test('主随机流快照恢复：带状态重建必须与连续运行一致（重连 desync 回归）', () => {
+  const seed = '22518025';
+  const original = createAleaWithState(seed);
+  consume(original, 137);
+  const saved = original.state();
+  const expected = consume(original, 8);
+
+  const restored = createAleaWithState(seed, saved);
+  assert.deepEqual(restored.state(), saved);
+  assert.deepEqual(consume(restored, 8), expected);
+
+  // seedrandom 的 alea .state() 是只读 getter：向它传状态会被静默忽略。
+  // 旧实现正是这样做的，恢复后 PRNG 退化成按 seed 重新播种，必然分叉。
+  const broken = createAleaWithState(seed);
+  broken.state(saved);
+  assert.notDeepEqual(broken.state(), saved);
+  assert.equal(broken.state().c, 1);
 });

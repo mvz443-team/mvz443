@@ -156,6 +156,12 @@ export class EntityTickManager implements ITickManagerProxy {
   private nextTimerId = 1;
   private readonly timers = new Map<number, EntityTimerRecord>();
   private readonly handles = new Map<number, TickTimerHandle>();
+  /**
+   * 本 tickmanager 自己注册过的回调句柄。
+   * 用于区分「同进程回滚（句柄仍有效）」与「跨进程重连（句柄已失效）」：
+   * 快照里的 `callback:N` 只有在属于本实例时才允许沿用。
+   */
+  private readonly ownCallbackHandles = new Set<string>();
 
   private readonly sink: TickEventSink;
 
@@ -256,6 +262,7 @@ export class EntityTickManager implements ITickManagerProxy {
       return this.createTimer(snapshot.kind, delay, repeat, startAt, snapshot.args ?? null);
     }
     const callbackEventName = registerTickEventCallback(callback, args, context);
+    this.ownCallbackHandles.add(callbackEventName);
     return this.createTimer(TickEventNameEnums.TimerTriggered, delay, repeat, startAt, callbackEventName);
   }
 
@@ -355,8 +362,22 @@ export class EntityTickManager implements ITickManagerProxy {
 
     for (const state of states) {
       const eventName = state.kind ?? TickEventNameEnums.LogicTick;
-      const args = state.args ?? null;
+      let args = state.args ?? null;
       const existing = this.timers.get(state.id);
+      if (eventName === TickEventNameEnums.TimerTriggered) {
+        // 快照里的 `callback:N` 只是源端本机回调注册表的句柄，跨进程重连后
+        // 编号含义完全不同：直接沿用会调用到别的实体（或已销毁实体）的闭包，
+        // 这正是重连后“恢复的植物定时器去执行别的实体逻辑”的根因。
+        // 1) 本机同 id 计时器存在：实体重建时 onCreate 已重新注册，沿用其句柄；
+        // 2) 句柄属于本实例（同进程回滚，即使计时器已触发删除）：沿用原句柄；
+        // 3) 其余（跨进程且无法验证）一律丢弃，绝不跨实体误派发。
+        if (existing && existing.eventName === TickEventNameEnums.TimerTriggered) {
+          args = existing.args;
+        } else if (typeof args !== "string" || !this.ownCallbackHandles.has(args)) {
+          context.report.missing.push(`timer.callback:${state.id}`);
+          continue;
+        }
+      }
       if (existing) {
         existing.eventName = eventName;
         existing.targetFrame = state.targetFrame;
@@ -396,6 +417,7 @@ export class EntityTickManager implements ITickManagerProxy {
   public clear(): void {
     this.timers.clear();
     this.handles.clear();
+    this.ownCallbackHandles.clear();
     this.nextTimerId = 1;
   }
 

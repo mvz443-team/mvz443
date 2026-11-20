@@ -8,6 +8,7 @@ import { MonsterEntity } from "../../models/entities/MonsterEntity";
 import type { Game } from "../../scenes/Game";
 import { translate } from "../../../i18n";
 import DepthHelper from "../helper/DepthHelper";
+import { mobSnapshotId } from "../../core/logic/MobSpawnIdentity";
 
 const ANNOUNCE_KEY = "__bossSkillAnnounce";
 
@@ -19,11 +20,17 @@ interface AnnounceState {
 namespace MobCmd {
   export function Spawn(mid: number, scene: Game, col: number, row: number, waveID: number,
     callback?: (entity: MonsterEntity) => void) {
+    // 技能召唤物同样必须有稳定身份：实体 id 参与状态哈希，且刷新式重连后
+    // 只能按 waveId + spawnSeq 重建。序号必须在派发延迟创建前同步分配。
+    const spawnSeq = MobManager.Instance.allocateSpawnSeq();
     DeferredManager.Instance.defer(() => {
       const model = MonsterLibrary.GetModel(mid);
       if (!model) return;
       const finalRow = Phaser.Math.Clamp(row, 0, PositionManager.Instance.Row_Number - 1);
       const en = model.createEntity(scene, col, finalRow, waveID);
+      en.adoptStableSnapshotKey(mobSnapshotId(waveID, spawnSeq));
+      en.applySpawnSeed(spawnSeq);
+      en.ExtraData.spawnSeq = spawnSeq;
       MobManager.Instance.registerMonster(en);
       en.addDestroyListener((entity) => MobManager.Instance.registerDestroy(entity));
       if (callback) callback(en);

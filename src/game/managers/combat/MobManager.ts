@@ -21,6 +21,8 @@ import StageHelper from "../../utils/helper/StageHelper";
 import MobHelper from "../../utils/helper/MobHelper";
 import TileItemManager from "./TileItemManager";
 import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
+import { createAleaWithState } from "../../core/DeterministicRandom";
+import { SpawnSequence, mobSnapshotId } from "../../core/logic/MobSpawnIdentity";
 
 type Mob = CombatEntity;
 
@@ -92,8 +94,8 @@ export default class MobManager extends BaseManager {
   private tmpKilled_count = 0;// 两波之间存击杀数
   private killed_count = 0; // 怪物击杀数
   private total_count = 0; // 怪物总数
-  /** 确定性出怪序号，用于生成稳定的实体快照 key。 */
-  private spawnSeq = 0;
+  /** 确定性出怪 / 召唤序号，用于生成稳定的实体快照 key；进入 `wave` 快照。 */
+  private readonly spawnSequence = new SpawnSequence();
 
   // 进度, 由wave定，
   // FUTURE： 如果存在多boss，或占比不同，还要再微调
@@ -183,7 +185,7 @@ export default class MobManager extends BaseManager {
     this.bossObj = null;
     this.hasRequestedWin = false;
     this.spawnState = null;
-    this.spawnSeq = 0;
+    this.spawnSequence.reset();
     this.EventBus.removeAllListeners();
     this.scene = null;
   }
@@ -203,9 +205,12 @@ export default class MobManager extends BaseManager {
   /** 从快照恢复主随机流，保证后续随机序列与原端完全一致。 */
   public RestorePrngState(snapshot: { seed: string; state: unknown }): void {
     this.seed = Number(snapshot.seed) || 0;
-    this._seedRandom = seedrandom.alea(snapshot.seed, { state: true });
-    (this._seedRandom as unknown as { state: (state: seedrandom.State.Alea) => void }).state(
-      snapshot.state as seedrandom.State.Alea,
+    // seedrandom 的 alea `.state()` 只有 getter，传参不会写回内部状态。
+    // 之前的实现会把 PRNG 退化为按 seed 重新播种，重连后出怪/掉落等随机
+    // 决策立刻与源端分叉；状态必须由工厂在构造时载入。
+    this._seedRandom = createAleaWithState(
+      snapshot.seed,
+      snapshot.state as seedrandom.State.Alea | undefined,
     );
   }
 
@@ -219,8 +224,13 @@ export default class MobManager extends BaseManager {
       total_count: this.total_count,
       progress: this.progress,
       hasRequestedWin: this.hasRequestedWin,
-      spawnSeq: this.spawnSeq,
+      spawnSeq: this.spawnSequence.capture(),
     };
+  }
+
+  /** 为出怪 / 技能召唤分配确定性序号；必须在派发延迟创建之前同步调用。 */
+  public allocateSpawnSeq(): number {
+    return this.spawnSequence.allocate();
   }
 
   public RestoreWaveState(state: Record<string, number | boolean>): void {
@@ -231,7 +241,7 @@ export default class MobManager extends BaseManager {
     this.total_count = Number(state.total_count) || 0;
     this.progress = Number(state.progress) || 0;
     this.hasRequestedWin = Boolean(state.hasRequestedWin);
-    this.spawnSeq = Number(state.spawnSeq) || 0;
+    this.spawnSequence.restore(state.spawnSeq);
     // 从权威快照恢复的战局已经包含开局预设与波次状态。
     // roomAllSync 随后到达时会再次触发 RoomGameStart，绝不能在这里
     // 重新 startFirstWave，否则会重复创建初始植物/计时器并立刻分叉。
@@ -462,13 +472,16 @@ export default class MobManager extends BaseManager {
     }
 
     const currentMonsterIndex = state.monsterIndex;
+    // 序号必须在 defer 之前同步分配：延迟回调可能因回滚被重放，在回调内自增
+    // 会重复计数；实体 id 参与哈希，序号错位会让两端从该帧起永久分叉。
+    const spawnSeq = this.allocateSpawnSeq();
+    const waveId = wave.waveId;
     DeferredManager.Instance.defer(() => {
       if (!this.scene) return;
-      const zomb = model.createEntity(this.scene, colMax, row, wave.waveId);
-      this.spawnSeq += 1;
-      zomb.adoptStableSnapshotKey(`mob:${wave.waveId}:${this.spawnSeq}`);
-      zomb.applySpawnSeed(this.spawnSeq);
-      zomb.ExtraData.spawnSeq = this.spawnSeq;
+      const zomb = model.createEntity(this.scene, colMax, row, waveId);
+      zomb.adoptStableSnapshotKey(mobSnapshotId(waveId, spawnSeq));
+      zomb.applySpawnSeed(spawnSeq);
+      zomb.ExtraData.spawnSeq = spawnSeq;
       this.attachLifecycle(zomb);
 
       // 2. 如果当前怪物索引在carryingMonsters中，则设置携带starShards
@@ -498,7 +511,7 @@ export default class MobManager extends BaseManager {
     const model = MonsterLibrary.GetModel(mid);
     if (!model) return null;
     const monster = model.createEntity(this.scene, col, row, waveID);
-    monster.adoptStableSnapshotKey(`mob:${waveID}:${spawnSeq}`);
+    monster.adoptStableSnapshotKey(mobSnapshotId(waveID, spawnSeq));
     monster.applySpawnSeed(spawnSeq);
     monster.ExtraData.spawnSeq = spawnSeq;
     this.attachLifecycle(monster);

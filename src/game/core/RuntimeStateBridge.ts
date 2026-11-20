@@ -304,6 +304,13 @@ export function installRuntimeStateSources(): void {
     () => logicEvents.snapshot() as unknown as JsonValue,
     (value) => { logicEvents.restore(value as unknown as ReturnType<typeof logicEvents.snapshot>); },
   );
+  // 投射物序号必须进入快照：它决定 `projectile:<seq>` 实体身份。页面刷新式
+  // 重连后模块会从 1 重新计数，而长连接端早已推进，双方新投射物 id 随即错位。
+  simulationState.registerValue(
+    "projectile.seq",
+    () => ProjectileCmd.captureSequence(),
+    (value) => { ProjectileCmd.restoreSequence(Number(value) || 1); },
+  );
 
   simulationState.registerTimers("ticker", () => ticker.GetTimerStates(), (timers, context) => {
     ticker.RestoreTimerStates(timers, context);
