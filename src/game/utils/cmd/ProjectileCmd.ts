@@ -113,6 +113,10 @@ export namespace ProjectileCmd {
           context.report.missing.push(`projectile:${snapshot.id}`);
           continue;
         }
+        // rebuildFromInfo 走纯数据重建，实体仍是构造时的临时 uniqueId；
+        // 必须先 adopt 快照 id，再按 id 登记注册表/关系，否则跨进程恢复后
+        // 投射物 id、timer group 和 dealer 解析全部错位。
+        target.adoptStableSnapshotKey(String(snapshot.id));
         activeProjectiles.add(target);
         activeById.set(target.SnapshotId, target);
         context.report.restored.push(`projectile.rebuilt:${snapshot.id}`);

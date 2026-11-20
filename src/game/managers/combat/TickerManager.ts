@@ -490,6 +490,9 @@ export default class TickerManager extends BaseManager {
     resetTickManagerClock();
     PhaserEventBus.off(PhaserEvents.RoomGameStart, this.handleRoomGameStart, this);
     this.timers.clear();
+    // 工厂在每局 Load() 时重新注册；跨局残留会让 checkpoint 重建出上一局
+    // 才有的 timer kind，因此这里一并清空。
+    this.timerFactories.clear();
     this.nextTimerId = 1;
     this.nextLocalTimerId = -1;
     this.currentFrame = 0;

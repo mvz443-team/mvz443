@@ -464,8 +464,23 @@ export function updateAllTickManagers(frame: number, frameIntervalMs?: number): 
   }
 }
 
-/** 新开一局时重置实体定时器时钟，避免沿用上一局的高帧号。 */
+/**
+ * 跨局销毁全部实体定时器。
+ *
+ * 旧局实体只从 Manager 的 Map 里移除，EntityTickManager 仍留在全局集合里；
+ * 不清理的话它们会在新局继续 tick，并按旧 SnapshotId 写 logic.events，
+ * 直接造成连续开局第一帧分叉。
+ */
+export function clearAllTickManagers(): void {
+  for (const manager of [...managedTickManagers]) {
+    manager.dispose();
+  }
+  managedTickManagers.clear();
+}
+
+/** 新开一局时重置实体定时器时钟并清理上一局残留，避免沿用旧帧号与旧实体循环。 */
 export function resetTickManagerClock(): void {
+  clearAllTickManagers();
   currentLogicFrame = 0;
   authoritativeFrame = 0;
   pendingCreationFrame = null;

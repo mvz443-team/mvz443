@@ -86,6 +86,13 @@ export class LogicEventQueue {
     this.nextEventId = snapshot.nextEventId;
     this.events = snapshot.events.map((event) => ({ ...event }));
   }
+
+  /** 跨局清空：事件队列进入模拟哈希，旧局残留会让新局第一帧就分叉。 */
+  public reset(): void {
+    this.frame = 0;
+    this.nextEventId = 1;
+    this.events = [];
+  }
 }
 
 export const logicEvents = new LogicEventQueue();

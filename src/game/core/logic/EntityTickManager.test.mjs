@@ -10,6 +10,7 @@ const {
   updateAllTickManagers,
   setAuthoritativeFrame,
   withTickFrame,
+  resetTickManagerClock,
 } = await import('./EntityTickManager.ts');
 const { invokeTickEventCallback } = await import('./TickEvents.ts');
 
@@ -143,4 +144,25 @@ test('同进程回滚：已触发删除的 TimerTriggered 计时器仍可恢复'
   assert.equal(restored[0].args, captured[0].args);
   assert.deepEqual(report.missing, []);
   ticker.dispose();
+});
+
+test('跨局重置清理上一局残留实体定时器，避免旧实体继续写事件', () => {
+  const fired = [];
+  const stale = withTickFrame(0, () => new EntityTickManager({
+    handleTickEvent(eventName) { fired.push(eventName); },
+  }));
+  stale.setOwnerId('mob:1:1');
+  stale.schedule('MonsterAttack', 50, { loop: true });
+
+  // 模拟新一局开始：时钟重置必须同时销毁旧 manager，否则它们会继续 tick。
+  resetTickManagerClock();
+  updateAllTickManagers(1, 50);
+  assert.deepEqual(fired, [], '上一局实体不得在新局继续 tick');
+
+  const fresh = withTickFrame(1, () => new EntityTickManager({ handleTickEvent() {} }));
+  fresh.setOwnerId('mob:1:1');
+  fresh.schedule('tick', 50);
+  updateAllTickManagers(2, 50);
+  assert.equal(fresh.capture().length, 0, '新局实体仍应正常触发一次性定时器');
+  fresh.dispose();
 });

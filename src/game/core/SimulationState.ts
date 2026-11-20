@@ -643,6 +643,10 @@ export class StateRegistry {
         report.ok = false;
         report.errors.push(`physics: ${String(error)}`);
       }
+    } else if (state.physics === null) {
+      // 设计如此：inline/checkpoint 快照有意不含 Rapier world，物理状态由
+      // 实体位置/速度重建。不能把它当成恢复漏项污染诊断报告。
+      report.restored.push("physics(excluded-by-design)");
     } else {
       report.missing.push("physics(未注册恢复)");
     }

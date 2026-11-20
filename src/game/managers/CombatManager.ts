@@ -230,6 +230,8 @@ export default class CombatManager extends BaseManager {
     this.lastStateHashFrame = 0;
     this.snapshotRing.clear();
     this.frameStateCache.clear();
+    // logic.events 进入模拟哈希；跨局必须清空，否则第二局首帧两端摘要不同。
+    logicEvents.reset();
     this.pendingDeterminismCheck = null;
     this.lastRestoreReport = null;
     this.desyncOffline = false;
@@ -275,6 +277,11 @@ export default class CombatManager extends BaseManager {
       this.scene.time.timeScale = 1;
     }
     this.elapsedFrameTime = 0;
+    // 全新开局（尚未消费权威帧）时清掉上一局的事件队列；重连回放帧号 > 0 时
+    // 快照会恢复事件历史，这里不能清。
+    if ((SyncManager.Instance.recvQueue?.currentFrameId ?? 0) <= 0) {
+      logicEvents.reset();
+    }
     this.isGameEnd = false;
     this.isEndGameRequested = false;
     this.isPaused = false;
@@ -339,6 +346,9 @@ export default class CombatManager extends BaseManager {
 
   /** 服务端请求快照：把当前确定性状态回传，供其他玩家重连恢复。 */
   private handleSnapshotRequest = ({ requestId }: { requestId: number }) => {
+    // 该回调来自 WS 消息，可能落在固定步之外；先 flush，避免把尚未 adopt
+    // 稳定 id 的实体（临时 uniqueId）写进快照/哈希。
+    DeferredManager.Instance.flush();
     const snapshot = this.captureCheckpoint();
     if (!snapshot || !snapshot.payload) {
       return;
@@ -736,6 +746,8 @@ export default class CombatManager extends BaseManager {
     let hash: ReturnType<typeof simulationState.hash> | null = null;
     let captureError: string | null = null;
     try {
+      // 诊断导出同样可能发生在固定步之外；先 flush 保证快照口径与权威帧一致。
+      DeferredManager.Instance.flush();
       state = this.captureState();
       hash = simulationState.hash(state);
     } catch (error) {
