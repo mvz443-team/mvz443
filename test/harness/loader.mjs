@@ -42,7 +42,9 @@ const STUB_RULES = [
   [/\/utils\/cmd\/SfxCmd\.ts$/, stub("cmd-sfx.mjs")],
   [/\/utils\/cmd\/SoundCmd\.ts$/, stub("cmd-sound.mjs")],
 
-  [/\/utils\/helper\/PlantHelper\.ts$/, stub("helper-plant.mjs")],
+  // PlantHelper 只依赖 Manager 单例，可在替身环境下直接跑真实实现：
+  // 这样 GetPlantsInGrid / IsMorePriorityPlant / 护盾路由都按真实代码验收。
+  [/\/utils\/helper\/PlantHelper\.ts$/, null],
   [/\/utils\/helper\/StageHelper\.ts$/, stub("helper-stage.mjs")],
 
   [/\/presets\/obstacle\/index\.ts$/, stub("obstacle-data.mjs")],

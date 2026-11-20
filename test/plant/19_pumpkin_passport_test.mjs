@@ -6,6 +6,7 @@ import {
   spawnMob,
   getPlantsMap,
   levelValues,
+  tick,
 } from "../harness/sim.mjs";
 import { PumpkinPassportData } from "../../src/game/presets/plant/chapter2/pumpkin_passport.ts";
 import { DispenserData } from "../../src/game/presets/plant/chapter1/dispenser.ts";
@@ -147,6 +148,105 @@ test("同格护盾植物先承受伤害，护照破碎后内部植物才掉血",
   passport.model.health = 0;
   inner.entity.takeDamage(200);
   assert.equal(inner.model.health, inner.model.healthMax - 200);
+});
+
+/**
+ * 植物死亡信号 → 攻击者一次性接触重检。
+ *
+ * 用真实伤害链路（takeDamage → redirectDamageToShield → die → destroy → 通知攻击者）
+ * 验证三种同格组合，替身 destroy 与真实 PlantEntity.destroy 保持一致。
+ */
+function setupCell(plants, cell = "3-1") {
+  getPlantsMap().set(cell, plants.map((plant) => plant.entity));
+  return plants;
+}
+
+test("真实链路：南瓜护照碎了 → 僵尸接力同格内部植物", () => {
+  const sim = resetSim();
+  const inner = spawnPlant(DispenserData, { level: 1, col: 3, row: 1 });
+  const passport = spawnPlant(PumpkinPassportData, { level: 1, col: 3, row: 1 });
+  setupCell([inner, passport]);
+
+  const { model, entity } = spawnMob(ZombieData, { col: 4, row: 1 });
+  passport.model.health = 20;
+  assert.equal(model.tryStartAttack(entity, passport.entity), true);
+
+  tick(sim, 200);
+  assert.equal(passport.model.health, 0);
+  assert.equal(entity.attacking, inner.entity);
+  assert.equal(inner.model.health, inner.model.healthMax);
+
+  // 继续啃：下一口落在内部植物身上。
+  tick(sim, 200);
+  assert.equal(inner.model.health, inner.model.healthMax - 20);
+});
+
+test("真实链路：睡莲 + 内部植物，内部植物碎了 → 僵尸接力睡莲", () => {
+  const sim = resetSim();
+  const lily = spawnPlant(LilyData, { level: 1, col: 3, row: 1 });
+  const inner = spawnPlant(DispenserData, { level: 1, col: 3, row: 1 });
+  setupCell([lily, inner]);
+
+  const { model, entity } = spawnMob(ZombieData, { col: 4, row: 1 });
+  inner.model.health = 20;
+  assert.equal(model.tryStartAttack(entity, inner.entity), true);
+
+  tick(sim, 200);
+  assert.equal(inner.model.health, 0);
+  assert.equal(entity.attacking, lily.entity);
+
+  tick(sim, 200);
+  assert.equal(lily.model.health, lily.model.healthMax - 20);
+});
+
+test("真实链路：睡莲 + 南瓜护照 + 内部植物，逐层接力后才前进", () => {
+  const sim = resetSim();
+  const lily = spawnPlant(LilyData, { level: 1, col: 3, row: 1 });
+  const inner = spawnPlant(DispenserData, { level: 1, col: 3, row: 1 });
+  const passport = spawnPlant(PumpkinPassportData, { level: 1, col: 3, row: 1 });
+  setupCell([lily, inner, passport]);
+
+  const { model, entity } = spawnMob(ZombieData, { col: 4, row: 1 });
+  passport.model.health = 20;
+  assert.equal(model.tryStartAttack(entity, passport.entity), true);
+
+  // 1) 护照碎 → 内部植物
+  tick(sim, 200);
+  assert.equal(entity.attacking, inner.entity);
+  assert.equal(lily.model.health, lily.model.healthMax);
+
+  // 2) 内部植物碎 → 睡莲（承载物最后）
+  inner.model.health = 20;
+  tick(sim, 200);
+  assert.equal(entity.attacking, lily.entity);
+  assert.equal(inner.model.health, 0);
+
+  // 3) 睡莲碎 → 格子空了才继续前进
+  lily.model.health = 20;
+  tick(sim, 200);
+  assert.equal(entity.attacking, null);
+  assert.equal(entity.moveCalls.filter((call) => call === "start").length > 0, true);
+});
+
+test("死亡信号丢失时，下一次普攻也会做一次性接触重检", () => {
+  const sim = resetSim();
+  const inner = spawnPlant(DispenserData, { level: 1, col: 3, row: 1 });
+  const passport = spawnPlant(PumpkinPassportData, { level: 1, col: 3, row: 1 });
+  setupCell([inner, passport]);
+
+  const { model, entity } = spawnMob(ZombieData, { col: 4, row: 1 });
+  passport.model.health = 20;
+  assert.equal(model.tryStartAttack(entity, passport.entity), true);
+
+  // 模拟信号链路断掉：护照直接消失，没有通知攻击者。
+  passport.model.health = 0;
+  passport.entity.underAttackBy.clear();
+  getPlantsMap().set("3-1", [inner.entity]);
+
+  tick(sim, 200);
+  assert.equal(entity.attacking, inner.entity);
+  tick(sim, 200);
+  assert.equal(inner.model.health, inner.model.healthMax - 20);
 });
 
 test("护盾植物自己不会把伤害转给自己", () => {

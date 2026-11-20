@@ -63,7 +63,17 @@ const sharedInstance = {
   },
   RegisterObstacleLaneAlias() {},
   UnregisterObstacleLaneAlias() {},
-  RegisterDestroy() {},
+  /** 与真实 PlantsManager.RegisterDestroy 一致：从格子里移除。 */
+  RegisterDestroy(plant) {
+    if (!plant || plant.col === undefined || plant.row === undefined) return;
+    const key = `${plant.col}-${plant.row}`;
+    const list = plantsMap.get(key);
+    if (!list) return;
+    const index = list.indexOf(plant);
+    if (index < 0) return;
+    list.splice(index, 1);
+    if (list.length === 0) plantsMap.delete(key);
+  },
   RegisterPlant(plant) {
     if (plant?.col === undefined || plant?.row === undefined) return;
     const key = `${plant.col}-${plant.row}`;

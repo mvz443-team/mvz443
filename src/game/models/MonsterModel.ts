@@ -215,45 +215,65 @@ export abstract class MonsterModel extends LogicModel {
   }
 
   /**
-   * 当前普攻目标消失（被打碎 / 被铲除）时的权威帧补判。
+   * 当前普攻目标消失（被打碎 / 被铲除）时的一次性接触重检。
    *
-   * Rapier 的 sensor 只在 overlap-start 派发事件：僵尸停下来啃护盾植物（南瓜护照）时，
-   * 与同格内部植物的那次碰撞早已消耗掉，护盾碎了以后不会有新的碰撞事件。
-   * 因此必须在护盾破碎的这一帧主动接管同格的下一个目标，否则僵尸会无视内部植物继续前进。
+   * 信号来源：`PlantEntity.destroy()` 在权威帧把"我死了"发给 `underAttackBy` 里的怪物。
+   * Rapier 的 sensor 只在 overlap-start 派发事件，僵尸停下来啃护盾时与同格其它植物
+   * 的那次碰撞早已消耗掉，不会再有新事件；所以收到信号的这一帧做**一次**接触重检：
+   * 扫「刚死掉的那一格」和「怪物自己当前所在的格」，挑一个继续啃。
+   * 之后不再轮询，避免每帧开销和渲染时钟依赖。
    */
   public onAttackTargetDestroyed(entity: MonsterEntity, destroyed: BaseEntity | null): void {
     // 已经被别的路径换过目标，不再重复处理。
     if (destroyed && entity.attacking && entity.attacking !== destroyed) return;
-    if (this.tryRetargetInCell(entity, destroyed)) return;
+    const next = this.pickContactTarget(entity, destroyed);
+    if (next && this.retargetAttack(entity, next)) return;
     this.stopAttacking(entity);
   }
 
-  /** 在同格找下一个可攻击目标并原地换目标；普攻节奏保持不变。 */
-  private tryRetargetInCell(entity: MonsterEntity, lost: BaseEntity | null): boolean {
-    const cell = lost as unknown as { col?: number; row?: number } | null;
-    if (!cell || typeof cell.col !== "number" || typeof cell.row !== "number") return false;
+  /**
+   * 一次性接触重检：把「死掉的那一格」与「自己当前所在格」的植物收集起来。
+   *
+   * 两格都要扫：僵尸啃植物时身体中心通常落在目标格的右邻格，
+   * 只按自己的格子找会漏；而目标被别的路径清空时又只剩自己的格子可用。
+   */
+  private pickContactTarget(entity: MonsterEntity, destroyed: BaseEntity | null): PlantEntity | null {
+    const cells: Array<{ col: number, row: number }> = [];
+    const lost = destroyed as unknown as { col?: number, row?: number } | null;
+    if (lost && typeof lost.col === "number" && typeof lost.row === "number") {
+      cells.push({ col: lost.col, row: lost.row });
+    }
+    const selfCell = PositionManager.Instance.GetGridByPos(entity.x, entity.y);
+    if (selfCell.col >= 0 && selfCell.row >= 0) {
+      cells.push({ col: selfCell.col, row: selfCell.row });
+    }
 
-    const next = this.pickPlantInCell(cell.col, cell.row, lost);
-    return next ? this.retargetAttack(entity, next) : false;
+    const visited = new Set<string>();
+    const candidates: PlantEntity[] = [];
+    for (const cell of cells) {
+      const key = `${cell.col}-${cell.row}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+      for (const plant of PlantHelper.GetPlantsInGrid(cell.col, cell.row)) {
+        if ((plant as unknown as BaseEntity) === destroyed) continue;
+        if (candidates.includes(plant)) continue;
+        if (!this.canStartAttack(plant)) continue;
+        candidates.push(plant);
+      }
+    }
+    return this.pickBestCandidate(candidates);
   }
 
   /**
-   * 选出同格里的下一个普攻目标。
+   * 选出下一个普攻目标。
    *
    * 结果必须与 `PlantsMap` 里的数组顺序无关：断线重连时实体是按快照顺序
    * （稳定 id 排序）重建的，插入顺序与"连续运行"的客户端不同。
    * 用 `IsMorePriorityPlant` 折叠会退化成顺序相关（粉尘植物与护盾会互相"高于"对方），
    * 于是这里改成显式全序：护盾外壳 → 粉尘植物 → 普通植物 → 承载物，同级再按 pid / 稳定 id 兜底。
    */
-  private pickPlantInCell(col: number, row: number, exclude: BaseEntity | null): PlantEntity | null {
-    const candidates: PlantEntity[] = [];
-    for (const plant of PlantHelper.GetPlantsInGrid(col, row)) {
-      if ((plant as unknown as BaseEntity) === exclude) continue;
-      if (!this.canStartAttack(plant)) continue;
-      candidates.push(plant);
-    }
+  private pickBestCandidate(candidates: PlantEntity[]): PlantEntity | null {
     if (candidates.length === 0) return null;
-
     candidates.sort((a, b) => {
       const rank = attackTargetRank(a.pid) - attackTargetRank(b.pid);
       if (rank !== 0) return rank;

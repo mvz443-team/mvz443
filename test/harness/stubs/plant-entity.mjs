@@ -137,6 +137,23 @@ export class PlantEntity extends CombatEntity {
   hasSightTarget() { return false; }
   onDeath() { this.model.onDeath(this); }
   destroySelf() { this.destroyed = true; }
+
+  /**
+   * 与真实 PlantEntity.destroy 一致：先通知正在啃自己的怪物，
+   * 让 Model 在权威帧决定"同格接力"还是"继续前进"。
+   */
+  destroy() {
+    this.currentHealth = 0;
+    for (const attacker of [...this.underAttackBy]) {
+      if (typeof attacker?.onAttackTargetDestroyed === "function") {
+        attacker.onAttackTargetDestroyed(this);
+      }
+    }
+    this.underAttackBy.clear();
+    this.model.onDeath?.(this);
+    manager.Instance?.RegisterDestroy?.(this);
+    this.destroyed = true;
+  }
   initializeEntity() {
     if (this.initialized) return this;
     this.initialized = true;

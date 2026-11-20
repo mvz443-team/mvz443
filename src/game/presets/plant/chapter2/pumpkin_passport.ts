@@ -170,8 +170,9 @@ export class PumpkinPassportEntity extends PlantEntity {
   private isShellBroken(): boolean {
     const model = this.model as PumpkinPassportModel;
     const ratio = model.brokenHealthRatio;
-    const max = this.maxHealth;
-    if (max <= 0) return false;
+    // 血量上限读 Model 的运行时字段：Entity 上的 maxHealth 可能被同名配置遮蔽。
+    const max = model.healthMax;
+    if (!(max > 0)) return false;
     return this.currentHealth <= max * ratio;
   }
 

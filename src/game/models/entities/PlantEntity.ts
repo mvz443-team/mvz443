@@ -13,7 +13,6 @@ import { BaseEntity } from "../core/BaseEntity";
 import { SfxCmd } from "../../utils/cmd/SfxCmd";
 import SoundCmd from "../../utils/cmd/SoundCmd";
 import { StarShardsBurstSfx } from "../../sfx/star/StarShardsBurstSfx";
-import { MonsterEntity } from "./MonsterEntity";
 import { getLevelBadgeTextureKey } from "../../ui/levelBadgeSvg";
 import type { JsonValue } from "../../core/SimulationState";
 import { PLANT_PRNG_FIELDS, PLANT_RELATION_FIELDS } from "../../core/logic/LogicRelations";
@@ -269,11 +268,14 @@ export abstract class PlantEntity extends CombatEntity {
     this.currentHealth = 0;
     this.hideSleepingSfx();
     for (const attacker of [...this.underAttackBy]) {
-      if (attacker instanceof MonsterEntity) {
-        // 不要直接 stopAttacking：同格可能还有内部植物（例如护盾碎了露出器械），
-        // 由 Model 在权威帧决定换目标还是继续前进。
-        attacker.onAttackTargetDestroyed(this);
-      }
+      // 不要直接 stopAttacking：同格可能还有内部植物（例如护盾碎了露出器械），
+      // 由 Model 在权威帧做一次性接触重检，决定换目标还是继续前进。
+      // 这里用鸭子类型而不是 instanceof：信号链路不能依赖具体子类，
+      // 也不该因为模块身份/重建实例差异而静默丢事件。
+      const listener = attacker as unknown as {
+        onAttackTargetDestroyed?: (target: PlantEntity) => void;
+      };
+      listener.onAttackTargetDestroyed?.(this);
     }
     this.underAttackBy.clear();
     this.model.onDeath(this);
