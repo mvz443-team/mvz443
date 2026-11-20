@@ -94,7 +94,11 @@ export async function resolve(specifier, context, nextResolve) {
 
   const relativeTarget = tryRelativeFile(specifier, context);
   if (relativeTarget) {
-    const replacement = mapStub(relativeTarget);
+    // 投射物跨局重置测试必须加载真实 ProjectileCmd；其他测试仍用替身隔离。
+    const isProjectileResetTest = String(context.parentURL ?? "").includes("ProjectileCmd.test.mjs");
+    const wantsRealProjectileCmd = isProjectileResetTest
+      && relativeTarget.replace(/\\/g, "/").endsWith("/utils/cmd/ProjectileCmd.ts");
+    const replacement = wantsRealProjectileCmd ? null : mapStub(relativeTarget);
     return {
       url: replacement ?? pathToFileURL(relativeTarget).href,
       shortCircuit: true,

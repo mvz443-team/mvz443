@@ -797,6 +797,10 @@ export class Game extends Scene {
       console.warn('[Game] teardownSceneInput skipped.', error);
     }
 
+    // 投射物注册表与序号不在 ManagerGroup 里，必须显式跨局清理：
+    // 它们进入状态摘要，上一局残留会让新一局第一帧就分叉。
+    ProjectileCmd.clearProjectiles(this);
+
     // 只重置仍绑定到本场景的 manager：极端时序下若新一局已 setScene，
     // 不能把新一局刚 Load 好的状态清掉。
     for (const manager of this.ManagerGroup) {

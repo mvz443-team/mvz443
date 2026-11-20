@@ -123,7 +123,15 @@ export namespace ProjectileCmd {
     }
   }
 
-  export function clearProjectiles(): void {
+  /**
+   * 跨局清理：销毁残留投射物并复位序号。
+   *
+   * `projectile.seq` 会进入跨端哈希，页面不刷新连续开第二局时，上一局的
+   * 序号和未销毁的投射物若残留，第二局第一帧两端摘要必然分叉。传入 scene
+   * 时只清理属于该局的注册表，避免新旧场景交替时序误清新一局状态。
+   */
+  export function clearProjectiles(scene?: Game): void {
+    if (scene && activeScene && activeScene !== scene) return;
     for (const entity of [...activeProjectiles]) {
       entity.destroySilently();
     }

@@ -69,12 +69,21 @@ test('双无痕窗口联机：同帧权威操作的确定性状态哈希一致',
     const afterOps = await waitForMatchingHashFrame(owner, guest, 30000, atStart.frameId);
     expect(afterOps.a).toBe(afterOps.b);
 
+    // 首怪窗口（wave 0 准备结束后 wave 1 出怪，约 frame 420~520）必须再次比对。
+    // 早期采样点没有怪物实体，覆盖不到实体身份/坐标/计时器进入哈希后的分叉；
+    // 这里要求双方在同一帧采样到相同哈希，守护“首怪刷新即 desync”的回归。
+    const afterFirstSpawn = await waitForMatchingHashFrame(owner, guest, 60000, 440);
+    expect(afterFirstSpawn.a).toBe(afterFirstSpawn.b);
+
     // 帧推进本身也要对齐：两端权威帧号不应相差超过 1（网络抖动允许一帧差）。
-    const [fA, fB] = await Promise.all([
-      netState(owner).then((s) => s.frameId),
-      netState(guest).then((s) => s.frameId),
-    ]);
-    expect(Math.abs(fA - fB)).toBeLessThanOrEqual(1);
+    // 用 poll 等待对齐，避免单次采样恰好落在某一端刚收到新帧的瞬间。
+    await expect.poll(async () => {
+      const [fA, fB] = await Promise.all([
+        netState(owner).then((s) => s.frameId),
+        netState(guest).then((s) => s.frameId),
+      ]);
+      return Math.abs(fA - fB);
+    }, { timeout: 10000, intervals: [100, 200, 500] }).toBeLessThanOrEqual(1);
   } finally {
     await contextA.close();
     await contextB.close();

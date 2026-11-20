@@ -262,6 +262,7 @@ function buildNetTestHooks({ saveManager, phaserRef, setGameParams, gameExit }: 
         plants,
         zombies,
         projectiles: ProjectileCmd.getActiveProjectiles().length,
+        projectileSeq: ProjectileCmd.captureSequence(),
         phaserFps: game?.game?.loop?.actualFps ?? null,
         phaserDelta: game?.game?.loop?.delta ?? null,
       };
