@@ -319,45 +319,53 @@ export class PlantCardView {
   }
 
   private draw() {
-    redrawSlotFrame(
-      this.bg,
-      this.width,
-      this.height,
-      SLOT_FILL,
-      SLOT_BORDER,
-      SLOT_STROKE,
-    );
-    this.overlay.clear();
-    if (this.expensive) {
-      this.overlay.fillStyle(0x921f1f, 0.24);
-      this.overlay.fillRoundedRect(0, 0, this.width, this.height, slotRadius(this.width, this.height));
-    }
-    if (!this.reloaded && this.leftPercent > 0) {
-      this.overlay.fillStyle(0x111111, 0.62);
-      if (this.frame === "mobile-square") {
-        const fillWidth = this.width * this.leftPercent;
-        this.overlay.fillRoundedRect(
-          0,
-          0,
-          fillWidth,
-          this.height,
-          Math.min(slotRadius(this.width, this.height), fillWidth * 0.5),
-        );
-      } else {
-        const fillHeight = this.height * this.leftPercent;
-        this.overlay.fillRoundedRect(
-          0,
-          0,
-          this.width,
-          fillHeight,
-          Math.min(slotRadius(this.width, this.height), fillHeight * 0.5),
-        );
+    // 单例 manager 的事件总线跨对局存活；若残留订阅驱动到已销毁的卡牌，
+    // Graphics/Text 的 CanvasTexture 已被回收，重绘会抛 drawImage 空指针。
+    // 与 EnergyPanelView.setEnergy 一致：表现层异常必须吞掉。
+    if (!this.container?.scene || !this.overlay?.scene || !this.selectionGlow?.scene) return;
+    try {
+      redrawSlotFrame(
+        this.bg,
+        this.width,
+        this.height,
+        SLOT_FILL,
+        SLOT_BORDER,
+        SLOT_STROKE,
+      );
+      this.overlay.clear();
+      if (this.expensive) {
+        this.overlay.fillStyle(0x921f1f, 0.24);
+        this.overlay.fillRoundedRect(0, 0, this.width, this.height, slotRadius(this.width, this.height));
       }
-    }
-    this.costText?.setColor(this.expensive ? "#ff2f2f" : "#ffffff");
-    this.selectionGlow.clear();
-    if (this.selected) {
-      drawSlotSelectionOutline(this.selectionGlow, this.width, this.height);
+      if (!this.reloaded && this.leftPercent > 0) {
+        this.overlay.fillStyle(0x111111, 0.62);
+        if (this.frame === "mobile-square") {
+          const fillWidth = this.width * this.leftPercent;
+          this.overlay.fillRoundedRect(
+            0,
+            0,
+            fillWidth,
+            this.height,
+            Math.min(slotRadius(this.width, this.height), fillWidth * 0.5),
+          );
+        } else {
+          const fillHeight = this.height * this.leftPercent;
+          this.overlay.fillRoundedRect(
+            0,
+            0,
+            this.width,
+            fillHeight,
+            Math.min(slotRadius(this.width, this.height), fillHeight * 0.5),
+          );
+        }
+      }
+      this.costText?.setColor(this.expensive ? "#ff2f2f" : "#ffffff");
+      this.selectionGlow.clear();
+      if (this.selected) {
+        drawSlotSelectionOutline(this.selectionGlow, this.width, this.height);
+      }
+    } catch (error) {
+      console.warn("[PlantCardView] draw skipped because the view is no longer available.", error);
     }
   }
 

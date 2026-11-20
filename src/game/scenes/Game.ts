@@ -96,6 +96,14 @@ export class Game extends Scene {
     this.toggleOnlinePauseMenu();
   };
 
+  /**
+   * 场景关闭/销毁时统一拆掉本局资源。game.destroy(true)（暂停退出、结算、
+   * fps 重建）在 Phaser 中只派发 DESTROY，不派发 SHUTDOWN，因此两者都要挂。
+   */
+  private readonly onSceneTeardown = () => {
+    this.teardownSession();
+  };
+
   public toggleOnlinePauseMenu() {
     const pauseMenu = (this as any).pauseMenu as import('../ui/menu/PauseMenu').PauseMenu | null;
     if (!pauseMenu) return;
@@ -128,6 +136,9 @@ export class Game extends Scene {
 
 
   private static preparedScene: Game | null = null;
+
+  /** 对局拆除幂等标记：SHUTDOWN / DESTROY / 正常结算可能先后触发，只能拆一次。 */
+  private hasTornDown = false;
 
   constructor() {
     console.log('Game constructor');
@@ -296,7 +307,8 @@ export class Game extends Scene {
     CombatManager.Instance.Eventbus.on('onCombatPause', this.onCombatPauseHandler);
     CombatManager.Instance.Eventbus.on('onCombatResume', this.onCombatResumeHandler);
     this.offNotifyFlagWave = MobManager.Instance.EventBus.on('onNotifyFlagWave', this.onNotifyFlagWaveHandler);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanupSceneListeners, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.onSceneTeardown, this);
+    this.events.once(Phaser.Scenes.Events.DESTROY, this.onSceneTeardown, this);
 
     ConsoleCmd.install(this);
     console.log('[Game] battle view ready (battle logic was prepared in Preloader)');
@@ -745,16 +757,17 @@ export class Game extends Scene {
     this.offNotifyFlagWave = null;
   }
 
-  // 游戏退出真实入口, 由消息队列调用
-  private handleRoomGameEnd({ isWin = false }: { isWin?: boolean } = {}) {
-    if (CombatManager.Instance.isDesyncOffline()) {
-      CombatManager.Instance.exportDesyncLog();
-    }
-    CombatManager.Instance.exportNetDebugLog("game-end");
+  /**
+   * 幂等拆掉本局所有跨局残留：全局事件监听、单例 manager、UI 与静态缓存。
+   * 正常结算、SHUTDOWN、DESTROY 三条路径都会进入这里，先到者生效。
+   */
+  private teardownSession() {
+    if (this.hasTornDown) return;
+    this.hasTornDown = true;
+
     this.cleanupSceneListeners();
 
     ConsoleCmd.uninstall(this);
-    SoundManager.Instance.Reset();
     this.debugFrameText?.destroy();
     this.debugFrameText = null;
     this.netStatusBadge?.destroy();
@@ -764,26 +777,47 @@ export class Game extends Scene {
     this.bottomBarUi?.destroy();
     this.bottomBarUi = null;
 
-    // 销毁暂停菜单
-    const pauseMenu = (this as any).pauseMenu;
+    const pauseMenu = (this as any).pauseMenu as import('../ui/menu/PauseMenu').PauseMenu | null;
     if (pauseMenu) {
       pauseMenu.destroy();
+      (this as any).pauseMenu = null;
     }
 
-    // 移除所有对game的监听，停止所有事件响应
-    this.sound.stopAll();
-    this.input.keyboard?.removeAllKeys(true, true);
-    this.input.keyboard?.removeAllListeners();
-    this.tweens.killAll();
+    // 移除所有对 game 的监听，停止所有事件响应。DESTROY 阶段 Phaser 尚未
+    // 清空这些插件，但部分插件可能已 shutdown，用 ?. 与 try 兜底。
+    try {
+      this.sound?.stopAll();
+      this.input?.keyboard?.removeAllKeys(true, true);
+      this.input?.keyboard?.removeAllListeners();
+      this.tweens?.killAll();
+      this.input?.keyboard?.removeAllKeys();
+      this.input?.off('pointerup');
+      this.input?.off('pointermove');
+    } catch (error) {
+      console.warn('[Game] teardownSceneInput skipped.', error);
+    }
 
-    this.input.keyboard?.removeAllKeys(); // Clean up keyboard listeners
-    this.input.off('pointerup'); // Remove pointer listeners
-    this.input.off('pointermove');
-
-    // TODO: Reset managers
+    // 只重置仍绑定到本场景的 manager：极端时序下若新一局已 setScene，
+    // 不能把新一局刚 Load 好的状态清掉。
     for (const manager of this.ManagerGroup) {
-      manager.Reset();
+      if (manager.getScene() === this) {
+        manager.Reset();
+      }
     }
+    this.ManagerGroup = [];
+
+    if (Game.preparedScene === this) Game.preparedScene = null;
+    const globalGame = window as unknown as { __MVZ443_GAME__?: Game };
+    if (globalGame.__MVZ443_GAME__ === this) delete globalGame.__MVZ443_GAME__;
+  }
+
+  // 游戏退出真实入口, 由消息队列调用
+  private handleRoomGameEnd({ isWin = false }: { isWin?: boolean } = {}) {
+    if (CombatManager.Instance.isDesyncOffline()) {
+      CombatManager.Instance.exportDesyncLog();
+    }
+    CombatManager.Instance.exportNetDebugLog("game-end");
+    this.teardownSession();
 
     this.scene.start('GameOver');
     this.params.gameExit({

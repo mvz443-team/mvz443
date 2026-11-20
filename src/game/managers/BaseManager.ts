@@ -15,6 +15,14 @@ export abstract class BaseManager {
     this.scene = scene;
   }
 
+  /**
+   * 当前绑定的场景。跨局清理时用它判断 manager 是否仍属于即将销毁的对局，
+   * 避免误清新一局已 setScene/Load 的状态。
+   */
+  public getScene(): Game | null {
+    return this.scene;
+  }
+
   // 新游戏开始时加载
   public abstract Load(): void;
 

@@ -53,8 +53,22 @@ export class PauseMenu {
   }
 
   private getMenuLayout(): PauseMenuLayout {
-    const centerX = this.game.cameras.main.width / 2;
-    const startY = this.game.cameras.main.height * 0.15;
+    // 旧对局残留的全局事件可能调到已 DESTROY 的场景，此时 cameras.main 为空。
+    const mainCamera = this.game?.cameras?.main;
+    if (!mainCamera) {
+      return {
+        centerX: 0,
+        startY: 0,
+        menuWidth: 400,
+        contentWidth: 400 - 96,
+        paddingX: 48,
+        paddingTop: 96,
+        paddingBottom: 28,
+        gap: 16,
+      };
+    }
+    const centerX = mainCamera.width / 2;
+    const startY = mainCamera.height * 0.15;
     const isMobile = this.game.params.deviceType === "mobile";
     const menuWidth = Math.min(this.game.scale.displaySize.width * (isMobile ? 0.78 : 0.6), isMobile ? 430 : 400);
     const paddingX = Math.max(28, menuWidth * 0.12);
@@ -313,6 +327,8 @@ export class PauseMenu {
   }
 
   public show(options: PauseMenuShowOptions = {}) {
+    // 全局事件总线是跨对局单例；旧对局若未及时退订，这里会被调到已销毁场景。
+    if (!this.game?.cameras?.main) return;
     const { bluePrintMode = false, onlineMode = false } = options;
 
     this.isVisible = true;
