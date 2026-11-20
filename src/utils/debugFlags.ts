@@ -61,8 +61,31 @@ export function isNetDebugEnabled(): boolean {
   return readBooleanFlag(NET_DEBUG_STORAGE_KEY, "netDebug");
 }
 
+type NetDebugListener = (enabled: boolean) => void;
+const netDebugListeners = new Set<NetDebugListener>();
+
+/** 诊断设施订阅开关变化；设置页切换后立即生效，不必重载页面。 */
+export function subscribeNetDebugEnabled(listener: NetDebugListener): () => void {
+  netDebugListeners.add(listener);
+  return () => netDebugListeners.delete(listener);
+}
+
+function notifyNetDebugEnabled(enabled: boolean): void {
+  for (const listener of [...netDebugListeners]) listener(enabled);
+}
+
 export function setNetDebugEnabled(value: boolean): boolean {
-  return writeBooleanFlag(NET_DEBUG_STORAGE_KEY, value);
+  const applied = writeBooleanFlag(NET_DEBUG_STORAGE_KEY, value);
+  notifyNetDebugEnabled(applied);
+  return applied;
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (event.key === NET_DEBUG_STORAGE_KEY) {
+      notifyNetDebugEnabled(isNetDebugEnabled());
+    }
+  });
 }
 
 // 兼容旧调用名。

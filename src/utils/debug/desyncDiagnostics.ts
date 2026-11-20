@@ -10,7 +10,7 @@
  */
 
 import { perfSampler } from "./perfSampler";
-import { isNetDebugEnabled } from "../debugFlags";
+import { isNetDebugEnabled, subscribeNetDebugEnabled } from "../debugFlags";
 
 type LogEntry = {
   seq: number;
@@ -191,7 +191,8 @@ class DesyncDiagnostics {
   private readonly encodeCallbacks = new Map<number, (result: { hex: string; base64: string }) => void>();
   private readonly downloadedReasons = new Set<string>();
   private readonly fullNetworkDiagnostics: boolean;
-  private readonly enabled: boolean;
+  private enabled = false;
+  private readonly disposers: Array<() => void> = [];
 
   constructor() {
     this.fullNetworkDiagnostics = (() => {
@@ -201,12 +202,47 @@ class DesyncDiagnostics {
         return false;
       }
     })();
-    this.enabled = isNetDebugEnabled();
+    this.applyEnabled(isNetDebugEnabled());
+    subscribeNetDebugEnabled((enabled) => this.applyEnabled(enabled));
+  }
+
+  private applyEnabled(enabled: boolean): void {
+    if (this.enabled === enabled) return;
+    this.enabled = enabled;
+    if (!enabled) {
+      this.uninstall();
+      this.clear();
+      this.downloadedReasons.clear();
+      return;
+    }
     // 只在 netDebug=1 时安装；普通联机不再为每个 console/network 事件付诊断成本。
-    if (this.enabled && typeof window !== "undefined" && typeof document !== "undefined") {
+    if (typeof window !== "undefined" && typeof document !== "undefined") {
       this.install();
       this.installEncodeWorker();
     }
+  }
+
+  private uninstall(): void {
+    for (const dispose of this.disposers.splice(0)) {
+      try {
+        dispose();
+      } catch {
+        // 卸载失败不能影响游戏主流程。
+      }
+    }
+    this.installed = false;
+    if (typeof window !== "undefined") {
+      delete (window as unknown as Record<string, unknown>).__MVZ443_DESYNC_LOGS__;
+      delete (window as unknown as Record<string, unknown>).__MVZ443_DOWNLOAD_LOGS__;
+    }
+    if (this.encodeWorker) {
+      this.encodeWorker.terminate();
+      this.encodeWorker = null;
+    }
+    for (const callback of this.encodeCallbacks.values()) {
+      callback({ hex: "", base64: "" });
+    }
+    this.encodeCallbacks.clear();
   }
 
   /** 惰性创建编码 Worker；构造失败时所有调用自动回退到同步编码。 */
@@ -258,18 +294,23 @@ class DesyncDiagnostics {
       "debug",
     ];
     for (const level of levels) {
-      const original = console[level].bind(console);
-      console[level] = (...args: unknown[]) => {
+      const consoleMethods = console as unknown as Record<string, (...args: unknown[]) => void>;
+      const original = consoleMethods[level];
+      const wrapped = (...args: unknown[]) => {
         try {
           this.record("console", level, args.length === 1 ? args[0] : args);
         } catch {
           // 诊断日志不能影响原始 console 行为。
         }
-        original(...args);
+        original.apply(console, args);
       };
+      consoleMethods[level] = wrapped;
+      this.disposers.push(() => {
+        if (consoleMethods[level] === wrapped) consoleMethods[level] = original;
+      });
     }
 
-    window.addEventListener("error", (event) => {
+    const onError = (event: ErrorEvent) => {
       this.record("window-error", "uncaught error", {
         message: event.message,
         filename: event.filename,
@@ -277,9 +318,15 @@ class DesyncDiagnostics {
         colno: event.colno,
         error: event.error,
       });
-    });
-    window.addEventListener("unhandledrejection", (event) => {
+    };
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
       this.record("window-error", "unhandled rejection", { reason: event.reason });
+    };
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onUnhandledRejection);
+    this.disposers.push(() => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onUnhandledRejection);
     });
 
     const api = {
@@ -292,6 +339,14 @@ class DesyncDiagnostics {
     };
     (window as unknown as Record<string, unknown>).__MVZ443_DESYNC_LOGS__ = api;
     (window as unknown as Record<string, unknown>).__MVZ443_DOWNLOAD_LOGS__ = api.download;
+    this.disposers.push(() => {
+      if ((window as unknown as Record<string, unknown>).__MVZ443_DESYNC_LOGS__ === api) {
+        delete (window as unknown as Record<string, unknown>).__MVZ443_DESYNC_LOGS__;
+      }
+      if ((window as unknown as Record<string, unknown>).__MVZ443_DOWNLOAD_LOGS__ === api.download) {
+        delete (window as unknown as Record<string, unknown>).__MVZ443_DOWNLOAD_LOGS__;
+      }
+    });
   }
 
   public isEnabled(): boolean {
@@ -303,7 +358,7 @@ class DesyncDiagnostics {
   }
 
   public record(category: string, message: string, data?: unknown): void {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     const started = perfSampler.now();
     try {
       this.recordInner(category, message, data);
@@ -327,7 +382,7 @@ class DesyncDiagnostics {
   }
 
   public recordNetwork(direction: "send" | "recv", bytes: Uint8Array, note?: string): void {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     const started = perfSampler.now();
     try {
       this.recordNetworkInner(direction, bytes, note);
@@ -381,7 +436,7 @@ class DesyncDiagnostics {
   }
 
   public recordFrame(data: unknown): void {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     this.frameEntries.push({
       seq: ++this.sequence,
       ts: Date.now(),
@@ -404,7 +459,7 @@ class DesyncDiagnostics {
 
   /** 手动下载；不会清空缓冲，也不会被一次性标记拦截。 */
   public download(reason: string, extra?: unknown): void {
-    if (!this.enabled) return;
+    if (!this.isEnabled()) return;
     this.downloadedReasons.add(reason);
     if (typeof document === "undefined" || typeof Blob === "undefined") {
       this.record("diagnostics", "download skipped: no document/Blob", { reason });
@@ -468,7 +523,7 @@ class DesyncDiagnostics {
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 2_000);
+    setTimeout(() => URL.revokeObjectURL(url), 2_000);
   }
 
   /** 同一 reason 只下载一次；分叉和正常结算/主动退出使用不同 reason。 */

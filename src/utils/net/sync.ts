@@ -68,7 +68,6 @@ class WebSocketClient {
   // 测试钩子：netDebug 开关开启时暴露
   private static instance: WebSocketClient | null = null;
   private readonly routeTracingEnabled: boolean;
-  private readonly netDebugEnabled: boolean;
 
   constructor() {
     try {
@@ -85,10 +84,12 @@ class WebSocketClient {
       onGiveUp: (reason) => this.giveUpReconnect(reason),
     });
     this.reconnect.setConnectHandler((url) => this.openSocket(url, true));
-    // 网络字节诊断只在 netDebug 开关开启时记录；
-    // 收包解码/路由不使用这段缓冲，改造不影响同步。
-    this.netDebugEnabled = this.routeTracingEnabled || isNetDebugEnabled();
     WebSocketClient.instance = this;
+  }
+
+  /** 与设置页实时同步；关闭后不再复制/入队网络字节。 */
+  private get netDebugEnabled(): boolean {
+    return this.routeTracingEnabled || isNetDebugEnabled();
   }
 
   /** 供测试调整重连参数（test hook）。 */
