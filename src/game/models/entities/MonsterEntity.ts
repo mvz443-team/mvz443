@@ -214,21 +214,18 @@ export abstract class MonsterEntity extends CombatEntity {
     }
 
     const targets = this.getDeathAnimationTargets();
+    // 表现层只负责旋转与烟雾；实体销毁由 Model 的 DeathSettle 定时器在权威帧
+    // 触发，避免在 tween onComplete 里改变击杀计数 / 波次推进造成 desync。
+    const smokeSpawns = this.getDeathSmokeSpawns(this.getDeathSmokeBounds(targets));
     SfxCmd.Create(DeathRotateSfx, {
       scene: this.scene,
       targets,
-      onComplete: () => this.finishDeathAnimation(targets),
+      onComplete: () => this.playDeathSmokeAnimation(smokeSpawns),
     });
   }
 
   protected getDeathAnimationTargets(): Phaser.GameObjects.GameObject[] {
     return this.viewGroup.getChildren();
-  }
-
-  private finishDeathAnimation(targets: Phaser.GameObjects.GameObject[]): void {
-    const smokeSpawns = this.getDeathSmokeSpawns(this.getDeathSmokeBounds(targets));
-    this.destroy();
-    this.playDeathSmokeAnimation(smokeSpawns);
   }
 
   private checkAndAddBoat() {

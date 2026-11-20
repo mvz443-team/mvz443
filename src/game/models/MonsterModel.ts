@@ -16,12 +16,17 @@ import type { CollisionContext } from "../types";
 
 const MONSTER_EVENTS = {
   Attack: "MonsterAttack",
+  DeathSettle: "MonsterDeathSettle",
 } as const;
+
+/** 死亡表现时长（与 DeathRotateSfx 的 400ms 对齐），仅决定纯表现何时结束。 */
+const DEATH_SETTLE_MS = 400;
 
 export abstract class MonsterModel extends LogicModel {
   public override readonly tickEventNames: readonly string[] = [
     ...DEFAULT_TICK_EVENT_NAMES,
     MONSTER_EVENTS.Attack,
+    MONSTER_EVENTS.DeathSettle,
   ];
 
   /** 以下运行时字段全部自动进入快照；新增字段直接写在这里即可。 */
@@ -99,6 +104,10 @@ export abstract class MonsterModel extends LogicModel {
   ): void {
     if (eventName === MONSTER_EVENTS.Attack) {
       (this.host as MonsterEntity | null)?.hurtTarget();
+      return;
+    }
+    if (eventName === MONSTER_EVENTS.DeathSettle) {
+      (this.host as MonsterEntity | null)?.destroy();
       return;
     }
     super.handleTickEvent(eventName, args, timerId);
@@ -212,6 +221,12 @@ export abstract class MonsterModel extends LogicModel {
     this.dropCarriedStarShards(entity);
     this.stopAttacking(entity);
     (entity as any).playDeathAnimation();
+
+    // 击杀入账、赛道移除与波次推进由权威帧定时器驱动，不能挂在 Phaser 死亡
+    // 动画的 onComplete 上。表现时钟在暂停/回滚/帧率差异下两端不一致，会让
+    // 同帧清波（如 TNT 爆炸）的 killed_count 达标帧不同，进而使下一波计时器
+    // 的启动时刻分叉。DeathSettle 进入 Model 快照，重放时在同一权威帧触发。
+    this.tickmanager.schedule(MONSTER_EVENTS.DeathSettle, DEATH_SETTLE_MS);
   }
 
   public addStarShards(entity: MonsterEntity, amount = 1): void {
