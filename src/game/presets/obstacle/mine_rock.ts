@@ -14,12 +14,15 @@ export class MineRockObstacleModel extends ObstacleModel {
   public readonly nameKey = "MineRockObstacle";
   public readonly texturePath = "";
 
-  /** 矿岩占据的额外行与星碎掉落标记都是战斗状态。 */
-  public extraRow: number = -1;
-  public dropped: boolean = false;
-
   public createEntity(scene: Game, col: number, row: number, config: ObstacleConfig): ObstacleEntity {
     return this.initializeEntity(new MineRockObstacleEntity(scene, col, row, this, config));
+  }
+
+  /** 死亡掉落属于战斗状态，放在 Model 并用 dropped 防重放重复发放。 */
+  public override onDeath(_entity: ObstacleEntity): void {
+    if (this.dropped) return;
+    this.dropped = true;
+    ResourceCmd.AddStarshardToAll(1);
   }
 }
 
@@ -91,26 +94,35 @@ export class MineRockObstacleEntity extends ObstacleEntity {
   }
 
   public override destroy(): void {
-    if (!this.dropped) {
-      this.dropped = true;
-      ResourceCmd.AddStarshardToAll(1);
-    }
+    this.stopView();
+    this.unregisterExtraRow();
+    // 星碎掉落在 ObstacleEntity.destroy → model.onDeath 中结算。
+    super.destroy();
+  }
+
+  /** 回滚对账：静默销毁也要清掉额外行别名，避免残影障碍阻塞该行。 */
+  protected override onSilentDestroy(): void {
+    this.stopView();
+    this.unregisterExtraRow();
+    super.onSilentDestroy();
+  }
+
+  private stopView(): void {
     this.starOrbit?.stop();
     this.starOrbit = null;
+  }
 
-    if (this.extraRow >= 0 && this.extraRow < PositionManager.Instance.Row_Number) {
-      const map = ObstacleManager.Instance.ObstaclesMap;
-      const key = `${this.col}-${this.extraRow}`;
-      const list = map.get(key);
-      if (list) {
-        const idx = list.indexOf(this);
-        if (idx >= 0) list.splice(idx, 1);
-        if (list.length === 0) map.delete(key);
-      }
-      ObstacleManager.Instance.UnregisterObstacleLaneAlias(this, this.extraRow);
+  private unregisterExtraRow(): void {
+    if (this.extraRow < 0 || this.extraRow >= PositionManager.Instance.Row_Number) return;
+    const map = ObstacleManager.Instance.ObstaclesMap;
+    const key = `${this.col}-${this.extraRow}`;
+    const list = map.get(key);
+    if (list) {
+      const idx = list.indexOf(this);
+      if (idx >= 0) list.splice(idx, 1);
+      if (list.length === 0) map.delete(key);
     }
-
-    super.destroy();
+    ObstacleManager.Instance.UnregisterObstacleLaneAlias(this, this.extraRow);
   }
 }
 

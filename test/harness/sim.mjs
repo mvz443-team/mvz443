@@ -282,17 +282,17 @@ export function spawnMob(data, {
   entity.playSummonEffects = () => { entity.viewCalls.push("summonEffects"); };
   entity.playSceneFlash = () => { entity.viewCalls.push("sceneFlash"); };
   entity.playArc = () => { entity.viewCalls.push("arc"); };
-  entity.playCharge = (startCol, targetCol, targetRow, done) => {
+  entity.playCharge = () => { entity.viewCalls.push("charge"); };
+  entity.applyChargeEnd = (targetCol, targetRow) => {
     entity.col = targetCol;
     entity.row = targetRow;
-    entity.viewCalls.push("charge");
-    done?.();
+    entity.viewCalls.push("chargeEnd");
   };
-  entity.startArcReposition = (newCol, newRow, done) => {
+  entity.playArcReposition = () => { entity.viewCalls.push("arcReposition"); };
+  entity.applyArcReposition = (newCol, newRow) => {
     entity.col = newCol;
     entity.row = newRow;
-    entity.viewCalls.push("arcReposition");
-    done?.();
+    entity.viewCalls.push("arcRepositionEnd");
   };
   entity.notifySpawnHooks = () => { entity.viewCalls.push("spawnHooks"); };
   entity.notifyHalfHealthHooks = () => { entity.viewCalls.push("halfHealthHooks"); };

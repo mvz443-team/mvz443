@@ -54,6 +54,8 @@ const CENTIPEDE_EVENTS = {
   SummonSfx: "CentipedeSummonSfx",
   SpawnMinion: "CentipedeSpawnMinion",
   BlastImpact: "CentipedeBlastImpact",
+  ChargeImpact: "CentipedeChargeImpact",
+  RepositionDone: "CentipedeRepositionDone",
 } as const;
 
 const CENTIPEDE_TICK_EVENT_NAMES = [
@@ -109,6 +111,21 @@ export class CentipedeModel extends PresetMonsterModel {
       case CENTIPEDE_EVENTS.BlastImpact:
         this.blastImpact(entity, numberArg(args, "col", entity.col), numberArg(args, "row", entity.row));
         return;
+      case CENTIPEDE_EVENTS.ChargeImpact:
+        this.chargeImpact(
+          entity,
+          numberArg(args, "startCol", entity.col),
+          numberArg(args, "targetCol", entity.col),
+          numberArg(args, "row", entity.row),
+        );
+        return;
+      case CENTIPEDE_EVENTS.RepositionDone:
+        this.finishReposition(
+          entity,
+          numberArg(args, "col", entity.col),
+          numberArg(args, "row", entity.row),
+        );
+        return;
       default:
         super.handleTickEvent(eventName, args, timerId);
     }
@@ -159,10 +176,18 @@ export class CentipedeModel extends PresetMonsterModel {
     const newRow = Math.floor(MobCmd.DeterministicRandom(0, PositionManager.Instance.Row_Number));
     const clamped = Phaser.Math.Clamp(newRow, 0, PositionManager.Instance.Row_Number - 1);
     const newCol = PositionManager.Instance.Col_Number - 1;
-    entity.startArcReposition(newCol, clamped, () => {
-      this.isHidden = false;
-      this.beginCycle(entity);
+    // 弧形换位只是表现；权威 col/row 与循环推进必须由固定逻辑帧的 tick 事件落地。
+    entity.playArcReposition(newCol, clamped);
+    this.tickmanager.schedule(CENTIPEDE_EVENTS.RepositionDone, REPOSITION_ARC_DURATION_MS, {
+      args: { col: newCol, row: clamped },
     });
+  }
+
+  private finishReposition(entity: CentipedeEntity, newCol: number, newRow: number): void {
+    if (entity.currentHealth <= 0 || this.isDying) return;
+    entity.applyArcReposition(newCol, newRow);
+    this.isHidden = false;
+    this.beginCycle(entity);
   }
 
   private castSkill0(entity: CentipedeEntity): void {
@@ -200,23 +225,32 @@ export class CentipedeModel extends PresetMonsterModel {
     MobCmd.AnnounceBossSkill(entity.scene, "centipede", "charge");
     entity.playSkillSfx("charge");
     const startCol = entity.col;
+    const row = entity.row;
     const targetCol = Math.max(2, startCol - 5);
-    entity.playCharge(startCol, targetCol, entity.row, () => {
-      if (entity.currentHealth <= 0) return;
-      const row = entity.row;
-      const minCol = Math.min(startCol, targetCol);
-      const maxCol = Math.max(startCol, targetCol);
-      const cells: { col: number; row: number }[] = [];
-      for (let c = minCol; c <= maxCol; c++) cells.push({ col: c, row });
-      MobCmd.DamagePlantsInCells(cells, DamageConstants.SECKILL / 2);
-
-      const sideRows = [row - 1, row + 1].filter((r) => r >= 0 && r < PositionManager.Instance.Row_Number);
-      for (const sr of sideRows) {
-        const sideCells: { col: number; row: number }[] = [];
-        for (let c = minCol; c <= maxCol; c++) sideCells.push({ col: c, row: sr });
-        MobCmd.DamagePlantsInCells(sideCells, 100);
-      }
+    // 冲锋动画只在表现层播放；落地坐标与伤害由 ChargeImpact tick 事件结算，
+    // 不能挂在 Tween onComplete 上（渲染帧率不同会让结算帧漂移）。
+    entity.playCharge(startCol, targetCol, row);
+    this.tickmanager.schedule(CENTIPEDE_EVENTS.ChargeImpact, CHARGE_DURATION_MS, {
+      args: { startCol, targetCol, row },
     });
+  }
+
+  private chargeImpact(entity: CentipedeEntity, startCol: number, targetCol: number, row: number): void {
+    if (entity.currentHealth <= 0 || this.isDying) return;
+    entity.applyChargeEnd(targetCol, row);
+
+    const minCol = Math.min(startCol, targetCol);
+    const maxCol = Math.max(startCol, targetCol);
+    const cells: { col: number; row: number }[] = [];
+    for (let c = minCol; c <= maxCol; c++) cells.push({ col: c, row });
+    MobCmd.DamagePlantsInCells(cells, DamageConstants.SECKILL / 2);
+
+    const sideRows = [row - 1, row + 1].filter((r) => r >= 0 && r < PositionManager.Instance.Row_Number);
+    for (const sr of sideRows) {
+      const sideCells: { col: number; row: number }[] = [];
+      for (let c = minCol; c <= maxCol; c++) sideCells.push({ col: c, row: sr });
+      MobCmd.DamagePlantsInCells(sideCells, 100);
+    }
   }
 
   private castSkill2(entity: CentipedeEntity): void {
@@ -357,7 +391,7 @@ export class CentipedeEntity extends BaseMonsterEntity {
     SfxCmd.Create(ArcSfx, { scene: this.scene, x1, y1, x2, y2, texture, duration, arcHeight });
   }
 
-  public playCharge(startCol: number, targetCol: number, row: number, onImpact: () => void): void {
+  public playCharge(startCol: number, targetCol: number, row: number): void {
     const startPos = PositionManager.Instance.getZombieBottomCenter(startCol, row);
     const targetViewPos = PositionManager.Instance.getZombieBottomCenter(targetCol, row);
 
@@ -381,11 +415,10 @@ export class CentipedeEntity extends BaseMonsterEntity {
       x: targetViewPos.x,
       duration: CHARGE_DURATION_MS,
       ease: "Quad.easeIn",
+      // 只驱动表现位置与尘土：权威 col/x/y、刚体与伤害由 Model 的 ChargeImpact
+      // tick 事件在固定逻辑帧落地，避免渲染帧率影响回滚/联机结果。
       onUpdate: () => {
-        this.x = state.x;
-        this.y = startPos.y;
-        this.rigidBody?.setTranslation(PositionManager.Instance.getZombieBodyCenterByBottom(this.x, this.y), true);
-        this.animController.updatePosition(this.x + this.offsetX, this.y + this.offsetY);
+        this.animController.updatePosition(state.x + this.offsetX, startPos.y + this.offsetY);
         if (state.x <= nextDustX) {
           SfxCmd.Create(CentipedeSkillSfx, {
             scene: this.scene,
@@ -399,17 +432,24 @@ export class CentipedeEntity extends BaseMonsterEntity {
         }
       },
       onComplete: () => {
-        if (this.currentHealth <= 0) return;
-        this.col = targetCol;
-        this.x = targetViewPos.x;
-        this.y = targetViewPos.y;
-        this.rigidBody?.setTranslation(PositionManager.Instance.getZombieBodyCenter(targetCol, row), true);
-        this.animController.updatePosition(targetViewPos.x + this.offsetX, targetViewPos.y + this.offsetY);
         ctrl.stopLegSwing();
         ctrl.isInAnim = false;
-        onImpact();
       },
     });
+  }
+
+  /** 冲锋落地：由 Model 在固定逻辑帧调用，写入权威坐标并同步刚体与视图。 */
+  public applyChargeEnd(targetCol: number, row: number): void {
+    const targetViewPos = PositionManager.Instance.getZombieBottomCenter(targetCol, row);
+    this.col = targetCol;
+    this.row = row;
+    this.x = targetViewPos.x;
+    this.y = targetViewPos.y;
+    this.rigidBody?.setTranslation(PositionManager.Instance.getZombieBodyCenter(targetCol, row), true);
+    this.animController.updatePosition(targetViewPos.x + this.offsetX, targetViewPos.y + this.offsetY);
+    const ctrl = this.getCentipedeAnim();
+    ctrl.stopLegSwing();
+    ctrl.isInAnim = false;
   }
 
   public playSummonEffects(row: number): void {
@@ -434,7 +474,8 @@ export class CentipedeEntity extends BaseMonsterEntity {
     });
   }
 
-  public startArcReposition(newCol: number, newRow: number, onComplete: () => void): void {
+  /** 弧形换位表现：只播放位移与动画，权威 col/row 由 Model 的 tick 事件落地。 */
+  public playArcReposition(newCol: number, newRow: number): void {
     const ctrl = this.getCentipedeAnim();
     ctrl.isInAnim = true;
     const from = { x: this.x + this.offsetX, y: this.y + this.offsetY };
@@ -442,18 +483,22 @@ export class CentipedeEntity extends BaseMonsterEntity {
     const to = { x: toViewPos.x + this.offsetX, y: toViewPos.y + this.offsetY };
     const arcHeight = PositionManager.Instance.GRID_SIZEY * 1.45;
     ctrl.startArc(from, to, REPOSITION_ARC_DURATION_MS, arcHeight, undefined, () => {
-      if (this.currentHealth <= 0 || this.model.isDying) return;
-      const bodyPos = PositionManager.Instance.getZombieBodyCenter(newCol, newRow);
-      this.col = newCol;
-      this.row = newRow;
-      this.x = toViewPos.x;
-      this.y = toViewPos.y;
-      this.rigidBody?.setTranslation(bodyPos, true);
-      this.animController.updatePosition(to.x, to.y);
       ctrl.isInAnim = false;
-      this.isHidden = false;
-      onComplete();
     });
+  }
+
+  /** 弧形换位落地：由 Model 在固定逻辑帧调用，写入权威坐标并同步刚体与视图。 */
+  public applyArcReposition(newCol: number, newRow: number): void {
+    const ctrl = this.getCentipedeAnim();
+    const toViewPos = PositionManager.Instance.getZombieBottomCenter(newCol, newRow);
+    const bodyPos = PositionManager.Instance.getZombieBodyCenter(newCol, newRow);
+    this.col = newCol;
+    this.row = newRow;
+    this.x = toViewPos.x;
+    this.y = toViewPos.y;
+    this.rigidBody?.setTranslation(bodyPos, true);
+    this.animController.updatePosition(toViewPos.x + this.offsetX, toViewPos.y + this.offsetY);
+    ctrl.isInAnim = false;
   }
 }
 

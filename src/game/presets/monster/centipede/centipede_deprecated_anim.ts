@@ -5,6 +5,11 @@ import type { Game } from "../../../scenes/Game";
 
 type DeprecatedSkillPose = "mine" | "charge" | "summon" | "blast";
 
+/**
+ * @deprecated 全仓库无引用，仅作为旧版蜈蚣动画的历史参考保留。
+ * 现行动画请使用 `centipede_anim.ts` 的 `CentipedeAnimController`。
+ * 新代码禁止 import 本文件。
+ */
 export class CentipedeDeprecatedAnimController implements IMonsterAnimController {
   public isInAnim = false;
 

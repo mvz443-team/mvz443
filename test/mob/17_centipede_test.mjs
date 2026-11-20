@@ -19,9 +19,11 @@ import { CentipedeData } from "../../src/game/presets/monster/centipede/centiped
  *
  * 验收路径：
  *   1) 推进 250ms 检查入场 hook。
- *   2) 直接调用 castSkill1/2/3，检查 MobCmd 的伤害格与召唤。
+ *   2) 调用 castSkill1 后推进 700ms，检查冲撞伤害与落地 col；
+ *      调用 castSkill2/3 后推进对应时长，检查 MobCmd 的召唤与伤害格。
  *   3) 设置血量到 79%，调用 checkHealthTriggers，推进 1100ms 检查落石障碍。
  *   4) 设置血量到 49.5%，检查 flashTriggered 与半血 hook。
+ *   5) 调用 beginDisappear 后推进 900ms，检查弧形换位落地与可见性恢复。
  *
  * 预期结果：
  *   冲撞 cells 3..8 行 2、伤害 49944994；上下行各 6 格 100；
@@ -45,10 +47,12 @@ test("入场 250ms 触发 spawn hook 并停止移动", () => {
 });
 
 test("冲撞对主路径秒杀、上下行 100 伤害", () => {
-  resetSim();
+  const sim = resetSim();
   const { model, entity } = spawnMob(CentipedeData, { col: 8, row: 2 });
 
   model.castSkill1(entity);
+  // 冲锋表现 700ms 后由固定逻辑帧的 ChargeImpact 结算伤害与落地坐标。
+  tick(sim, 700);
   const damages = MobCmd.calls.filter((call) => call.kind === "damageCells");
   assert.equal(damages.length, 3);
   assert.deepEqual(damages[0].cells.map((cell) => cell.col), [3, 4, 5, 6, 7, 8]);
@@ -118,13 +122,18 @@ test("49.5% 血量触发半血闪屏", () => {
 });
 
 test("消失后重新出现在最后一列并继续循环", () => {
-  resetSim();
+  const sim = resetSim();
   const { model, entity } = spawnMob(CentipedeData, { col: 8, row: 2 });
 
   model.beginDisappear(entity);
+  assert.equal(model.isHidden, true);
+  assert.equal(entity.viewCalls.includes("arcReposition"), true);
+
+  // 弧形换位 900ms 后由固定逻辑帧的 RepositionDone 落地坐标并恢复可见。
+  tick(sim, 900);
 
   assert.equal(model.isHidden, false);
   assert.equal(entity.col, 8);
   assert.equal(entity.row >= 0 && entity.row <= 4, true);
-  assert.equal(entity.viewCalls.includes("arcReposition"), true);
+  assert.equal(entity.viewCalls.includes("arcRepositionEnd"), true);
 });
