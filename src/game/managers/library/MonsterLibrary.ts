@@ -1,6 +1,7 @@
 import { MonsterModel } from "../../models/MonsterModel";
 import {
   BalloonCapZombieData,
+  BalloonTntCloneData,
   BalloonZombieData,
   CapZombieData,
   CentipedeData,
@@ -52,6 +53,8 @@ export class MonsterLibrary {
     this.Register(CentipedeMinionData);
     this.Register(BalloonZombieData);
     this.Register(BalloonCapZombieData);
+    // 星之碎片召唤物：weight 为 0，永远不会进入出怪池。
+    this.Register(BalloonTntCloneData);
 
     console.log(`[MonsterLibrary] Initialized ${this.models.size} Monsters.`);
   }

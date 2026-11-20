@@ -36,6 +36,7 @@ export class LegacyMonsterAnimController {
 
 export function createZombieAnimController() { return controller(); }
 export function createFlyingZombieAnimController() { return controller(); }
+export function createBalloonTntAnimController() { return controller(); }
 export function createGolemAnimController() { return controller(); }
 export function createMutantAnimController() { return controller(); }
 export function createSkeletonAnimController() { return controller(); }

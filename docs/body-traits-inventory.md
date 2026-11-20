@@ -42,6 +42,7 @@
 | 17 | `glow_powder` 萤石粉 | — | — | — | 不攻击 |
 | 18 | `bouncing_anvil` 蹦蹦铁砧 | — | — | — | |
 | 19 | `pumpkin_passport` 南瓜护照 | ✓ | — | — | 低矮护盾植物，替同格植物挡伤害 |
+| 20 | `balloon_tnt` 气球TNT | 充气中 ✓ / 充满 — | — | — | 充满后升空，只被飞行怪物引爆 |
 
 ### 2.1 植物衍生的射击物 / 召唤物
 
@@ -90,6 +91,9 @@
 - **18 `bouncing_anvil`**
   - 落地 `LaserModel`（0.8→1.5 格）— tiny ✓ / flying — / void —
   - 星碎分身 `LaserModel`（`flying: true`）— tiny ✓ / flying ✓ / void —
+- **20 `balloon_tnt` 气球TNT**
+  - 星碎分身 `BalloonTntCloneData`（mid 21，PLANT 阵营飞行单位，200 血）— tiny — / flying ✓ / void —
+  - 本体升空后 `tiny = false`（非低矮），但 `flying` 仍为 false：地面僵尸可以啃掉它
 - **19 `pumpkin_passport` 南瓜护照**
   - 无衍生投射物；尖刺反伤是直接调用伤害源的 `takeDamage`（不算投射物）
   - 自身 `tiny = true`，地面子弹打不到；护盾路由见 `docs/star-shards-and-shield-plants.md`
@@ -121,6 +125,7 @@
 | 18 | `centipede_minion` 蜈蚣幼虫 | — | — | — | |
 | 19 | `balloon_zombie` 气球僵尸 | — | **载具在架时 ✓** | — | 气球爆掉后 `flying = false` |
 | 20 | `balloon_cap_zombie` 气球帽子僵尸 | — | **载具在架时 ✓** | — | 载具 + 帽子僵尸 |
+| 21 | `balloon_tnt_clone` 气球TNT分身（召唤物） | — | ✓ | — | PLANT 阵营，不进波次/不计击杀 |
 
 ### 3.1 怪物衍生的射击物 / 召唤物
 

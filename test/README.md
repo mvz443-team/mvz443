@@ -2,7 +2,7 @@
 
 覆盖 `src/game/presets/plant` 与 `src/game/presets/monster` 下全部 preset：
 
-- plant：19 个文件，逐级覆盖 Lv1–Lv9 的普通效果与星之碎片效果。
+- plant：20 个文件，逐级覆盖 Lv1–Lv9 的普通效果与星之碎片效果。
 - mob：20 个文件，覆盖基础数值、攻击节奏、装备、技能与 Boss 阶段。
 
 ## 运行
@@ -55,6 +55,10 @@ Manager、Cmd 使用测试替身。逻辑统一按 50ms/帧推进，与游戏平
 - 星之碎片的目标规则集中在 `src/game/utils/helper/PlantTargeting.ts`：
   承载物（睡莲/船）永远不是默认目标，护盾植物靠 `aspect='down'` 选中，
   测试直接 import 该纯函数断言选择结果。
+- 种植地块限制写在 `PlantModel.allowedPlantSlots`（白名单，`null` = 不限）：
+  TNT 地雷配 `['ground']`，因此不能种在水面/睡莲上；气球TNT 不限制。
+- 气球TNT 的充气阶段与引爆判定在 Model：`inflateStage` 0/1/2，升空后只被
+  `flying` 怪物引爆；星碎分身是 mid 21 的 PLANT 阵营召唤物（waveID=-10，不计击杀）。
 - 护盾植物（`SHIELD_PLANT_PIDS`）会替同格植物吸收伤害：
   `PlantEntity.takeDamage → PlantModel.redirectDamageToShield`，测试替身已同步这条路由。
 - 气球僵尸（mid 19）与气球帽子僵尸（mid 20）的飞行载具只有 1 点血：

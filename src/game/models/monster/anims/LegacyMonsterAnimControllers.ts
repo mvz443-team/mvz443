@@ -1,5 +1,6 @@
 import GolemAnim, { GolemAnimProps } from "../../../sprite/golem";
 import { FlyingZombieAnim } from "../../../sprite/flying_zombie";
+import { BalloonTntAnim } from "../../../sprite/balloon_tnt";
 import {
   NormalZombieAnimProps,
   newNormalEvokerAnim,
@@ -127,6 +128,11 @@ export function createZombieAnimController(
   } as const;
 
   return new LegacyMonsterAnimController(map[type](scene, x, y));
+}
+
+/** 气球TNT 分身：单个漂浮 sprite，只做表现。 */
+export function createBalloonTntAnimController(scene: Game, x: number, y: number) {
+  return new LegacyMonsterAnimController(new BalloonTntAnim(scene, x, y));
 }
 
 /** 飞行中僵尸：气球在上方，僵尸整体旋转 90° 悬吊在下方。 */

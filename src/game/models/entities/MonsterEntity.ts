@@ -74,7 +74,7 @@ export abstract class MonsterEntity extends CombatEntity {
 
   constructor(scene: Game, col: number, row: number, model: MonsterModel, waveID: number) {
     const pos = PositionManager.Instance.getZombieBottomCenter(col, row);
-    super(scene, pos.x, pos.y, model.maxHealth, Faction.ZOMBIE, model);
+    super(scene, pos.x, pos.y, model.maxHealth, model.faction, model);
     this.model.initializeState(scene, col, row, waveID);
     this.col = col;
     this.row = row;
@@ -423,6 +423,8 @@ export type MonsterDefinition = {
   couldCarryStarShards?: boolean;
   /** 飞行载具（气球等）血量；配置后该怪物有第二条血条，归零即迫降。 */
   vehicleHealth?: number;
+  /** 阵营；默认为僵尸。友方召唤物（例如气球TNT分身）可以配成 PLANT。 */
+  faction?: Faction;
   createEntity: (scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) => MonsterEntity;
 };
 
@@ -467,6 +469,7 @@ export class PresetMonsterModel extends MonsterModel {
     this.couldCarryStarShards = def.couldCarryStarShards ?? true;
     this.setConfigValue("weight", def.weight);
     this.setConfigValue("leastWaveIDByStageID", def.leastWaveIDByStageID);
+    this.faction = def.faction ?? Faction.ZOMBIE;
     this.setConfigValue("entityFactory", def.createEntity);
   }
 

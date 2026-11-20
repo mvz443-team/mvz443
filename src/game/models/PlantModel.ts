@@ -6,6 +6,9 @@ import { PlantEntity } from "./entities/PlantEntity";
 import { LogicModel } from "../core/logic/LogicModel";
 import { isShieldPlantPid, pickShieldPlant } from "../utils/helper/PlantTargeting";
 
+/** 可种植的地块类型白名单取值（与 GridProperty.type 对应）。 */
+export type PlantSlot = 'ground' | 'water' | 'sky';
+
 export abstract class PlantModel extends LogicModel {
   /** 以下运行时字段全部自动进入快照；新增字段直接写在这里即可。 */
   public level: number = 1;
@@ -35,6 +38,13 @@ export abstract class PlantModel extends LogicModel {
   public abstract damage: LevelScaledValue;
 
   public abstract isNightPlant: boolean;
+
+  /**
+   * 允许种植的地块白名单；`null` 表示不限制（默认）。
+   * 例如 TNT 地雷只能种在普通地面：`['ground']`，
+   * 因此它无法种在水面，也就无法种在睡莲上。
+   */
+  public allowedPlantSlots: readonly PlantSlot[] | null = null;
   /** 低矮植物由 `LogicModel.tiny` 表示（只有带 tiny 的投射物能命中）。 */
 
   protected readonly LevelThresholds1: number;

@@ -81,6 +81,8 @@ export class TntMinesModel extends PlantModel {
   }
 
   public isNightPlant = false;
+  /** 只能在普通地面种植：不能种在水面，因此也无法种在睡莲上。 */
+  public override allowedPlantSlots = ['ground'] as const;
 
   constructor() {
     super();

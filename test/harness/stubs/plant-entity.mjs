@@ -67,6 +67,7 @@ export class PlantEntity extends CombatEntity {
   }
 
   playSpikeActivateAnimation() { this.viewCalls.push("playSpikeActivateAnimation"); }
+  syncInflateView() { this.viewCalls.push("syncInflateView"); }
   syncSpikyView() { this.viewCalls.push(`syncSpikyView:${this.model.isSpiky}`); }
   get inBruteShoot() { return this.model.inBruteShoot; }
   set inBruteShoot(value) { this.model.inBruteShoot = value; }

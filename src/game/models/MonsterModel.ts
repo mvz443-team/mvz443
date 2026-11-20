@@ -32,6 +32,8 @@ export abstract class MonsterModel extends LogicModel {
 
   /** 以下运行时字段全部自动进入快照；新增字段直接写在这里即可。 */
   public waveID: number = -1;
+  /** 阵营：普通怪物是 ZOMBIE；友方召唤物（气球TNT分身）是 PLANT。 */
+  public faction: Faction = Faction.ZOMBIE;
   public health: number = 0;
   public speed: number = 0;
   public originalSpeed: number = 0;

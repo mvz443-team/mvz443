@@ -221,7 +221,8 @@ export default class PlantsManager extends BaseManager {
         }
       }
       const targetGridProperty = GridManager.Instance.GetGridProperty(col, row);
-      if (!targetGridProperty || !PlantHelper.CanPlantInGrid(existedPlants, pid, targetGridProperty)) {
+      if (!targetGridProperty
+        || !PlantHelper.CanPlantInGrid(existedPlants, pid, targetGridProperty, PlantLibrary.GetModel(pid))) {
         this.rejectAuthoritativeOperation(kind, playerId, pid, col, row, "grid occupied");
         return false;
       }
@@ -318,7 +319,8 @@ export default class PlantsManager extends BaseManager {
 
     // 占位规则是本地输入校验；权威操作已经由发起端校验，不能再因另一端
     // 暂时的实体集合差异而拒绝落地。
-    if (!authoritative && !PlantHelper.CanPlantInGrid(existedPlants, pid, targetGridProperty)) {
+    if (!authoritative
+      && !PlantHelper.CanPlantInGrid(existedPlants, pid, targetGridProperty, PlantLibrary.GetModel(pid))) {
       return { ok: false, reason: "grid occupied" };
     }
 
@@ -463,7 +465,7 @@ export default class PlantsManager extends BaseManager {
     if (!targetGridProperty) return false;
 
     // 格子允许种植
-    if (!PlantHelper.CanPlantInGrid(existedPlants, pid, targetGridProperty)) return;
+    if (!PlantHelper.CanPlantInGrid(existedPlants, pid, targetGridProperty, model)) return;
 
     // 种植
     this.EventBus.emit('onDeterminePlant', pid, level, col, row, cost);

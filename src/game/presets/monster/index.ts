@@ -18,3 +18,4 @@ export {
 export { MutantData } from "./mutant";
 export { ObsidianGolemData, WardenData } from "./golem";
 export { CentipedeData, CentipedeMinionData } from "./centipede";
+export { BalloonTntCloneData, BALLOON_TNT_CLONE_MID } from "./summon/balloon_tnt_clone";

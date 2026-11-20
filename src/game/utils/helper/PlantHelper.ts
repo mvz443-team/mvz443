@@ -1,6 +1,7 @@
 import { GridProperty } from "../../managers/combat/GridManager";
 import PlantsManager from "../../managers/combat/PlantsManager";
 import { PlantEntity } from "../../models/entities/PlantEntity";
+import type { PlantModel, PlantSlot } from "../../models/PlantModel";
 import { MagicPowderData } from "../../presets/plant/chapter1/magic_powder";
 import {
   isCarrierPlantPid,
@@ -12,7 +13,6 @@ import {
 
 // 特殊的植物种植规则
 export const SHIELD_PLANT: readonly number[] = SHIELD_PLANT_PIDS; // 护盾植物,铲除上方时铲除,可以和任何非护盾器械兼容
-export const GROUND_ONLY_PLANT: number[] = [4];// 地面植物,只能种植在地面
 export const WATER_ONLY_PLANT: number[] = [6];// 水中植物,只能种植在水中
 export const SKY_ONLY_PLANT: number[] = [100]; // 船只,只能种植在天空中
 export const POWDER_PLANT: number[] = [10, 17]; // 粉尘植物,可以随意种植
@@ -88,7 +88,18 @@ namespace PlantHelper {
   /**
    * 只考虑 格子 和 当前格子已有植物 的情况下判断能否种植
    */
-  export function CanPlantInGrid(existedPlants: PlantEntity[], pid: number, targetGridProperty: GridProperty): boolean {
+  export function CanPlantInGrid(
+  existedPlants: PlantEntity[],
+  pid: number,
+  targetGridProperty: GridProperty,
+  model?: PlantModel | null,
+): boolean {
+  // 地块白名单：Model 声明 allowedPlantSlots 时，只允许列表内的地块类型。
+  const allowedSlots = model?.allowedPlantSlots ?? null;
+  if (allowedSlots && !allowedSlots.includes(targetGridProperty.type as PlantSlot)) {
+    return false;
+  }
+
     // 高级植物专门通道判断
     if (ADVANCED_PLANT.has(pid)) {
       const basicPid = ADVANCED_PLANT.get(pid);
@@ -147,10 +158,6 @@ namespace PlantHelper {
 
     // 首先判断目标grid的Property
     if (targetGridProperty.type === 'water') {
-      // 一些奇怪的冲突,即只能种植在ground中的植物
-      if (GROUND_ONLY_PLANT.includes(pid)) {
-        return false;
-      }
       if (WATER_ONLY_PLANT.includes(pid)) {
         return canPlantWithoutCarrier(existedPlants, pid);
       }
@@ -160,10 +167,6 @@ namespace PlantHelper {
       }
       return false;
     } else if (targetGridProperty.type === 'sky') {
-      if (GROUND_ONLY_PLANT.includes(pid)) {
-        return false;
-      }
-
       if (SKY_ONLY_PLANT.includes(pid)) {
         return canPlantWithoutCarrier(existedPlants, pid);
       }

@@ -3,8 +3,8 @@ let randomState = 20261117;
 
 const MobCmd = {
   calls,
-  Spawn(mid, scene, col, row, waveID) {
-    calls.push({ kind: "spawn", mid, scene, col, row, waveID });
+  Spawn(mid, scene, col, row, waveID, callback) {
+    calls.push({ kind: "spawn", mid, scene, col, row, waveID, callback });
   },
   DamagePlantsArea(centerCol, centerRow, radiusX, radiusY, damage) {
     calls.push({ kind: "damageArea", centerCol, centerRow, radiusX, radiusY, damage });
