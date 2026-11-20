@@ -36,6 +36,10 @@ const MAX_FRAME_DELTA_MS = 250;
 const MAX_ELAPSED_FRAME_TIME_MS = 1000;
 // 单个渲染帧内最多推进的逻辑步数，防止主线程假死
 const MAX_STEPS_PER_UPDATE = 4;
+// 本机落后服务端超过该帧数时切换为「逻辑快进」：不按墙钟、不渲染，尽快追平权威帧。
+const CATCH_UP_LAG_FRAMES = 3;
+// 快进时单个渲染帧最多消费的权威帧数（与服务端单次补帧 32 帧同量级）。
+const CATCH_UP_MAX_STEPS = 16;
 
 export type CombatStatus = {
   dayOrNight: boolean; // day = true
@@ -86,6 +90,8 @@ export default class CombatManager extends BaseManager {
 
   // Accumulated frame time for fixed-step simulation.
   elapsedFrameTime: number = 0;
+  /** 当前是否处于按权威帧快进状态（落后服务端时的逻辑追帧）。 */
+  private catchUpActive = false;
 
   /** 每 20 个逻辑帧采样一次状态哈希（联机分叉检测使用）。 */
   public static readonly STATE_HASH_INTERVAL_FRAMES = 20;
@@ -170,6 +176,9 @@ export default class CombatManager extends BaseManager {
     PhaserEventBus.on(PhaserEvents.ReplaySnapshotReceived, this.handleReplaySnapshot, this);
     PhaserEventBus.on(PhaserEvents.SnapshotRequested, this.handleSnapshotRequest, this);
     PhaserEventBus.on(PhaserEvents.DesyncOfflineMode, this.handleDesyncOfflineMode, this);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", this.handleVisibilityChange);
+    }
     desyncDiagnostics.setStateProvider(() => this.buildDesyncDiagnosticState());
     const roomAllReady = onlineStateManager.getRoomAllReady();
     if (roomAllReady) {
@@ -198,6 +207,9 @@ export default class CombatManager extends BaseManager {
     PhaserEventBus.off(PhaserEvents.ReplaySnapshotReceived, this.handleReplaySnapshot, this);
     PhaserEventBus.off(PhaserEvents.SnapshotRequested, this.handleSnapshotRequest, this);
     PhaserEventBus.off(PhaserEvents.DesyncOfflineMode, this.handleDesyncOfflineMode, this);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    }
     desyncDiagnostics.setStateProvider(null);
 
     if (this.scene) {
@@ -208,6 +220,7 @@ export default class CombatManager extends BaseManager {
     this.seed = 0;
     this.stageData = null;
     this.elapsedFrameTime = 0;
+    this.catchUpActive = false;
     this.pendingPausedState = null;
     this.isInFixedStep = false;
     this.isPaused = true;
@@ -368,114 +381,58 @@ export default class CombatManager extends BaseManager {
     // 等待权威帧时固定步会停摆；网络状态必须在每个渲染帧更新，否则
     // “恢复同步 → 锁住等待 UI” 的状态会一直保留到下一帧到来或永远不消失。
     SyncManager.Instance.updateNetworkWaiting(delta);
-    this.scene?.renderUpdateEntityViews(delta, this.isPaused);
+
+    // 后台标签页 rAF 被节流/暂停时，墙钟 delta 不能代表应模拟的时间。
+    // 联机下权威帧才是时钟：一旦发现本机落后，转为逻辑快进（不插值、不渲染表现）。
+    const catchUp = this.shouldCatchUp();
+    if (catchUp !== this.catchUpActive) {
+      desyncDiagnostics.record("combat", catchUp ? "catch-up started" : "catch-up finished", {
+        frameId: SyncManager.Instance.recvQueue?.currentFrameId ?? 0,
+        lagFrames: SyncManager.Instance.recvQueue?.getLagFrames() ?? 0,
+        delta,
+      });
+      this.catchUpActive = catchUp;
+    }
+    if (!catchUp) {
+      this.scene?.renderUpdateEntityViews(delta, this.isPaused);
+    }
     if (this.isPaused) {
       this.elapsedFrameTime = 0;
       return;
     }
 
-    // 浏览器切后台/断点调试会产生超大 delta，直接全量塞入会引发追帧风暴。
-    // 这里同时限制单次接受的 delta 与总积压，超出部分丢弃并依靠补帧追赶。
+    // 快进时不再累积墙钟时间，直接按权威帧可用性推进。
     const timeScale = this.scene?.time?.timeScale ?? 1;
-    const clampedDelta = Math.min(delta * timeScale, MAX_FRAME_DELTA_MS);
+    const clampedDelta = catchUp ? 0 : Math.min(delta * timeScale, MAX_FRAME_DELTA_MS);
     this.elapsedFrameTime = Math.min(
       this.elapsedFrameTime + clampedDelta,
       MAX_ELAPSED_FRAME_TIME_MS,
     );
 
+    const frameIntervalMs = SyncManager.Instance.frameIntervalMs;
+    const stepLimit = catchUp ? CATCH_UP_MAX_STEPS : MAX_STEPS_PER_UPDATE;
     let steps = 0;
-    // Fixed-step physics update.
-    while (
-      this.elapsedFrameTime >= SyncManager.Instance.frameIntervalMs &&
-      steps < MAX_STEPS_PER_UPDATE
-    ) {
+    while (steps < stepLimit) {
+      if (!catchUp && this.elapsedFrameTime < frameIntervalMs) break;
+      const advanced = this.advanceAuthoritativeStep();
       steps += 1;
-      this.isInFixedStep = true;
-      // 在进入下一次 Rapier step 前再执行延迟创建/销毁，
-      // 避免在 world.step / bodies.forEach 相关借用期间修改物理世界。
-      DeferredManager.Instance.flush();
-
-      const syncStarted = perfSampler.now();
-      const frameReady = SyncManager.Instance.update();
-      perfSampler.record("sync.update", perfSampler.now() - syncStarted);
-
-      if (!frameReady) {
-        this.isInFixedStep = false;
-        break;
-      }
-      const frameId = SyncManager.Instance.recvQueue.currentFrameId;
-      desyncDiagnostics.recordFrame({
-        phase: "begin",
-        frameId,
-        tickerFrame: TickerManager.Instance.currentFrame,
-        elapsedFrameTime: this.elapsedFrameTime,
-        isPaused: this._isPaused,
-        isGameEnd: this.isGameEnd,
-      });
-      this.elapsedFrameTime -= SyncManager.Instance.frameIntervalMs;
-      // 一次性表现事件绑定逻辑帧号；回滚后由快照恢复队列与 eventId。
-      logicEvents.setFrame(SyncManager.Instance.recvQueue.currentFrameId);
-      // Tick-based systems.
-      if (!this.isPaused) {
-        TickerManager.Instance.Update();
-        updateAllTickManagers(
-          TickerManager.Instance.currentFrame,
-          TickerManager.Instance.frameInterval,
-        );
-        // 权威操作在本帧消费后立即创建实体，保证“操作帧 = 实体存在帧”。
-        // 新实体在 updateAllTickManagers 之后创建，计时器以当前帧为起点，
-        // 不会在同一帧被额外 tick 一次；两端也都在同一逻辑帧末看到相同实体集合。
-        DeferredManager.Instance.flush();
-        CardpileManager.Instance.applyPendingOwnProfile(frameId);
-        CardpileManager.Instance.stepUpdate();
-        ResourceManager.Instance.applyPendingResourceProfiles(frameId);
-      }
-
-      // Physics-step systems.
-      if (!this.isPaused) {
-        this.scene?.rapierWorld?.step(this.scene.rapierEventQueue);
-        // Drain collision events.
-        this.scene?.rapierEventQueue.drainCollisionEvents((handle1: number, handle2: number, started: boolean) => {
-          if (started) {
-            this.scene?.handleCollision(handle1, handle2);
-          }
-        });
-
-        // Sync entity logical positions from physics bodies.
-        this.scene?.rapierWorld?.bodies.forEach(rigidBody => {
-          const position = rigidBody.translation();
-          const gameObject = rigidBody.userData;
-          if (gameObject instanceof BaseEntity) {
-            gameObject.stepUpdate();
-            gameObject.updateView(position);
-          }
-        });
-      }
-
-      this.isInFixedStep = false;
-      const hashStarted = perfSampler.now();
-      this.sampleStateHash();
-      perfSampler.record("sampleStateHash", perfSampler.now() - hashStarted);
-      const diagnosticStarted = perfSampler.now();
-      this.captureDiagnosticFrame();
-      perfSampler.record("captureDiagnosticFrame", perfSampler.now() - diagnosticStarted);
-      const snapshotStarted = perfSampler.now();
-      this.recordSnapshotIfNeeded();
-      perfSampler.record("recordSnapshotIfNeeded", perfSampler.now() - snapshotStarted);
-      this.finishDeterminismCheckIfNeeded();
-      this.commitPendingPausedState();
       if (this.isPaused) {
         this.elapsedFrameTime = 0;
         break;
       }
+      if (!advanced) break;
+      if (!catchUp) this.elapsedFrameTime -= frameIntervalMs;
     }
+
+    // 快进结束后丢弃墙钟债务，回到「权威帧 + 本地插值」的常规节奏。
+    if (catchUp) this.elapsedFrameTime = 0;
 
     // 渲染插值必须每个渲染帧都执行：等待权威帧/追帧时固定步可能停摆，
     // 若在这里跳过，实体会冻结在上一帧位置并出现跳变；Tween/动画却仍在
-    // 渲染帧更新，所以箭矢会显得比特效明显卡顿。
-    if (!this.isPaused) {
+    // 渲染帧更新，所以箭矢会显得比特效明显卡顿。快进中刻意跳过，避免抖动放大。
+    if (!this.isPaused && !catchUp) {
       const interpolationAlpha = Math.min(
-        this.elapsedFrameTime / SyncManager.Instance.frameIntervalMs,
+        this.elapsedFrameTime / frameIntervalMs,
         1,
       );
       this.scene?.rapierWorld?.bodies.forEach(rigidBody => {
@@ -487,6 +444,103 @@ export default class CombatManager extends BaseManager {
     }
 
     SyncManager.Instance.sendQueue.Consume();
+  }
+
+  /**
+   * 回到前台时清空时间池：后台的墙钟流逝不代表需要模拟的逻辑时间，
+   * 真正的进度由 shouldCatchUp 按权威帧追平，避免首帧一次性追 1000ms。
+   */
+  private handleVisibilityChange = () => {
+    if (typeof document !== "undefined" && !document.hidden) {
+      this.elapsedFrameTime = 0;
+    }
+  };
+
+  /** 真实房间会话落后服务端多帧时，按权威帧快进而非墙钟推进。 */
+  private shouldCatchUp(): boolean {
+    if (!BackendWS.isRoomSessionMode() || this.isDesyncOffline()) return false;
+    return (SyncManager.Instance.recvQueue?.getLagFrames() ?? 0) > CATCH_UP_LAG_FRAMES;
+  }
+
+  /**
+   * 推进一个权威固定步；返回 false 表示当前没有可用的权威帧。
+   * 正常节奏与落后快进共用同一函数，保证两条路径的模拟结果完全一致。
+   */
+  private advanceAuthoritativeStep(): boolean {
+    this.isInFixedStep = true;
+    // 在进入下一次 Rapier step 前再执行延迟创建/销毁，
+    // 避免在 world.step / bodies.forEach 相关借用期间修改物理世界。
+    DeferredManager.Instance.flush();
+
+    const syncStarted = perfSampler.now();
+    const frameReady = SyncManager.Instance.update();
+    perfSampler.record("sync.update", perfSampler.now() - syncStarted);
+
+    if (!frameReady) {
+      this.isInFixedStep = false;
+      return false;
+    }
+    const frameId = SyncManager.Instance.recvQueue.currentFrameId;
+    desyncDiagnostics.recordFrame({
+      phase: "begin",
+      frameId,
+      tickerFrame: TickerManager.Instance.currentFrame,
+      elapsedFrameTime: this.elapsedFrameTime,
+      isPaused: this._isPaused,
+      isGameEnd: this.isGameEnd,
+    });
+    // 一次性表现事件绑定逻辑帧号；回滚后由快照恢复队列与 eventId。
+    logicEvents.setFrame(frameId);
+    // Tick-based systems.
+    if (!this.isPaused) {
+      TickerManager.Instance.Update();
+      updateAllTickManagers(
+        TickerManager.Instance.currentFrame,
+        TickerManager.Instance.frameInterval,
+      );
+      // 权威操作在本帧消费后立即创建实体，保证“操作帧 = 实体存在帧”。
+      // 新实体在 updateAllTickManagers 之后创建，计时器以当前帧为起点，
+      // 不会在同一帧被额外 tick 一次；两端也都在同一逻辑帧末看到相同实体集合。
+      DeferredManager.Instance.flush();
+      CardpileManager.Instance.applyPendingOwnProfile(frameId);
+      CardpileManager.Instance.stepUpdate();
+      ResourceManager.Instance.applyPendingResourceProfiles(frameId);
+    }
+
+    // Physics-step systems.
+    if (!this.isPaused) {
+      this.scene?.rapierWorld?.step(this.scene.rapierEventQueue);
+      // Drain collision events.
+      this.scene?.rapierEventQueue.drainCollisionEvents((handle1: number, handle2: number, started: boolean) => {
+        if (started) {
+          this.scene?.handleCollision(handle1, handle2);
+        }
+      });
+
+      // Sync entity logical positions from physics bodies.
+      this.scene?.rapierWorld?.bodies.forEach(rigidBody => {
+        const position = rigidBody.translation();
+        const gameObject = rigidBody.userData;
+        if (gameObject instanceof BaseEntity) {
+          gameObject.stepUpdate();
+          gameObject.updateView(position);
+        }
+      });
+    }
+
+    this.isInFixedStep = false;
+    const hashStarted = perfSampler.now();
+    this.sampleStateHash();
+    perfSampler.record("sampleStateHash", perfSampler.now() - hashStarted);
+    const diagnosticStarted = perfSampler.now();
+    this.captureDiagnosticFrame();
+    perfSampler.record("captureDiagnosticFrame", perfSampler.now() - diagnosticStarted);
+    const snapshotStarted = perfSampler.now();
+    this.recordSnapshotIfNeeded();
+    perfSampler.record("recordSnapshotIfNeeded", perfSampler.now() - snapshotStarted);
+    this.finishDeterminismCheckIfNeeded();
+    this.commitPendingPausedState();
+    return true;
   }
 
   /**

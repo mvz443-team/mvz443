@@ -113,6 +113,8 @@ export default class QueueReceive {
 
   currentFrameId: number = 0;
   lastAckFrameId: number = 0;
+  /** 见过的最大服务端帧号；与 currentFrameId 之差就是本机落后程度。 */
+  private maxObservedFrameId: number = 0;
 
   // 只保留 lastAckFrameId 即可判断重复帧，无需整局累积 Set
   private readonly maxBufferedResponses: number = 64;
@@ -152,6 +154,7 @@ export default class QueueReceive {
     this.pendingLateOperations.clear();
     this.currentFrameId = 0;
     this.lastAckFrameId = 0;
+    this.maxObservedFrameId = 0;
     setAuthoritativeFrame(0);
   }
 
@@ -382,7 +385,15 @@ export default class QueueReceive {
     return result;
   }
 
+  /** 本机当前落后的权威帧数；驱动战斗层在落后时切换为逻辑快进。 */
+  public getLagFrames(): number {
+    return Math.max(0, this.maxObservedFrameId - this.currentFrameId);
+  }
+
   handleInGameResponse(response: InGameResponse) {
+    if (Number.isFinite(response.frameId) && response.frameId > this.maxObservedFrameId) {
+      this.maxObservedFrameId = response.frameId;
+    }
     // console.log("[QueueReceive] enqueue response", {
     //   frameId: response.frameId,
     //   operationCount: response.operations.length,

@@ -220,3 +220,54 @@ test('服务器改写后的迟到操作先回滚再重放', () => {
   assert.equal(queue.currentFrameId, 4);
   assert.deepEqual(applied, [9], '历史帧重放不得重复执行操作');
 });
+
+test('落后帧数由见过的最大服务端帧号推导', () => {
+  const queue = new QueueReceive();
+  assert.equal(queue.getLagFrames(), 0);
+
+  // 服务端帧 1..10 已到，客户端尚未消费 → 落后帧数按最大已见帧号计算。
+  for (let frame = 1; frame <= 10; frame += 1) {
+    queue.handleInGameResponse({ frameId: frame, operations: [] });
+  }
+  assert.equal(queue.currentFrameId, 0);
+  assert.equal(queue.getLagFrames(), 10);
+
+  // 逐帧消费，落后帧数单调下降。
+  assert.equal(queue.Consume(), true);
+  assert.equal(queue.getLagFrames(), 9);
+
+  // 旧帧重发不得让落后程度倒退。
+  queue.handleInGameResponse({ frameId: 8, operations: [] });
+  assert.equal(queue.getLagFrames(), 9);
+
+  // 服务端大幅推进到 120，本机落后立刻扩大，足以触发逻辑快进。
+  queue.handleInGameResponse({ frameId: 120, operations: [] });
+  assert.equal(queue.getLagFrames(), 119);
+});
+
+test('回滚重建冷却时取每张卡最后一次权威种植帧', () => {
+  const queue = new QueueReceive();
+  const plant = (frame, pid, uid = 101) => ({
+    ...cardPlantOperation(frame),
+    payload: {
+      oneofKind: 'cardPlant',
+      cardPlant: { pid, level: 1, cost: 50, base: { uid, col: 2, row: 0 } },
+    },
+  });
+
+  // 本机 uid=101：pid 2 在帧 5 与帧 12 种过，pid 3 在帧 8 种过。
+  // 别人的操作（pid 9）必须忽略。
+  for (let frame = 1; frame <= 12; frame += 1) {
+    let operations = [];
+    if (frame === 5) operations = [plant(5, 2)];
+    if (frame === 8) operations = [plant(8, 3)];
+    if (frame === 12) operations = [plant(12, 2), plant(12, 9, 999)];
+    queue.handleInGameResponse({ frameId: frame, operations });
+    assert.equal(queue.Consume(), true);
+  }
+
+  assert.equal(queue.collectLastPlantFramesBefore(10, 101).get(2), 5);
+  assert.equal(queue.collectLastPlantFramesBefore(10, 101).get(3), 8);
+  assert.equal(queue.collectLastPlantFramesBefore(20, 101).get(2), 12);
+  assert.equal(queue.collectLastPlantFramesBefore(20, 101).has(9), false, '他人操作不参与本机冷却');
+});
