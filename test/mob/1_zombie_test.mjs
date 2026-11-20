@@ -76,3 +76,21 @@ test("携带星之碎片死亡后掉落给全场", () => {
   assert.equal(model.starShardsDropped, true);
   assert.equal(model.carryStarShards, false);
 });
+
+test("死亡销毁由 Model 权威帧定时器驱动，不在表现层回调里结算", () => {
+  const sim = resetSim();
+  const { model, entity } = spawnMob(ZombieData, { col: 8, row: 2 });
+
+  model.takeDamage(entity, 300);
+  assert.equal(model.isDying, true);
+  assert.equal(entity.destroyed, false);
+
+  // 350ms（7 帧，未到 DeathSettle）不应销毁：击杀计数必须等权威帧定时器，
+  // 而不是 Phaser 死亡动画的 onComplete。
+  tick(sim, 350);
+  assert.equal(entity.destroyed, false);
+
+  // 跨过 400ms 的 DeathSettle（第 8 帧）：Model 派发事件调用 host.destroy()。
+  tick(sim, 50);
+  assert.equal(entity.destroyed, true);
+});
