@@ -35,6 +35,7 @@ const MutantModelBase = withWeaponModel(PresetMonsterModel);
 const MutantEntityBase = withWeaponEntity(BaseMonsterEntity);
 
 const MUTANT_EVENTS = {
+  Smash: "MutantSmash",
   Recover: "MutantRecover",
 } as const;
 
@@ -42,6 +43,7 @@ const MUTANT_EVENTS = {
 export class MutantModel extends MutantModelBase {
   public override readonly tickEventNames: readonly string[] = [
     ...DEFAULT_TICK_EVENT_NAMES,
+    MUTANT_EVENTS.Smash,
     MUTANT_EVENTS.Recover,
   ];
 
@@ -108,17 +110,22 @@ export class MutantModel extends MutantModelBase {
 
     const raw = entity.getLegacyController()?.raw;
     raw?.stopArmSwing?.();
-    const attackTargets = [...entity.attackedPlants];
+    // 表现层只负责播放砸击动画；伤害与恢复必须由 Model 的帧驱动 timer 决定，
+    // 否则 tween onComplete 的时钟差异会造成回滚后伤害丢失/重复（desync）。
+    raw?.startLeftArmSmash?.();
 
-    raw?.startLeftArmSmash?.(() => {
-      if (entity.currentHealth <= 0 || this.isFrozen || this.isDying) return;
+    entity.attackTimer?.remove();
+    entity.attackTimer = this.tickmanager.schedule(MUTANT_EVENTS.Smash, this.chargeMs);
+  }
 
-      const cells = attackTargets.map((plant) => ({ col: plant.col, row: plant.row }));
+  private applySmashDamage(entity: MutantEntity | null): void {
+    if (!entity || entity.currentHealth <= 0 || this.isFrozen || this.isDying) return;
+    const cells = entity.attackedPlants.map((plant) => ({ col: plant.col, row: plant.row }));
+    if (cells.length > 0) {
       MobCmd.DamagePlantsInCells(cells, this.smashDamage);
-
-      entity.recoverTimer?.remove();
-      entity.recoverTimer = this.tickmanager.schedule(MUTANT_EVENTS.Recover, this.recoverMs);
-    });
+    }
+    entity.recoverTimer?.remove();
+    entity.recoverTimer = this.tickmanager.schedule(MUTANT_EVENTS.Recover, this.recoverMs);
   }
 
   public override handleTickEvent(
@@ -126,6 +133,10 @@ export class MutantModel extends MutantModelBase {
     args: import("../../../core/SimulationState").JsonValue = null,
     timerId?: number,
   ): void {
+    if (eventName === MUTANT_EVENTS.Smash) {
+      this.applySmashDamage(this.host as MutantEntity | null);
+      return;
+    }
     if (eventName === MUTANT_EVENTS.Recover) {
       this.finishRecover(this.host as MutantEntity | null);
       return;
