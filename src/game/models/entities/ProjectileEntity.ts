@@ -5,7 +5,6 @@ import { BaseEntity } from "../core/BaseEntity";
 import { CombatEntity } from "../core/CombatEntity";
 import { ProjectileConfig, ProjectileModel } from "../projectiles/ProjectileModels";
 import { Faction } from "../Enum";
-import { MonsterEntity } from "./MonsterEntity";
 import { _Typedebuffs } from "../../../constants/game";
 import { PROJECTILE_RELATION_FIELDS } from "../../core/logic/LogicRelations";
 import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
@@ -24,9 +23,8 @@ export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> exte
 
   public dealer: CombatEntity | undefined; // 伤害来源实体（比如子弹的发射者）
 
-  declare couldAttackFlying: boolean; // 是否能攻击飞行单位（默认为false，表示只能攻击地面单位）
-  declare debuff: _Typedebuffs;
-  declare debuffDuration: number;
+  declare public debuff: _Typedebuffs;
+  declare public debuffDuration: number;
 
   constructor(scene: Game, x: number, y: number, model: T, cfg: ProjectileConfig) {
     super(scene, x, y, model);
@@ -34,7 +32,11 @@ export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> exte
     this.faction = cfg.faction;
     this.dealer = cfg.dealer;
 
-    this.couldAttackFlying = cfg.couldAttackFlying ?? model.couldAttackFlying;
+    // 体态（能否命中 tiny/flying/void）属于业务判定，只写在 Model 上。
+    this.model.tiny = cfg.tiny ?? this.model.tiny;
+    this.model.flying = cfg.flying ?? this.model.flying;
+    this.model.inVoid = cfg.inVoid ?? this.model.inVoid;
+
     this.debuff = cfg.debuff ?? model.debuff;
     this.debuffDuration = cfg.debuffDuration ?? model.debuffDuration;
   }
@@ -67,19 +69,8 @@ export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> exte
     if (this.hasAttackedSet.has(ctx.targetEntity)) return; // 已经攻击过
     if (ctx.targetEntity.faction === this.faction) return; // 阵营不符
 
-    // 基本条件过滤
-    if (!ctx.targetEntity.takeDamage) return; // 不是可受击对象
-    if (this.hasAttackedSet.has(ctx.targetEntity)) return; // 已经攻击过
-    if (ctx.targetEntity.faction === this.faction) return; // 阵营不符
-
-    // 高度/飞行逻辑判断
-    if (this.couldAttackFlying === false) {
-      if (ctx.targetEntity instanceof MonsterEntity &&
-        ctx.targetEntity.model.isFlying) return; // 地面子弹打不到天上
-    }
-
-    // 虚空/黑夜逻辑
-    if (ctx.targetEntity instanceof MonsterEntity && ctx.targetEntity.model.isInVoid) return;
+    // 体态判定（tiny / flying / void）由 Model 与 BodyTraits 统一负责。
+    if (!this.model.canHit(ctx.targetEntity)) return;
 
     // 命中效果由 Model 实现，Entity 不写战斗逻辑。
     this.model.applyEffect(this, ctx.targetEntity);

@@ -34,7 +34,7 @@ export abstract class PlantModel extends LogicModel {
   public abstract damage: LevelScaledValue;
 
   public abstract isNightPlant: boolean;
-  public isTiny: boolean = false; // 是否为小型植物（会被skipTinyPlant忽略）
+  /** 低矮植物由 `LogicModel.tiny` 表示（只有带 tiny 的投射物能命中）。 */
 
   protected readonly LevelThresholds1: number;
   protected readonly LevelThresholds2: number;

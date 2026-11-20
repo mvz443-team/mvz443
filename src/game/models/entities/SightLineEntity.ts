@@ -7,8 +7,8 @@ import type { Game } from "../../scenes/Game";
 import { CollisionContext } from "../../types";
 import { BaseEntity } from "../core/BaseEntity";
 import { CombatEntity } from "../core/CombatEntity";
+import { canReachBody, readBodyLayers, type BodyLayers } from "../../core/logic/BodyTraits";
 import { Faction } from "../Enum";
-import { MonsterEntity } from "./MonsterEntity";
 
 export type SightLineDirection = -1 | 1;
 
@@ -19,8 +19,11 @@ export type SightLineOptions = {
   maxDistance?: number;
   includeFactions?: Faction[];
   excludeFactions?: Faction[];
-  includeTiny?: boolean;
-  includeFlying?: boolean;
+  /**
+   * 这条判定线（= 该植物的攻击）能到达的体态层，
+   * 与投射物共用 `BodyTraits.canReachBody()`。省略表示只到普通地面目标。
+   */
+  reach?: Partial<BodyLayers>;
   ignoreBounce?: boolean;
   originX?: number | (() => number);
 };
@@ -101,8 +104,7 @@ export class SightLineEntity extends BaseEntity {
   private readonly maxDistance: number;
   private readonly includeFactions?: Set<Faction>;
   private readonly excludeFactions?: Set<Faction>;
-  private readonly includeTiny: boolean;
-  private readonly includeFlying: boolean;
+  private readonly reach: BodyLayers;
   private readonly ignoreBounce: boolean;
   private readonly candidates: Set<CombatEntity> = new Set();
   private lineLength = 1;
@@ -127,8 +129,11 @@ export class SightLineEntity extends BaseEntity {
     this.maxDistance = maxDistance;
     this.includeFactions = options.includeFactions ? new Set(options.includeFactions) : undefined;
     this.excludeFactions = options.excludeFactions ? new Set(options.excludeFactions) : undefined;
-    this.includeTiny = options.includeTiny ?? false;
-    this.includeFlying = options.includeFlying ?? false;
+    this.reach = {
+      tiny: options.reach?.tiny === true,
+      flying: options.reach?.flying === true,
+      inVoid: options.reach?.inVoid === true,
+    };
     this.ignoreBounce = options.ignoreBounce ?? this.owner.faction === Faction.ZOMBIE;
 
     this.buildView();
@@ -303,8 +308,7 @@ export class SightLineEntity extends BaseEntity {
     if (target === this.owner) return false;
     if (target.currentHealth <= 0) return false;
     if (!this.matchFaction(target.faction)) return false;
-    if (!this.includeTiny && target.isTiny) return false;
-    if (!this.includeFlying && target instanceof MonsterEntity && target.model.isFlying) return false;
+    if (!canReachBody(this.reach, readBodyLayers(target))) return false;
     if (target.GetRow() !== row) return false;
 
     return this.isInBaseRay(target.x, originX) || this.isInBounceRay(target, originX, reflectors);

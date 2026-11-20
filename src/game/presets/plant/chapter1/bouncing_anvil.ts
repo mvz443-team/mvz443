@@ -111,7 +111,7 @@ export class BouncingAnvilModel extends PlantModel {
     if (!(target instanceof MonsterEntity)) return false;
     if (target.faction === host.faction) return false;
     if (target.currentHealth <= 0 || target.model.isDying) return false;
-    if (target.model.isFlying || target.model.isInVoid) return false;
+    if (target.model.flying || target.model.inVoid) return false;
 
     const hostRow = host.row ?? (host as unknown as PlantEntity).row;
     if (target.GetRow() !== hostRow) return false;
@@ -204,7 +204,7 @@ export class BouncingAnvilModel extends PlantModel {
         seen.add(mob);
 
         if (mob.faction === host.faction) continue;
-        if (mob.currentHealth <= 0 || mob.model.isDying || mob.model.isInVoid) continue;
+        if (mob.currentHealth <= 0 || mob.model.isDying || mob.model.inVoid) continue;
         candidates.push(mob);
       }
     }
@@ -273,7 +273,6 @@ export class BouncingAnvilModel extends PlantModel {
       distance: laserLength,
       duration: LASER_DURATION_MS,
       invisible: true,
-      couldAttackFlying: false,
     });
 
     this.isJumping = false;
@@ -326,7 +325,7 @@ export class BouncingAnvilModel extends PlantModel {
       distance: STAR_SHARDS_LASER_LENGTH_GRID,
       duration: LASER_DURATION_MS,
       invisible: true,
-      couldAttackFlying: true,
+      flying: true,
     });
   }
 

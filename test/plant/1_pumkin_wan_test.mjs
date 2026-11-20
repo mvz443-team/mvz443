@@ -23,7 +23,7 @@ import { PumpkinData } from "../../src/game/presets/plant/chapter1/pumkin.ts";
  *
  * 验收路径：
  *   1) 有目标时推进 1s，统计三行激光数量、伤害、distance、起始 x。
- *   2) 对比 Lv1/Lv9 的行覆盖、distance、startOffset 和 couldAttackFlying。
+ *   2) 对比 Lv1/Lv9 的行覆盖、distance、startOffset 和 flying。
  *   3) 星碎后按时间推进，统计 ProjectileCmd 爆炸次数与配置。
  *   4) 星碎后模拟植物死亡并请求清理定时器，继续推进到 9800ms。
  *   5) 同格放入睡眠的基础南瓜，验证 createEntity 继承睡眠并销毁基座。
@@ -56,7 +56,7 @@ test("Lv1 1s 内两轮三行激光，伤害 22.581", () => {
   for (const laser of lasers) {
     assert.equal(laser.cfg.damage, 22.581);
     assert.equal(laser.cfg.distance, 3);
-    assert.equal(laser.cfg.couldAttackFlying, false);
+    assert.equal(laser.cfg.flying, false);
     assert.equal(laser.x, entity.x - PositionManager.Instance.GRID_SIZEX * 1.5);
   }
 });
@@ -73,7 +73,7 @@ test("Lv9 激光覆盖 5x5、偏移 2.5 格并可打飞行", () => {
   for (const laser of lasers) {
     assert.equal(laser.cfg.damage, 30.484);
     assert.equal(laser.cfg.distance, 5);
-    assert.equal(laser.cfg.couldAttackFlying, true);
+    assert.equal(laser.cfg.flying, true);
     assert.equal(laser.x, entity.x - PositionManager.Instance.GRID_SIZEX * 2.5);
   }
 });
@@ -85,7 +85,7 @@ test("Lv5 起可攻击飞行单位", () => {
 
   tick(sim, 300);
   const lasers = ProjectileCmd.calls.filter((call) => call.kind === "laser");
-  assert.equal(lasers[0].cfg.couldAttackFlying, true);
+  assert.equal(lasers[0].cfg.flying, true);
 });
 
 test("睡眠时停止普通激光", () => {

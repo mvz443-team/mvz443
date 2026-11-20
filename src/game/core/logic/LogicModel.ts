@@ -8,6 +8,11 @@
  */
 
 import type { JsonValue, RestoreContext, TimerState } from "../SimulationState.ts";
+import {
+  bodyLayers,
+  describeBodyLayers,
+  type BodyLayers,
+} from "./BodyTraits.ts";
 import { EntityTickManager, type ITickManagerProxy } from "./EntityTickManager.ts";
 import { getLogicHandle, trackLogicObject, type Tracked } from "./LogicState.ts";
 import {
@@ -47,6 +52,25 @@ export abstract class LogicModel {
   /** 通用战斗状态；字段名避开 Model 上的静态配置 maxHealth。 */
   public health: number = 0;
   public healthMax: number = 0;
+
+  /**
+   * 体态标签（tiny / flying / void），判定入口见 `BodyTraits.ts`。
+   *
+   * 对目标表示"占据哪一层"，对投射物/射线表示"能到达哪一层"。
+   * 三个字段是普通布尔值，自动进入快照与哈希；不要用 Entity 自有字段遮蔽。
+   */
+  public tiny: boolean = false;
+  public flying: boolean = false;
+  public inVoid: boolean = false;
+
+  /** 体态的可读描述；仅用于日志与断言，不参与模拟。 */
+  public get bodyLayers(): BodyLayers {
+    return bodyLayers(this);
+  }
+
+  public get bodyLayerNames(): string {
+    return describeBodyLayers(this.bodyLayers);
+  }
 
   /** 每个 Model 独立持有一个可快照定时器；非枚举，不进入 LogicState 快照。 */
   public readonly tickmanager!: ITickManagerProxy;

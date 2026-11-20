@@ -4,6 +4,7 @@ import type { BaseEntity } from "./core/BaseEntity";
 import { CombatEntity } from "./core/CombatEntity";
 import type { MonsterEntity } from "./entities/MonsterEntity";
 import { LogicModel } from "../core/logic/LogicModel";
+import { readBodyLayers } from "../core/logic/BodyTraits";
 import type { JsonValue } from "../core/SimulationState";
 import type { ITickTimerHandle } from "../core/logic/EntityTickManager";
 import { DEFAULT_TICK_EVENT_NAMES } from "../core/logic/TickEvents";
@@ -34,8 +35,6 @@ export abstract class MonsterModel extends LogicModel {
   public health: number = 0;
   public speed: number = 0;
   public originalSpeed: number = 0;
-  public isFlying: boolean = false;
-  public isInVoid: boolean = false;
   public isDying: boolean = false;
   public isFrozen: boolean = false;
   public isStop: boolean = false;
@@ -88,8 +87,8 @@ export abstract class MonsterModel extends LogicModel {
     this.healthMax = this.maxHealth;
     this.originalSpeed = this.baseSpeed;
     this.speed = this.originalSpeed;
-    this.isFlying = this.isDefaultFlying;
-    this.isInVoid = this.isDefaultInVoid;
+    this.flying = this.isDefaultFlying;
+    this.inVoid = this.isDefaultInVoid;
   }
 
   /** 普攻定时器由 Model 创建；Entity 只保存句柄用于停止。 */
@@ -188,9 +187,9 @@ export abstract class MonsterModel extends LogicModel {
     if (target.currentHealth <= 0) return false;
     if (target.faction === Faction.ZOMBIE) return false;
     if ((target as { hasExploded?: boolean }).hasExploded) return false;
-    const targetModel = (target as { model?: { isFlying?: boolean; isInVoid?: boolean } }).model;
-    if (targetModel?.isFlying && !this.isFlying) return false;
-    if (targetModel?.isInVoid) return false;
+    const targetLayers = readBodyLayers(target);
+    if (targetLayers.flying && !this.flying) return false;
+    if (targetLayers.inVoid) return false;
     return true;
   }
 

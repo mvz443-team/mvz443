@@ -44,8 +44,6 @@ export class DoubleDispenserModel extends PlantModel {
       directions: [-1, 1],
       maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
       excludeFactions: [entity.faction],
-      includeTiny: false,
-      includeFlying: false,
     });
 
     entity.model.tickmanager.addEvent({

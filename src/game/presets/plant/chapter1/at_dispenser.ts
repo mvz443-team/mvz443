@@ -100,8 +100,6 @@ export class ATDispenserModel extends PlantModel {
       direction: 1,
       maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
       excludeFactions: [entity.faction],
-      includeTiny: false,
-      includeFlying: false,
     });
 
     entity.model.tickmanager.addEvent({

@@ -33,10 +33,15 @@ export class SmallDispenserModel extends PlantModel {
 
   public damage = new LevelScaledValue(ProjectileDamage.bullet.snowBall).setIncRatio(1.3);
   public isNightPlant = true;
-  public isTiny = true;
 
   LevelThresholds1 = 3; // 增加攻击距离的等级阈值
   LevelThresholds2 = 7;
+
+  constructor() {
+    super();
+    // 低矮植物：只有带 tiny 的投射物能命中。
+    this.tiny = true;
+  }
 
   public override createEntity(scene: Game, col: number, row: number, level: number): SmallDispenserEntity {
     return this.initializeEntity(new SmallDispenserEntity(scene, col, row, level));
@@ -58,8 +63,6 @@ export class SmallDispenserModel extends PlantModel {
       direction: 1,
       maxDistance: maxDistanceGrid * PositionManager.Instance.GRID_SIZEX,
       excludeFactions: [entity.faction],
-      includeTiny: false,
-      includeFlying: false,
     });
 
     entity.model.tickmanager.addEvent({

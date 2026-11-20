@@ -13,7 +13,6 @@ export class CombatEntity {
     this.faction = faction;
     this.ExtraData = {};
     this.underAttackBy = new Set();
-    this.isTiny = false;
     this.SnapshotId = `test:${Math.random().toString(36).slice(2)}`;
     this.maxHealth = maxHealth;
     this.currentHealth = maxHealth;

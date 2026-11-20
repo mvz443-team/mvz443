@@ -9,10 +9,28 @@ import { BulletEntity } from "./BulletEntity";
 import { ExplosionEntity } from "./ExplosionEntity";
 import { LaserEntity } from "./LaserEntity";
 import { LogicModel, type ModelHost } from "../../core/logic/LogicModel";
+import { canReachBody, readBodyLayers } from "../../core/logic/BodyTraits";
 import { TickEventNameEnums } from "../../core/logic/TickEvents";
 import type { JsonValue } from "../../core/SimulationState";
 import { registerProjectileModel } from "../../utils/cmd/ProjectileModelRegistry";
 
+/**
+ * 投射物命中类型：决定载具 / 护甲 / 超杀等外层受体如何响应。
+ *
+ * 例如气球僵尸的飞行载具只抵挡 `bullet`，`laser` 与 `explosion` 会穿透。
+ */
+export type ProjectileHitKind = "bullet" | "laser" | "explosion";
+
+/** 从伤害来源（投射物实体或其 Model）读取命中类型；近战等来源返回 null。 */
+export function readProjectileHitKind(source: unknown): ProjectileHitKind | null {
+  if (!source || typeof source !== "object") return null;
+  const holder = source as { model?: unknown };
+  const model = (holder.model && typeof holder.model === "object" ? holder.model : holder) as {
+    hitKind?: unknown;
+  };
+  const kind = model.hitKind;
+  return kind === "bullet" || kind === "laser" || kind === "explosion" ? kind : null;
+}
 
 export abstract class ProjectileModel<TConfig, TEntity extends ProjectileEntity<any>> extends LogicModel {
   /** 跨进程重建所需的稳定类型；派生类必须覆盖，不能依赖类名。 */
@@ -31,7 +49,19 @@ export abstract class ProjectileModel<TConfig, TEntity extends ProjectileEntity<
   public maxDistanceX: number = 0;
   public prevX: number = 0;
   public bounceable: boolean = false;
-  public skipTiny: boolean = true;
+
+  /** 命中类型；投射物默认是子弹，爆炸与激光在各自 Model 覆写。 */
+  public hitKind: ProjectileHitKind = "bullet";
+
+  /**
+   * 命中判定唯一入口。
+   *
+   * `tiny / flying / inVoid` 表示本投射物能到达的体态层，
+   * 由 `BodyTraits.canReachBody()` 与目标体态比较。
+   */
+  public canHit(target: unknown): boolean {
+    return canReachBody(this, readBodyLayers(target));
+  }
 
   /** 通用命中效果；子弹与附魔箭可覆写。 */
   public applyEffect(host: ModelHost, target: unknown): void {
@@ -44,7 +74,6 @@ export abstract class ProjectileModel<TConfig, TEntity extends ProjectileEntity<
   public debuff: _Typedebuffs = null;
   public debuffDuration: number = 0;
 
-  public couldAttackFlying = false; // 是否能攻击飞行单位（默认为false，表示只能攻击地面单位）
   // 抽象工厂方法，由具体子类决定如何使用 Config 和 Scene 生成 Entity
   public abstract createEntity(scene: Game, x: number, row: number, config: TConfig): TEntity;
 
@@ -70,7 +99,12 @@ export interface ProjectileConfig {
   debuff?: _Typedebuffs;
   debuffDuration?: number;
 
-  couldAttackFlying?: boolean; // 是否能攻击飞行单位（默认为false，表示只能攻击地面单位）
+  /** 本单位能否命中低矮目标（低矮植物）。 */
+  tiny?: boolean;
+  /** 本单位能否命中飞行目标。 */
+  flying?: boolean;
+  /** 本单位能否命中虚空目标。 */
+  inVoid?: boolean;
 }
 
 export interface BulletConfig extends ProjectileConfig {
@@ -79,7 +113,6 @@ export interface BulletConfig extends ProjectileConfig {
   speed?: number; // 子弹速度，单位/秒
   penetratePower?: number; // 穿透能力
   penetratedPunish?: number; // 穿透后伤害衰减系数
-  skipTiny?: boolean; // 是否跳过小型单位，默认为true
 }
 
 export class BulletModel<TConfig extends BulletConfig = BulletConfig, TEntity extends BulletEntity = BulletEntity> extends ProjectileModel<TConfig, TEntity> {
@@ -122,7 +155,10 @@ export class ExplosionModel<TConfig extends ExplosionConfig = ExplosionConfig, T
   public static override readonly projectileKind: string = "explosion";
   public disableAnime: boolean = false;
 
-  couldAttackFlying = true;
+  /** 爆炸覆盖低矮与空中目标；虚空目标需要显式配置。 */
+  public override tiny = true;
+  public override flying = true;
+  public override hitKind: ProjectileHitKind = "explosion";
 
   public createEntity(scene: Game, x: number, row: number, config: TConfig): TEntity {
     return new ExplosionEntity(scene, x, row, this, config) as TEntity;
@@ -143,6 +179,10 @@ export class LaserModel<TConfig extends LaserConfig = LaserConfig, TEntity exten
   public static override readonly projectileKind: string = "laser";
   public duration: number = 400; // 激光持续时间
   public distance: number = 12; // 激光长度(格)
+
+  /** 激光默认覆盖低矮层（与历史行为一致），是否对空由配置决定。 */
+  public override tiny = true;
+  public override hitKind: ProjectileHitKind = "laser";
 
   // 视觉参数
   public invisible: boolean = false;

@@ -103,8 +103,6 @@ export class BaseSkeletonBowEntity extends SkeletonBowEntityBase {
       direction: -1,
       maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
       excludeFactions: [this.faction],
-      includeTiny: false,
-      includeFlying: false,
       ignoreBounce: true,
     });
   }

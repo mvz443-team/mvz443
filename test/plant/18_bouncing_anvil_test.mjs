@@ -94,7 +94,8 @@ test("警戒线内地面敌人触发，300ms 后以目标中心生成隐形激�
   assert.equal(laser.cfg.distance, 0.8);
   assert.equal(laser.cfg.damage, 1500);
   assert.equal(laser.cfg.invisible, true);
-  assert.equal(laser.cfg.couldAttackFlying, false);
+  // 普通跃击不对空：配置里不声明 flying（默认 false）。
+  assert.equal(laser.cfg.flying ?? false, false);
   assert.equal(laser.x, zombie.entity.x - GRID_X * 0.4);
   assert.equal(model.isJumping, false);
   assert.equal(entity.destroyed, true);
@@ -116,12 +117,12 @@ test("超出警戒线、睡眠、飞行与虚空目标都不触发", () => {
   assert.equal(model.hasTriggered, false);
 
   model.isSleeping = false;
-  zombie.model.isFlying = true;
+  zombie.model.flying = true;
   model.onModelStep(entity);
   assert.equal(model.hasTriggered, false);
 
-  zombie.model.isFlying = false;
-  zombie.model.isInVoid = true;
+  zombie.model.flying = false;
+  zombie.model.inVoid = true;
   model.onModelStep(entity);
   assert.equal(model.hasTriggered, false);
 });
@@ -191,7 +192,7 @@ test("星之碎片：两道分身攻击血量最高的两个敌人，各造成 2
 
   const voided = spawnMob(ZombieData, { col: 3, row: 0 });
   voided.entity.currentHealth = 9999;
-  voided.model.isInVoid = true;
+  voided.model.inVoid = true;
   const first = spawnMob(ZombieData, { col: 3, row: 1 });
   first.entity.currentHealth = 5000;
   const second = spawnMob(ZombieData, { col: 3, row: 3 });
@@ -226,7 +227,7 @@ test("星之碎片：两道分身攻击血量最高的两个敌人，各造成 2
     assert.equal(laser.cfg.distance, 0.8);
     assert.equal(laser.cfg.damage, 1500);
     assert.equal(laser.cfg.invisible, true);
-    assert.equal(laser.cfg.couldAttackFlying, true);
+    assert.equal(laser.cfg.flying, true);
   }
   assert.equal(lasers[0].x, first.entity.x - GRID_X * 0.4);
   assert.equal(lasers[1].x, first.entity.x - GRID_X * 0.4);
@@ -290,7 +291,7 @@ test("星之碎片：飞行目标可被选中并命中", () => {
   const { model, entity } = spawnPlant(BouncingAnvilData, { level: 1, col: 4, row: 2 });
   const flying = spawnMob(ZombieData, { col: 3, row: 2 });
   flying.entity.currentHealth = 5000;
-  flying.model.isFlying = true;
+  flying.model.flying = true;
   putInLane(2, [flying.entity]);
 
   model.onStarShards(entity);
@@ -300,7 +301,7 @@ test("星之碎片：飞行目标可被选中并命中", () => {
   assert.equal(lasers.length, 2);
   for (const laser of lasers) {
     assert.equal(laser.row, 2);
-    assert.equal(laser.cfg.couldAttackFlying, true);
+    assert.equal(laser.cfg.flying, true);
   }
 });
 

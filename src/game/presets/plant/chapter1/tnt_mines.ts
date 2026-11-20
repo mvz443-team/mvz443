@@ -73,15 +73,20 @@ export class TntMinesModel extends PlantModel {
     if (target.faction === host.faction) return "ignore";
 
     if (target instanceof MonsterEntity) {
-      if (target.model.isInVoid) return "ignore";
+      if (target.model.inVoid) return "ignore";
       if (canVaultOverMine(target, host)) return "ignore";
-      if (target.model.isFlying) return "pending";
+      if (target.model.flying) return "pending";
     }
     return "explode";
   }
 
   public isNightPlant = false;
-  public isTiny = true;
+
+  constructor() {
+    super();
+    // 低矮植物：只有带 tiny 的投射物能命中。
+    this.tiny = true;
+  }
 
   public override createEntity(scene: Game, col: number, row: number, level: number): TntMinesEntity {
     return this.initializeEntity(new TntMinesEntity(scene, col, row, level));
@@ -289,7 +294,7 @@ export class TntMinesEntity extends PlantEntity {
     if (mobs) {
       for (const mob of mobs) {
         if (!(mob instanceof MonsterEntity)) continue;
-        if (mob.currentHealth <= 0 || mob.model.isDying || mob.model.isInVoid) continue;
+        if (mob.currentHealth <= 0 || mob.model.isDying || mob.model.inVoid) continue;
 
         const action = this.model.handleContact(this, mob);
         if (action === "pending") {
@@ -308,12 +313,12 @@ export class TntMinesEntity extends PlantEntity {
 
     if (this.pendingFlyingMonsters.size === 0) return;
     for (const m of this.pendingFlyingMonsters) {
-      if (m.model.isDying || m.currentHealth <= 0 || m.model.isInVoid ||
+      if (m.model.isDying || m.currentHealth <= 0 || m.model.inVoid ||
         m.row !== this.row || Math.abs(m.x - this.x) > range) {
         this.pendingFlyingMonsters.delete(m);
         continue;
       }
-      if (!m.model.isFlying) {
+      if (!m.model.flying) {
         const action = this.model.handleContact(this, m);
         if (action === "explode") {
           this.model.explode(this, this.level);

@@ -59,7 +59,7 @@ export class MagicPowderModel extends PlantModel {
         damage: damageValue,
         duration: 200,
         distance: 1.2,
-        couldAttackFlying: true,
+        flying: true,
         invisible: true,
         color: 0x00ffff,
         alphaFrom: 0.2,

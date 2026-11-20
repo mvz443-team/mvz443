@@ -21,6 +21,9 @@ test('Model 的普通字段自动进入快照，配置对象不进入', () => {
   assert.deepEqual(snapshotModel(model), {
     health: 0,
     healthMax: 0,
+    tiny: false,
+    flying: false,
+    inVoid: false,
     explodeDamage: 20,
     penetrated: 0,
     destroyed: 0,

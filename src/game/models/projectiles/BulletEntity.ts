@@ -5,7 +5,6 @@ import type { Game } from "../../scenes/Game";
 import { CollisionContext } from "../../types";
 import PlantHelper from "../../utils/helper/PlantHelper";
 import { CombatEntity } from "../core/CombatEntity";
-import { MonsterEntity } from "../entities/MonsterEntity";
 import { PlantEntity } from "../entities/PlantEntity";
 import { ProjectileEntity } from "../entities/ProjectileEntity";
 import { BulletConfig, BulletModel } from "./ProjectileModels";
@@ -41,8 +40,6 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
     this.hasPenetratedSet = new Set<CombatEntity>();
     this.penetratePower = cfg.penetratePower ?? model.penetratePower;
     this.penetratedPunish = cfg.penetratedPunish ?? model.penetratedPunish;
-
-    this.skipTiny = cfg.skipTiny ?? true;
 
     // Visuals
     const col = PositionManager.Instance.getColByX(x);
@@ -136,15 +133,8 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
     if (this.hasAttackedSet.has(ctx.targetEntity)) return;
     if (ctx.targetEntity.faction === this.faction) return;
 
-    // Height / flying filters.
-    if (this.skipTiny && ctx.targetEntity.isTiny) return;
-    if (this.couldAttackFlying === false) {
-      if (ctx.targetEntity instanceof MonsterEntity &&
-        ctx.targetEntity.model.isFlying) return;
-    }
-
-    // Void filter.
-    if (ctx.targetEntity instanceof MonsterEntity && ctx.targetEntity.model.isInVoid) return;
+    // Height / flying / void filters：统一走 Model 的体态判定。
+    if (!this.model.canHit(ctx.targetEntity)) return;
 
     // Piercing rules.
     const target = ctx.targetEntity as CombatEntity;

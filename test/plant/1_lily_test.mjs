@@ -19,7 +19,7 @@ import { LilyData } from "../../src/game/presets/plant/chapter1/lily.ts";
  *   用 GridManager 替身设置水格，注册一个已存在的睡莲，调用真实 onStarShards。
  *
  * 预期结果：
- *   只在水格创建睡莲；跳过自身与已有睡莲；Lv5 cost = 0；isTiny = true。
+ *   只在水格创建睡莲；跳过自身与已有睡莲；Lv5 cost = 0；tiny = true。
  *
  * 为什么：
  *   onStarShards 遍历 col±1 / row±1，检查 gridProp.type === 'water'，
@@ -49,7 +49,7 @@ test("星之碎片只在水格补种睡莲，并跳过自身/已有睡莲", () =
 test("睡莲 5 级免能量且为低矮植物", () => {
   resetSim();
   assert.equal(LilyData.cost.getValueAt(5), 0);
-  assert.equal(LilyData.isTiny, true);
+  assert.equal(LilyData.tiny, true);
   assert.equal(LilyData.maxHealth.getValueAt(1), 300);
 });
 

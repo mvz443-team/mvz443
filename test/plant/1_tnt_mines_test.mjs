@@ -34,7 +34,7 @@ import { GetDecValue } from "../../src/utils/numbervalue.ts";
  * 为什么：
  *   onCreate 用 GetDecValue(15000, 0.8, level) 排 Wakeup；
  *   explode 先检查 hasExploded 再创建爆炸并 destroySelf；
- *   handleContact 按 isBuried / faction / isFlying 分支；
+ *   handleContact 按 isBuried / faction / flying 分支；
  *   onStarShards 对 2 个目标位置各 schedule 一次 SpawnMine。
  */
 
@@ -80,10 +80,10 @@ test("埋藏、同阵营、飞行单位分别返回 ignore/pending", () => {
   model.isBuried = false;
   assert.equal(model.handleContact(entity, ally), "ignore");
 
-  zombie.model.isFlying = true;
+  zombie.model.flying = true;
   assert.equal(model.handleContact(entity, zombie.entity), "pending");
 
-  zombie.model.isFlying = false;
+  zombie.model.flying = false;
   assert.equal(model.handleContact(entity, zombie.entity), "explode");
 });
 

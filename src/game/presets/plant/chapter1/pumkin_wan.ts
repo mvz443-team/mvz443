@@ -84,8 +84,7 @@ export class PumpkinWanModel extends PlantModel {
       direction: 1,
       maxDistance: this.attackDistance.getValueAt(entity.level) * PositionManager.Instance.GRID_SIZEX,
       excludeFactions: [entity.faction],
-      includeTiny: true,
-      includeFlying: canAttackFlying,
+      reach: { tiny: true, flying: canAttackFlying },
       ignoreBounce: true,
     });
 
@@ -152,7 +151,7 @@ export class PumpkinWanModel extends PlantModel {
           dealer: entity,
           duration: this.laserDuration,
           distance: laserDistance,
-          couldAttackFlying: canAttackFlying,
+          flying: canAttackFlying,
           invisible: true,
           color: 0x7df7ff,
           alphaFrom: 0,

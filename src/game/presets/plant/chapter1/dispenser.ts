@@ -37,8 +37,6 @@ export class DispenserModel extends PlantModel {
       direction: 1,
       maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
       excludeFactions: [entity.faction],
-      includeTiny: false,
-      includeFlying: false,
     });
 
     // 启动普通发射定时器

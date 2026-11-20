@@ -22,7 +22,12 @@ export class LilyModel extends PlantModel {
   public damage = new LevelScaledValue(0); // Lily没有伤害
 
   isNightPlant = false;
-  public isTiny: boolean = true;
+
+  constructor() {
+    super();
+    // 低矮植物：只有带 tiny 的投射物能命中。
+    this.tiny = true;
+  }
 
   onStarShards(entity: LilyEntity): void {
     if (entity.currentHealth <= 0) return;

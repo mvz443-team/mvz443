@@ -10,17 +10,17 @@ import { StickZombieData } from "../../src/game/presets/monster/zombie/stick_zom
  *
  * 验收路径：
  *   1) 检查 hasStick 与手杖武器。
- *   2) 调用 tryStartVault，检查手杖消耗、isFlying、速度与目标 x。
+ *   2) 调用 tryStartVault，检查手杖消耗、flying、速度与目标 x。
  *   3) 调用 finishVault，检查速度减半、武器隐藏、恢复移动。
  *   4) 带落点植物时 finishVault 应进入攻击状态并造成 30 伤害。
  *
  * 预期结果：
- *   tryStartVault 返回 true，hasStick=false，isFlying=true，
+ *   tryStartVault 返回 true，hasStick=false，flying=true，
  *   velocityX=-originalSpeed×2.2；finishVault 后 speed=originalSpeed×0.5、
  *   weaponVisible=false；有目标时 200ms 内造成 30 伤害。
  *
  * 为什么：
- *   tryStartVault 直接修改 Model 的 hasStick/isFlying/vaultTargetX；
+ *   tryStartVault 直接修改 Model 的 hasStick/flying/vaultTargetX；
  *   finishVault 调用 consumeWeapon 并 tryStartAttack；
  *   StickZombieData.attackDamage=30。
  */
@@ -37,7 +37,7 @@ test("撑杆跳消耗手杖并加速到 2.2 倍", () => {
   assert.equal(model.tryStartVault(entity, plant), true);
 
   assert.equal(model.hasStick, false);
-  assert.equal(model.isFlying, true);
+  assert.equal(model.flying, true);
   assert.equal(entity.velocityX, -originalSpeed * 2.2);
   assert.equal(model.vaultTargetX < entity.x, true);
 });
@@ -53,7 +53,7 @@ test("落地后速度减半并隐藏手杖", () => {
   assert.equal(model.shouldFinishVault(entity), true);
   model.finishVault(entity);
 
-  assert.equal(model.isFlying, false);
+  assert.equal(model.flying, false);
   assert.equal(model.speed, originalSpeed * 0.5);
   assert.equal(model.weaponVisible, false);
   assert.equal(entity.moveCalls.includes("start"), true);

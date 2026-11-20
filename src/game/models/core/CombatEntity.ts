@@ -26,9 +26,6 @@ export abstract class CombatEntity extends BaseEntity implements IDamageable {
   // 正在被这些东西（应该是monster）攻击
   public underAttackBy: Set<CombatEntity> = new Set<CombatEntity>(); // alias attackingZombie
 
-  // 额外状态
-  public isTiny = false; // 是否为小型单位，可能会被某些效果忽略
-
   constructor(scene: Game, x: number, y: number, maxHealth: number, faction: Faction, model?: import("../../core/logic/LogicModel").LogicModel) {
     super(scene, x, y, model ?? null);
     this.maxHealth = maxHealth;

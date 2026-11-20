@@ -195,7 +195,6 @@ export abstract class PlantEntity extends CombatEntity {
 
     PlantsManager.Instance.RegisterPlant(this);
 
-    this.isTiny = this.model.isTiny;
     if (this.model.isNightPlant && CombatManager.Instance.combatStatus.dayOrNight === true) {
       this.setSleeping(true);
     }

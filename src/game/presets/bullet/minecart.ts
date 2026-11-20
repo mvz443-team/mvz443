@@ -107,7 +107,7 @@ export class MineCartStandEntity extends BaseEntity {
       faction: Faction.PLANT,
       maxDistance: PositionManager.Instance.Col_Number + 4,
       bounceable: false,
-      skipTiny: false,
+      tiny: true,
     });
   }
 

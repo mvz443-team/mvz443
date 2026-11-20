@@ -247,7 +247,7 @@ function buildNetTestHooks({ saveManager, phaserRef, setGameParams, gameExit }: 
           faction: 1,
           maxDistance: item.maxDistance ?? 5000,
           penetratePower: 1,
-          skipTiny: false,
+          tiny: true,
         });
       }
       return true;

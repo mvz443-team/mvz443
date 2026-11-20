@@ -37,7 +37,7 @@ export class StickZombieModel extends StickModelBase {
   public tryStartVault(entity: MonsterEntity, target: CombatEntity): boolean {
     if (!this.canVaultOverPlant(target as PlantEntity)) return false;
     this.hasStick = false;
-    this.isFlying = true;
+    this.flying = true;
     entity.setVelocityX(-this.originalSpeed * 2.2);
     this.vaultTargetX = PositionManager.Instance.getGridTopLeft((target as PlantEntity).col, entity.row).x
       - PositionManager.Instance.GRID_SIZEX * 0.25;
@@ -45,17 +45,17 @@ export class StickZombieModel extends StickModelBase {
   }
 
   public onVaultCollision(entity: MonsterEntity, target: unknown): boolean {
-    if (!this.isFlying || !(target instanceof PlantEntity)) return false;
+    if (!this.flying || !(target instanceof PlantEntity)) return false;
     (entity as any).vaultCollisionTarget = target;
     return true;
   }
 
   public shouldFinishVault(entity: MonsterEntity): boolean {
-    return this.isFlying && entity.x <= this.vaultTargetX;
+    return this.flying && entity.x <= this.vaultTargetX;
   }
 
   public finishVault(entity: MonsterEntity): void {
-    this.isFlying = false;
+    this.flying = false;
     this.speed = this.originalSpeed * 0.5;
     this.consumeWeapon(entity);
 
@@ -84,7 +84,7 @@ export class StickZombieEntity extends StickEntityBase {
 
   public override startAttacking(target: CombatEntity): void {
     if (this.model.tryStartVault(this, target)) return;
-    if (this.model.isFlying) return;
+    if (this.model.flying) return;
     super.startAttacking(target);
   }
 
@@ -100,7 +100,7 @@ export class StickZombieEntity extends StickEntityBase {
 
   public override updateView(vec: { x: number; y: number }): void {
     super.updateView(vec);
-    if (this.model.isFlying) {
+    if (this.model.flying) {
       this.animController.updatePosition(this.x + this.offsetX, this.y + this.offsetY - PositionManager.Instance.GRID_SIZEY * 0.4);
     }
   }
