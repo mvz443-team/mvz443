@@ -11,6 +11,8 @@ export const BoatZombieData = new PresetMonsterModel({
   leastWaveID: 4,
   habitats: ["water"],
   boatMounted: true,
+  mountHealth: 400,
+  mountDamagePriority: "rider",
   maxHealth: 300,
   baseSpeed: MonsterSpeed.Zombie,
   attackDamage: 20,

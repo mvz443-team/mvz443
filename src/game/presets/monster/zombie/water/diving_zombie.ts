@@ -62,37 +62,28 @@ export class DivingZombieEntity extends BaseZombieEntity {
     super.buildView();
     if (this.attachSprites.has("diving_goggles")) return;
 
-    const scale = PositionManager.Instance.scaleFactor * 0.7;
-    const depth = DepthHelper.Mob.customAttachment(this.baseDepth, 14);
-    const goggles = this.scene.add.sprite(this.x, this.y, "attach/diving_goggles")
-      .setScale(scale).setDepth(depth);
-    const snorkel = this.scene.add.sprite(this.x, this.y, "attach/diving_snorkel")
-      .setScale(scale).setDepth(depth);
+    // 与 cap zombie 的帽子完全相同的装备挂点：同一 y 高度 / origin / depth / 注册方式。
+    const scale = PositionManager.Instance.scaleFactor;
+    const px = this.x + this.offsetX;
+    const py = this.y + this.offsetY - PositionManager.Instance.GRID_SIZEY * 1.15;
+    const depth = DepthHelper.Mob.customAttachment(this.baseDepth, 13);
+    const gridX = PositionManager.Instance.GRID_SIZEX;
+
+    const goggles = this.scene.add.sprite(px, py, "attach/diving_goggles")
+      .setScale(scale).setOrigin(0.5, 0.5).setDepth(depth);
+    const snorkel = this.scene.add.sprite(px + gridX * 0.2, py - gridX * 0.06, "attach/diving_snorkel")
+      .setScale(scale).setOrigin(0.5, 0.5).setDepth(depth);
 
     this.attachSprites.set("diving_goggles", goggles);
     this.attachSprites.set("diving_snorkel", snorkel);
     this.viewGroup.addMultiple([goggles, snorkel]);
-  }
-
-  /** 面罩相对头部挂点固定，每帧跟随（身体部件位置由动画控制器改写，不能用实体坐标）。 */
-  private syncMaskToHead(): void {
-    const head = this.animController.getHeadAnchor?.();
-    if (!head) return;
-    const gridX = PositionManager.Instance.GRID_SIZEX;
-    const gridY = PositionManager.Instance.GRID_SIZEY;
-    this.attachSprites.get("diving_goggles")?.setPosition(head.x, head.y + gridY * 0.10);
-    this.attachSprites.get("diving_snorkel")?.setPosition(head.x + gridX * 0.13, head.y - gridY * 0.04);
-  }
-
-  public override updateView(vec: { x: number, y: number }): void {
-    super.updateView(vec);
-    this.syncMaskToHead();
+    this.registerEquipmentAttachment("diving_goggles");
+    this.registerEquipmentAttachment("diving_snorkel");
   }
 
   public override syncViewFromModel(): void {
     super.syncViewFromModel();
     this.animController.setDivingPose?.(this.model.tiny);
-    this.syncMaskToHead();
   }
 }
 
@@ -103,6 +94,7 @@ export const DivingZombieData = new DivingZombieModel({
   weight: (waveID) => Math.max(400, 1800 - (waveID - 8) * 100),
   leastWaveID: 6,
   habitats: ["water"],
+  canDrown: false,
   maxHealth: 300,
   baseSpeed: MonsterSpeed.Zombie,
   attackDamage: 20,

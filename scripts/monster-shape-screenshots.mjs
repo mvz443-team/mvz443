@@ -80,7 +80,7 @@ await capture("02_dolphin_riding", () => {
 await capture("03_dolphin_after_mount_broken", () => {
   const rider = window.DBG.spawnMonster(28, 5, 5);
   if (rider) {
-    rider.model.breakMount();
+    rider.model.breakMount(rider);
     rider.syncViewFromModel();
   }
   return "mount broken";

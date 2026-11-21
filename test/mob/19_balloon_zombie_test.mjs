@@ -71,17 +71,15 @@ test("子弹只打爆气球，本体不受伤害", () => {
   assert.equal(entity.viewCalls.includes("syncView"), true);
 });
 
-test("激光同时打爆气球并伤害本体", () => {
+test("激光由载具吸收（与 bullet 一致），本体不受伤害", () => {
   resetSim();
   const { model, entity } = spawnMob(BalloonZombieData, { col: 8, row: 2 });
 
   const absorbed = model.absorbVehicleDamage(entity, 100, undefined, source("laser"));
-  assert.equal(absorbed, false);
+  assert.equal(absorbed, true);
   assert.equal(model.vehicleBroken, true);
   assert.equal(model.flying, false);
-
-  model.takeDamage(entity, 100);
-  assert.equal(model.health, 200);
+  assert.equal(model.health, 300, "bullet/laser 由坐骑吸收，只有 explosion 同时结算二者");
 });
 
 test("爆炸同时打爆气球并伤害本体", () => {

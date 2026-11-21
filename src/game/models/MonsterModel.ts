@@ -2,7 +2,8 @@ import seedrandom from "seedrandom";
 import type { Game } from "../scenes/Game";
 import type { BaseEntity } from "./core/BaseEntity";
 import { CombatEntity } from "./core/CombatEntity";
-import type { MonsterEntity } from "./entities/MonsterEntity";
+import type { MonsterEntity, MountDamagePriority } from "./entities/MonsterEntity";
+import { readProjectileHitKind } from "./projectiles/ProjectileModels";
 import { LogicModel } from "../core/logic/LogicModel";
 import { readBodyLayers } from "../core/logic/BodyTraits";
 import { DEFAULT_HABITATS, type TerrainHabitat } from "../core/logic/TerrainHabitat";
@@ -105,6 +106,15 @@ export abstract class MonsterModel extends LogicModel {
   /** 木船僵尸：无论出生行地形如何都挂载木船表现；普通怪在水面行仍按地形自动挂船。 */
   public readonly boatMounted: boolean = false;
 
+  /** 坐骑（木船/海豚）当前血量与配置；所有字段进快照。 */
+  public mountHealth: number = 0;
+  public mountHealthMax: number = 0;
+  public mountBroken: boolean = false;
+  public mountDamagePriority: MountDamagePriority = "mount";
+  public mountHealthConfig: number = 0;
+  /** 能否在不合适的地形中存活；golem/centipede/潜水僵尸为 false。 */
+  public canDrown: boolean = true;
+
   public abstract getWeight(waveID: number): number;
 
   /** 每个实体由 Model 负责初始化自己的运行时状态。 */
@@ -116,7 +126,57 @@ export abstract class MonsterModel extends LogicModel {
     this.speed = this.originalSpeed;
     this.flying = this.isDefaultFlying;
     this.inVoid = this.isDefaultInVoid;
+    this.mountHealthMax = this.mountHealthConfig;
+    this.mountHealth = this.mountHealthConfig;
+    this.mountBroken = false;
   }
+
+  /** 坐骑是否仍在架。 */
+  public hasMount(): boolean {
+    return this.mountHealthMax > 0 && !this.mountBroken && this.mountHealth > 0;
+  }
+
+  /**
+   * 坐骑伤害路由（Entity.takeDamage 第一站）。
+   *
+   * - explosion：坐骑与本体同时结算（扣坐骑血后返回 false 让本体继续）。
+   * - mount 优先：bullet / laser 由坐骑吸收；rider 优先：bullet / laser 直接打本体。
+   */
+  public absorbMountDamage(
+    entity: MonsterEntity,
+    amount: number,
+    _dealer?: BaseEntity,
+    source?: BaseEntity,
+  ): boolean {
+    if (!this.hasMount()) return false;
+    const hitKind = readProjectileHitKind(source);
+    if (hitKind === "explosion") {
+      this.applyMountDamage(entity, amount);
+      return false;
+    }
+    if (this.mountDamagePriority === "mount") {
+      this.applyMountDamage(entity, amount);
+      return true;
+    }
+    return false;
+  }
+
+  private applyMountDamage(entity: MonsterEntity, amount: number): void {
+    this.mountHealth = Math.max(0, this.mountHealth - amount);
+    if (this.mountHealth === 0) this.breakMount(entity);
+  }
+
+  /** 坐骑破碎：清视图、恢复正常形态；骑手此后暴露在环境中（可能溺亡）。 */
+  public breakMount(entity: MonsterEntity): void {
+    if (this.mountBroken) return;
+    this.mountHealth = 0;
+    this.mountBroken = true;
+    this.onMountBroken(entity);
+    entity.syncViewFromModel();
+    entity.startMove();
+  }
+
+  public onMountBroken(_entity: MonsterEntity): void { }
 
   /**
    * 普攻定时器由 Model 创建；Entity 只保存句柄用于停止。

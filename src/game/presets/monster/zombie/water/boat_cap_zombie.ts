@@ -11,6 +11,8 @@ export const BoatCapZombieData = new CapZombieModel({
   leastWaveID: 5,
   habitats: ["water"],
   boatMounted: true,
+  mountHealth: 400,
+  mountDamagePriority: "rider",
   maxHealth: 300,
   baseSpeed: MonsterSpeed.CapZombie,
   attackDamage: 20,

@@ -11,6 +11,8 @@ export const BoatTurtleZombieData = new TurtleZombieModel({
   leastWaveID: 9,
   habitats: ["water"],
   boatMounted: true,
+  mountHealth: 400,
+  mountDamagePriority: "rider",
   maxHealth: 300,
   baseSpeed: MonsterSpeed.TurtleZombie,
   attackDamage: 20,

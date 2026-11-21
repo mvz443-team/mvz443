@@ -510,6 +510,7 @@ export const CentipedeData = new CentipedeModel({
   leastWaveID: 0,
   rank: "boss",
   habitats: ["ground", "water"],
+  canDrown: false,
   maxHealth: 20000,
   baseSpeed: 0,
   attackDamage: 0,

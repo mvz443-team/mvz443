@@ -11,6 +11,7 @@ import { BoatHelmetZombieData } from "../../src/game/presets/monster/zombie/wate
 import { BoatTurtleZombieData } from "../../src/game/presets/monster/zombie/water/boat_turtle_zombie.ts";
 import { BoatSkeletonBowZombieData } from "../../src/game/presets/monster/zombie/water/boat_skeleton_bow_zombie.ts";
 import { ZombieData } from "../../src/game/presets/monster/zombie/zombie.ts";
+import { MonsterEntity } from "../../src/game/models/entities/MonsterEntity.ts";
 
 /**
  * 描述（木船僵尸系列 mid 22–26）：
@@ -93,4 +94,28 @@ test("boatMounted 在任意地形都挂载船层", () => {
   plain.viewGroup = { addMultiple() {} };
   plain.checkAndAddBoat();
   assert.equal(plain.attachSprites.has("boat1"), false, "普通僵尸地面格不挂船");
+});
+
+function hit(entity, amount, hitKind) {
+  entity.updateBodyDamageStage ??= () => {};
+  MonsterEntity.prototype.takeDamage.call(entity, amount, undefined, { model: { hitKind } });
+}
+
+test("木船 400 血 + 优先骑乘者：bullet/laser 打本体，爆炸同时打二者", () => {
+  for (const data of cases.map(c => c.data)) {
+    resetSim();
+    const { model, entity } = spawnMob(data, { col: 8, row: 2 });
+    assert.equal(model.mountHealth, 400, `mid=${data.mid} 木船血`);
+    assert.equal(model.mountDamagePriority, "rider");
+
+    hit(entity, 100, "bullet");
+    assert.equal(model.mountHealth, 400, `mid=${data.mid} bullet 不扣坐骑`);
+    assert.equal(model.health, model.maxHealth - 100, `mid=${data.mid} bullet 打本体`);
+
+    resetSim();
+    const boom = spawnMob(data, { col: 8, row: 2 });
+    hit(boom.entity, 100, "explosion");
+    assert.equal(boom.model.mountHealth, 300, `mid=${data.mid} 爆炸扣坐骑`);
+    assert.equal(boom.model.health, boom.model.maxHealth - 100, `mid=${data.mid} 爆炸穿透本体`);
+  }
 });

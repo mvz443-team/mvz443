@@ -12,6 +12,8 @@ export const BoatSkeletonBowZombieData = new SkeletonBowModel({
   leastWaveID: 10,
   habitats: ["water"],
   boatMounted: true,
+  mountHealth: 400,
+  mountDamagePriority: "rider",
   maxHealth: 250,
   baseSpeed: MonsterSpeed.SkeletonBow,
   attackDamage: 25,

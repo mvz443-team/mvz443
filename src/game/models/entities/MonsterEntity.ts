@@ -19,6 +19,7 @@ import { DeathSmokeSfx } from "../../sfx/death/DeathSmokeSfx";
 import SoundCmd from "../../utils/cmd/SoundCmd";
 import { MONSTER_PRNG_FIELDS, MONSTER_RELATION_FIELDS } from "../../core/logic/LogicRelations";
 import { defaultRandom } from "../../../utils/random";
+import { applyMonsterDrowning } from "../../core/logic/Drowning";
 
 type DeathSmokeSpawn = {
   x: number;
@@ -160,6 +161,7 @@ export abstract class MonsterEntity extends CombatEntity {
     this.model.checkOutOfBounds(this);
     // 固定逻辑帧的 Model 侧轮询（如飞行载具落地后补判脚下植物）。
     this.model.onModelStep?.(this);
+    applyMonsterDrowning(this, this.model as MonsterModel);
   }
 
   public setVelocityX(vx: number) {
@@ -201,7 +203,23 @@ export abstract class MonsterEntity extends CombatEntity {
   }
 
   public override takeDamage(amount: number, dealer?: BaseEntity, source?: BaseEntity): void {
+    // 坐骑是第一道受体；爆炸让坐骑与本体各扣一次，其余按优先级路由。
+    if (this.model.absorbMountDamage(this, amount, dealer, source)) {
+      this.syncViewFromModel();
+      return;
+    }
     this.model.takeDamage(this, amount, dealer, source);
+  }
+
+  public override syncViewFromModel(): void {
+    super.syncViewFromModel();
+    // 只有配置了坐骑血条的怪物才切换坐姿与坐骑图层；普通怪的水面船表现保持原样。
+    if (this.model.mountHealthMax <= 0) return;
+    const mounted = this.model.hasMount();
+    this.animController.setRidingPose?.(mounted);
+    for (const key of ["boat1", "boat2", "dolphin_body", "dolphin_tail", "dolphin_fin"]) {
+      this.attachSprites.get(key)?.setVisible(mounted);
+    }
   }
 
   public onCollision(ctx: CollisionContext) {
@@ -409,6 +427,9 @@ export abstract class MonsterEntity extends CombatEntity {
 
 export type MonsterRank = "normal" | "elite" | "boss";
 
+/** 坐骑存在时谁来吃 bullet / laser；explosion 恒定同时结算二者。 */
+export type MountDamagePriority = "rider" | "mount";
+
 export type MonsterDefinition = {
   mid: number;
   nameKey: string;
@@ -433,6 +454,12 @@ export type MonsterDefinition = {
   boatMounted?: boolean;
   /** 飞行载具（气球等）血量；配置后该怪物有第二条血条，归零即迫降。 */
   vehicleHealth?: number;
+  /** 坐骑血量（木船/海豚等）；骑手与坐骑是同一实体的两层。 */
+  mountHealth?: number;
+  /** 坐骑存在时 bullet/laser 的结算对象；explosion 恒定同时打二者。缺省优先坐骑。 */
+  mountDamagePriority?: MountDamagePriority;
+  /** 是否会被不合适的地形溺亡；缺省 true。 */
+  canDrown?: boolean;
   /** 阵营；默认为僵尸。友方召唤物（例如气球TNT分身）可以配成 PLANT。 */
   faction?: Faction;
   createEntity: (scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) => MonsterEntity;
@@ -481,6 +508,9 @@ export class PresetMonsterModel extends MonsterModel {
     this.couldCarryStarShards = def.couldCarryStarShards ?? true;
     this.habitats = normalizeHabitats(def.habitats);
     this.boatMounted = def.boatMounted ?? false;
+    this.mountHealthConfig = def.mountHealth ?? 0;
+    this.mountDamagePriority = def.mountDamagePriority ?? "mount";
+    this.canDrown = def.canDrown ?? true;
     this.setConfigValue("weight", def.weight);
     this.setConfigValue("leastWaveIDByStageID", def.leastWaveIDByStageID);
     this.faction = def.faction ?? Faction.ZOMBIE;

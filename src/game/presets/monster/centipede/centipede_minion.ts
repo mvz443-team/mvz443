@@ -64,6 +64,7 @@ export const CentipedeMinionData = new CentipedeMinionModel({
   leastWaveID: 99999,
   rank: "normal",
   habitats: ["ground", "water"],
+  canDrown: false,
   maxHealth: 500,
   baseSpeed: 20,
   attackDamage: 0,

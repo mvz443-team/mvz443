@@ -11,6 +11,8 @@ export const BoatHelmetZombieData = new HelmetZombieModel({
   leastWaveID: 8,
   habitats: ["water"],
   boatMounted: true,
+  mountHealth: 400,
+  mountDamagePriority: "rider",
   maxHealth: 300,
   baseSpeed: MonsterSpeed.HelmetZombie,
   attackDamage: 20,

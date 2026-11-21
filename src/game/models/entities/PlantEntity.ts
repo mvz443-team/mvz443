@@ -16,11 +16,17 @@ import { StarShardsBurstSfx } from "../../sfx/star/StarShardsBurstSfx";
 import { getLevelBadgeTextureKey } from "../../ui/levelBadgeSvg";
 import type { JsonValue } from "../../core/SimulationState";
 import { PLANT_PRNG_FIELDS, PLANT_RELATION_FIELDS } from "../../core/logic/LogicRelations";
+import { applyPlantDrowning } from "../../core/logic/Drowning";
 
 // entities/PlantEntity.ts
 export abstract class PlantEntity extends CombatEntity {
   /** BaseEntity 已克隆为实例专属 Model。 */
   public declare model: PlantModel;
+
+  public override stepUpdate(): void {
+    super.stepUpdate();
+    applyPlantDrowning(this, this.model);
+  }
 
   public col: number;
   public row: number;

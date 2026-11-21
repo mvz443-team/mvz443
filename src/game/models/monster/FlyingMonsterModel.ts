@@ -64,8 +64,8 @@ export class FlyingMonsterModel extends PresetMonsterModel {
     const hitKind = readProjectileHitKind(source);
     this.breakVehicle(entity);
 
-    // 只有子弹会被载具完全挡下；爆炸与激光同时打爆载具并伤到本体。
-    return hitKind === "bullet";
+    // 与坐骑统一语义：bullet/laser 由坐骑吸收，爆炸同时打爆载具并伤到本体。
+    return hitKind !== "explosion";
   }
 
   /** 载具被打爆：气球消失、迫降、恢复地面形态。 */

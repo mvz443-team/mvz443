@@ -7,6 +7,7 @@ import {
 } from "../../src/game/presets/monster/zombie/water/diving_zombie.ts";
 import { ZombieData } from "../../src/game/presets/monster/zombie/zombie.ts";
 import { readBodyLayers, canReachBody } from "../../src/game/core/logic/BodyTraits.ts";
+import { PositionManager } from "../../src/game/managers/view/PositionManager.ts";
 
 /**
  * 描述（潜水僵尸 mid 27）：
@@ -32,12 +33,6 @@ import { readBodyLayers, canReachBody } from "../../src/game/core/logic/BodyTrai
  *   tiny 是 LogicModel 普通字段自动进快照，回滚后能恢复到正确的潜行/攻击体态；
  *   canReachBody 规定"目标占据的每一层，攻击方都必须能到达"，tiny 目标必须 tiny 投射物。
  */
-
-// harness 用基类 MonsterEntity 构造实体，这里补挂 DivingZombieEntity 的私有视图方法。
-function bindDivingView(entity) {
-  entity.syncMaskToHead ??= DivingZombieEntity.prototype.syncMaskToHead.bind(entity);
-  entity.syncRegisteredAttachments = () => {};
-}
 
 test("潜水僵尸定义：普通僵尸数值 + 水生 + 初始潜行", () => {
   resetSim();
@@ -91,7 +86,7 @@ test("攻击生命周期立即切 tiny，潜水动画由视图单向同步", () 
   resetSim();
   const { model, entity } = spawnMob(DivingZombieData, { col: 8, row: 2 });
   const plant = makePlantTarget({ col: 6, row: 2 });
-  bindDivingView(entity);
+  entity.syncRegisteredAttachments = () => {};
 
   DivingZombieEntity.prototype.syncViewFromModel.call(entity);
   assert.equal(entity.animController.diving, true, "常态只显示头部");
@@ -107,24 +102,26 @@ test("攻击生命周期立即切 tiny，潜水动画由视图单向同步", () 
   assert.equal(entity.animController.diving, true);
 });
 
-test("氧气面罩绑定头部挂点，不绑定实体坐标", () => {
+test("氧气面罩按帽子挂点绘制（同一高度/缩放/注册方式）", () => {
   resetSim();
   const { entity } = spawnMob(DivingZombieData, { col: 8, row: 2 });
-  bindDivingView(entity);
-  const goggles = { x: 0, y: 0, setPosition(x, y) { this.x = x; this.y = y; } };
-  const snorkel = { x: 0, y: 0, setPosition(x, y) { this.x = x; this.y = y; } };
-  entity.attachSprites.set("diving_goggles", goggles);
-  entity.attachSprites.set("diving_snorkel", snorkel);
+  DivingZombieEntity.prototype.buildView.call(entity);
 
-  entity.animController.setHeadAnchor(140, 260);
-  DivingZombieEntity.prototype.syncViewFromModel.call(entity);
-  assert.equal(goggles.x, 140, "面罩 x 跟随头部");
-  assert.ok(goggles.y > 260, "面罩位于头部眼睛高度");
-  assert.ok(snorkel.x > 140, "呼吸管在头部右侧");
+  const goggles = entity.attachSprites.get("diving_goggles");
+  const snorkel = entity.attachSprites.get("diving_snorkel");
+  assert.ok(goggles && snorkel, "面罩与呼吸管两个独立图层");
+  const scale = PositionManager.Instance.scaleFactor;
+  assert.equal(goggles.y, entity.y + entity.offsetY - PositionManager.Instance.GRID_SIZEY * 1.15,
+    "与 cap zombie 帽子相同的 y 高度");
+  assert.equal(goggles.scaleX, scale);
+  assert.equal(goggles.originY, 0.5);
+  assert.ok(snorkel.x > goggles.x, "呼吸管在面罩右侧");
+});
 
-  entity.animController.setHeadAnchor(220, 300);
-  DivingZombieEntity.prototype.updateView.call(entity, { x: 220, y: 300 });
-  assert.equal(goggles.x, 220, "每帧 updateView 也跟随头部");
+test("潜水僵尸对地形水免疫", () => {
+  resetSim();
+  const { model } = spawnMob(DivingZombieData, { col: 8, row: 2 });
+  assert.equal(model.canDrown, false);
 });
 
 test("tiny 雪球能命中潜下状态，普通子弹不能", () => {
