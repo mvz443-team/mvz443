@@ -138,6 +138,7 @@ export const WardenData = new WardenModel({
   weight: () => 0,
   leastWaveID: 0,
   rank: "elite",
+  habitats: ["ground", "water"],
   maxHealth: 18000,
   baseSpeed: 0,
   attackDamage: 60,

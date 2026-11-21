@@ -5,6 +5,7 @@ import { CombatEntity } from "./core/CombatEntity";
 import type { MonsterEntity } from "./entities/MonsterEntity";
 import { LogicModel } from "../core/logic/LogicModel";
 import { readBodyLayers } from "../core/logic/BodyTraits";
+import { DEFAULT_HABITATS, type TerrainHabitat } from "../core/logic/TerrainHabitat";
 import type { JsonValue } from "../core/SimulationState";
 import type { ITickTimerHandle } from "../core/logic/EntityTickManager";
 import { DEFAULT_TICK_EVENT_NAMES } from "../core/logic/TickEvents";
@@ -99,6 +100,8 @@ export abstract class MonsterModel extends LogicModel {
   public readonly isDefaultFlying: boolean = false;
   public readonly isDefaultInVoid: boolean = false;
   public readonly couldCarryStarShards: boolean = true;
+  /** 通行域：决定该怪能被刷在什么地形、能在什么地形存活；与命中体态层正交。 */
+  public readonly habitats: readonly TerrainHabitat[] = DEFAULT_HABITATS;
 
   public abstract getWeight(waveID: number): number;
 

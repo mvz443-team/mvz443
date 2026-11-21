@@ -13,7 +13,7 @@ export default class GridManager extends BaseManager {
 
   // 每一行的格子类型占比，用于生成怪物时的权重计算
   private __hasCaculatedGridPropertyRatio: boolean = false;
-  private __gridPropertyRatio: Array<Record<'ground' | 'water' | 'void', number>> = [];
+  private __gridPropertyRatio: Array<Record<'ground' | 'water' | 'void' | 'sky', number>> = [];
 
   constructor() {
     super();
@@ -69,9 +69,9 @@ export default class GridManager extends BaseManager {
     return this.GridProperties[row]?.[col] || null;
   }
 
-  // 调查row的含水/void率
-  public RowPropertyRatio(row: number, property: 'ground' | 'water' | 'void'): number {
-    const calc = (row: number, property: 'ground' | 'water' | 'void') => {
+  // 调查row的含水/void/sky率
+  public RowPropertyRatio(row: number, property: 'ground' | 'water' | 'void' | 'sky'): number {
+    const calc = (row: number, property: 'ground' | 'water' | 'void' | 'sky') => {
       let count = 0;
       let sum = 0;
       for (let col = 0; col < PositionManager.Instance.Col_Number; col++) {
@@ -90,7 +90,8 @@ export default class GridManager extends BaseManager {
         this.__gridPropertyRatio.push({
           ground: calc(i, 'ground'),
           water: calc(i, 'water'),
-          void: calc(i, 'void')
+          void: calc(i, 'void'),
+          sky: calc(i, 'sky')
         })
       }
       this.__hasCaculatedGridPropertyRatio = true;

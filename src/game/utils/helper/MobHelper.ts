@@ -1,13 +1,17 @@
 import type seedrandom from "seedrandom";
 import type { StageScript, Wave } from "../../../types/stage";
-import { GroundOnlyZombie, SkyOnlyZombie, WaterOnlyZombie } from "./PlantHelper";
 import StageHelper from "./StageHelper";
+import {
+  canSpawnMonsterInRow,
+  type RowTerrainRatio,
+  type TerrainHabitat,
+} from "../../core/logic/TerrainHabitat";
 
 export type SpawnMonsterEntry = {
   mid: number;
 };
 
-export type RowPropertyRatioGetter = (row: number, type: "ground" | "water" | "void") => number;
+export type RowPropertyRatioGetter = (row: number, type: "ground" | "water" | "void" | "sky") => number;
 export type MonsterCarryStarShardsGetter = (mid: number) => boolean;
 
 export type MobSpawnPlan = {
@@ -29,6 +33,8 @@ export type SelectSpawnRowContext = {
   rowCount: number;
   rng: seedrandom.PRNG;
   rowPropertyRatio: RowPropertyRatioGetter;
+  getHabitats: (mid: number) => readonly TerrainHabitat[];
+  isFlying: (mid: number) => boolean;
 };
 
 export type SelectSpawnRowResult = {
@@ -81,11 +87,27 @@ namespace MobHelper {
         })
         : ctx.rowWeights;
 
+    const habitats = ctx.getHabitats(ctx.mid);
+    const isFlying = ctx.isFlying(ctx.mid);
+    const filteredWeights = selectableRowWeights.map((weight, row) => {
+      if (weight <= 0) return 0;
+      const ratios: RowTerrainRatio = {
+        ground: ctx.rowPropertyRatio(row, "ground"),
+        water: ctx.rowPropertyRatio(row, "water"),
+        void: ctx.rowPropertyRatio(row, "void"),
+        sky: ctx.rowPropertyRatio(row, "sky"),
+      };
+      return canSpawnMonsterInRow({ habitats, isFlying, ratios }) ? weight : 0;
+    });
+
+    // 若该怪的通行域与当前地形完全不匹配（例如全水路关卡刷陆地怪），不能回落到
+    // "最后一行"——那会让陆地怪直接刷进水里。这里退回基础权重再走同一套确定性选行。
+    const weights = filteredWeights.some(weight => weight > 0) ? filteredWeights : selectableRowWeights;
+
     const rowResult = StageHelper.selectSmoothSpawnRow({
-      weights: selectableRowWeights,
+      weights,
       rng: ctx.rng,
       smoothingState: ctx.rowPickSmoothingState,
-      canSpawnOnRow: row => couldSpawnMonster(row, ctx.mid, ctx.rowPropertyRatio),
     });
 
     return {
@@ -256,12 +278,6 @@ namespace MobHelper {
     return wave.flag !== 'elite' && wave.flag !== 'boss';
   }
 
-  function couldSpawnMonster(row: number, mid: number, rowPropertyRatio: RowPropertyRatioGetter): boolean {
-    if (GroundOnlyZombie.includes(mid) && rowPropertyRatio(row, 'ground') > 0.6) return false;
-    if (WaterOnlyZombie.includes(mid) && rowPropertyRatio(row, 'water') > 0.6) return false;
-    if (SkyOnlyZombie.includes(mid) && rowPropertyRatio(row, 'void') > 0.6) return false;
-    return true;
-  }
 }
 
 export default MobHelper;

@@ -23,11 +23,7 @@ export const ADVANCED_PLANT: Map<number, number> = new Map([
 ]); // 高级植物,只能种植在基座上, [advancedPid - basicPid]
 
 
-// 特殊的怪物放置规则
-export const GroundOnlyZombie: number[] = [15]; // 只能放置在地面的僵尸
-export const WaterOnlyZombie: number[] = []; // 只能放置在水中的僵尸
-export const SkyOnlyZombie: number[] = []; // 只能放置在天空的僵尸
-
+// 怪物的地形通行规则统一由 TerrainHabitat + MonsterModel.habitats 决定，不再在此维护 pid 白名单。
 
 const lilyPid = 6;
 const boatPid = 100; // unknown

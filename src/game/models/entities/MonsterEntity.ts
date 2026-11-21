@@ -8,6 +8,7 @@ import { MonsterModel } from "../MonsterModel";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { CombatEntity } from "../core/CombatEntity";
 import { Faction } from "../Enum";
+import { normalizeHabitats, type TerrainHabitat } from "../../core/logic/TerrainHabitat";
 import GridManager from "../../managers/combat/GridManager";
 import { BaseEntity } from "../core/BaseEntity";
 import { LegacyMonsterAnimController } from "../monster/anims/LegacyMonsterAnimControllers";
@@ -426,6 +427,8 @@ export type MonsterDefinition = {
   isDefaultFlying?: boolean;
   isDefaultInVoid?: boolean;
   couldCarryStarShards?: boolean;
+  /** 能刷在哪、能活在哪的地形通行域；缺省为仅地面。 */
+  habitats?: readonly TerrainHabitat[];
   /** 飞行载具（气球等）血量；配置后该怪物有第二条血条，归零即迫降。 */
   vehicleHealth?: number;
   /** 阵营；默认为僵尸。友方召唤物（例如气球TNT分身）可以配成 PLANT。 */
@@ -447,6 +450,7 @@ export class PresetMonsterModel extends MonsterModel {
   public readonly isDefaultFlying: boolean;
   public readonly isDefaultInVoid: boolean;
   public readonly couldCarryStarShards: boolean;
+  public override readonly habitats: readonly TerrainHabitat[];
 
   public override get weight(): (waveID: number) => number {
     return this.getConfigValue<PresetMonsterModel["weight"]>("weight")!;
@@ -472,6 +476,7 @@ export class PresetMonsterModel extends MonsterModel {
     this.isDefaultFlying = def.isDefaultFlying ?? false;
     this.isDefaultInVoid = def.isDefaultInVoid ?? false;
     this.couldCarryStarShards = def.couldCarryStarShards ?? true;
+    this.habitats = normalizeHabitats(def.habitats);
     this.setConfigValue("weight", def.weight);
     this.setConfigValue("leastWaveIDByStageID", def.leastWaveIDByStageID);
     this.faction = def.faction ?? Faction.ZOMBIE;

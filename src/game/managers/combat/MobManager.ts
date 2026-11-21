@@ -14,6 +14,7 @@ import TickerManager, { FrameTimer } from "./TickerManager";
 import { EventBus } from "../../../utils/eventBus";
 import CombatManager from "../CombatManager";
 import { MonsterLibrary } from "../library/MonsterLibrary";
+import { DEFAULT_HABITATS } from "../../core/logic/TerrainHabitat";
 import { DeferredManager } from "../DeferredManager";
 import { MonsterEntity } from "../../models/entities/MonsterEntity";
 import { onlineStateManager } from "../../../store/OnlineStateManager";
@@ -461,6 +462,8 @@ export default class MobManager extends BaseManager {
       rowCount: PositionManager.Instance.Row_Number,
       rng: this.SeedRandom,
       rowPropertyRatio: (row, type) => GridManager.Instance.RowPropertyRatio(row, type),
+      getHabitats: mid => MonsterLibrary.GetModel(mid)?.habitats ?? DEFAULT_HABITATS,
+      isFlying: mid => MonsterLibrary.GetModel(mid)?.isDefaultFlying ?? false,
     });
     const row = rowResult.row;
 
