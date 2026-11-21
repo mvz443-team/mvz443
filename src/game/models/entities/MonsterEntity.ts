@@ -118,6 +118,8 @@ export abstract class MonsterEntity extends CombatEntity {
     this.playSpawnAudio();
     this.startMove();
     this.model.onCreate(this);
+    // 出生时统一同步一次视图：坐姿、面罩、坐骑图层等都在此刻由 Model 状态决定。
+    this.syncViewFromModel();
     return this;
   }
 
@@ -216,7 +218,8 @@ export abstract class MonsterEntity extends CombatEntity {
     // 只有配置了坐骑血条的怪物才切换坐姿与坐骑图层；普通怪的水面船表现保持原样。
     if (this.model.mountHealthMax <= 0) return;
     const mounted = this.model.hasMount();
-    this.animController.setRidingPose?.(mounted);
+    // speed > 0 向左走（顺时针坐姿），speed < 0 向右走（逆时针坐姿）。
+    this.animController.setRidingPose?.(mounted, this.model.speed >= 0 ? 1 : -1);
     for (const key of ["boat1", "boat2", "dolphin_body", "dolphin_tail", "dolphin_fin"]) {
       this.attachSprites.get(key)?.setVisible(mounted);
     }

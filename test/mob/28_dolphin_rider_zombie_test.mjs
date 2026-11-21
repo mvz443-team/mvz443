@@ -43,7 +43,10 @@ function hit(entity, amount, hitKind = "bullet") {
 }
 
 function sync(entity) {
-  entity.animController.setRidingPose ??= (value) => { entity.animController.riding = value; };
+  entity.animController.setRidingPose ??= (value, facing) => {
+    entity.animController.riding = value;
+    entity.animController.ridingFacing = facing;
+  };
   MonsterEntity.prototype.syncViewFromModel.call(entity);
 }
 
@@ -121,7 +124,12 @@ test("骑乘姿态与海豚图层随坐骑状态单向同步", () => {
 
   sync(entity);
   assert.equal(entity.animController.riding, true);
+  assert.equal(entity.animController.ridingFacing, 1, "speed>0 向左 → 顺时针坐姿");
   assert.equal(entity.attachSprites.get("dolphin_body").visible, true);
+
+  model.speed = -Math.abs(model.speed);
+  sync(entity);
+  assert.equal(entity.animController.ridingFacing, -1, "speed<0 向右 → 逆时针坐姿");
 
   model.breakMount(entity);
   sync(entity);

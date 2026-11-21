@@ -34,7 +34,7 @@ export interface IMonsterAnimController {
    * 骑乘姿态（海豚骑乘僵尸）：true 时停止腿部摆动并把两条腿都顺时针固定 20°，
    * false 时恢复普通行走姿态。只由 Entity.syncViewFromModel() 从 Model 单向同步。
    */
-  setRidingPose?(riding: boolean): void;
+  setRidingPose?(riding: boolean, facing?: 1 | -1): void;
 
   /**
    * 潜水姿态（潜水僵尸）：true 时只显示头部（氧气面罩另由 Entity 跟随头部挂点），

@@ -138,13 +138,14 @@ export default class IZombieAnim {
         this.head.setVisible(true);
     }
 
-    /** 骑乘姿态：停腿摆，两腿都顺时针固定 30°；移动时 startLegSwing 直接跳过。 */
-    setRidingPose(riding: boolean) {
+    /** 骑乘姿态：停腿摆，两腿固定 60°（向左顺时针 / 向右逆时针）；移动时 startLegSwing 跳过。 */
+    setRidingPose(riding: boolean, facing: 1 | -1 = 1) {
         this.riding = riding;
         this.legLeftTween?.stop();
         this.legRightTween?.stop();
-        this.legLeft.angle = riding ? 30 : 0;
-        this.legRight.angle = riding ? 30 : 0;
+        const angle = riding ? 60 * facing : 0;
+        this.legLeft.angle = angle;
+        this.legRight.angle = angle;
     }
 
     startLegSwing() {

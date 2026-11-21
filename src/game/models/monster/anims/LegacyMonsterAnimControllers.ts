@@ -100,8 +100,9 @@ export class LegacyMonsterAnimController<TAnim extends LegacyAnimLike> implement
     return (this.raw as { getHangPivot?: () => MonsterHandAnchor | null }).getHangPivot?.() ?? null;
   }
 
-  public setRidingPose(riding: boolean): void {
-    (this.raw as { setRidingPose?: (value: boolean) => void }).setRidingPose?.(riding);
+  public setRidingPose(riding: boolean, facing: 1 | -1 = 1): void {
+    (this.raw as { setRidingPose?: (value: boolean, facing?: 1 | -1) => void })
+      .setRidingPose?.(riding, facing);
   }
 
   public setDivingPose(diving: boolean): void {
