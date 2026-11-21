@@ -65,6 +65,13 @@ await capture("01_boat_and_diving", () => {
   return "boat/boat-helmet/diving";
 });
 
+await capture("04_diving_surfaced", () => {
+  const diver = window.DBG.spawnMonster(27, 4, 5);
+  // 直接走攻击起始的视图同步，展示"探出身来"形态（真实攻击时序由单测覆盖）。
+  if (diver) diver.model.setSurfaced(diver);
+  return "diving surfaced / attack pose";
+});
+
 await capture("02_dolphin_riding", () => {
   window.DBG.spawnMonster(28, 5, 5);
   return "dolphin mounted";

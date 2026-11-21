@@ -24,6 +24,8 @@ type LegacyAnimLike = {
   stopArmSwing(): void;
   destroy(): void;
   isInAnim?: boolean;
+  setDivingPose?(diving: boolean): void;
+  head?: Phaser.GameObjects.Sprite;
 };
 
 const TARGET_KEYS = [
@@ -100,6 +102,15 @@ export class LegacyMonsterAnimController<TAnim extends LegacyAnimLike> implement
 
   public setRidingPose(riding: boolean): void {
     (this.raw as { setRidingPose?: (value: boolean) => void }).setRidingPose?.(riding);
+  }
+
+  public setDivingPose(diving: boolean): void {
+    this.raw.setDivingPose?.(diving);
+  }
+
+  public getHeadAnchor(): MonsterHandAnchor | null {
+    const head = this.raw.head;
+    return head ? { x: head.x, y: head.y } : null;
   }
 
   public destroy(): void {

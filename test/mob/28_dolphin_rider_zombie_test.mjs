@@ -6,6 +6,7 @@ import {
   DolphinRiderEntity,
 } from "../../src/game/presets/monster/zombie/water/dolphin_rider_zombie.ts";
 import { MonsterSpeed } from "../../src/constants/game.ts";
+import { PositionManager } from "../../src/game/managers/view/PositionManager.ts";
 
 /**
  * 描述（海豚骑乘僵尸 mid 28）：
@@ -98,6 +99,19 @@ test("骑乘者死亡：坐骑层一并清空（整体死亡）", () => {
   assert.equal(model.health, 0);
   assert.equal(model.mountHealth, 0);
   assert.equal(model.mountBroken, true);
+});
+
+test("海豚图层使用与木船僵尸一致的锚点/缩放/深度", () => {
+  resetSim();
+  const { entity } = spawnMob(DolphinRiderZombieData, { col: 8, row: 2 });
+  DolphinRiderEntity.prototype.buildView.call(entity);
+
+  const body = entity.attachSprites.get("dolphin_body");
+  assert.ok(body, "海豚身体图层已创建");
+  const scaleFactor = PositionManager.Instance.scaleFactor;
+  assert.equal(body.originY, 1, "与木船相同的底边锚点");
+  assert.equal(body.y, entity.y + 15 * scaleFactor, "与木船相同的 y 锚点");
+  assert.equal(body.scaleX, scaleFactor * 1.4, "与木船相同的缩放");
 });
 
 test("骑乘姿态与海豚图层随坐骑状态单向同步", () => {

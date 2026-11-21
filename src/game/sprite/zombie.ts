@@ -114,6 +114,29 @@ export default class IZombieAnim {
         this.legRight.setDepth(DepthHelper.Mob.legacyPart(base, "rightLeg"));
     }
 
+    private diving = false;
+
+    /** 潜水姿态：只留头部（面罩由 Entity 绑定头部挂点），身体淡出；探出时反向淡入。 */
+    setDivingPose(diving: boolean) {
+        if (this.diving === diving) return;
+        this.diving = diving;
+        const bodyParts = [this.body, this.armLeft, this.armRight, this.legLeft, this.legRight];
+        this.scene.tweens.killTweensOf(bodyParts);
+        if (diving) {
+            bodyParts.forEach((sprite) => { sprite.setVisible(false); sprite.setAlpha(1); });
+            this.stopLegSwing();
+        } else {
+            bodyParts.forEach((sprite) => { sprite.setVisible(true); sprite.setAlpha(0); });
+            this.scene.tweens.add({
+                targets: bodyParts,
+                alpha: { from: 0, to: 1 },
+                duration: 260,
+                ease: 'Sine.easeOut',
+            });
+        }
+        this.head.setVisible(true);
+    }
+
     /** 骑乘姿态：停腿摆，两腿都顺时针固定 20°，像坐在海豚背上。 */
     setRidingPose(riding: boolean) {
         if (riding) {

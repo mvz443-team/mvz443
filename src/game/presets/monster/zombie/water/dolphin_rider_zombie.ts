@@ -82,21 +82,23 @@ export class DolphinRiderEntity extends BaseZombieEntity {
     super.buildView();
     if (this.attachSprites.has("dolphin_body")) return;
 
-    const scale = PositionManager.Instance.scaleFactor;
+    const baseScale = PositionManager.Instance.scaleFactor;
     const gridX = PositionManager.Instance.GRID_SIZEX;
     const gridY = PositionManager.Instance.GRID_SIZEY;
-    const backDepth = DepthHelper.Mob.customAttachment(this.baseDepth, 11);
-    const frontDepth = DepthHelper.Mob.customAttachment(this.baseDepth, 12);
-    const baseY = this.y + this.offsetY + gridY * 0.28;
+    // 与 MonsterEntity.checkAndAddBoat 完全一致：同样锚点、缩放与前后深度。
+    const boatY = this.y + 15 * baseScale;
+    const backDepth = DepthHelper.Mob.boatBack(this.baseDepth);
+    const frontDepth = DepthHelper.Mob.boatFront(this.baseDepth);
 
     const parts: Array<[string, number, number, number]> = [
-      ["dolphin_tail", this.x + this.offsetX + gridX * 0.52, baseY + gridY * 0.06, backDepth],
-      ["dolphin_body", this.x + this.offsetX, baseY, frontDepth],
-      ["dolphin_fin", this.x + this.offsetX - gridX * 0.16, baseY - gridY * 0.22, frontDepth],
+      ["dolphin_tail", this.x + gridX * 0.42, boatY, backDepth],
+      ["dolphin_body", this.x, boatY, frontDepth],
+      ["dolphin_fin", this.x - gridX * 0.12, boatY - gridY * 0.22, frontDepth],
     ];
     for (const [key, x, y, depth] of parts) {
       const sprite = this.scene.add.sprite(x, y, `attach/${key}`)
-        .setScale(scale * 1.5)
+        .setOrigin(0.5, 1)
+        .setScale(baseScale * 1.4)
         .setDepth(depth);
       this.attachSprites.set(key, sprite);
       this.viewGroup.add(sprite);

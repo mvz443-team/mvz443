@@ -58,7 +58,7 @@ function makeGameObject(extra = {}) {
     displayWidth: 100,
     displayHeight: 100,
     frame: { name: "0" },
-    setOrigin() { return this; },
+    setOrigin(x, y) { this.originX = x; this.originY = y ?? x; return this; },
     setDisplaySize() { return this; },
     setDepth() { return this; },
     setFrame(value) { this.frame = { name: String(value) }; return this; },
@@ -113,8 +113,8 @@ export function makeScene() {
     },
     add: {
       group: makeGroup,
-      sprite: () => makeGameObject(),
-      image: () => makeGameObject(),
+      sprite: (x, y) => makeGameObject().setPosition(x ?? 0, y ?? 0),
+      image: (x, y) => makeGameObject().setPosition(x ?? 0, y ?? 0),
       text: () => makeGameObject(),
       rectangle: () => makeGameObject(),
       zone: () => makeGameObject(),
@@ -156,6 +156,9 @@ function makeAnimController() {
     startArc(_from, _to, _duration, _height, _texture, done) { done?.(); },
     destroy() {},
     getTargets() { return []; },
+    setDivingPose(value) { this.diving = value; },
+    getHeadAnchor() { return this.headAnchor ?? { x: 0, y: 0 }; },
+    setHeadAnchor(x, y) { this.headAnchor = { x, y }; },
   };
 }
 

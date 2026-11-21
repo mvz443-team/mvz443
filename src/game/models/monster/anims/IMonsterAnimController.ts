@@ -36,6 +36,14 @@ export interface IMonsterAnimController {
    */
   setRidingPose?(riding: boolean): void;
 
+  /**
+   * 潜水姿态（潜水僵尸）：true 时只显示头部（氧气面罩另由 Entity 跟随头部挂点），
+   * false 时探出身来显示全身。只由 Entity.syncViewFromModel() 从 Model 单向同步。
+   */
+  setDivingPose?(diving: boolean): void;
+  /** 头部挂点当前屏幕坐标，用于把面罩图层绑定到头部。 */
+  getHeadAnchor?(): MonsterHandAnchor | null;
+
   // 特殊状态 (如石巨人正在播放不可打断的动画)
   isInAnim?: boolean;
 }

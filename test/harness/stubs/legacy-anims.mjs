@@ -15,6 +15,9 @@ function controller() {
     setAirborne(value) { this.airborne = value; },
     getHangPivot() { return null; },
     setRidingPose(value) { this.riding = value; },
+    setDivingPose(value) { this.diving = value; },
+    getHeadAnchor() { return this.headAnchor ?? { x: 0, y: 0 }; },
+    setHeadAnchor(x, y) { this.headAnchor = { x, y }; },
     raw: {},
   };
 }
