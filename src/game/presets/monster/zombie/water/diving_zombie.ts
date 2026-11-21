@@ -6,6 +6,9 @@ import { MonsterSpeed, ZombieAttackInterval } from "../../../../../constants/gam
 import { PositionManager } from "../../../../managers/view/PositionManager";
 import DepthHelper from "../../../../utils/helper/DepthHelper";
 
+/** 潜水波纹的两个独立图层，错相播放形成游动感。 */
+const RIPPLE_KEYS = ["diving_ripple_a", "diving_ripple_b"] as const;
+
 /**
  * 潜水僵尸：普通僵尸套上潜水镜与呼吸管两个独立图层，血量/速度与原版一致。
  *
@@ -53,6 +56,8 @@ export class DivingZombieModel extends PresetMonsterModel {
 
 export class DivingZombieEntity extends BaseZombieEntity {
   declare public model: DivingZombieModel;
+  private rippleTweens: Phaser.Tweens.Tween[] = [];
+  private ripplePlaying = false;
 
   public constructor(scene: Game, col: number, row: number, model: DivingZombieModel, waveID: number) {
     super(scene, col, row, model, waveID);
@@ -62,28 +67,87 @@ export class DivingZombieEntity extends BaseZombieEntity {
     super.buildView();
     if (this.attachSprites.has("diving_goggles")) return;
 
-    // 与 cap zombie 的帽子完全相同的装备挂点：同一 y 高度 / origin / depth / 注册方式。
+    // 面罩/呼吸管不是固定装备挂点：它们必须跟着头部走。潜水时头部在格子底部中央，
+    // 起身时头部回到身体上方，两种姿态都靠 getHeadAnchor() 取同一个头部挂点。
     const scale = PositionManager.Instance.scaleFactor;
-    const px = this.x + this.offsetX;
-    const py = this.y + this.offsetY - PositionManager.Instance.GRID_SIZEY * 1.15;
     const depth = DepthHelper.Mob.customAttachment(this.baseDepth, 13);
-    const gridX = PositionManager.Instance.GRID_SIZEX;
-
-    const goggles = this.scene.add.sprite(px, py, "attach/diving_goggles")
+    const goggles = this.scene.add.sprite(this.x, this.y, "attach/diving_goggles")
       .setScale(scale).setOrigin(0.5, 0.5).setDepth(depth);
-    const snorkel = this.scene.add.sprite(px + gridX * 0.2, py - gridX * 0.06, "attach/diving_snorkel")
+    const snorkel = this.scene.add.sprite(this.x, this.y, "attach/diving_snorkel")
       .setScale(scale).setOrigin(0.5, 0.5).setDepth(depth);
 
     this.attachSprites.set("diving_goggles", goggles);
     this.attachSprites.set("diving_snorkel", snorkel);
     this.viewGroup.addMultiple([goggles, snorkel]);
-    this.registerEquipmentAttachment("diving_goggles");
-    this.registerEquipmentAttachment("diving_snorkel");
+
+    // 波纹在头部下方，深度比面罩低一层；初始隐藏，由 syncViewFromModel 按 tiny 启停。
+    for (const key of RIPPLE_KEYS) {
+      const sprite = this.scene.add.sprite(this.x, this.y, `attach/${key}`)
+        .setScale(scale).setOrigin(0.5, 0.5).setDepth(depth - 1)
+        .setVisible(false).setAlpha(0);
+      this.attachSprites.set(key, sprite);
+      this.viewGroup.add(sprite);
+    }
+    this.syncDivingAttachments();
+  }
+
+  public override updateView(vec: { x: number; y: number }): void {
+    super.updateView(vec);
+    // 头部每帧被 animController 重新定位，面罩随之同步。
+    this.syncDivingAttachments();
   }
 
   public override syncViewFromModel(): void {
     super.syncViewFromModel();
     this.animController.setDivingPose?.(this.model.tiny);
+    // setDivingPose 立即改变头部挂点；同步面罩与波纹，避免下一帧 updateView 前错位。
+    this.syncDivingAttachments();
+    this.setRippleVisible(this.model.tiny);
+  }
+
+  /** 把面罩与呼吸管绑定到当前头部挂点（潜水/起身同一套逻辑）。 */
+  private syncDivingAttachments(): void {
+    const head = this.animController.getHeadAnchor?.();
+    if (!head) return;
+    const goggles = this.attachSprites.get("diving_goggles");
+    const snorkel = this.attachSprites.get("diving_snorkel");
+    if (!goggles || !snorkel) return;
+    const gridX = PositionManager.Instance.GRID_SIZEX;
+    const gridY = PositionManager.Instance.GRID_SIZEY;
+    goggles.setPosition(head.x - gridX * 0.1, head.y);
+    snorkel.setPosition(head.x + gridX * 0.1, head.y - gridX * 0.06);
+    // 波纹跟随头部下方；Tween 只改 alpha/scaleX，不与每帧位置同步冲突。
+    for (const key of RIPPLE_KEYS) {
+      this.attachSprites.get(key)?.setPosition(head.x, head.y + gridY * 0.24);
+    }
+  }
+
+  /** 潜水态播放两层错相波纹；起身时立即停掉并隐藏（纯表现，不进快照）。 */
+  private setRippleVisible(visible: boolean): void {
+    if (this.ripplePlaying === visible) return;
+    this.ripplePlaying = visible;
+    this.rippleTweens.forEach((tween) => tween.stop());
+    this.rippleTweens = [];
+
+    const scale = PositionManager.Instance.scaleFactor;
+    RIPPLE_KEYS.forEach((key, index) => {
+      const sprite = this.attachSprites.get(key);
+      if (!sprite) return;
+      sprite.setVisible(visible);
+      sprite.setScale(scale);
+      sprite.setAlpha(visible ? 0 : 1);
+      if (!visible) return;
+      this.rippleTweens.push(this.scene.tweens.add({
+        targets: sprite,
+        alpha: { from: 0, to: 0.9 },
+        scaleX: { from: 0.85, to: 1.15 },
+        duration: 900,
+        delay: index * 450,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      }));
+    });
   }
 }
 

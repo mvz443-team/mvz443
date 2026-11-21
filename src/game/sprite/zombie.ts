@@ -56,6 +56,7 @@ export default class IZombieAnim {
 
     constructor(scene: Game, x: number, y: number, props: ZombieAnimProps) {
         x = x;
+        this.gridBottomY = y;
         y = y - PositionManager.Instance.GRID_SIZEY * 5 / 12;
 
         this.species = props.Species;
@@ -116,6 +117,23 @@ export default class IZombieAnim {
 
     private diving = false;
     private riding = false;
+    /** 当前格子的底边 y（传入坐标尚未抬升为身体原点），潜水时据此定位头部。 */
+    private gridBottomY = 0;
+
+    /**
+     * 头部挂点：潜水时落到当前格子底部中央，只露出头顶；常态跟随身体挂点。
+     * x 用格子水平中心（不叠加 headOffset，保证"中部"），y 在格子底边上方留一点余量。
+     */
+    private placeHead(x: number, bodyY: number) {
+        if (this.diving) {
+            this.head.setPosition(x, this.gridBottomY - PositionManager.Instance.GRID_SIZEY * 0.12);
+        } else {
+            this.head.setPosition(
+                x + this.headOffset[0] * this.scaneFactor,
+                bodyY + this.headOffset[1] * this.scaneFactor,
+            );
+        }
+    }
 
     /** 潜水姿态：只留头部（面罩由 Entity 绑定头部挂点），身体淡出；探出时反向淡入。 */
     setDivingPose(diving: boolean) {
@@ -136,6 +154,8 @@ export default class IZombieAnim {
             });
         }
         this.head.setVisible(true);
+        // 姿态切换立即把头部放到目标挂点，避免下一帧 updatePosition 前出现错位。
+        this.placeHead(this.x, this.y);
     }
 
     /** 骑乘姿态：停腿摆，两腿固定 60°（向左顺时针 / 向右逆时针）；移动时 startLegSwing 跳过。 */
@@ -224,12 +244,12 @@ export default class IZombieAnim {
 
     updatePosition(x: number, y: number) {
         x = x;
+        this.gridBottomY = y;
         y = y - PositionManager.Instance.GRID_SIZEY * 25 / 54;
         this.x = x;
         this.y = y;
         this.body.setPosition(x, y);
-        this.head.setPosition(x + this.headOffset[0] * this.scaneFactor,
-            y + this.headOffset[1] * this.scaneFactor);
+        this.placeHead(x, y);
         this.armLeft.setPosition(x + this.leftArmOffset[0] * this.scaneFactor,
             y + this.leftArmOffset[1] * this.scaneFactor);
         this.armRight.setPosition(x + this.rightArmOffset[0] * this.scaneFactor,

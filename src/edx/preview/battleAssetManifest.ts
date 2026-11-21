@@ -42,6 +42,9 @@ export function queueAllMonsterAssets(loader: Phaser.Loader.LoaderPlugin): void 
   // 潜水僵尸的多图层部件：镜框与呼吸管分层绘制，按 Model 状态同步。
   loader.image('attach/diving_goggles', 'attach/diving_goggles.svg');
   loader.image('attach/diving_snorkel', 'attach/diving_snorkel.svg');
+  // 潜水波纹：两个独立图层错相播放，纯表现不进快照。
+  loader.image('attach/diving_ripple_a', 'attach/diving_ripple_a.svg');
+  loader.image('attach/diving_ripple_b', 'attach/diving_ripple_b.svg');
   // 海豚坐骑：身体/尾鳍/背鳍三个独立图层。
   loader.image('attach/dolphin_body', 'attach/dolphin_body.svg');
   loader.image('attach/dolphin_tail', 'attach/dolphin_tail.svg');
