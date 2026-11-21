@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useCreation, useMemoizedFn, useUpdateEffect, useSetState } from 'ahooks';
 import { useSaveManager } from '../../context/save_ctx';
 import { publicUrl } from '../../utils/browser';
@@ -15,6 +15,11 @@ interface Props {
   width: number;
   height?: number;
   onBack: () => void;
+  /**
+   * 右栏标题上方的额外内容（图鉴的 Phaser 预览）。
+   * 传 null 表示当前没有选中项。
+   */
+  renderPreview?: (item: { pid: number; level: number } | null) => React.ReactNode;
 }
 
 interface PokedexItem {
@@ -25,7 +30,7 @@ interface PokedexItem {
   level: number;
 }
 
-export default function Pokedex({ width, height, onBack }: Props) {
+export default function Pokedex({ width, height, onBack, renderPreview }: Props) {
   if (height === undefined) {
     height = width * 3 / 4;
   }
@@ -76,6 +81,16 @@ export default function Pokedex({ width, height, onBack }: Props) {
       });
     return tmpMap;
   }, [plants]);
+
+  // 带预览时默认选中第一个器械：否则右栏只剩一个空场地，看不出任何东西。
+  const autoSelected = useRef(false);
+  useEffect(() => {
+    if (!renderPreview || autoSelected.current) return;
+    const first = pokedexItems.keys().next();
+    if (first.done) return;
+    autoSelected.current = true;
+    setState({ selectedItemPid: first.value });
+  }, [pokedexItems, renderPreview, setState]);
 
   // 清除所有动画定时器的辅助函数
   const clearAnimationTimers = useMemoizedFn(() => {
@@ -214,6 +229,15 @@ export default function Pokedex({ width, height, onBack }: Props) {
     setState({ selectedItemPid: pid });
   });
 
+  // 图鉴预览固定在右栏顶部（标题上方），不随详情内容滚动。
+  const previewSlot = renderPreview
+    ? renderPreview(
+      state.selectedItem
+        ? { pid: state.selectedItem.pid, level: state.selectedItem.level }
+        : null,
+    )
+    : null;
+
   return (
     <div style={{
       width: `${width}px`,
@@ -272,7 +296,7 @@ export default function Pokedex({ width, height, onBack }: Props) {
               color: "#ddd",
               fontSize: "18px",
               fontWeight: 700
-            }}>图鉴</h2>
+            }}>{translate('edx.plants')}</h2>
           </div>
 
           <div style={{
@@ -351,6 +375,7 @@ export default function Pokedex({ width, height, onBack }: Props) {
 
         <div style={{
           flex: 1,
+          minWidth: 0,
           height: "100%",
           boxSizing: "border-box",
           padding: isMobile ? "16px" : "20px",
@@ -359,6 +384,17 @@ export default function Pokedex({ width, height, onBack }: Props) {
           display: 'flex',
           flexDirection: 'column'
         }}>
+          {previewSlot ? (
+            <div style={{
+              marginBottom: '12px',
+              flex: '0 0 55%',
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}>
+              {previewSlot}
+            </div>
+          ) : null}
           <div className={state.animationClass} style={{
             position: "relative",
             width: "100%",

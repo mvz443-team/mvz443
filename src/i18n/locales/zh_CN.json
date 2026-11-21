@@ -118,7 +118,7 @@
   "menu": {
     "homepage": "主页",
     "choose_level": "开始游戏",
-    "pokedex": "器械图鉴",
+    "pokedex": "图鉴",
     "shop": "商店/背包",
     "settings": "设置",
     "updates": "更新记录",
@@ -325,5 +325,39 @@
         }
       }
     }
+  },
+  "edx": {
+    "title": "图鉴",
+    "back": "返回",
+    "plants": "器械图鉴",
+    "map": "地图图鉴",
+    "zombie": "僵尸图鉴",
+    "plants_hint": "器械数据、升级材料与 Phaser 实战预览",
+    "map_hint": "关卡地图的格子数量与地形",
+    "zombie_hint": "怪物数值、机制与 Phaser 行动预览",
+    "plant_preview": "实战预览",
+    "monster_preview": "行动预览",
+    "select_hint": "请选择左侧条目查看详情",
+    "stat_health": "生命",
+    "stat_speed": "速度",
+    "stat_damage": "攻击",
+    "stat_interval": "攻击间隔",
+    "stat_level": "等级",
+    "stat_rank": "定位",
+    "stat_wave": "起始波次",
+    "traits": "机制",
+    "map_grid": "格子",
+    "map_rows": "{{rows}} 行 × {{cols}} 列",
+    "map_water": "水路",
+    "map_water_rows": "第 {{rows}} 路为水路",
+    "map_water_none": "无水路（全部为陆地）",
+    "map_energy": "初始能量",
+    "map_waves": "总波次",
+    "map_time": "时段",
+    "map_day": "白天",
+    "map_night": "夜晚",
+    "map_loading": "正在读取关卡配置…",
+    "map_empty": "暂无关卡配置",
+    "map_preview": "地形预览"
   }
 }

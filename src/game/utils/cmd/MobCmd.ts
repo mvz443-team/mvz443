@@ -118,9 +118,28 @@ namespace MobCmd {
     return [...(PlantsManager.Instance.PlantsMap.get(`${col}-${row}`) ?? [])];
   }
 
+  /**
+   * 丢弃缓存的 Boss 技能播报文本。
+   *
+   * 播报文本是场景子对象，任何“整场清空子对象”的流程（图鉴预览切换条目、
+   * 场景重建）都会把它销毁，但 `scene[ANNOUNCE_KEY]` 缓存仍指向已销毁的
+   * Text，下一次播报会写到一个死对象上（静默不显示，或直接抛错）。
+   * 清场方必须显式调用本函数，让缓存与场景子对象保持一致。
+   */
+  export function ResetBossSkillAnnounce(scene: Game) {
+    const state = (scene as any)?.[ANNOUNCE_KEY] as AnnounceState | undefined;
+    if (!state) return;
+    state.hideTimer?.remove(false);
+    state.hideTimer = null;
+    if (state.text && state.text.scene) state.text.destroy();
+    delete (scene as any)[ANNOUNCE_KEY];
+  }
+
   function getOrCreateAnnounceState(scene: Game): AnnounceState {
     const existing = (scene as any)[ANNOUNCE_KEY] as AnnounceState | undefined;
-    if (existing) return existing;
+    // 自愈：文本已被外部销毁时不能复用，否则后续 setText/setVisible 全打在死对象上。
+    if (existing && existing.text && existing.text.scene) return existing;
+    if (existing) delete (scene as any)[ANNOUNCE_KEY];
 
     const fontSize = Math.min(scene.scale.displaySize.width / 28, 22);
     const text = scene.add.text(

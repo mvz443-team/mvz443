@@ -4,10 +4,11 @@ import type { PreloadData, StageData } from '../../types/stage';
 import { StageDataRecords } from '../managers/library/ChapterLibrary';
 import { PlantLibrary } from '../managers/library/PlantLibrary';
 import {
-  getLevelBadgeAssetPath,
-  getLevelBadgeTextureKey,
-  LEVEL_BADGE_TEXTURE_LEVELS,
-} from '../ui/levelBadgeSvg';
+  queueAllMonsterAssets,
+  queueAllPlantAssets,
+  queueAllProjectileAssets,
+  queueAllSpriteAssets,
+} from '../../edx/preview/battleAssetManifest';
 import { translate } from '../../i18n';
 import { publicUrl } from '../../utils/browser';
 import { PhaserEventBus, PhaserEvents } from '../EventBus';
@@ -273,119 +274,22 @@ export class Preloader extends Scene {
 
   // 加载全部器械
   loadAllPlant(_plants: GameParams['plants']) {
-    const allRecords = PlantLibrary.GetAllModels();
-    for (const record of allRecords) {
-      this.load.spritesheet(record.texturePath, record.texturePath + '.png', {
-        frameWidth: 64, frameHeight: 64,
-      });
-      this.load.image(`card/${record.texturePath}`, `card/${record.texturePath}.png`);
-    }
+    queueAllPlantAssets(this.load);
   }
 
   // 加载全部怪物
   loadAllMonster() {
-    this.load.image('zombie/zombie', 'zombie/zombie.png');
-    this.load.spritesheet('attach/cap', 'attach/cap.png', { frameWidth: 33, frameHeight: 14 });
-    this.load.spritesheet('attach/helmet', 'attach/helmet.png', { frameWidth: 33, frameHeight: 14 });
-    this.load.spritesheet('attach/turtle', 'attach/turtle.png', { frameWidth: 33, frameHeight: 14 });
-    this.load.image('attach/hd_pickaxe', 'attach/hd_pickaxe.png');
-    this.load.image('attach/hd_bow', 'attach/hd_bow.png');
-    this.load.image('attach/hd_stick', 'attach/hd_stick.png');
-    this.load.image('attach/hd_axe', 'attach/hd_axe.png');
-    this.load.spritesheet('attach/hd_shield', 'attach/hd_shield.png', { frameWidth: 32, frameHeight: 32 });
-    this.load.image('attach/sign', 'attach/sign.png');
-    this.load.image('attach/balloon', 'attach/balloon.png');
-    this.load.image('attach/boat1', 'attach/sprBoat/sprBoat_0.png');
-    this.load.image('attach/boat2', 'attach/sprBoat/sprBoat_1.png');
-    // 潜水僵尸的多图层部件：镜框与呼吸管分层绘制，按 Model 状态同步。
-    this.load.image('attach/diving_goggles', 'attach/diving_goggles.svg');
-    this.load.image('attach/diving_snorkel', 'attach/diving_snorkel.svg');
-    // 海豚坐骑：身体/尾鳍/背鳍三个独立图层。
-    this.load.image('attach/dolphin_body', 'attach/dolphin_body.svg');
-    this.load.image('attach/dolphin_tail', 'attach/dolphin_tail.svg');
-    this.load.image('attach/dolphin_fin', 'attach/dolphin_fin.svg');
+    queueAllMonsterAssets(this.load);
   }
 
   // 加载全部发射物
   loadAllProjectile() {
-    this.load.image('bullet/snowball', 'bullet/snowball.png');
-    this.load.image('bullet/arrow', 'bullet/arrow.png');
-    this.load.image('bullet/minecart', 'bullet/minecart.png');
-    this.load.image('bullet/firework', 'bullet/firework.png');
-    this.load.image('bullet/Hfirework', 'bullet/Hfirework.png');
+    queueAllProjectileAssets(this.load);
   }
 
   // 加载全部 sprite
   loadAllSprite() {
-    this.load.image('pickaxe', 'sprite/pickaxe.png');
-    this.load.image('starshards', 'sprite/star.png');
-    this.load.image('redstone', 'sprite/redstone.png');
-    this.load.spritesheet('anime/death_smoke', 'anime/death_smoke.png', { frameWidth: 16, frameHeight: 16 });
-    this.load.spritesheet('anime/explosion', 'anime/explosion.png', { frameWidth: 32, frameHeight: 32 });
-    this.load.spritesheet('anime/fire', 'anime/fire.png', { frameWidth: 16, frameHeight: 16 });
-    this.load.spritesheet('anime/ice_trail', 'anime/ice_trail.png', { frameWidth: 16, frameHeight: 16 });
-    this.load.spritesheet('anime/lightning_trail', 'anime/lightning_trail.png', { frameWidth: 16, frameHeight: 16 });
-    this.load.image('shoot_bomb', 'anime/shoot_bomb.png');
-    this.load.spritesheet('anime/dirt_out', 'anime/dirt_out.png', { frameWidth: 64, frameHeight: 64 });
-    this.load.image('anime/dirt', 'anime/dirt.png');
-
-    this.load.spritesheet('sprZombieBody', 'sprite/zombie/sprZombieBody.png', { frameWidth: 19, frameHeight: 35 });
-    this.load.image('sprZombieHead', 'sprite/zombie/sprZombieHead.png');
-    this.load.image('sprZombieArm', 'sprite/zombie/sprZombieArm.png');
-    this.load.image('sprZombieLeg', 'sprite/zombie/sprZombieLeg.png');
-
-    this.load.spritesheet('sprSkeletonBody', 'sprite/skeleton/sprSkeletonBody.png', { frameWidth: 19, frameHeight: 35 });
-    this.load.image('sprSkeletonHead', 'sprite/skeleton/sprSkeletonHead.png');
-    this.load.image('sprSkeletonArm', 'sprite/skeleton/sprSkeletonArm.png');
-    this.load.image('sprSkeletonLeg', 'sprite/skeleton/sprSkeletonLeg.png');
-
-    this.load.spritesheet('sprEvokerBody', 'sprite/evoker/sprEvokerBody.png', { frameWidth: 19, frameHeight: 35 });
-    this.load.image('sprEvokerHead', 'sprite/evoker/sprEvokerHead.png');
-    this.load.image('sprEvokerArm', 'sprite/evoker/sprEvokerArm.png');
-    this.load.image('sprEvokerLeg', 'sprite/evoker/sprEvokerLeg.png');
-
-    this.load.spritesheet('sprVindicatorBody', 'sprite/vindicator/sprVindicatorBody.png', { frameWidth: 19, frameHeight: 35 });
-    this.load.image('sprVindicatorHead', 'sprite/evoker/sprEvokerHead.png');
-    this.load.image('sprVindicatorArm', 'sprite/vindicator/sprVindicatorArm.png');
-    this.load.image('sprVindicatorLeg', 'sprite/vindicator/sprVindicatorLeg.png');
-
-    this.load.spritesheet('obsidianBody', 'sprite/obsidian_golem/obsidianBody.png', { frameWidth: 19, frameHeight: 35 });
-    this.load.image('obsidianHead', 'sprite/obsidian_golem/obsidianHead.png');
-    this.load.image('obsidianArm', 'sprite/obsidian_golem/obsidianArm.png');
-    this.load.image('obsidianLeg', 'sprite/obsidian_golem/obsidianLeg.png');
-    this.load.image('zombie/mob_obsidian', 'zombie/mob_obsidian.png');
-
-    this.load.spritesheet('sprWardenBody', 'sprite/warden_golem/sprWardenBody.png', { frameWidth: 19, frameHeight: 35 });
-    this.load.image('sprWardenHead', 'sprite/warden_golem/sprWardenHead.png');
-    this.load.image('sprWardenArm', 'sprite/warden_golem/sprWardenArm.png');
-    this.load.image('sprWardenLeg', 'sprite/warden_golem/sprWardenLeg.png');
-
-    this.load.spritesheet('sprMutantBody', 'sprite/mutant/body.png', { frameWidth: 52, frameHeight: 89 });
-    this.load.image('sprMutantHead', 'sprite/mutant/head.png');
-    this.load.image('sprMutantUpperArm', 'sprite/mutant/upperArm.png');
-    this.load.image('sprMutantLowerArm', 'sprite/mutant/lowerArm.png');
-    this.load.image('sprMutantUpperLeg', 'sprite/mutant/upperLeg.png');
-    this.load.image('sprMutantLowerLeg', 'sprite/mutant/lowerLeg.png');
-    this.load.image('sprMutantCover', 'sprite/mutant/cover.png');
-
-    this.load.spritesheet('sprCentipedeCharacter', 'sprite/centipede/sprCentipedeCharacter.png', { frameWidth: 128, frameHeight: 160 });
-    this.load.image('sfxCentipedeOrb', 'sprite/centipede/sfxCentipedeOrb.png');
-    this.load.image('sfxCentipedeSlash', 'sprite/centipede/sfxCentipedeSlash.png');
-    this.load.image('sfxCentipedeSummonRing', 'sprite/centipede/sfxCentipedeSummonRing.png');
-    this.load.spritesheet('sfxCentipedeChargeDust', 'sprite/centipede/sfxCentipedeChargeDust.png', { frameWidth: 32, frameHeight: 32 });
-    this.load.image('sfxCentipedeMinionOrb', 'sprite/centipede/sfxCentipedeMinionOrb.png');
-
-    this.load.spritesheet('sprCentipedeDeprecatedBody', 'sprite/centipede_deprecated/sprCentipedeBody.png', { frameWidth: 60, frameHeight: 48 });
-    this.load.image('sprCentipedeDeprecatedHead', 'sprite/centipede_deprecated/sprCentipedeHead.png');
-    this.load.image('sprCentipedeDeprecatedSegment', 'sprite/centipede_deprecated/sprCentipedeSegment.png');
-    this.load.image('sprCentipedeDeprecatedJoint', 'sprite/centipede_deprecated/sprCentipedeJoint.png');
-    this.load.image('sprCentipedeDeprecatedArm', 'sprite/centipede_deprecated/sprCentipedeArm.png');
-    this.load.image('sprCentipedeDeprecatedLeg', 'sprite/centipede_deprecated/sprCentipedeLeg.png');
-    this.load.image('sprCentipedeDeprecatedSickle', 'sprite/centipede_deprecated/sprCentipedeSickle.png');
-
-    for (const level of LEVEL_BADGE_TEXTURE_LEVELS) {
-      this.load.svg(getLevelBadgeTextureKey(level), getLevelBadgeAssetPath(level), { width: 48, height: 48 });
-    }
+    queueAllSpriteAssets(this.load);
   }
 
   private queueStageImages(preloadData: PreloadData, params: GameParams) {

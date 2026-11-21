@@ -118,7 +118,7 @@
   "menu": {
     "homepage": "Home",
     "choose_level": "Start Game",
-    "pokedex": "Device Index",
+    "pokedex": "Codex",
     "shop": "Shop/Backpack",
     "settings": "Settings",
     "updates": "Update Log",
@@ -325,5 +325,39 @@
         }
       }
     }
+  },
+  "edx": {
+    "title": "Codex",
+    "back": "Back",
+    "plants": "Device Codex",
+    "map": "Stage Maps",
+    "zombie": "Zombie Codex",
+    "plants_hint": "Stats, upgrade materials and a live Phaser preview",
+    "map_hint": "Grid size and terrain of every stage",
+    "zombie_hint": "Stats, mechanics and a live Phaser preview",
+    "plant_preview": "Live preview",
+    "monster_preview": "Behaviour preview",
+    "select_hint": "Pick an entry on the left",
+    "stat_health": "Health",
+    "stat_speed": "Speed",
+    "stat_damage": "Damage",
+    "stat_interval": "Interval",
+    "stat_level": "Level",
+    "stat_rank": "Rank",
+    "stat_wave": "First wave",
+    "traits": "Traits",
+    "map_grid": "Grid",
+    "map_rows": "{{rows}} rows × {{cols}} cols",
+    "map_water": "Water",
+    "map_water_rows": "Rows {{rows}} are water",
+    "map_water_none": "No water lanes",
+    "map_energy": "Start energy",
+    "map_waves": "Waves",
+    "map_time": "Time",
+    "map_day": "Day",
+    "map_night": "Night",
+    "map_loading": "Reading stage config…",
+    "map_empty": "No stage config",
+    "map_preview": "Terrain preview"
   }
 }

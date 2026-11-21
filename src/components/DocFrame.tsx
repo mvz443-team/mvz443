@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import LevelSelect from './menu/levelSelect';
-import Pokedex from './menu/pokedex';
+import { CodexFrame } from '../edx';
 import Settings from './menu/settings';
 import { GameParams } from '../game/models/GameParams';
 import { publicUrl } from '../utils/browser';
@@ -410,7 +410,7 @@ export default function DocFrame({ width, height, setGameParams, gameStart, init
         startGame={gameStart} setGameParams={setGameParams} skipToParams={skipToParams} chosenStage={chosenStage || undefined}
         initialRoomView={initialRoomView}
       />}
-      {currentView === 'pokedex' && <Pokedex width={width} height={height} onBack={() => setCurrentView('main')} />}
+      {currentView === 'pokedex' && <CodexFrame width={width} height={height} onBack={() => setCurrentView('main')} />}
       {currentView === 'shop' && <Shop width={width} height={height} onBack={() => setCurrentView('main')} />}
       {currentView === 'settings' && <Settings width={width} height={height} onBack={() => setCurrentView('main')} />}
 
