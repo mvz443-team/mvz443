@@ -87,16 +87,16 @@ export class DolphinRiderEntity extends BaseZombieEntity {
     const gridY = PositionManager.Instance.GRID_SIZEY;
     const backDepth = DepthHelper.Mob.customAttachment(this.baseDepth, 11);
     const frontDepth = DepthHelper.Mob.customAttachment(this.baseDepth, 12);
-    const baseY = this.y + this.offsetY + gridY * 0.38;
+    const baseY = this.y + this.offsetY + gridY * 0.28;
 
     const parts: Array<[string, number, number, number]> = [
-      ["dolphin_tail", this.x + this.offsetX + gridX * 0.42, baseY + gridY * 0.06, backDepth],
+      ["dolphin_tail", this.x + this.offsetX + gridX * 0.52, baseY + gridY * 0.06, backDepth],
       ["dolphin_body", this.x + this.offsetX, baseY, frontDepth],
-      ["dolphin_fin", this.x + this.offsetX - gridX * 0.12, baseY - gridY * 0.22, frontDepth],
+      ["dolphin_fin", this.x + this.offsetX - gridX * 0.16, baseY - gridY * 0.22, frontDepth],
     ];
     for (const [key, x, y, depth] of parts) {
       const sprite = this.scene.add.sprite(x, y, `attach/${key}`)
-        .setScale(scale)
+        .setScale(scale * 1.5)
         .setDepth(depth);
       this.attachSprites.set(key, sprite);
       this.viewGroup.add(sprite);
