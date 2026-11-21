@@ -20,6 +20,7 @@ export {
   BoatTurtleZombieData,
   BoatSkeletonBowZombieData,
   DivingZombieData,
+  DolphinRiderZombieData,
 } from "./zombie";
 export { MutantData } from "./mutant";
 export { ObsidianGolemData, WardenData } from "./golem";

@@ -30,6 +30,12 @@ export interface IMonsterAnimController {
   /** 悬吊姿态下的刚性旋转中心；固定挂件据此跟随旋转后的躯体。 */
   getHangPivot?(): MonsterHandAnchor | null;
 
+  /**
+   * 骑乘姿态（海豚骑乘僵尸）：true 时停止腿部摆动并把两条腿都顺时针固定 20°，
+   * false 时恢复普通行走姿态。只由 Entity.syncViewFromModel() 从 Model 单向同步。
+   */
+  setRidingPose?(riding: boolean): void;
+
   // 特殊状态 (如石巨人正在播放不可打断的动画)
   isInAnim?: boolean;
 }

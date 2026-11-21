@@ -14,6 +14,7 @@ function controller() {
     getTargets() { return []; },
     setAirborne(value) { this.airborne = value; },
     getHangPivot() { return null; },
+    setRidingPose(value) { this.riding = value; },
     raw: {},
   };
 }

@@ -300,6 +300,10 @@ export class Preloader extends Scene {
     // 潜水僵尸的多图层部件：镜框与呼吸管分层绘制，按 Model 状态同步。
     this.load.image('attach/diving_goggles', 'attach/diving_goggles.svg');
     this.load.image('attach/diving_snorkel', 'attach/diving_snorkel.svg');
+    // 海豚坐骑：身体/尾鳍/背鳍三个独立图层。
+    this.load.image('attach/dolphin_body', 'attach/dolphin_body.svg');
+    this.load.image('attach/dolphin_tail', 'attach/dolphin_tail.svg');
+    this.load.image('attach/dolphin_fin', 'attach/dolphin_fin.svg');
   }
 
   // 加载全部发射物

@@ -114,6 +114,18 @@ export default class IZombieAnim {
         this.legRight.setDepth(DepthHelper.Mob.legacyPart(base, "rightLeg"));
     }
 
+    /** 骑乘姿态：停腿摆，两腿都顺时针固定 20°，像坐在海豚背上。 */
+    setRidingPose(riding: boolean) {
+        if (riding) {
+            this.legLeftTween?.stop();
+            this.legRightTween?.stop();
+            this.legLeft.angle = 20;
+            this.legRight.angle = 20;
+        } else {
+            this.stopLegSwing();
+        }
+    }
+
     startLegSwing() {
         if (!this.legLeftTween || !this.legLeftTween.isPlaying()) {
             this.legLeft.angle = -15;

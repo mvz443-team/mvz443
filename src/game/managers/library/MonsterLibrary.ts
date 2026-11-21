@@ -27,6 +27,7 @@ import {
   BoatTurtleZombieData,
   BoatSkeletonBowZombieData,
   DivingZombieData,
+  DolphinRiderZombieData,
 } from "../../presets/monster";
 
 export class MonsterLibrary {
@@ -66,6 +67,7 @@ export class MonsterLibrary {
     this.Register(BoatTurtleZombieData);
     this.Register(BoatSkeletonBowZombieData);
     this.Register(DivingZombieData);
+    this.Register(DolphinRiderZombieData);
     // 星之碎片召唤物：weight 为 0，永远不会进入出怪池。
     this.Register(BalloonTntCloneData);
 

@@ -128,6 +128,7 @@
 | 21 | `balloon_tnt_clone` 气球TNT分身（召唤物） | — | ✓ | — | PLANT 阵营，不进波次/不计击杀 |
 | 22–26 | `boat_*_zombie` 木船僵尸系列 | — | — | — | 水生通行域，始终挂木船表现 |
 | 27 | `diving_zombie` 潜水僵尸 | **动态** | — | — | 潜行 tiny=true / 攻击 tiny=false；需 tiny 投射物命中 |
+| 28 | `dolphin_rider_zombie` 海豚骑乘僵尸 | — | — | — | 坐骑 20 血，坐姿腿固定 20°；水生通行域 |
 
 ### 3.1 怪物衍生的射击物 / 召唤物
 

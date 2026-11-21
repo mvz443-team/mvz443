@@ -4,3 +4,4 @@ export { BoatHelmetZombieData } from "./boat_helmet_zombie";
 export { BoatTurtleZombieData } from "./boat_turtle_zombie";
 export { BoatSkeletonBowZombieData } from "./boat_skeleton_bow_zombie";
 export { DivingZombieData } from "./diving_zombie";
+export { DolphinRiderZombieData } from "./dolphin_rider_zombie";
