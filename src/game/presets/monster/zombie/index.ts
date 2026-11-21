@@ -18,4 +18,5 @@ export {
   BoatHelmetZombieData,
   BoatTurtleZombieData,
   BoatSkeletonBowZombieData,
+  DivingZombieData,
 } from "./water";

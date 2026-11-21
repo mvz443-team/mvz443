@@ -10,7 +10,7 @@
 | 投射物 Model | hitKind | tiny | flying | void | 说明 |
 | --- | --- | --- | --- | --- | --- |
 | `ArrowModel` / `MutantYAxisArrowModel` | bullet | — | 由配置 | — | 箭矢，默认只能打普通地面目标 |
-| `SnowBallModel` | bullet | — | — | — | 雪球，短距离 |
+| `SnowBallModel` | bullet | 由配置 | — | — | 雪球，短距离；小发射器发射时 `tiny: true` 以命中潜水僵尸 |
 | `BombSnowBallModel` / `FireBallModel` | bullet | — | — | — | 雪球命中/销毁后产生 `ExplosionModel` |
 | `HFireWorkModel` / `ATAirHFireWorkModel` | bullet | — | — | — | 火箭本体是子弹，销毁时产生爆炸 |
 | `MineCartModel` | bullet | ✓ | — | — | 矿车，`tiny: true`，超杀伤害 |
@@ -54,7 +54,7 @@
   - `ExplosionModel`（自身爆炸）— tiny ✓ / flying ✓ / void —
   - 星碎召唤 2 个同款 `TntMinesModel` 分身 — tiny ✓ / flying — / void —
 - **5 `small_dispenser`**
-  - `SnowBallModel` — tiny — / flying — / void —
+  - `SnowBallModel` — tiny ✓（创建参数显式传入，用于打潜行潜水僵尸）/ flying — / void —
   - 星碎 `FireBallModel`（bullet）— tiny — / flying — / void —
     - 其销毁爆炸 `ExplosionModel` — tiny ✓ / flying ✓ / void —
 - **6 `lily`**
@@ -100,8 +100,8 @@
 
 ## 3. 怪物
 
-所有怪物都不占据低矮层（`tiny` 恒为 false）；`void` 目前没有 preset 使用，
-只有数据模型保留了 `isDefaultInVoid` 开关。
+绝大多数怪物不占据低矮层；潜水僵尸（mid 27）在潜行时 `tiny = true`，攻击时抬起为 false。
+`void` 目前没有 preset 使用，只有数据模型保留了 `isDefaultInVoid` 开关。
 
 | mid | preset | tiny | flying | void | 备注 |
 | --- | --- | --- | --- | --- | --- |
@@ -126,6 +126,8 @@
 | 19 | `balloon_zombie` 气球僵尸 | — | **载具在架时 ✓** | — | 气球爆掉后 `flying = false` |
 | 20 | `balloon_cap_zombie` 气球帽子僵尸 | — | **载具在架时 ✓** | — | 载具 + 帽子僵尸 |
 | 21 | `balloon_tnt_clone` 气球TNT分身（召唤物） | — | ✓ | — | PLANT 阵营，不进波次/不计击杀 |
+| 22–26 | `boat_*_zombie` 木船僵尸系列 | — | — | — | 水生通行域，始终挂木船表现 |
+| 27 | `diving_zombie` 潜水僵尸 | **动态** | — | — | 潜行 tiny=true / 攻击 tiny=false；需 tiny 投射物命中 |
 
 ### 3.1 怪物衍生的射击物 / 召唤物
 

@@ -297,6 +297,9 @@ export class Preloader extends Scene {
     this.load.image('attach/balloon', 'attach/balloon.png');
     this.load.image('attach/boat1', 'attach/sprBoat/sprBoat_0.png');
     this.load.image('attach/boat2', 'attach/sprBoat/sprBoat_1.png');
+    // 潜水僵尸的多图层部件：镜框与呼吸管分层绘制，按 Model 状态同步。
+    this.load.image('attach/diving_goggles', 'attach/diving_goggles.svg');
+    this.load.image('attach/diving_snorkel', 'attach/diving_snorkel.svg');
   }
 
   // 加载全部发射物

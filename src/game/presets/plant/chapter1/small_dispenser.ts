@@ -63,6 +63,8 @@ export class SmallDispenserModel extends PlantModel {
       direction: 1,
       maxDistance: maxDistanceGrid * PositionManager.Instance.GRID_SIZEX,
       excludeFactions: [entity.faction],
+      // 雪球能打到潜水僵尸的非攻击态（tiny），判定线必须同样覆盖低矮层。
+      reach: { tiny: true },
     });
 
     entity.model.tickmanager.addEvent({
@@ -79,7 +81,8 @@ export class SmallDispenserModel extends PlantModel {
             damage: this.damage.getValueAt(entity.level),
             maxDistance: maxDistanceGrid * PositionManager.Instance.GRID_SIZEX,
             faction: entity.faction,
-            dealer: entity
+            dealer: entity,
+            tiny: true
           });
         }
       }
