@@ -21,6 +21,11 @@ import {
   VindicatorSoliderData,
   WardenData,
   ZombieData,
+  BoatZombieData,
+  BoatCapZombieData,
+  BoatHelmetZombieData,
+  BoatTurtleZombieData,
+  BoatSkeletonBowZombieData,
 } from "../../presets/monster";
 
 export class MonsterLibrary {
@@ -53,6 +58,12 @@ export class MonsterLibrary {
     this.Register(CentipedeMinionData);
     this.Register(BalloonZombieData);
     this.Register(BalloonCapZombieData);
+    // 水生木船僵尸：只在第 4 波起的水路行出没（前 3 波 waterWays 被排除）。
+    this.Register(BoatZombieData);
+    this.Register(BoatCapZombieData);
+    this.Register(BoatHelmetZombieData);
+    this.Register(BoatTurtleZombieData);
+    this.Register(BoatSkeletonBowZombieData);
     // 星之碎片召唤物：weight 为 0，永远不会进入出怪池。
     this.Register(BalloonTntCloneData);
 

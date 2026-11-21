@@ -14,6 +14,11 @@ export {
   VindicatorData,
   VindicatorSoliderData,
   ZombieData,
+  BoatZombieData,
+  BoatCapZombieData,
+  BoatHelmetZombieData,
+  BoatTurtleZombieData,
+  BoatSkeletonBowZombieData,
 } from "./zombie";
 export { MutantData } from "./mutant";
 export { ObsidianGolemData, WardenData } from "./golem";

@@ -237,7 +237,7 @@ export abstract class MonsterEntity extends CombatEntity {
   }
 
   private checkAndAddBoat() {
-    if (GridManager.Instance.RowPropertyRatio(this.row, "water") > 0) {
+    if (this.model.boatMounted || GridManager.Instance.RowPropertyRatio(this.row, "water") > 0) {
       const boatY = this.y + 15 * PositionManager.Instance.scaleFactor;
       const boat1 = this.scene.add.sprite(this.x, boatY, "attach/boat1")
         .setScale(PositionManager.Instance.scaleFactor * 1.4)
@@ -429,6 +429,8 @@ export type MonsterDefinition = {
   couldCarryStarShards?: boolean;
   /** 能刷在哪、能活在哪的地形通行域；缺省为仅地面。 */
   habitats?: readonly TerrainHabitat[];
+  /** 木船僵尸：强制挂载木船表现，不依赖出生行地形。 */
+  boatMounted?: boolean;
   /** 飞行载具（气球等）血量；配置后该怪物有第二条血条，归零即迫降。 */
   vehicleHealth?: number;
   /** 阵营；默认为僵尸。友方召唤物（例如气球TNT分身）可以配成 PLANT。 */
@@ -451,6 +453,7 @@ export class PresetMonsterModel extends MonsterModel {
   public readonly isDefaultInVoid: boolean;
   public readonly couldCarryStarShards: boolean;
   public override readonly habitats: readonly TerrainHabitat[];
+  public override readonly boatMounted: boolean;
 
   public override get weight(): (waveID: number) => number {
     return this.getConfigValue<PresetMonsterModel["weight"]>("weight")!;
@@ -477,6 +480,7 @@ export class PresetMonsterModel extends MonsterModel {
     this.isDefaultInVoid = def.isDefaultInVoid ?? false;
     this.couldCarryStarShards = def.couldCarryStarShards ?? true;
     this.habitats = normalizeHabitats(def.habitats);
+    this.boatMounted = def.boatMounted ?? false;
     this.setConfigValue("weight", def.weight);
     this.setConfigValue("leastWaveIDByStageID", def.leastWaveIDByStageID);
     this.faction = def.faction ?? Faction.ZOMBIE;

@@ -12,3 +12,10 @@ export { VindicatorSoliderData } from "./vindicator_solider";
 export { TurtleZombieData } from "./turtle_zombie";
 export { TurtleSkeletonBowData } from "./turtle_skeleton_bow";
 export { BalloonZombieData, BalloonCapZombieData } from "./chapter2";
+export {
+  BoatZombieData,
+  BoatCapZombieData,
+  BoatHelmetZombieData,
+  BoatTurtleZombieData,
+  BoatSkeletonBowZombieData,
+} from "./water";

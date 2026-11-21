@@ -102,6 +102,8 @@ export abstract class MonsterModel extends LogicModel {
   public readonly couldCarryStarShards: boolean = true;
   /** 通行域：决定该怪能被刷在什么地形、能在什么地形存活；与命中体态层正交。 */
   public readonly habitats: readonly TerrainHabitat[] = DEFAULT_HABITATS;
+  /** 木船僵尸：无论出生行地形如何都挂载木船表现；普通怪在水面行仍按地形自动挂船。 */
+  public readonly boatMounted: boolean = false;
 
   public abstract getWeight(waveID: number): number;
 

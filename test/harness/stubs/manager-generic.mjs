@@ -53,6 +53,19 @@ const sharedInstance = {
       isGround: type === "ground",
     };
   },
+  /** 与真实 GridManager.RowPropertyRatio 同签名；未显式设置的格子按 ground 计。 */
+  RowPropertyRatio(row, property) {
+    let count = 0;
+    let sum = 0;
+    for (const [key, type] of gridTypes) {
+      const [, rowKey] = key.split("-").map(Number);
+      if (rowKey !== row) continue;
+      sum++;
+      if (type === property) count++;
+    }
+    if (sum === 0) return property === "ground" ? 1 : 0;
+    return count / sum;
+  },
   HasObstacle(col, row) {
     return obstaclesMap.has(`${col}-${row}`);
   },
