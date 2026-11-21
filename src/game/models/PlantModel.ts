@@ -9,6 +9,14 @@ import { isShieldPlantPid, pickShieldPlant } from "../utils/helper/PlantTargetin
 /** 可种植的地块类型白名单取值（与 GridProperty.type 对应）。 */
 export type PlantSlot = 'ground' | 'water' | 'sky';
 
+/**
+ * 错落角色：同一格内最多叠三种植物，角色决定目标选择与伤害路由。
+ * - carrier：承载物（睡莲/船），永远不是第一目标；
+ * - shield：护罩（南瓜护照），替同格内部植物优先承伤；
+ * - normal：正常植物。
+ */
+export type PlantStackRole = 'normal' | 'carrier' | 'shield';
+
 export abstract class PlantModel extends LogicModel {
   /** 以下运行时字段全部自动进入快照；新增字段直接写在这里即可。 */
   public level: number = 1;
@@ -45,6 +53,8 @@ export abstract class PlantModel extends LogicModel {
    * 因此它无法种在水面，也就无法种在睡莲上。
    */
   public allowedPlantSlots: readonly PlantSlot[] | null = null;
+  /** 错落角色；默认 normal，承载物/护罩由对应 preset 覆写。 */
+  public stackRole: PlantStackRole = 'normal';
   /** 低矮植物由 `LogicModel.tiny` 表示（只有带 tiny 的投射物能命中）。 */
 
   protected readonly LevelThresholds1: number;

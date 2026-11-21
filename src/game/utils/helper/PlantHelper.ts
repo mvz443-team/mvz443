@@ -119,6 +119,18 @@ namespace PlantHelper {
       return false;
     }
 
+    // 仅水中/仅空中不再按 pid 硬编码，统一读取 PlantModel.allowedPlantSlots。
+    // 传入的 model 缺失时才回落到兼容常量，保证旧调用点不失效。
+    const slotsOnly = (plantPid: number, plantModel: PlantModel | null | undefined, slot: PlantSlot): boolean => {
+      const slots = plantModel?.allowedPlantSlots;
+      if (slots) return slots.length === 1 && slots[0] === slot;
+      return slot === 'water'
+        ? WATER_ONLY_PLANT.includes(plantPid)
+        : SKY_ONLY_PLANT.includes(plantPid);
+    };
+    const isWaterOnly = (plantPid: number, plantModel: PlantModel | null | undefined) => slotsOnly(plantPid, plantModel, 'water');
+    const isSkyOnly = (plantPid: number, plantModel: PlantModel | null | undefined) => slotsOnly(plantPid, plantModel, 'sky');
+
     // 不考虑任何承载物的情况下,指定plant能否放置
     const canPlantWithoutCarrier = (existedPlants: PlantEntity[], pid: number) => {
       // 先考虑所有特殊植物
@@ -127,37 +139,30 @@ namespace PlantHelper {
         return true;
       }
 
-      // lily,只能在水体放置,并且要求该gird 无其他水生植物
-      if (pid === lilyPid) {
+      // 仅水中植物（睡莲等）：只能在水体放置，且同格不能再有另一株仅水中植物。
+      if (isWaterOnly(pid, model)) {
         for (const plant of existedPlants) {
-          if (WATER_ONLY_PLANT.includes(plant.model.pid)) return false;
+          if (isWaterOnly(plant.model.pid, plant.model)) return false;
         }
         return targetGridProperty.type === 'water';
       }
 
-      // TODO: other water only could be planted
-
-      // boat,could only be planted on 'sky', meanwhile, there should be no other 'boat' in the grid
-      if (pid === boatPid) {
+      // 仅空中植物（船等）：只能在空域放置，且同格不能再有另一株船。
+      if (isSkyOnly(pid, model)) {
         return targetGridProperty.type === 'sky' && !hasBoat(existedPlants);
       }
 
-      // TODO: other sky only plant
-
-      // shield could by planted on any type of grid, and can be planted together with any other plants except another shield
-      // traverse all pid in plants
-      if (SHIELD_PLANT.includes(pid)) {
+      // 护罩：可种在任意地块，但同格只能有一株护罩。
+      if (isShieldPlantPid(pid)) {
         for (const plant of existedPlants) {
-          if (SHIELD_PLANT.includes(plant.model.pid)) {
-            return false;
-          }
+          if (isShieldPlantPid(plant.model.pid)) return false;
         }
         return true;
       }
       // normal plant
-      // 本格中没有除了上述特殊plant外的其他plant
+      // 本格中没有除了承载物/护罩外的其他植物
       for (const plant of existedPlants) {
-        if (plant.model.pid !== lilyPid && plant.model.pid !== boatPid && !SHIELD_PLANT.includes(plant.model.pid)) {
+        if (!isCarrierPlantPid(plant.model.pid) && !isShieldPlantPid(plant.model.pid)) {
           return false;
         }
       }
@@ -166,7 +171,7 @@ namespace PlantHelper {
 
     // 首先判断目标grid的Property
     if (targetGridProperty.type === 'water') {
-      if (WATER_ONLY_PLANT.includes(pid)) {
+      if (isWaterOnly(pid, model)) {
         return canPlantWithoutCarrier(existedPlants, pid);
       }
 
@@ -175,7 +180,7 @@ namespace PlantHelper {
       }
       return false;
     } else if (targetGridProperty.type === 'sky') {
-      if (SKY_ONLY_PLANT.includes(pid)) {
+      if (isSkyOnly(pid, model)) {
         return canPlantWithoutCarrier(existedPlants, pid);
       }
 
@@ -221,7 +226,7 @@ namespace PlantHelper {
         // 有护盾,Normal plant(以及还有承载物)
         if (removeShield) { // 鼠标在grid下方,remove shield
           for (const plant of list) {
-            if (SHIELD_PLANT.includes(plant.model.pid)) {
+            if (isShieldPlantPid(plant.model.pid)) {
               return {
                 pid: plant.model.pid,
                 plantEntity: plant
@@ -231,7 +236,7 @@ namespace PlantHelper {
         } else {
           // 即使是移除上面的目标,如果只有承载物和护盾,也会在上面的逻辑中返回护盾
           for (const plant of list) {
-            if (!SHIELD_PLANT.includes(plant.model.pid) && (!isCarrier(plant.model.pid))) {
+            if (!isShieldPlantPid(plant.model.pid) && (!isCarrier(plant.model.pid))) {
               return {
                 pid: plant.model.pid,
                 plantEntity: plant
@@ -254,7 +259,7 @@ namespace PlantHelper {
       return true;
     }
     // 新plant是护盾,如果prev不是护盾,转
-    if (SHIELD_PLANT.includes(newPlant.pid) && !SHIELD_PLANT.includes(prevPlant.pid)) {
+    if (isShieldPlantPid(newPlant.pid) && !isShieldPlantPid(prevPlant.pid)) {
       return true;
     }
     // 是以下特殊植物(魔术粉)

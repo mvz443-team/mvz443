@@ -4,7 +4,7 @@ import { PositionManager } from "../../managers/view/PositionManager";
 import type { Game } from "../../scenes/Game";
 import { CombatEntity } from "../core/CombatEntity";
 import { Faction } from "../Enum";
-import { PlantModel } from "../PlantModel";
+import { PlantModel, type PlantStackRole } from "../PlantModel";
 import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
 import DepthHelper from "../../utils/helper/DepthHelper";
 import CombatManager from "../../managers/CombatManager";
@@ -55,6 +55,11 @@ export abstract class PlantEntity extends CombatEntity {
 
   public get pid() {
     return this.model.pid;
+  }
+
+  /** 错落角色由 Model 决定；转发给 PlantTargeting 做目标/伤害路由。 */
+  public get stackRole(): PlantStackRole {
+    return this.model.stackRole;
   }
 
   public override createExplosion(config: Record<string, unknown>, x?: number, _y?: number, row?: number): void {

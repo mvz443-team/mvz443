@@ -22,6 +22,9 @@ export class LilyModel extends PlantModel {
   public damage = new LevelScaledValue(0); // Lily没有伤害
 
   isNightPlant = false;
+  /** 睡莲是水面专属承载物，只能种在水格且同格只能有一株。 */
+  public override allowedPlantSlots = ['water'] as const;
+  public override stackRole = 'carrier' as const;
 
   constructor() {
     super();

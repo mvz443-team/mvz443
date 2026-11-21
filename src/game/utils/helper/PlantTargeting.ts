@@ -11,26 +11,58 @@
  * 避免每个调用点各写一套顺序。
  */
 
+import type { PlantStackRole } from "../../models/PlantModel";
+
 export interface PlantTargetLike {
   pid: number;
   currentHealth: number;
+  /** 由 PlantModel.stackRole 提供；缺省时回落到 pid 表，兼容测试替身。 */
+  stackRole?: PlantStackRole;
 }
 
-/** 承载物：睡莲(6) / 船(100)。 */
+/** 承载物：睡莲(6) / 船(100)。仅作为 PlantLibrary 未初始化时的回落表。 */
 export const CARRIER_PLANT_PIDS: readonly number[] = [6, 100];
 
-/** 护盾植物：可以叠在其它植物外面、优先承受伤害的保护壳。 */
+/** 护盾植物：可以叠在其它植物外面、优先承受伤害的保护壳。仅作为回落表。 */
 export const SHIELD_PLANT_PIDS: readonly number[] = [19];
 
 /** 粉尘植物：可以随意叠种在任意格子上。 */
 export const POWDER_PLANT_PIDS: readonly number[] = [10, 17];
 
+/**
+ * 唯一真相是 `PlantModel.stackRole`。这里只缓存 pid → role 便于只有 pid 的调用点查询；
+ * 缓存由 PlantLibrary 初始化时写入，内容是静态 preset 配置，不进入哈希、不随对局变化。
+ */
+const STACK_ROLE_BY_PID = new Map<number, PlantStackRole>();
+
+export function registerPlantStackRole(pid: number, role: PlantStackRole): void {
+  STACK_ROLE_BY_PID.set(pid, role);
+}
+
+export function resetPlantStackRoles(): void {
+  STACK_ROLE_BY_PID.clear();
+}
+
+function legacyStackRoleOfPid(pid: number): PlantStackRole {
+  if (CARRIER_PLANT_PIDS.includes(pid)) return "carrier";
+  if (SHIELD_PLANT_PIDS.includes(pid)) return "shield";
+  return "normal";
+}
+
+export function stackRoleOfPid(pid: number): PlantStackRole {
+  return STACK_ROLE_BY_PID.get(pid) ?? legacyStackRoleOfPid(pid);
+}
+
+function stackRoleOf(plant: PlantTargetLike): PlantStackRole {
+  return plant.stackRole ?? stackRoleOfPid(plant.pid);
+}
+
 export function isCarrierPlantPid(pid: number): boolean {
-  return CARRIER_PLANT_PIDS.includes(pid);
+  return stackRoleOfPid(pid) === "carrier";
 }
 
 export function isShieldPlantPid(pid: number): boolean {
-  return SHIELD_PLANT_PIDS.includes(pid);
+  return stackRoleOfPid(pid) === "shield";
 }
 
 export function isPowderPlantPid(pid: number): boolean {
@@ -52,7 +84,7 @@ export function pickShieldPlant<T extends PlantTargetLike>(
 ): T | null {
   for (const plant of plants) {
     if (plant === exclude) continue;
-    if (!isShieldPlantPid(plant.pid)) continue;
+    if (stackRoleOf(plant) !== "shield") continue;
     if (!isAlive(plant)) continue;
     return plant;
   }
@@ -77,9 +109,12 @@ export function pickStarShardsTarget<T extends PlantTargetLike>(
   const alive = plants.filter(isAlive);
   if (alive.length === 0) return null;
 
-  const inner = alive.filter((plant) => !isCarrierPlantPid(plant.pid) && !isShieldPlantPid(plant.pid));
-  const shields = alive.filter((plant) => isShieldPlantPid(plant.pid));
-  const carriers = alive.filter((plant) => isCarrierPlantPid(plant.pid));
+  const inner = alive.filter((plant) => {
+    const role = stackRoleOf(plant);
+    return role !== "carrier" && role !== "shield";
+  });
+  const shields = alive.filter((plant) => stackRoleOf(plant) === "shield");
+  const carriers = alive.filter((plant) => stackRoleOf(plant) === "carrier");
 
   if (shields.length > 0) {
     const shell = shields[0];

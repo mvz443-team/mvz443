@@ -34,6 +34,8 @@ export class PumpkinPassportModel extends PlantModel {
   public cooldownStartAtRatio = 1;
   public damage = new LevelScaledValue(0);
   public isNightPlant = false;
+  /** 南瓜护照是护罩，替同格内部植物优先承伤。 */
+  public override stackRole = 'shield' as const;
 
   /** 尖刺状态：只有星之碎片能打开，进入后不可关闭。 */
   public isSpiky: boolean = false;
