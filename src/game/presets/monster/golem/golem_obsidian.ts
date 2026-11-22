@@ -179,6 +179,7 @@ export const ObsidianGolemData = new ObsidianGolemModel({
   weight: () => 0,
   leastWaveID: 0,
   rank: "elite",
+  buffImmune: true,
   habitats: ["ground", "water"],
   canDrown: false,
   maxHealth: 12000,

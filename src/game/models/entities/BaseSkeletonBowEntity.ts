@@ -21,7 +21,7 @@ export const BOW_WEAPON: EquipmentDef = {
   visual: { attachment: "hand", depth: 13 },
 };
 
-const SKELETON_BOW_EVENTS = {
+export const SKELETON_BOW_EVENTS = {
   Shoot: "SkeletonBowShoot",
   Resume: "SkeletonBowResume",
 } as const;
@@ -45,7 +45,24 @@ export class SkeletonBowModel extends MediumMonsterModel {
   }
 
   public override onCreate(entity: MonsterEntity): void {
-    this.tickmanager.schedule(SKELETON_BOW_EVENTS.Shoot, this.arrowInterval, { loop: true });
+    this.rebuildRangedTimers();
+  }
+
+  /** buff 冻结时清掉射击循环与恢复计时。 */
+  protected override clearRangedTimers(): void {
+    this.tickmanager.removeByEvent(SKELETON_BOW_EVENTS.Shoot);
+    this.tickmanager.removeByEvent(SKELETON_BOW_EVENTS.Resume);
+  }
+
+  /** 远程射击的有效间隔：基于 arrowInterval，与近战 attackInterval 分开。 */
+  public get effectiveArrowInterval(): number {
+    return Math.max(50, this.arrowInterval * this.attackIntervalMultiplier);
+  }
+
+  /** 按 buff 调整后的间隔重建射击循环；先清后建，保证只有一条循环。 */
+  protected override rebuildRangedTimers(): void {
+    this.tickmanager.removeByEvent(SKELETON_BOW_EVENTS.Shoot);
+    this.tickmanager.schedule(SKELETON_BOW_EVENTS.Shoot, this.effectiveArrowInterval, { loop: true });
   }
 
   public override handleTickEvent(

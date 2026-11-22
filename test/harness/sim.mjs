@@ -144,6 +144,8 @@ function makeAnimController() {
   };
   return {
     isInAnim: false,
+    motionSpeedScale: 1,
+    setMotionSpeedScale(value) { this.motionSpeedScale = value; },
     raw,
     updatePosition() {},
     setDepth() {},
@@ -382,7 +384,11 @@ export function spawnMob(data, {
   entity.syncWeaponView = () => {};
   entity.syncShieldView = () => {};
   entity.syncHelmetView = () => {};
-  entity.syncViewFromModel = () => { entity.viewCalls.push("syncView"); };
+  entity.syncViewFromModel = () => {
+    entity.viewCalls.push("syncView");
+    // 模拟真实 MonsterEntity.syncViewFromModel 的 buff 动画倍率单向同步。
+    entity.animController?.setMotionSpeedScale?.(entity.model?.motionSpeedScale ?? 1);
+  };
   entity.registerHandAttachment = () => {};
   entity.registerEquipmentAttachment = () => {};
 

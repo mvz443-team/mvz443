@@ -1,5 +1,5 @@
 import { _Typedebuffs } from "../../../constants/game";
-import type { ITickTimerHandle } from "../../core/logic/EntityTickManager";
+import type { BuffKind } from "../../core/logic/Buffs";
 import { PositionManager } from "../../managers/view/PositionManager";
 import type { Game } from "../../scenes/Game";
 import { Faction } from "../Enum";
@@ -17,9 +17,6 @@ export abstract class CombatEntity extends BaseEntity implements IDamageable {
     if (this.model) (this.model as unknown as Record<string, unknown>).healthMax = value;
   }
   public faction: Faction;
-
-  // 存储每个debuff的剩余时间和定时器
-  protected debuffs: { [key: string]: { remaining: number, timer: ITickTimerHandle } } = {};
 
   public ExtraData: Record<string, any> = {}; // 用于存储额外数据，供子类使用
 
@@ -71,34 +68,30 @@ export abstract class CombatEntity extends BaseEntity implements IDamageable {
     return this.ExtraData[key] as T;
   }
 
-  // --- 泛用的 Debuff 逻辑 ---
-  public addDebuff(_debuff: _Typedebuffs, _durationMs: number) {
-    // TODO: 具体实现类似你写的 updateDebuffTime 逻辑...
+  // --- 泛用的 Buff/Debuff 逻辑：状态全在 Model，Entity 只做委托 -----------------
+
+  /** 供投射物命中等入口调用；真正状态与 timer 在 Model。 */
+  public addDebuff(debuff: _Typedebuffs, durationMs: number): void {
+    if (!debuff) return;
+    const model = this.model as unknown as { applyBuff?: (kind: BuffKind, ms: number) => boolean } | null;
+    model?.applyBuff?.(debuff, durationMs);
   }
 
-  protected removeDebuff(debuff: _Typedebuffs) {
-    console.log(`removeDebuff: ${debuff}  now: ${Date.now()}`);
-    if (debuff) {
-      delete this.debuffs[debuff];
-    }
+  protected removeDebuff(debuff: _Typedebuffs): void {
+    if (!debuff) return;
+    const model = this.model as unknown as { clearBuff?: (kind: BuffKind) => void } | null;
+    model?.clearBuff?.(debuff);
   }
 
-  /**
-     * 根据debuff名字判断是否有debuff,如果有返回对应剩余时间(否则为0)
-     * @param name debuff name
-     * @returns 剩余时间(0表示没有debuff)
-     */
+  /** 返回剩余毫秒（0 表示没有）；基于帧号，回滚后一致。 */
   public hasDebuff(name: _Typedebuffs): number {
-    if (name === null) return 0;
-
-    try {
-      if (this.debuffs[name]) {
-        this.debuffs[name].remaining = Math.max(this.debuffs[name].timer.GetLeftTimeByMs(), 0);
-      }
-    } catch (error) {
-      console.error("Error checking debuff status:", error);
-    }
-    return this.debuffs[name]?.remaining || 0;
+    if (!name) return 0;
+    const model = this.model as unknown as { getBuffLeftMs?: (kind: BuffKind) => number } | null;
+    return model?.getBuffLeftMs?.(name) ?? 0;
   }
-  protected clearAllDebuffs() { /* 遍历 debuffs 清除 timer */ }
+
+  protected clearAllDebuffs(): void {
+    const model = this.model as unknown as { clearAllBuffs?: () => void } | null;
+    model?.clearAllBuffs?.();
+  }
 }

@@ -57,6 +57,9 @@ export interface ITickTimerHandle {
 
 /** LogicModel 持有的定时器接口；Entity 不再依赖它。 */
 export interface ITickManagerProxy {
+  /** 当前逻辑帧与帧长；buff 剩余时间基于帧号计算，回滚后一致。 */
+  readonly currentFrame: number;
+  readonly frameInterval: number;
   delayedCall(config: TickDelayedCallConfig): ITickTimerHandle;
   addEvent(config: TickAddEventConfig): ITickTimerHandle;
   Register(

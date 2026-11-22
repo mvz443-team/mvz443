@@ -24,7 +24,6 @@ export class IceBombModel extends PlantModel {
   // 初始化伤害：1-4级 15伤害 * 2倍 = 30；5级以上 350伤害
   public damage = new LevelScaledValue(15).setIncRatio(2).setThreshold(5, 350);
   private readonly freezeDurationMs = 8000;
-  private readonly slowDurationMs = 5000;
 
   isNightPlant = true;
 
@@ -95,32 +94,12 @@ export class IceBombModel extends PlantModel {
       }
     });
 
-    // 第二次攻击：冻结结束后发射减速激光
+    // 第二个计时器只负责销毁自身；冻结结束后的 5s 减速由 buff 系统在
+    // frozen 到期时统一链式施加（CombatEntity.addDebuff → MonsterModel.applyBuff）。
     entity.model.tickmanager.delayedCall({
       delay: 500 + this.freezeDurationMs,
       callback: () => {
         if (!entity || entity.currentHealth <= 0) return;
-
-        // 发射隐藏的减速激光到所有行
-        for (let row = 0; row < PositionManager.Instance.Row_Number; row++) {
-          ProjectileCmd.CreateLaser(
-            scene, -1 * PositionManager.Instance.GRID_SIZEX, row, {
-            damage: damageValue,
-            duration: this.slowDurationMs,
-            distance: 12,
-            debuff: 'slow',
-            debuffDuration: this.slowDurationMs,
-            flying: true,
-            invisible: true,
-            color: 0x00ffff,
-            alphaFrom: 0,
-            alphaTo: 0,
-            faction: entity.faction,
-          });
-
-        }
-
-        // 销毁自身
         entity.destroy();
       }
     });

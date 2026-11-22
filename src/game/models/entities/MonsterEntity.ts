@@ -63,7 +63,6 @@ export abstract class MonsterEntity extends CombatEntity {
   private starOrbitSfx: StarShardsOrbitSfx | null = null;
   public attacking: CombatEntity | null = null;
   protected attackTimer: ITickTimerHandle | null = null;
-  protected debuffs: { [key: string]: { remaining: number, timer: ITickTimerHandle } } = {};
 
   public animController!: IMonsterAnimController;
   public viewGroup: Phaser.GameObjects.Group;
@@ -174,7 +173,7 @@ export abstract class MonsterEntity extends CombatEntity {
 
   public startMove() {
     if (this.model.isFrozen || this.model.isStop || this.model.isDying) return;
-    this.setVelocityX(-this.model.speed);
+    this.setVelocityX(-this.model.speed * this.model.speedMultiplier);
     this.animController.startLegSwing();
   }
 
@@ -216,6 +215,8 @@ export abstract class MonsterEntity extends CombatEntity {
 
   public override syncViewFromModel(): void {
     super.syncViewFromModel();
+    // buff 的手部/腿部动画速度由 Model 单向同步，回滚后也能重建。
+    this.animController.setMotionSpeedScale?.(this.model.motionSpeedScale);
     // 只有配置了坐骑血条的怪物才切换坐姿与坐骑图层；普通怪的水面船表现保持原样。
     if (this.model.mountHealthMax <= 0) return;
     const mounted = this.model.hasMount();
@@ -467,6 +468,8 @@ export type MonsterDefinition = {
   readonly leastWaveID?: number;
   readonly leastWaveIDByStageID?: (stageID: number) => number;
   readonly rank?: MonsterRank;
+  /** 是否免疫 buff（golem / centipede 系列为 true）；与 rank 无关。 */
+  readonly buffImmune?: boolean;
   readonly maxHealth: number;
   readonly baseSpeed: number;
   /** 空手近战伤害；武器加成单独由 EquipmentDef.weaponDamage 提供。 */

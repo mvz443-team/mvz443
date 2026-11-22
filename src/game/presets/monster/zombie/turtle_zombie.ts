@@ -13,13 +13,13 @@ export const TURTLE_SHELL: EquipmentDef = {
   visual: { attachment: "fixed", depth: 13 },
 };
 
-/** 龟甲破碎后的加速决策在 Model；Entity 只接收视图刷新。 */
+/** 龟甲破碎后施加一次性 berserk（900s），加速决策在 Model；Entity 只接收视图刷新。 */
 export class TurtleZombieModel extends ZombieModel {
   public override onHeadBroken(entity: MonsterEntity): void {
     if (this.buffApplied) return;
     this.buffApplied = true;
-    this.speed = this.originalSpeed * 2;
-    if (!this.attackingId && !this.isFrozen) entity.startMove();
+    // 时长有界、不可永久；900s 覆盖一局时长。速度/攻速/动画倍率由 buff 系统统一处理。
+    this.applyBuff("berserk", 900_000);
   }
 }
 

@@ -6,24 +6,26 @@ import { IceBombData } from "../../src/game/presets/plant/chapter1/ice_bomb.ts";
 /**
  * 描述（ice_bomb_description）：
  *   寒冰炸弹是夜间植物：夜间种植会立即爆炸，白天种植（睡眠）不会立即生效；
- *   星之碎片技能只在睡眠时生效。触发后先冻结全场 8s，再减速 5s，随后销毁。
+ *   星之碎片技能只在睡眠时生效。触发后冻结全场 8s 随后销毁；冻结结束后的
+ *   5s 减速由 buff 系统在 frozen 到期时链式施加（不再发第二波激光）。
  *   1 级伤害 15（随等级增长，5 级起 350）。
  *
  * 验收路径：
  *   1) 夜间创建后 500ms 检查冻结激光：每行一条，共 rows 条。
  *   2) 白天创建（出生即睡眠）后 500ms 不应产生激光。
  *   3) 睡眠时 onStarShards 触发；清醒时 onStarShards 不触发。
- *   4) 8.5s 后检查减速激光并销毁。
+ *   4) 8.5s 后无第二波激光且实体销毁（slow 由 buff 系统负责）。
  *   5) Lv5 检查伤害 350；重复触发由 hasTriggered 拦截。
  *
  * 预期结果：
  *   夜间 5 行 -> 5 条 frozen 激光，伤害 15（Lv1）/350（Lv5）；白天立即触发 0 条；
  *   睡眠星碎 5 条，清醒星碎 0 条；
- *   8.5s 后 5 条 slow 激光且实体销毁；重复星碎仍只有一组。
+ *   8.5s 后激光总数仍为 5（无 slow 激光）且实体销毁；重复星碎仍只有一组。
  *
  * 为什么：
  *   shootLaser 用 hasTriggered 防重入，延迟 500ms 发 frozen，
- *   再延迟 500 + 8000ms 发 slow 并 destroy；行数来自 PositionManager.Row_Number。
+ *   再延迟 500 + 8000ms 仅 destroy；frozen 到期由 MonsterModel.onBuffExpired 链式施加 slow。
+ *   行数来自 PositionManager.Row_Number。
  *   onCreate 在非睡眠（夜间）时触发；onStarShards 仅在 isSleeping 时触发，
  *   因此白天种植不会立即生效。
  *   damage = LevelScaledValue(15).setIncRatio(2).setThreshold(5, 350)，
@@ -68,7 +70,7 @@ test("星碎技能只在睡眠时生效", () => {
   assert.equal(ProjectileCmd.calls.length, 0);
 });
 
-test("睡眠触发后冻结全场 8s，再减速并销毁", () => {
+test("睡眠触发后冻结全场 8s 并销毁（无第二波减速激光）", () => {
   const { sim, model, entity } = spawnSleeping(1);
 
   model.onStarShards(entity);
@@ -81,14 +83,12 @@ test("睡眠触发后冻结全场 8s，再减速并销毁", () => {
 
   tick(sim, 8_000);
   const all = ProjectileCmd.calls.filter((call) => call.kind === "laser");
-  const slow = all.filter((call) => call.cfg.debuff === "slow");
-  assert.equal(all.length, 10);
-  assert.equal(slow.length, 5);
-  assert.ok(slow.every((call) => call.cfg.duration === 5000));
+  assert.equal(all.length, 5);
+  assert.equal(all.filter((call) => call.cfg.debuff === "slow").length, 0);
   assert.equal(entity.destroyed, true);
 });
 
-test("Lv5 冻结/减速激光伤害提升到 350", () => {
+test("Lv5 冻结激光伤害提升到 350", () => {
   const { sim, model, entity } = spawnSleeping(5);
   model.onStarShards(entity);
   tick(sim, 500);

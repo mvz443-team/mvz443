@@ -76,8 +76,11 @@ export class LegacyMonsterAnimController<TAnim extends LegacyAnimLike> implement
     this.raw.twinkle?.();
   }
 
+  private motionScale = 1;
+
   public startLegSwing(): void {
     this.raw.startLegSwing();
+    this.applyMotionScale();
   }
 
   public stopLegSwing(): void {
@@ -86,10 +89,28 @@ export class LegacyMonsterAnimController<TAnim extends LegacyAnimLike> implement
 
   public startArmSwing(): void {
     this.raw.startArmSwing();
+    this.applyMotionScale();
   }
 
   public stopArmSwing(): void {
     this.raw.stopArmSwing();
+  }
+
+  public setMotionSpeedScale(scale: number): void {
+    this.motionScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+    this.applyMotionScale();
+  }
+
+  /** 通过 Phaser tween 的 timeScale 缩放所有活动摆动 tween，仅表现，不参与模拟。 */
+  private applyMotionScale(): void {
+    const scene = (this.raw as { scene?: Phaser.Scene }).scene;
+    const getTweens = scene?.tweens?.getTweensOf?.bind(scene.tweens);
+    if (!getTweens) return;
+    for (const target of this.getTargets()) {
+      for (const tween of getTweens(target)) {
+        tween.timeScale = this.motionScale;
+      }
+    }
   }
 
   public setAirborne(airborne: boolean): void {

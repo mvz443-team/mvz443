@@ -19,6 +19,12 @@ export interface IMonsterAnimController {
   startArmSwing(): void;
   stopArmSwing(): void;
 
+  /**
+   * 手/腿摆动动画的速度倍率（slow 0.5 / berserk 2 / frozen 0）。
+   * 只由 Entity.syncViewFromModel() 从 Model 单向同步，不承载业务逻辑。
+   */
+  setMotionSpeedScale?(scale: number): void;
+
   // 销毁
   destroy(): void;
 

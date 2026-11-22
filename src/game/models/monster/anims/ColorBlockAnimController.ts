@@ -85,6 +85,12 @@ export class ColorBlockAnimController implements IMonsterAnimController {
     this.rect.setAngle(0);
   }
 
+  public setMotionSpeedScale(scale: number): void {
+    const s = Number.isFinite(scale) && scale > 0 ? scale : 1;
+    if (this.legSwingTween) this.legSwingTween.timeScale = s;
+    if (this.armSwingTween) this.armSwingTween.timeScale = s;
+  }
+
   public destroy(): void {
     this.legSwingTween?.stop();
     this.armSwingTween?.stop();

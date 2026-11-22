@@ -10,6 +10,13 @@ import { DEFAULT_HABITATS, type TerrainHabitat } from "../core/logic/TerrainHabi
 import type { JsonValue } from "../core/SimulationState";
 import type { ITickTimerHandle } from "../core/logic/EntityTickManager";
 import { DEFAULT_TICK_EVENT_NAMES } from "../core/logic/TickEvents";
+import {
+  BUFF_DEFINITIONS,
+  BUFF_EVENTS,
+  BUFF_KINDS,
+  FROZEN_CHAIN_SLOW_MS,
+  type BuffKind,
+} from "../core/logic/Buffs";
 import { Faction } from "./Enum";
 import PlantHelper from "../utils/helper/PlantHelper";
 import {
@@ -51,6 +58,7 @@ export abstract class MonsterModel extends LogicModel {
       ...DEFAULT_TICK_EVENT_NAMES,
       MONSTER_EVENTS.Attack,
       MONSTER_EVENTS.DeathSettle,
+      ...BUFF_KINDS.map((kind) => BUFF_EVENTS[kind]),
     ];
   }
 
@@ -74,6 +82,10 @@ export abstract class MonsterModel extends LogicModel {
   public lastSkill: number = 0;
   public callCount: number = 0;
   public buffApplied: boolean = false;
+  /** buff 到期帧（绝对逻辑帧）；0 表示未激活。三个字段都进快照。 */
+  public buffSlowUntilFrame: number = 0;
+  public buffFrozenUntilFrame: number = 0;
+  public buffBerserkUntilFrame: number = 0;
   public skill1LastRow: number = -1;
   public hpTriggers: number[] = [];
   /** 实体引用关系留在 Entity 编解码，Model 只保存其稳定 id。 */
@@ -96,6 +108,8 @@ export abstract class MonsterModel extends LogicModel {
   }
   public get leastWaveID(): number | undefined { return this.definition.leastWaveID; }
   public get rank(): "normal" | "elite" | "boss" { return this.definition.rank ?? "normal"; }
+  /** buff 免疫只看这句话标记（golem / centipede 系列），与 rank 无关。 */
+  public get isBuffImmune(): boolean { return this.definition.buffImmune === true; }
   public get maxHealth(): number { return this.definition.maxHealth; }
   public get baseSpeed(): number { return this.definition.baseSpeed; }
   public get baseAttackDamage(): number { return this.definition.baseAttackDamage; }
@@ -144,6 +158,139 @@ export abstract class MonsterModel extends LogicModel {
     this.mountHealthMax = this.mountHealthConfig;
     this.mountHealth = this.mountHealthConfig;
     this.mountBroken = false;
+  }
+
+  // --- Buff 系统：全部状态在 Model，到期走 tickmanager 事件，可快照可回滚 ---------
+
+  private getBuffUntilFrame(kind: BuffKind): number {
+    switch (kind) {
+      case "slow": return this.buffSlowUntilFrame;
+      case "frozen": return this.buffFrozenUntilFrame;
+      case "berserk": return this.buffBerserkUntilFrame;
+    }
+  }
+
+  private setBuffUntilFrame(kind: BuffKind, frame: number): void {
+    switch (kind) {
+      case "slow": this.buffSlowUntilFrame = frame; break;
+      case "frozen": this.buffFrozenUntilFrame = frame; break;
+      case "berserk": this.buffBerserkUntilFrame = frame; break;
+    }
+  }
+
+  public hasBuff(kind: BuffKind): boolean {
+    return this.getBuffUntilFrame(kind) > this.tickmanager.currentFrame;
+  }
+
+  /** 供实体/测试读取剩余毫秒；基于帧号而非墙钟，回滚后一致。 */
+  public getBuffLeftMs(kind: BuffKind): number {
+    const left = this.getBuffUntilFrame(kind) - this.tickmanager.currentFrame;
+    return left > 0 ? left * this.tickmanager.frameInterval : 0;
+  }
+
+  /**
+   * 施加 buff。幂等：同一 kind 多次施加取剩余时间最长者；不叠加、不缩短。
+   * 对 definition.buffImmune 的实体（golem / centipede）直接拒绝，与 rank 无关。
+   * @param durationMs 必须为正有限数；不允许永久（用足够长但有界的值表达）。
+   */
+  public applyBuff(kind: BuffKind, durationMs: number): boolean {
+    if (this.isBuffImmune) return false;
+    if (!Number.isFinite(durationMs) || durationMs <= 0) return false;
+
+    // 获得时清除声明的其它 buff（默认空 —— 当前三种可共存）。
+    for (const other of BUFF_DEFINITIONS[kind].clearBuffs ?? []) {
+      this.clearBuff(other);
+    }
+
+    const untilFrame = this.tickmanager.currentFrame
+      + Math.ceil(durationMs / this.tickmanager.frameInterval);
+    if (untilFrame <= this.getBuffUntilFrame(kind)) return false;
+    this.setBuffUntilFrame(kind, untilFrame);
+
+    // 先清同事件名的旧 timer，保证任意时刻每种 buff 只有一条到期 timer。
+    this.tickmanager.removeByEvent(BUFF_EVENTS[kind]);
+    this.tickmanager.schedule(BUFF_EVENTS[kind], durationMs);
+    this.onBuffsChanged();
+    return true;
+  }
+
+  public clearBuff(kind: BuffKind): void {
+    if (this.getBuffUntilFrame(kind) <= 0) return;
+    this.setBuffUntilFrame(kind, 0);
+    this.tickmanager.removeByEvent(BUFF_EVENTS[kind]);
+    this.onBuffsChanged();
+  }
+
+  public clearAllBuffs(): void {
+    for (const kind of BUFF_KINDS) {
+      if (this.getBuffUntilFrame(kind) > 0) this.clearBuff(kind);
+    }
+  }
+
+  private onBuffExpired(kind: BuffKind): void {
+    this.setBuffUntilFrame(kind, 0);
+    // frozen 结束立即获得 5s slow；applyBuff 内部已触发 onBuffsChanged。
+    if (kind === "frozen") {
+      this.applyBuff("slow", FROZEN_CHAIN_SLOW_MS);
+      return;
+    }
+    this.onBuffsChanged();
+  }
+
+  /** 速度/动画倍率：slow 减半、berserk 加倍，同时存在按比例相乘；frozen 归零。 */
+  public get speedMultiplier(): number {
+    if (this.hasBuff("frozen")) return 0;
+    let m = 1;
+    if (this.hasBuff("slow")) m *= 0.5;
+    if (this.hasBuff("berserk")) m *= 2;
+    return m;
+  }
+
+  /** 手部/腿部动画速度倍率，与移动/攻速同向。 */
+  public get motionSpeedScale(): number {
+    if (this.hasBuff("frozen")) return 0;
+    return this.speedMultiplier;
+  }
+
+  /** 攻击间隔倍率：slow 翻倍（频率减半）、berserk 减半（频率加倍）。 */
+  public get attackIntervalMultiplier(): number {
+    let m = 1;
+    if (this.hasBuff("slow")) m *= 2;
+    if (this.hasBuff("berserk")) m *= 0.5;
+    return m;
+  }
+
+  public get effectiveAttackInterval(): number {
+    return Math.max(50, this.attackInterval * this.attackIntervalMultiplier);
+  }
+
+  /** 远程/技能 timer 的重排钩子；弓手覆写，其余实体默认无远程循环。 */
+  protected clearRangedTimers(): void { }
+  protected rebuildRangedTimers(): void { }
+
+  /**
+   * buff 变化后统一刷新行为：frozen 立刻停攻停移并重置计时器；
+   * 恢复后按新攻速重建攻击/远程循环并把新移速写进刚体。
+   */
+  private onBuffsChanged(): void {
+    const entity = this.host as MonsterEntity | null;
+    const frozen = this.hasBuff("frozen");
+    this.isFrozen = frozen;
+    if (!entity) return;
+
+    if (frozen) {
+      this.clearAttackTimer(entity);
+      this.clearRangedTimers();
+      if (entity.attacking) this.stopAttacking(entity);
+      entity.stopMove();
+      return;
+    }
+
+    if (entity.attacking) {
+      (entity as any).attackTimer = this.beginAttackTimer(entity, this.effectiveAttackInterval);
+    }
+    this.rebuildRangedTimers();
+    if (!this.isStop && !this.isDying) entity.startMove();
   }
 
   /** 坐骑是否仍在架。 */
@@ -219,11 +366,16 @@ export abstract class MonsterModel extends LogicModel {
     timerId?: number,
   ): void {
     if (eventName === MONSTER_EVENTS.Attack) {
-      (this.host as MonsterEntity | null)?.hurtTarget();
+      if (!this.isFrozen) (this.host as MonsterEntity | null)?.hurtTarget();
       return;
     }
     if (eventName === MONSTER_EVENTS.DeathSettle) {
       (this.host as MonsterEntity | null)?.destroy();
+      return;
+    }
+    const buffKind = BUFF_KINDS.find((kind) => BUFF_EVENTS[kind] === eventName);
+    if (buffKind) {
+      this.onBuffExpired(buffKind);
       return;
     }
     super.handleTickEvent(eventName, args, timerId);
@@ -291,7 +443,7 @@ export abstract class MonsterModel extends LogicModel {
     entity.stopMove();
     (target as any).underAttackBy?.add(entity);
     entity.animController.startArmSwing();
-    (entity as any).attackTimer = this.beginAttackTimer(entity, this.attackInterval);
+    (entity as any).attackTimer = this.beginAttackTimer(entity, this.effectiveAttackInterval);
     this.onAttackStarted(entity);
     return true;
   }

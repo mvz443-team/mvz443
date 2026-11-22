@@ -58,8 +58,8 @@ export class TurtleSkeletonBowModel extends SkeletonBowModel {
   public override onHeadBroken(entity: MonsterEntity): void {
     if (this.buffApplied) return;
     this.buffApplied = true;
-    this.speed = this.originalSpeed * 2;
-    if (!this.attackingId && !this.isFrozen) entity.startMove();
+    // 时长有界、不可永久；速度/攻速/动画倍率由 buff 系统统一处理。
+    this.applyBuff("berserk", 900_000);
     for (let i = 0; i < SHELL_BURST_COUNT; i++) {
       this.tickmanager.schedule(TURTLE_SHELL_EVENTS.Burst, SHELL_BURST_INTERVAL_MS * i);
     }

@@ -140,6 +140,7 @@ export const WardenData = new WardenModel({
   weight: () => 0,
   leastWaveID: 0,
   rank: "elite",
+  buffImmune: true,
   habitats: ["ground", "water"],
   canDrown: false,
   maxHealth: 18000,
