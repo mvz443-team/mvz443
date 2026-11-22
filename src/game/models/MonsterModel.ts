@@ -2,7 +2,7 @@ import seedrandom from "seedrandom";
 import type { Game } from "../scenes/Game";
 import type { BaseEntity } from "./core/BaseEntity";
 import { CombatEntity } from "./core/CombatEntity";
-import type { MonsterEntity, MountDamagePriority } from "./entities/MonsterEntity";
+import type { MonsterDefinition, MonsterEntity, MountDamagePriority } from "./entities/MonsterEntity";
 import { readProjectileHitKind } from "./projectiles/ProjectileModels";
 import { LogicModel } from "../core/logic/LogicModel";
 import { readBodyLayers } from "../core/logic/BodyTraits";
@@ -46,16 +46,16 @@ export function attackTargetRank(pid: number): number {
 }
 
 export abstract class MonsterModel extends LogicModel {
-  public override readonly tickEventNames: readonly string[] = [
-    ...DEFAULT_TICK_EVENT_NAMES,
-    MONSTER_EVENTS.Attack,
-    MONSTER_EVENTS.DeathSettle,
-  ];
+  public override get tickEventNames(): readonly string[] {
+    return [
+      ...DEFAULT_TICK_EVENT_NAMES,
+      MONSTER_EVENTS.Attack,
+      MONSTER_EVENTS.DeathSettle,
+    ];
+  }
 
   /** 以下运行时字段全部自动进入快照；新增字段直接写在这里即可。 */
   public waveID: number = -1;
-  /** 阵营：普通怪物是 ZOMBIE；友方召唤物（气球TNT分身）是 PLANT。 */
-  public faction: Faction = Faction.ZOMBIE;
   public health: number = 0;
   public speed: number = 0;
   public originalSpeed: number = 0;
@@ -75,45 +75,57 @@ export abstract class MonsterModel extends LogicModel {
   public callCount: number = 0;
   public buffApplied: boolean = false;
   public skill1LastRow: number = -1;
-  public arrowDamage: number = 0;
-  public arrowInterval: number = 0;
   public hpTriggers: number[] = [];
-  public damageThresholds: number[] = [];
   /** 实体引用关系留在 Entity 编解码，Model 只保存其稳定 id。 */
   public attackingId: string | null = null;
 
-  public abstract readonly mid: number;
-  public abstract readonly nameKey: string;
-  public abstract readonly texturePath: string;
+  /** 不可变怪物定义；由 PresetMonsterModel 构造时写入 config，不进入快照。 */
+  protected get definition(): MonsterDefinition {
+    const def = this.getConfigValue<MonsterDefinition>("definition");
+    if (!def) throw new Error(`[MonsterModel] ${this.constructor.name} missing definition`);
+    return def;
+  }
 
-  public abstract readonly level: number;
-  public abstract readonly weight: (waveID: number) => number;
-  public abstract readonly leastWaveIDByStageID?: (stageID: number) => number;
-  public abstract readonly leastWaveID?: number;
-
-  public readonly rank: "normal" | "elite" | "boss" = "normal";
-
-  public abstract readonly maxHealth: number;
-  public abstract readonly baseSpeed: number;
-  public abstract readonly attackDamage: number;
-  public abstract readonly attackInterval: number;
-
-  public readonly isDefaultFlying: boolean = false;
-  public readonly isDefaultInVoid: boolean = false;
-  public readonly couldCarryStarShards: boolean = true;
+  public get mid(): number { return this.definition.mid; }
+  public get nameKey(): string { return this.definition.nameKey; }
+  public get texturePath(): string { return this.definition.texturePath ?? "zombie/zombie"; }
+  public get level(): number { return this.definition.level; }
+  public get weight(): (waveID: number) => number { return this.definition.weight; }
+  public get leastWaveIDByStageID(): ((stageID: number) => number) | undefined {
+    return this.definition.leastWaveIDByStageID;
+  }
+  public get leastWaveID(): number | undefined { return this.definition.leastWaveID; }
+  public get rank(): "normal" | "elite" | "boss" { return this.definition.rank ?? "normal"; }
+  public get maxHealth(): number { return this.definition.maxHealth; }
+  public get baseSpeed(): number { return this.definition.baseSpeed; }
+  public get attackDamage(): number { return this.definition.attackDamage; }
+  public get attackInterval(): number { return this.definition.attackInterval ?? 1000; }
+  public get isDefaultFlying(): boolean { return this.definition.isDefaultFlying ?? false; }
+  public get isDefaultInVoid(): boolean { return this.definition.isDefaultInVoid ?? false; }
+  public get couldCarryStarShards(): boolean { return this.definition.couldCarryStarShards ?? true; }
   /** 通行域：决定该怪能被刷在什么地形、能在什么地形存活；与命中体态层正交。 */
-  public readonly habitats: readonly TerrainHabitat[] = DEFAULT_HABITATS;
+  public get habitats(): readonly TerrainHabitat[] { return this.definition.habitats ?? DEFAULT_HABITATS; }
   /** 木船僵尸：无论出生行地形如何都挂载木船表现；普通怪在水面行仍按地形自动挂船。 */
-  public readonly boatMounted: boolean = false;
+  public get boatMounted(): boolean { return this.definition.boatMounted ?? false; }
+  /** 阵营：普通怪物是 ZOMBIE；友方召唤物（气球TNT分身）是 PLANT。 */
+  public get faction(): Faction { return this.definition.faction ?? Faction.ZOMBIE; }
+  public get damageThresholds(): readonly number[] { return this.definition.damageThresholds ?? []; }
+  public get mountHealthConfig(): number { return this.definition.mountHealth ?? 0; }
+  /** 运行时覆盖（测试/特殊变体）；默认读 Definition。 */
+  private mountDamagePriorityOverride: MountDamagePriority | null = null;
+  public get mountDamagePriority(): MountDamagePriority {
+    return this.mountDamagePriorityOverride ?? this.definition.mountDamagePriority ?? "mount";
+  }
+  public set mountDamagePriority(value: MountDamagePriority) {
+    this.mountDamagePriorityOverride = value;
+  }
+  /** 能否在不合适的地形中存活；golem/centipede/潜水僵尸为 false。 */
+  public get canDrown(): boolean { return this.definition.canDrown ?? true; }
 
-  /** 坐骑（木船/海豚）当前血量与配置；所有字段进快照。 */
+  /** 坐骑（木船/海豚）当前血量；所有字段进快照。 */
   public mountHealth: number = 0;
   public mountHealthMax: number = 0;
   public mountBroken: boolean = false;
-  public mountDamagePriority: MountDamagePriority = "mount";
-  public mountHealthConfig: number = 0;
-  /** 能否在不合适的地形中存活；golem/centipede/潜水僵尸为 false。 */
-  public canDrown: boolean = true;
 
   public abstract getWeight(waveID: number): number;
 
@@ -436,7 +448,7 @@ export abstract class MonsterModel extends LogicModel {
     this.carriedStarShards = 0;
   }
 
-  public updateBodyDamageStage(entity: MonsterEntity, thresholds: number[]): void {
+  public updateBodyDamageStage(entity: MonsterEntity, thresholds: readonly number[]): void {
     let stage = -1;
     for (let i = 0; i < thresholds.length; i++) {
       if (entity.currentHealth <= thresholds[i]) stage = i;

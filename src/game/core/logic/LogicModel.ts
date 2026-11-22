@@ -74,8 +74,13 @@ export abstract class LogicModel {
 
   /** 每个 Model 独立持有一个可快照定时器；非枚举，不进入 LogicState 快照。 */
   public readonly tickmanager!: ITickManagerProxy;
-  /** 本 Model 关心的计时器事件名列表。 */
-  public readonly tickEventNames!: readonly string[];
+  /**
+   * 本 Model 关心的计时器事件名列表。
+   * 用原型 getter 而不是实例字段：声明式配置不进入快照，子类可覆写 getter。
+   */
+  public get tickEventNames(): readonly string[] {
+    return DEFAULT_TICK_EVENT_NAMES;
+  }
   /** 宿主实体引用；非枚举，不进入 LogicState 快照。 */
   public readonly host!: ModelHost | null;
   /** 静态配置（函数、工厂等）；非枚举，不进入 LogicState 快照。 */
@@ -171,12 +176,6 @@ function installTickManager(model: LogicModel): void {
     writable: false,
     configurable: true,
   });
-  Object.defineProperty(model, "tickEventNames", {
-    value: [...DEFAULT_TICK_EVENT_NAMES],
-    enumerable: false,
-    writable: true,
-    configurable: true,
-  });
   Object.defineProperty(model, "host", {
     value: null,
     enumerable: false,
@@ -197,7 +196,16 @@ function installConfig(model: LogicModel, source?: Record<string, unknown>): voi
 
 export function cloneLogicModel<T extends LogicModel>(model: T): T {
   const config = Object.getOwnPropertyDescriptor(model, "config")?.value as Record<string, unknown> | undefined;
-  const copy = Object.assign(Object.create(Object.getPrototypeOf(model)), model) as T;
+  const copy = Object.create(Object.getPrototypeOf(model)) as T;
+  // 用 defineProperty 复制自有字段，避免触发原型上的 getter-only 配置属性。
+  for (const key of Object.keys(model)) {
+    Object.defineProperty(copy, key, {
+      value: (model as unknown as Record<string, unknown>)[key],
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
+  }
   installTickManager(copy);
   installConfig(copy, config);
   return trackLogicObject(copy) as T;

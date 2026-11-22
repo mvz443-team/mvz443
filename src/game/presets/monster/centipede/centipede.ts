@@ -65,7 +65,9 @@ const CENTIPEDE_TICK_EVENT_NAMES = [
 
 /** 蜈蚣的全部战斗决策（血量触发、四套技能、召唤、范围伤害）都在 Model。 */
 export class CentipedeModel extends PresetMonsterModel {
-  public override readonly tickEventNames: readonly string[] = CENTIPEDE_TICK_EVENT_NAMES;
+  public override get tickEventNames(): readonly string[] {
+    return CENTIPEDE_TICK_EVENT_NAMES;
+  }
 
   constructor(def: MonsterDefinition) { super(def); }
 

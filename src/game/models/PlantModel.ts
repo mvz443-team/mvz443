@@ -82,6 +82,24 @@ export abstract class PlantModel extends LogicModel {
   protected readonly LevelThresholds1: number;
   protected readonly LevelThresholds2: number;
 
+  /**
+   * 静态配置统一在实体初始化时迁入 `config`，并删除同名自有字段；
+   * 之后由原型 getter 读取。这样配置不进入快照，preset 仍可按原方式声明字段。
+   */
+  public sealPlantConfig(): void {
+    for (const key of PLANT_CONFIG_KEYS) {
+      if (!Object.prototype.hasOwnProperty.call(this, key)) continue;
+      const value = (this as unknown as Record<string, unknown>)[key];
+      this.setConfigValue(key, value);
+      delete (this as unknown as Record<string, unknown>)[key];
+    }
+  }
+
+  /** 读取已迁入 config 的植物静态配置。 */
+  protected getPlantConfig<T>(key: string): T | undefined {
+    return this.getConfigValue<T>(key);
+  }
+
   // 行为接口：当植物准备就绪
   // 注意：传入的是 entity (实体对象)，Model本身不保存任何状态！
   public onCreate(_entity: PlantEntity) {
@@ -128,8 +146,67 @@ export abstract class PlantModel extends LogicModel {
   public applyInstantEffect(_scene: Game, _col: number, _row: number, _level: number): void { }
 
   protected initializeEntity<TEntity extends PlantEntity>(entity: TEntity): TEntity {
+    // 模板与实体各自持有 Model 副本；两边都要把配置迁入 config。
+    this.sealPlantConfig();
+    (entity.model as PlantModel).sealPlantConfig();
     return entity.initializeEntity();
   }
 
   public abstract createEntity(scene: Game, col: number, row: number, level: number): PlantEntity;
+}
+
+/**
+ * 植物静态配置字段清单。
+ *
+ * 这些字段只在 preset 声明时赋值，运行时不应变化；实体初始化时统一迁入
+ * 非枚举的 `config`，既保留实例 getter API，又避免进入 LogicState 快照。
+ */
+const PLANT_CONFIG_KEYS = [
+  'pid',
+  'nameKey',
+  'descriptionKey',
+  'texturePath',
+  'maxHealth',
+  'cost',
+  'cooldown',
+  'cooldownStartAtRatio',
+  'damage',
+  'isNightPlant',
+  'allowedPlantSlots',
+  'stackRole',
+  'placementRule',
+  'requiredBasePid',
+  'isOneTimePlant',
+  'LevelThresholds1',
+  'LevelThresholds2',
+  'penetratePower',
+  'starShardsPenetratePower',
+  'generateEnergyCooldown',
+  'generateEnergyAmount',
+  'maxShieldHealth',
+  'SparkDamage',
+  'fireworkDamage',
+  'spikeReflectRatio',
+  'brokenHealthRatio',
+  'attackDistance',
+  'baseAttackInterval',
+  'laserDistance',
+  'laserDuration',
+  'masterSparkDistance',
+  'masterSparkDuration',
+  'startOffset',
+  'dpsReferenceAttackInterval',
+  'freezeDurationMs',
+  'slowDurationMs',
+] as const;
+
+// 原型 getter：子类字段在 seal 前遮蔽它，seal 后读取 config。
+for (const key of PLANT_CONFIG_KEYS) {
+  Object.defineProperty(PlantModel.prototype, key, {
+    configurable: true,
+    enumerable: false,
+    get(this: PlantModel) {
+      return this.getConfigValue(key);
+    },
+  });
 }

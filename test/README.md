@@ -50,6 +50,9 @@ Manager、Cmd 使用测试替身。逻辑统一按 50ms/帧推进，与游戏平
 - 发射器/三头发射器的星碎状态 `inBruteShoot` 是 Model 字段并进入快照；
   Entity 通过只读 getter 读取，`syncViewFromModel()` 按该状态恢复头部后坐姿态，
   回滚/重连后不会丢失星碎渲染。
+- 静态配置与快照分离：植物配置在实体初始化时迁入非枚举 `config`；
+  怪物配置来自不可变 `MonsterDefinition`；`tickEventNames` 是原型 getter。
+  三者都不进入 `snapshotModel()`，但 getter API 保持不变。
 - `PumpkinWan` 是高级植物，必须种在阴森南瓜头上（`requiredBasePid=9`）；
   普通激光覆盖以自身为中心的 3x3，9 级扩大到 5x5
   （前后各 2.5 格、上下各 2 行）；星碎爆炸范围不随等级扩大，

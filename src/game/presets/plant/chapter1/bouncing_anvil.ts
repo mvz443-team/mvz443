@@ -79,12 +79,14 @@ export class BouncingAnvilModel extends PlantModel {
   public starShardTarget1X = 0;
   public starShardTarget1Row = 0;
 
-  public override readonly tickEventNames: readonly string[] = [
-    ...DEFAULT_TICK_EVENT_NAMES,
-    BOUNCING_ANVIL_EVENTS.Land,
-    BOUNCING_ANVIL_EVENTS.StarShardsLand,
-    BOUNCING_ANVIL_EVENTS.StarShardsFinish,
-  ];
+  public override get tickEventNames(): readonly string[] {
+    return [
+      ...DEFAULT_TICK_EVENT_NAMES,
+      BOUNCING_ANVIL_EVENTS.Land,
+      BOUNCING_ANVIL_EVENTS.StarShardsLand,
+      BOUNCING_ANVIL_EVENTS.StarShardsFinish,
+    ];
+  }
 
   public get hasClone(): boolean {
     return this.level >= 5;

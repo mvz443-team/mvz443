@@ -105,6 +105,18 @@ test('配置函数不进入快照，clone 后仍可读取', () => {
   assert.equal(template.level, 1);
 });
 
+test('tickEventNames 是原型 getter，不进入快照', () => {
+  class WithTicks extends LogicModel {
+    get tickEventNames() {
+      return ['CustomEvent'];
+    }
+  }
+
+  const model = new WithTicks();
+  assert.deepEqual(model.tickEventNames, ['CustomEvent']);
+  assert.equal('tickEventNames' in snapshotModel(model), false);
+});
+
 test('attachModelAccessors 只装访问器，不在 Entity 上复制 Model 状态', () => {
   const model = new ExplosionModel();
   const entity = {};

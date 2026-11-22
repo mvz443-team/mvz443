@@ -15,7 +15,9 @@ export const CENTIPEDE_MINION_WIDTH_CELLS = 1.6;
 
 /** 蜈蚣幼虫的秒杀决策在 Model。 */
 export class CentipedeMinionModel extends PresetMonsterModel {
-  public override readonly tickEventNames = [...DEFAULT_TICK_EVENT_NAMES];
+  public override get tickEventNames(): readonly string[] {
+    return DEFAULT_TICK_EVENT_NAMES;
+  }
 
   constructor(def: MonsterDefinition) { super(def); }
 

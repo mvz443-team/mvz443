@@ -192,6 +192,9 @@ export abstract class PlantEntity extends CombatEntity {
     if (this.initialized) return this;
     this.initialized = true;
 
+    // 静态配置迁入非枚举 config；之后 getter 仍按原 API 读取，且不进快照。
+    (this.model as unknown as { sealPlantConfig?: () => void }).sealPlantConfig?.();
+
     // 稳定 key 让快照恢复后计时器组仍能对齐（重建实体得到同一 group）。
     // 同一格允许承载植物叠加（例如 lily + 普通植物），因此把创建序号也纳入 key，
     // 避免同格同 pid 的实体共享 SnapshotId / timer group。

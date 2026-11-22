@@ -41,16 +41,12 @@ const TurtleModelBase = withShieldModel(SkeletonBowModel);
 
 /** 龟壳数值与破碎后连射都在 Model；Entity 只按 Model 状态渲染龟壳。 */
 export class TurtleSkeletonBowModel extends TurtleModelBase {
-  constructor(def: MonsterDefinition) {
-    super(def);
-    this.arrowDamage = 50;
-    this.arrowInterval = 2000;
+  public override get tickEventNames(): readonly string[] {
+    return [
+      ...DEFAULT_TICK_EVENT_NAMES,
+      TURTLE_SHELL_EVENTS.Burst,
+    ];
   }
-
-  public override readonly tickEventNames: readonly string[] = [
-    ...DEFAULT_TICK_EVENT_NAMES,
-    TURTLE_SHELL_EVENTS.Burst,
-  ];
 
   public override onCreate(entity: MonsterEntity): void {
     super.onCreate(entity);
@@ -110,5 +106,7 @@ export const TurtleSkeletonBowData = new TurtleSkeletonBowModel({
   baseSpeed: MonsterSpeed.TurtleSkeletonBow,
   attackDamage: 40,
   attackInterval: ZombieAttackInterval.TurtleSkeletonBow,
+  arrowDamage: 50,
+  arrowInterval: 2000,
   createEntity: (scene, col, row, model, waveID) => new TurtleSkeletonBowEntity(scene, col, row, model as TurtleSkeletonBowModel, waveID),
 });

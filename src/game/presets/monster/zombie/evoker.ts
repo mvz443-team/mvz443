@@ -24,11 +24,13 @@ const EVOKER_EVENTS = {
  * timer 只保存 (ownerId, TickEventNameEnums, TriggerFrame)，到点由 HandleTickEvent 派发。
  */
 export class EvokerModel extends PresetMonsterModel {
-  public override readonly tickEventNames: readonly string[] = [
-    ...DEFAULT_TICK_EVENT_NAMES,
-    EVOKER_EVENTS.Summon,
-    EVOKER_EVENTS.Resume,
-  ];
+  public override get tickEventNames(): readonly string[] {
+    return [
+      ...DEFAULT_TICK_EVENT_NAMES,
+      EVOKER_EVENTS.Summon,
+      EVOKER_EVENTS.Resume,
+    ];
+  }
 
   public override onCreate(entity: MonsterEntity): void {
     this.tickmanager.schedule(EVOKER_EVENTS.Summon, SUMMON_INTERVAL_MS, {

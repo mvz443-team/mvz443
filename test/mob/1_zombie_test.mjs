@@ -10,6 +10,7 @@ import {
 } from "../harness/sim.mjs";
 import { ZombieData } from "../../src/game/presets/monster/zombie/zombie.ts";
 import { attackTargetRank } from "../../src/game/models/MonsterModel.ts";
+import { snapshotModel } from "../../src/game/core/logic/LogicModel.ts";
 
 /**
  * 描述（Zombie）：
@@ -164,6 +165,38 @@ function retargetPidWithOrder(order) {
   model.onAttackTargetDestroyed(entity, shield);
   return entity.attacking?.pid ?? null;
 }
+
+test("怪物 Definition 配置不进快照，getter 仍可读", () => {
+  resetSim();
+  const { model } = spawnMob(ZombieData, { col: 8, row: 2 });
+  const snapshot = snapshotModel(model);
+
+  for (const key of [
+    "mid",
+    "nameKey",
+    "texturePath",
+    "maxHealth",
+    "baseSpeed",
+    "attackDamage",
+    "attackInterval",
+    "rank",
+    "habitats",
+    "boatMounted",
+    "mountHealthConfig",
+    "mountDamagePriority",
+    "canDrown",
+    "faction",
+    "damageThresholds",
+    "tickEventNames",
+  ]) {
+    assert.equal(key in snapshot, false, `${key} 不应进入快照`);
+  }
+
+  assert.equal(model.mid, ZombieData.mid);
+  assert.equal(model.maxHealth, 300);
+  assert.equal(model.attackDamage, 20);
+  assert.equal(model.damageThresholds.length, 1);
+});
 
 test("同格接力目标与 PlantsMap 数组顺序无关（重连重建顺序不同不会分叉）", () => {
   // 优先级：护盾外壳 0 < 粉尘植物 1 < 普通植物 2 < 承载物 3

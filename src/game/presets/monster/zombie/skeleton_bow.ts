@@ -19,5 +19,7 @@ export const SkeletonBowData = new SkeletonBowModel({
   baseSpeed: MonsterSpeed.SkeletonBow,
   attackDamage: 25,
   attackInterval: ZombieAttackInterval.SkeletonBow,
+  arrowDamage: 70,
+  arrowInterval: 3500,
   createEntity: (scene, col, row, model, waveID) => new SkeletonBowEntity(scene, col, row, model as SkeletonBowModel, waveID),
 });

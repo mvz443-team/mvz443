@@ -34,10 +34,12 @@ export class TntModel extends PlantModel {
   /** 7 级集束炸弹的二次爆炸状态；与主爆炸分开，避免被主爆炸防重入字段拦截。 */
   public hasClusterExploded = false;
 
-  public override readonly tickEventNames: readonly string[] = [
-    ...DEFAULT_TICK_EVENT_NAMES,
-    TNT_EVENTS.ClusterExplosion,
-  ];
+  public override get tickEventNames(): readonly string[] {
+    return [
+      ...DEFAULT_TICK_EVENT_NAMES,
+      TNT_EVENTS.ClusterExplosion,
+    ];
+  }
 
   public override createEntity(scene: Game, col: number, row: number, level: number): TntEntity {
     return this.initializeEntity(new TntEntity(scene, col, row, level));

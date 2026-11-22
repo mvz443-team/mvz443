@@ -29,7 +29,9 @@ export const GOLEM_TICK_EVENT_NAMES = [
 
 /** Golem 技能状态机与召唤决策全部在 Model；Entity 只提供动画/物理表现。 */
 export class GolemModel extends PresetMonsterModel {
-  public override readonly tickEventNames: readonly string[] = GOLEM_TICK_EVENT_NAMES;
+  public override get tickEventNames(): readonly string[] {
+    return GOLEM_TICK_EVENT_NAMES;
+  }
 
   public pendingSpawns: number[] = [];
   private nextSkill: 1 | 2 = 1;

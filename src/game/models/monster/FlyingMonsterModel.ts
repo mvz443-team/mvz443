@@ -21,13 +21,14 @@ export class FlyingMonsterModel extends PresetMonsterModel {
   /** 飞行载具当前血量。 */
   public vehicleHealth: number = 0;
   /** 飞行载具血量上限；0 表示该怪物没有载具。 */
-  public readonly vehicleHealthMax: number;
+  public get vehicleHealthMax(): number {
+    return this.definition.vehicleHealth ?? 0;
+  }
   /** 载具是否已被打爆；与 vehicleHealth 一起防重复触发。 */
   public vehicleBroken: boolean = false;
 
   public constructor(def: MonsterDefinition) {
     super(def);
-    this.vehicleHealthMax = def.vehicleHealth ?? 0;
   }
 
   /** 载具是否仍然在架（= 是否处于飞行形态）。 */

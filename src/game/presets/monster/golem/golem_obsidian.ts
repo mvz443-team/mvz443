@@ -22,12 +22,14 @@ const OBSIDIAN_EVENTS = {
 
 /** 黑曜石 Golem 的岩柱生成与范围伤害全部在 Model。 */
 export class ObsidianGolemModel extends GolemModel {
-  public override readonly tickEventNames: readonly string[] = [
-    ...GOLEM_TICK_EVENT_NAMES,
-    OBSIDIAN_EVENTS.Column,
-    OBSIDIAN_EVENTS.ObstacleSpawn,
-    OBSIDIAN_EVENTS.Reposition,
-  ];
+  public override get tickEventNames(): readonly string[] {
+    return [
+      ...GOLEM_TICK_EVENT_NAMES,
+      OBSIDIAN_EVENTS.Column,
+      OBSIDIAN_EVENTS.ObstacleSpawn,
+      OBSIDIAN_EVENTS.Reposition,
+    ];
+  }
 
   constructor(def: MonsterDefinition) {
     super(def);

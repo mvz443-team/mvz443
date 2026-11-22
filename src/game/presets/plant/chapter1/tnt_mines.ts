@@ -45,11 +45,13 @@ export class TntMinesModel extends PlantModel {
 
   public damage = new LevelScaledValue(1500);
 
-  public override readonly tickEventNames: readonly string[] = [
-    ...DEFAULT_TICK_EVENT_NAMES,
-    TNT_MINES_EVENTS.Wakeup,
-    TNT_MINES_EVENTS.SpawnMine,
-  ];
+  public override get tickEventNames(): readonly string[] {
+    return [
+      ...DEFAULT_TICK_EVENT_NAMES,
+      TNT_MINES_EVENTS.Wakeup,
+      TNT_MINES_EVENTS.SpawnMine,
+    ];
+  }
 
   /** 地雷爆炸效果由 Model 定义。 */
   public explode(host: ModelHost, level: number): void {

@@ -53,10 +53,12 @@ export class PumpkinWanModel extends PlantModel {
   LevelThresholds1 = 5; // 激光能攻击飞行单位的等级阈值
   LevelThresholds2 = 9; // 激光范围增加的等级阈值
 
-  public override readonly tickEventNames: readonly string[] = [
-    ...DEFAULT_TICK_EVENT_NAMES,
-    PUMPKIN_WAN_EVENTS.BruteExplosion,
-  ];
+  public override get tickEventNames(): readonly string[] {
+    return [
+      ...DEFAULT_TICK_EVENT_NAMES,
+      PUMPKIN_WAN_EVENTS.BruteExplosion,
+    ];
+  }
 
   // 攻击参数
   private readonly attackDistance = new LevelScaledValue(3).setThreshold(this.LevelThresholds2, 5); // 格子数（比基础版短）

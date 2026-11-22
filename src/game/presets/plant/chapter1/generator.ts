@@ -32,10 +32,12 @@ export class GeneratorModel extends PlantModel {
   // 夜间植物标记
   isNightPlant = true;
 
-  public override readonly tickEventNames: readonly string[] = [
-    ...DEFAULT_TICK_EVENT_NAMES,
-    TickEventNameEnums.GeneratorResetVisualFrame,
-  ];
+  public override get tickEventNames(): readonly string[] {
+    return [
+      ...DEFAULT_TICK_EVENT_NAMES,
+      TickEventNameEnums.GeneratorResetVisualFrame,
+    ];
+  }
 
   public override handleTickEvent(
     eventName: string,

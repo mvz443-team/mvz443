@@ -28,6 +28,7 @@ import {
   stackRoleOfPid,
 } from "../../src/game/utils/helper/PlantTargeting.ts";
 import PlantHelper from "../../src/game/utils/helper/PlantHelper.ts";
+import { snapshotModel } from "../../src/game/core/logic/LogicModel.ts";
 
 /**
  * 描述（植物属性解耦 / 错落三态）：
@@ -193,6 +194,37 @@ test("魔术粉沿用旧规则：水格无睡莲仍然拒绝", () => {
     true,
     "睡莲上可放魔术粉",
   );
+});
+
+test("植物静态配置迁入 config，不进快照", () => {
+  resetSim();
+  const { model } = spawnPlant(DispenserData, { level: 1, col: 0, row: 0 });
+  const snapshot = snapshotModel(model);
+
+  for (const key of [
+    "pid",
+    "nameKey",
+    "texturePath",
+    "maxHealth",
+    "cost",
+    "cooldown",
+    "cooldownStartAtRatio",
+    "damage",
+    "isNightPlant",
+    "allowedPlantSlots",
+    "stackRole",
+    "placementRule",
+    "requiredBasePid",
+    "isOneTimePlant",
+    "tickEventNames",
+  ]) {
+    assert.equal(key in snapshot, false, `${key} 不应进入快照`);
+  }
+
+  assert.equal(model.pid, DispenserData.pid);
+  assert.equal(model.maxHealth.getValueAt(1), 300);
+  assert.equal(model.cost.getValueAt(1), 100);
+  assert.equal(model.requiredBasePid, null);
 });
 
 test("基座关系由 requiredBasePid 声明：南瓜头与反坦克分发器都需要基座", () => {

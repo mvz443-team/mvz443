@@ -208,6 +208,7 @@ export function spawnPlant(data, {
     );
   }
   const model = data.clone();
+  model.sealPlantConfig?.();
   trackModel(model);
   const entity = new PlantEntity(scene, col, row, model, level);
   model.attachHost(entity);
@@ -223,6 +224,7 @@ export function applyInstantPlant(data, {
   row = 0,
   scene = makeScene(),
 } = {}) {
+  data.sealPlantConfig?.();
   data.applyInstantEffect(scene, col, row, level);
   return { model: data, scene };
 }

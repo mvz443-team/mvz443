@@ -20,6 +20,8 @@ export class PlantLibrary {
       this.Register(plant);
       registerPlantStackRole(plant.pid, plant.stackRole);
       registerPlantPlacement(plant.pid, plant.placementRule, plant.isOneTimePlant);
+      // 静态配置迁入非枚举 config，避免模板进入快照。
+      plant.sealPlantConfig();
     }
 
     // this.Register(PeashooterData);

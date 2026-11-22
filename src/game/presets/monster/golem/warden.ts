@@ -14,11 +14,13 @@ const WARDEN_EVENTS = {
 
 /** Warden 的技能决策在 Model。 */
 export class WardenModel extends GolemModel {
-  public override readonly tickEventNames: readonly string[] = [
-    ...GOLEM_TICK_EVENT_NAMES,
-    WARDEN_EVENTS.Land,
-    WARDEN_EVENTS.Reposition,
-  ];
+  public override get tickEventNames(): readonly string[] {
+    return [
+      ...GOLEM_TICK_EVENT_NAMES,
+      WARDEN_EVENTS.Land,
+      WARDEN_EVENTS.Reposition,
+    ];
+  }
 
   constructor(def: MonsterDefinition) { super(def); }
 

@@ -45,6 +45,13 @@ type EntityCtor = abstract new (...args: any[]) => BaseMonsterEntity;
 type DamageDealer = BaseEntity | undefined;
 type DamageSource = BaseEntity | undefined;
 
+/** 装备定义是静态配置；冻结阈值/视觉对象，避免运行时被意外改写。 */
+function freezeEquipmentDef(def: EquipmentDef): EquipmentDef {
+  Object.freeze(def.thresholds);
+  if (def.visual) Object.freeze(def.visual);
+  return Object.freeze(def);
+}
+
 function equipmentFrame(health: number, thresholds: number[]): number {
   for (let i = 0; i < thresholds.length; i++) {
     if (health > thresholds[i]) return i;
@@ -108,14 +115,18 @@ export interface IHelmetEntity {
 
 export function withHelmetModel<TBase extends ModelCtor>(Base: TBase) {
   abstract class HelmetModelMixin extends Base implements IHelmetModel {
-    public helmetDef: EquipmentDef | null = null;
+    public get helmetDef(): EquipmentDef | null {
+      return this.getConfigValue<EquipmentDef>("helmetDef") ?? null;
+    }
     public helmetHealth = 0;
     public helmetBroken = false;
-    public helmetKey = "";
+    public get helmetKey(): string {
+      return this.getConfigValue<string>("helmetKey") ?? "";
+    }
 
     public equipHelmet(entity: BaseEntity | null, def: EquipmentDef): void {
-      this.helmetDef = def;
-      this.helmetKey = def.key;
+      this.setConfigValue("helmetDef", freezeEquipmentDef(def));
+      this.setConfigValue("helmetKey", def.key);
       this.helmetHealth = def.maxHealth;
       this.helmetBroken = false;
       if (entity) (entity as unknown as IHelmetEntity).attachHelmetView(def);
@@ -209,14 +220,18 @@ export interface IShieldEntity {
 
 export function withShieldModel<TBase extends ModelCtor>(Base: TBase) {
   abstract class ShieldModelMixin extends Base implements IShieldModel {
-    public shieldDef: EquipmentDef | null = null;
+    public get shieldDef(): EquipmentDef | null {
+      return this.getConfigValue<EquipmentDef>("shieldDef") ?? null;
+    }
     public shieldHealth = 0;
     public shieldBroken = false;
-    public shieldKey = "";
+    public get shieldKey(): string {
+      return this.getConfigValue<string>("shieldKey") ?? "";
+    }
 
     public equipShield(entity: BaseEntity | null, def: EquipmentDef): void {
-      this.shieldDef = def;
-      this.shieldKey = def.key;
+      this.setConfigValue("shieldDef", freezeEquipmentDef(def));
+      this.setConfigValue("shieldKey", def.key);
       this.shieldHealth = def.maxHealth;
       this.shieldBroken = false;
       if (entity) (entity as unknown as IShieldEntity).attachShieldView(def);
@@ -308,14 +323,18 @@ export interface IWeaponEntity {
 
 export function withWeaponModel<TBase extends ModelCtor>(Base: TBase) {
   abstract class WeaponModelMixin extends Base implements IWeaponModel {
-    public weaponDef: EquipmentDef | null = null;
-    public weaponKey = "";
+    public get weaponDef(): EquipmentDef | null {
+      return this.getConfigValue<EquipmentDef>("weaponDef") ?? null;
+    }
+    public get weaponKey(): string {
+      return this.getConfigValue<string>("weaponKey") ?? "";
+    }
     public weaponVisible = true;
     public weaponSwinging = false;
 
     public equipWeapon(entity: BaseEntity | null, def: EquipmentDef): void {
-      this.weaponDef = def;
-      this.weaponKey = def.key;
+      this.setConfigValue("weaponDef", freezeEquipmentDef(def));
+      this.setConfigValue("weaponKey", def.key);
       this.weaponVisible = true;
       this.weaponSwinging = false;
       if (entity) (entity as unknown as IWeaponEntity).attachWeaponView(def);

@@ -434,90 +434,53 @@ export type MonsterRank = "normal" | "elite" | "boss";
 export type MountDamagePriority = "rider" | "mount";
 
 export type MonsterDefinition = {
-  mid: number;
-  nameKey: string;
-  texturePath?: string;
-  level: number;
-  weight: (waveID: number) => number;
-  leastWaveID?: number;
-  leastWaveIDByStageID?: (stageID: number) => number;
-  rank?: MonsterRank;
-  maxHealth: number;
-  baseSpeed: number;
-  attackDamage: number;
-  attackInterval?: number;
+  readonly mid: number;
+  readonly nameKey: string;
+  readonly texturePath?: string;
+  readonly level: number;
+  readonly weight: (waveID: number) => number;
+  readonly leastWaveID?: number;
+  readonly leastWaveIDByStageID?: (stageID: number) => number;
+  readonly rank?: MonsterRank;
+  readonly maxHealth: number;
+  readonly baseSpeed: number;
+  readonly attackDamage: number;
+  readonly attackInterval?: number;
   /** 躯体破损阶段阈值；属于 Model 配置，不在 Entity 构造函数里定义。 */
-  damageThresholds?: number[];
-  isDefaultFlying?: boolean;
-  isDefaultInVoid?: boolean;
-  couldCarryStarShards?: boolean;
+  readonly damageThresholds?: readonly number[];
+  readonly isDefaultFlying?: boolean;
+  readonly isDefaultInVoid?: boolean;
+  readonly couldCarryStarShards?: boolean;
   /** 能刷在哪、能活在哪的地形通行域；缺省为仅地面。 */
-  habitats?: readonly TerrainHabitat[];
+  readonly habitats?: readonly TerrainHabitat[];
   /** 木船僵尸：强制挂载木船表现，不依赖出生行地形。 */
-  boatMounted?: boolean;
+  readonly boatMounted?: boolean;
   /** 飞行载具（气球等）血量；配置后该怪物有第二条血条，归零即迫降。 */
-  vehicleHealth?: number;
+  readonly vehicleHealth?: number;
   /** 坐骑血量（木船/海豚等）；骑手与坐骑是同一实体的两层。 */
-  mountHealth?: number;
+  readonly mountHealth?: number;
   /** 坐骑存在时 bullet/laser 的结算对象；explosion 恒定同时打二者。缺省优先坐骑。 */
-  mountDamagePriority?: MountDamagePriority;
+  readonly mountDamagePriority?: MountDamagePriority;
   /** 是否会被不合适的地形溺亡；缺省 true。 */
-  canDrown?: boolean;
+  readonly canDrown?: boolean;
   /** 阵营；默认为僵尸。友方召唤物（例如气球TNT分身）可以配成 PLANT。 */
-  faction?: Faction;
-  createEntity: (scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) => MonsterEntity;
+  readonly faction?: Faction;
+  /** 骨架弓手类：箭伤害与射击间隔。 */
+  readonly arrowDamage?: number;
+  readonly arrowInterval?: number;
+  readonly createEntity: (scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) => MonsterEntity;
 };
 
 export class PresetMonsterModel extends MonsterModel {
-  public readonly mid: number;
-  public readonly nameKey: string;
-  public readonly texturePath: string;
-  public readonly level: number;
-  public readonly leastWaveID?: number;
-  public readonly rank: MonsterRank;
-  public readonly maxHealth: number;
-  public readonly baseSpeed: number;
-  public readonly attackDamage: number;
-  public readonly attackInterval: number;
-  public readonly isDefaultFlying: boolean;
-  public readonly isDefaultInVoid: boolean;
-  public readonly couldCarryStarShards: boolean;
-  public override readonly habitats: readonly TerrainHabitat[];
-  public override readonly boatMounted: boolean;
-
-  public override get weight(): (waveID: number) => number {
-    return this.getConfigValue<PresetMonsterModel["weight"]>("weight")!;
-  }
-
-  public override get leastWaveIDByStageID(): ((stageID: number) => number) | undefined {
-    return this.getConfigValue<(stageID: number) => number>("leastWaveIDByStageID");
-  }
-
   public constructor(def: MonsterDefinition) {
     super();
-    this.mid = def.mid;
-    this.nameKey = def.nameKey;
-    this.texturePath = def.texturePath ?? "zombie/zombie";
-    this.level = def.level;
-    this.leastWaveID = def.leastWaveID;
-    this.rank = def.rank ?? "normal";
-    this.maxHealth = def.maxHealth;
-    this.baseSpeed = def.baseSpeed;
-    this.attackDamage = def.attackDamage;
-    this.attackInterval = def.attackInterval ?? 1000;
-    this.damageThresholds = def.damageThresholds ?? [];
-    this.isDefaultFlying = def.isDefaultFlying ?? false;
-    this.isDefaultInVoid = def.isDefaultInVoid ?? false;
-    this.couldCarryStarShards = def.couldCarryStarShards ?? true;
-    this.habitats = normalizeHabitats(def.habitats);
-    this.boatMounted = def.boatMounted ?? false;
-    this.mountHealthConfig = def.mountHealth ?? 0;
-    this.mountDamagePriority = def.mountDamagePriority ?? "mount";
-    this.canDrown = def.canDrown ?? true;
-    this.setConfigValue("weight", def.weight);
-    this.setConfigValue("leastWaveIDByStageID", def.leastWaveIDByStageID);
-    this.faction = def.faction ?? Faction.ZOMBIE;
-    this.setConfigValue("entityFactory", def.createEntity);
+    // 定义对象只读；数组也冻结，避免运行时意外改写配置。
+    const definition: MonsterDefinition = Object.freeze({
+      ...def,
+      habitats: Object.freeze([...normalizeHabitats(def.habitats)]),
+      damageThresholds: Object.freeze([...(def.damageThresholds ?? [])]),
+    });
+    this.setConfigValue("definition", definition);
   }
 
   public getWeight(waveID: number): number {
@@ -525,8 +488,7 @@ export class PresetMonsterModel extends MonsterModel {
   }
 
   public createEntity(scene: Game, col: number, row: number, waveID: number): MonsterEntity {
-    const entityFactory = this.getConfigValue<MonsterDefinition["createEntity"]>("entityFactory")!;
-    return this.initializeEntity(entityFactory(scene, col, row, this, waveID));
+    return this.initializeEntity(this.definition.createEntity(scene, col, row, this, waveID));
   }
 }
 
@@ -644,11 +606,10 @@ export abstract class BaseMonsterEntity extends MonsterEntity {
 }
 
 export abstract class StagedBodyMonsterEntity extends BaseMonsterEntity {
-  protected declare damageThresholds: number[];
   declare private currentStage: number;
 
   protected updateBodyDamageStage() {
-    this.model.updateBodyDamageStage(this, this.damageThresholds);
+    this.model.updateBodyDamageStage(this, this.model.damageThresholds);
   }
 
   public override takeDamage(amount: number, dealer?: BaseEntity, source?: BaseEntity): void {

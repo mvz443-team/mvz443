@@ -36,16 +36,20 @@ const SkeletonBowModelBase = withWeaponModel(PresetMonsterModel);
 
 /** 骨架弓手的射击决策与时序都在 Model；Entity 只提供视线查询与视角能力。 */
 export class SkeletonBowModel extends SkeletonBowModelBase {
-  public override readonly tickEventNames: readonly string[] = [
-    ...DEFAULT_TICK_EVENT_NAMES,
-    SKELETON_BOW_EVENTS.Shoot,
-    SKELETON_BOW_EVENTS.Resume,
-  ];
+  public override get tickEventNames(): readonly string[] {
+    return [
+      ...DEFAULT_TICK_EVENT_NAMES,
+      SKELETON_BOW_EVENTS.Shoot,
+      SKELETON_BOW_EVENTS.Resume,
+    ];
+  }
 
-  constructor(def: MonsterDefinition) {
-    super(def);
-    this.arrowDamage = 70;
-    this.arrowInterval = 3500;
+  public get arrowDamage(): number {
+    return this.definition.arrowDamage ?? 70;
+  }
+
+  public get arrowInterval(): number {
+    return this.definition.arrowInterval ?? 3500;
   }
 
   public override onCreate(entity: MonsterEntity): void {

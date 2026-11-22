@@ -138,7 +138,9 @@ export function trackLogicObject<T extends object>(raw: T, frame = 0): Tracked<T
     logs,
     handle: undefined as unknown as LogicStateHandle<Record<string, unknown>>,
     wrap(value, valuePath) {
-      if (value !== null && typeof value === "object" && isLogicValue(value)) {
+      // 冻结对象是静态配置，不需要（也不能）再包 Proxy；否则会触发
+      // “非可配置属性必须返回原值”的 Proxy 不变量错误。
+      if (value !== null && typeof value === "object" && !Object.isFrozen(value) && isLogicValue(value)) {
         return makeProxy(value as object, tracker, valuePath);
       }
       return value;

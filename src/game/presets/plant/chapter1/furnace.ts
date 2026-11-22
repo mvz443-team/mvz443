@@ -22,10 +22,12 @@ export class FurnaceModel extends PlantModel {
   public override descriptionKey = 'furnace_description';
   public override texturePath = 'plant/furnace';
 
-  public override readonly tickEventNames: readonly string[] = [
-    ...DEFAULT_TICK_EVENT_NAMES,
-    FURNACE_EVENTS.FurnaceGenerate,
-  ];
+  public override get tickEventNames(): readonly string[] {
+    return [
+      ...DEFAULT_TICK_EVENT_NAMES,
+      FURNACE_EVENTS.FurnaceGenerate,
+    ];
+  }
 
   public maxHealth = new LevelScaledValue(300);
   public cost = new LevelScaledValue(50).setThreshold(5, 35);

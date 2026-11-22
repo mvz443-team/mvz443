@@ -41,11 +41,13 @@ const MUTANT_EVENTS = {
 
 /** 武器牌、攻击目标队列、伤害和恢复全部在 Model。 */
 export class MutantModel extends MutantModelBase {
-  public override readonly tickEventNames: readonly string[] = [
-    ...DEFAULT_TICK_EVENT_NAMES,
-    MUTANT_EVENTS.Smash,
-    MUTANT_EVENTS.Recover,
-  ];
+  public override get tickEventNames(): readonly string[] {
+    return [
+      ...DEFAULT_TICK_EVENT_NAMES,
+      MUTANT_EVENTS.Smash,
+      MUTANT_EVENTS.Recover,
+    ];
+  }
 
   public readonly chargeMs = 1500;
   public readonly recoverMs = 1500;
