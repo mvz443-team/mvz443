@@ -46,7 +46,7 @@ export class DispenserModel extends PlantModel {
       repeat: -1,
       callback: () => {
         if (entity.isSleeping) return;
-        if (entity.inBruteShoot) return; // 暴力发射中不执行普通发射逻辑
+        if (this.inBruteShoot) return; // 暴力发射中不执行普通发射逻辑
         if (sightLine.hasTarget()) {
           entity.playShootAnimation();
           entity.model.tickmanager.delayedCall({
@@ -65,11 +65,11 @@ export class DispenserModel extends PlantModel {
   }
 
   onStarShards(entity: DispenserEntity): void {
-    if (entity.inBruteShoot) return; // 已经在暴力发射中，避免重复触发
-    entity.inBruteShoot = true;
+    if (this.inBruteShoot) return; // 已经在暴力发射中，避免重复触发
+    this.inBruteShoot = true;
     // 暴力发射
     this.bruteShot(entity.scene, entity, () => {
-      entity.inBruteShoot = false;
+      this.inBruteShoot = false;
     });
   }
 
@@ -116,8 +116,10 @@ export class DispenserEntity extends PlantEntity {
   private declare headX: number;
   private declare head: Phaser.GameObjects.Sprite;
 
-  /** 是否处于暴力发射状态；状态存储在 Model，必须用 declare 避免遮蔽。 */
-  declare public inBruteShoot: boolean;
+  /** 只读视图状态；真实状态由 Model.inBruteShoot 维护并进入快照。 */
+  public get inBruteShoot(): boolean {
+    return this.model.inBruteShoot;
+  }
 
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, DispenserData, level);
@@ -156,7 +158,7 @@ export class DispenserEntity extends PlantEntity {
   }
 
   public playBruteShootAnimation(_totalArrows: number) {
-    if (this.currentHealth <= 0) return;
+    if (this.currentHealth <= 0 || !this.head) return;
 
     const head = this.head;
     const moveDistance = head.displayWidth * 0.15;
@@ -167,6 +169,20 @@ export class DispenserEntity extends PlantEntity {
   public recoverHeadPosition() {
     if (this.currentHealth <= 0) return;
     ShootHeadAnimationHelper.recover(this.scene, this.head, this.headX);
+  }
+
+  public override syncViewFromModel(): void {
+    super.syncViewFromModel();
+    this.syncBruteShootView();
+  }
+
+  /** 回滚/重连后按 Model.inBruteShoot 恢复头部后坐姿态。 */
+  private syncBruteShootView(): void {
+    if (!this.head) return;
+    ShootHeadAnimationHelper.stopAndReset(this.scene, this.head, this.headX);
+    if (this.inBruteShoot) {
+      this.head.x = this.headX - this.head.displayWidth * 0.15;
+    }
   }
 }
 

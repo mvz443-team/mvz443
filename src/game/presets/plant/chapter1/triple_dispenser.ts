@@ -50,7 +50,7 @@ export class TripleDispenserModel extends PlantModel {
       loop: true,
       callback: () => {
         if (entity.isSleeping || entity.currentHealth <= 0) return;
-        if (entity.inBruteShoot) return;
+        if (this.inBruteShoot) return;
 
         const hasEnemyInRange = sightLine.hasTarget();
 
@@ -70,8 +70,8 @@ export class TripleDispenserModel extends PlantModel {
 
   public override onStarShards(entity: TripleDispenserEntity): void {
     // 星辰碎片触发暴力发射
-    if (entity.inBruteShoot) return;
-    entity.inBruteShoot = true;
+    if (this.inBruteShoot) return;
+    this.inBruteShoot = true;
 
     const totalVolleys = 60;
     const volleyDelay = 50;
@@ -103,7 +103,7 @@ export class TripleDispenserModel extends PlantModel {
       delay: overallDuration,
       callback: () => {
         // 暴力发射结束后，继续正常射击
-        entity.inBruteShoot = false;
+        this.inBruteShoot = false;
         if (entity.currentHealth > 0) {
           entity.resetHeadPosition();
         }
@@ -228,8 +228,10 @@ export class TripleDispenserEntity extends PlantEntity {
   private declare head: Phaser.GameObjects.Sprite;
   private declare headX: number;
   public game: Game;
-  /** 是否处于暴力发射状态；状态存储在 Model，必须用 declare 避免遮蔽。 */
-  declare public inBruteShoot: boolean;
+  /** 只读视图状态；真实状态由 Model.inBruteShoot 维护并进入快照。 */
+  public get inBruteShoot(): boolean {
+    return this.model.inBruteShoot;
+  }
 
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, TripleDispenserData, level);
@@ -293,6 +295,20 @@ export class TripleDispenserEntity extends PlantEntity {
   public resetHeadPosition() {
     if (this.head && this.currentHealth > 0) {
       ShootHeadAnimationHelper.recover(this.scene, this.head, this.headX);
+    }
+  }
+
+  public override syncViewFromModel(): void {
+    super.syncViewFromModel();
+    this.syncBruteShootView();
+  }
+
+  /** 回滚/重连后按 Model.inBruteShoot 恢复头部后坐姿态。 */
+  private syncBruteShootView(): void {
+    if (!this.head) return;
+    ShootHeadAnimationHelper.stopAndReset(this.scene, this.head, this.headX);
+    if (this.inBruteShoot) {
+      this.head.x = this.headX - this.head.displayWidth * 0.15;
     }
   }
 }

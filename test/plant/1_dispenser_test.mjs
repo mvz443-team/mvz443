@@ -9,6 +9,7 @@ import {
   levelValues,
 } from "../harness/sim.mjs";
 import { DispenserData } from "../../src/game/presets/plant/chapter1/dispenser.ts";
+import { restoreModel, snapshotModel } from "../../src/game/core/logic/LogicModel.ts";
 
 /**
  * 描述（dispenser_description）：
@@ -86,6 +87,23 @@ test("星之碎片发射 50 发，并按等级使用星碎穿透", () => {
   tick(sim2, 2_700);
   assert.equal(ProjectileCmd.calls.length, 50);
   assert.equal(ProjectileCmd.calls[0].cfg.penetratePower, 3);
+});
+
+test("inBruteShoot 是 Model 状态：Entity 读取 Model，快照可恢复", () => {
+  resetSim();
+  const { model, entity } = spawnPlant(DispenserData, { level: 1 });
+
+  assert.equal(model.inBruteShoot, false);
+  assert.equal(entity.inBruteShoot, false);
+
+  const snapshot = snapshotModel(model);
+  model.inBruteShoot = true;
+  assert.equal(entity.inBruteShoot, true, "Entity 读取 Model 状态");
+  assert.equal(snapshot.inBruteShoot, false, "暴力发射状态进入快照");
+
+  restoreModel(model, snapshot);
+  assert.equal(model.inBruteShoot, false);
+  assert.equal(entity.inBruteShoot, false, "回滚后 Entity 读取恢复后的 Model");
 });
 
 test("睡眠时不发射", () => {

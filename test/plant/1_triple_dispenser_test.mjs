@@ -1,7 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resetSim, spawnPlant, tick, setSightTarget, ProjectileCmd, levelValues } from "../harness/sim.mjs";
+import {
+  resetSim,
+  spawnPlant,
+  tick,
+  setSightTarget,
+  ProjectileCmd,
+  levelValues,
+} from "../harness/sim.mjs";
 import { TripleDispenserData } from "../../src/game/presets/plant/chapter1/triple_dispenser.ts";
+import { restoreModel, snapshotModel } from "../../src/game/core/logic/LogicModel.ts";
 
 /**
  * 描述（triple_dispenser_description）：
@@ -85,6 +93,23 @@ test("星之碎片散射 240 发，单发伤害为面板一半", () => {
   assert.equal(calls.every((call) => call.model === "MutantYAxisArrowModel"), true);
   assert.equal(calls.every((call) => call.cfg.damage === 10), true);
   assert.equal(model.inBruteShoot, false);
+});
+
+test("inBruteShoot 是 Model 状态：Entity 读取 Model，快照可恢复", () => {
+  resetSim();
+  const { model, entity } = spawnPlant(TripleDispenserData, { level: 1, row: 2 });
+
+  assert.equal(model.inBruteShoot, false);
+  assert.equal(entity.inBruteShoot, false);
+
+  const snapshot = snapshotModel(model);
+  model.inBruteShoot = true;
+  assert.equal(entity.inBruteShoot, true, "Entity 读取 Model 状态");
+  assert.equal(snapshot.inBruteShoot, false, "暴力发射状态进入快照");
+
+  restoreModel(model, snapshot);
+  assert.equal(model.inBruteShoot, false);
+  assert.equal(entity.inBruteShoot, false, "回滚后 Entity 读取恢复后的 Model");
 });
 
 test("睡眠时不发射", () => {

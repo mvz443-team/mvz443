@@ -66,6 +66,7 @@ const SETUP = `
     sleeping: p.isSleeping,
     spiky: p.model.isSpiky === true,
     brute: p.model.inBruteShoot === true,
+    entityBrute: p.inBruteShoot === true,
     destroyed: p.destroyed === true,
   }));
   const entity = (pid) => (pm.PlantsMap.get(\`\${col}-\${row}\`) ?? []).find((p) => p.model.pid === pid);
@@ -209,6 +210,28 @@ try {
     return { before, after: cell() };
   `);
 
+  await run('S19_bruteShootViewSync', `
+    ${SETUP}
+    gm.setSingleGridProperty(col, row, { type: 'ground' });
+    plant(1);
+    const dispenser = entity(1);
+    const restX = dispenser.head.x;
+    dispenser.model.inBruteShoot = true;
+    dispenser.syncViewFromModel();
+    const heldX = dispenser.head.x;
+    dispenser.model.inBruteShoot = false;
+    dispenser.syncViewFromModel();
+    const resetX = dispenser.head.x;
+    return {
+      restX,
+      heldX,
+      resetX,
+      moveDistance: dispenser.head.displayWidth * 0.15,
+      modelBrute: dispenser.model.inBruteShoot,
+      entityBrute: dispenser.inBruteShoot,
+    };
+  `, 'stack-S19.png');
+
   await run('S15_S16_zombieBite', `
     ${SETUP}
     gm.setSingleGridProperty(col, row, { type: 'water' });
@@ -247,8 +270,12 @@ try {
   fs.writeFileSync('screenshots/plant-stack-results.json', JSON.stringify(results, null, 2));
   console.log('\n=== SUMMARY ===');
   for (const [name, value] of Object.entries(results)) {
+    if (value?.restX !== undefined) {
+      console.log(name, '=> rest', value.restX, 'held', value.heldX, 'reset', value.resetX);
+      continue;
+    }
     const cell = value?.after ?? value?.cell ?? [];
-    console.log(name, '=>', cell.map((p) => `${p.pid}:${p.health}${p.sleeping ? ':sleep' : ''}${p.spiky ? ':spiky' : ''}${p.brute ? ':brute' : ''}`).join(' | '));
+    console.log(name, '=>', cell.map((p) => `${p.pid}:${p.health}${p.sleeping ? ':sleep' : ''}${p.spiky ? ':spiky' : ''}${p.brute ? ':brute' : ''}${p.entityBrute ? ':ebrute' : ''}`).join(' | '));
   }
   console.log('saved screenshots/plant-stack-results.json');
 } finally {
