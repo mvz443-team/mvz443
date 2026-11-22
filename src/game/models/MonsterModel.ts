@@ -29,6 +29,8 @@ import type { PlantEntity } from "./entities/PlantEntity";
 import CombatManager from "../managers/CombatManager";
 import { PositionManager } from "../managers/view/PositionManager";
 import ResourceCmd from "../utils/cmd/ResourceCmd";
+import { SfxCmd } from "../utils/cmd/SfxCmd";
+import { GainStarShardSfx } from "../sfx/star/GainStarShardSfx";
 import type { CollisionContext } from "../types";
 
 const MONSTER_EVENTS = {
@@ -669,7 +671,17 @@ export abstract class MonsterModel extends LogicModel {
   public dropCarriedStarShards(entity: MonsterEntity): void {
     if (this.starShardsDropped || !this.carryStarShards) return;
     this.starShardsDropped = true;
-    ResourceCmd.AddStarshardToAll(Math.max(1, this.carriedStarShards));
+    const amount = Math.max(1, this.carriedStarShards);
+    const view = entity as unknown as { scene?: Game; x: number; y: number };
+    if (view.scene) {
+      SfxCmd.Create(GainStarShardSfx, {
+        scene: view.scene,
+        x: view.x,
+        y: view.y - PositionManager.Instance.GRID_SIZEY * 0.8,
+        amount,
+      });
+    }
+    ResourceCmd.AddStarshardToAll(amount);
     this.carryStarShards = false;
     this.carriedStarShards = 0;
   }

@@ -5,6 +5,7 @@ import {
   applyInstantPlant,
   ProjectileCmd,
   ResourceCmd,
+  SfxCmd,
   getPlantsMap,
   levelValues,
 } from "../harness/sim.mjs";
@@ -16,15 +17,17 @@ import { MagicPowderData } from "../../src/game/presets/plant/chapter1/magic_pow
  *   不创建 Entity、物理体，也没有 300ms 存活时间。9 级激光伤害提升到 2000。
  *
  * 验收路径：
- *   直接驱动真实 applyInstantEffect；检查 ProjectileCmd / ResourceCmd 调用与 PlantsMap 是否为空。
+ *   直接驱动真实 applyInstantEffect；检查 ProjectileCmd / ResourceCmd / SfxCmd 调用与 PlantsMap 是否为空。
  *
  * 预期结果：
  *   Lv1 1 条激光伤害 1500、distance 1.2；+1 星碎；不产生任何植物实体；
+ *   额外产生 1 个 GainStarShardSfx，起点与粉末散播特效相同（当前放置格子）；
  *   Lv9 伤害 2000；onStarShards 仍无额外效果。
  *
  * 为什么：
  *   applyInstantEffect 内 CreateLaser，damage = LevelScaledValue(1500).setThreshold(9, 2000)，
- *   并调用 AddStarshardToAll(1)；PlantsManager 对 isOneTimePlant 直接走该入口，不 createEntity。
+ *   并调用 AddStarshardToAll(1)；PlantsManager 对 isOneTimePlant 直接走该入口，不 createEntity；
+ *   GainStarShardSfx 只经 SfxCmd.Create 创建，不调用 ResourceCmd / UpdateStarShards，也不进快照。
  */
 
 test("Lv1 落地立即发射 1500 伤害激光并 +1 星碎，且不创建实体", () => {
@@ -37,6 +40,13 @@ test("Lv1 落地立即发射 1500 伤害激光并 +1 星碎，且不创建实体
   assert.equal(ProjectileCmd.calls[0].cfg.distance, 1.2);
   assert.deepEqual(ResourceCmd.calls, [{ kind: "starshard", amount: 1 }]);
   assert.equal(getPlantsMap().size, 0, "一次性植物不进入 PlantsMap");
+
+  const dropSfx = SfxCmd.calls.find((call) => call.name === "GainStarShardSfx");
+  const scatterSfx = SfxCmd.calls.find((call) => call.name === "PowderScatterSfx");
+  assert.ok(dropSfx, "应产生纯视觉星屑掉落物");
+  assert.equal(dropSfx.args.amount, 1);
+  assert.equal(dropSfx.args.x, scatterSfx.args.x, "掉落起点为当前放置格子");
+  assert.equal(dropSfx.args.y, scatterSfx.args.y, "掉落起点为当前放置格子");
 });
 
 test("Lv9 激光伤害 2000", () => {

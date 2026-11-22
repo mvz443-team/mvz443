@@ -8,6 +8,7 @@ import type { Game } from "../../scenes/Game";
 import ResourceCmd from "../../utils/cmd/ResourceCmd";
 import { SfxCmd } from "../../utils/cmd/SfxCmd";
 import { StarShardsOrbitSfx } from "../../sfx/star/StarShardsOrbitSfx";
+import { GainStarShardSfx } from "../../sfx/star/GainStarShardSfx";
 
 export class MineRockObstacleModel extends ObstacleModel {
   public readonly oid = 2;
@@ -19,9 +20,17 @@ export class MineRockObstacleModel extends ObstacleModel {
   }
 
   /** 死亡掉落属于战斗状态，放在 Model 并用 dropped 防重放重复发放。 */
-  public override onDeath(_entity: ObstacleEntity): void {
+  public override onDeath(entity: ObstacleEntity): void {
     if (this.dropped) return;
     this.dropped = true;
+    if (entity.scene) {
+      SfxCmd.Create(GainStarShardSfx, {
+        scene: entity.scene,
+        x: entity.x,
+        y: entity.y - PositionManager.Instance.GRID_SIZEY * 0.5,
+        amount: 1,
+      });
+    }
     ResourceCmd.AddStarshardToAll(1);
   }
 }
