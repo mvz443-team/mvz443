@@ -1,6 +1,7 @@
 import type { Game } from "../../../../scenes/Game";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../../constants/game";
-import type { MonsterDefinition } from "../../../../models/entities/MonsterEntity";
+import type { MonsterDefinition, MonsterEntity } from "../../../../models/entities/MonsterEntity";
+import type { ModelHost } from "../../../../core/logic/LogicModel";
 import { FlyingMonsterModel } from "../../../../models/monster/FlyingMonsterModel";
 import { FlyingMonsterEntity } from "../../../../models/entities/FlyingMonsterEntity";
 
@@ -15,6 +16,22 @@ import { FlyingMonsterEntity } from "../../../../models/entities/FlyingMonsterEn
 export class BalloonZombieModel extends FlyingMonsterModel {
   public constructor(def: MonsterDefinition) {
     super(def);
+  }
+
+  /**
+   * 飞行到移动方向上的最后一格（向左即 col 0）时，气球主动死亡降落。
+   *
+   * 与"被子弹打爆"共用 `breakVehicle → breakMount` 路径：`mountHealth` /
+   * `mountBroken` / `flying` 都是快照字段。回滚到进入最后一格之前会重新触发，
+   * 回滚到之后则保持已降落，无需任何 Entity 自有状态或表现层时钟。
+   */
+  public override onModelStep(host: ModelHost): void {
+    const entity = host as MonsterEntity;
+    if (this.hasVehicle && !this.isDying && entity.currentHealth > 0
+      && this.hasEnteredLastCellInMoveDirection(entity)) {
+      this.breakVehicle(entity);
+    }
+    super.onModelStep(host);
   }
 }
 

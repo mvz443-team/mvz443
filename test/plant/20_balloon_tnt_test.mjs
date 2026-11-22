@@ -24,14 +24,15 @@ import { PositionManager } from "../harness/sim.mjs";
  *   充气分三档：0 瘪气 → 1 半鼓（充气时间一半）→ 2 充满并垂直升空（解除低矮）。
  *   6 秒充满，Lv5 起 3 秒。升空后只被飞行怪物引爆，3x3 爆炸、伤害 350（Lv9 400）。
  *   星之碎片：立即充满，并派出一枚向右飞行的气球TNT分身（200 血），
- *   碰到第一个怪物或飞到最右侧时以本体伤害爆炸。
+ *   碰到第一个怪物或刚进入移动方向上的最后一格时以本体伤害爆炸。
  *
  * 验收路径：
  *   1) spawnPlant 后读取数值、tiny、inflateStage。
  *   2) tick 到 3000/6000ms 观察阶段与 tiny 变化；Lv5 用 1500/3000ms。
  *   3) 直接调用实体 onCollision / 模型 checkAirborneCollisionOnce 观察爆炸与销毁。
  *   4) 直接调用 onStarShards，检查 MobCmd.Spawn 的 mid 与伤害回写。
- *   5) 单独 spawnMob(BalloonTntCloneData) 验证分身向右飞、200 血、不索敌、边界爆炸。
+ *   5) 单独 spawnMob(BalloonTntCloneData) 验证分身向右飞、200 血、不索敌、
+ *      刚进入最后一格即爆炸，并反转 speed 验证判定跟随方向。
  *
  * 预期结果：
  *   pid 20 / cost 125 / maxHealth 450 / damage 350（Lv9 400）/ cooldown 14000；
@@ -39,7 +40,8 @@ import { PositionManager } from "../harness/sim.mjs";
  *   地面僵尸碰撞不爆炸，飞行僵尸碰撞触发一次 3x3 爆炸并销毁本体；
  *   充满瞬间已在格内的飞行僵尸由一次性补判引爆；
  *   星碎后 stage=2 且 Spawn 参数为 (21, waveID=-10)，回写 explosionDamage=350；
- *   分身 speed 为负（startMove 后向右）、canStartAttack 恒 false、到最右列爆炸。
+ *   分身 speed 为负（startMove 后向右）、canStartAttack 恒 false、
+ *   刚踏进最右列左边界即爆炸（不是格子中心），反转后按 col 0 右边界判定。
  *
  * 为什么：
  *   onCreate 用 tickmanager 排 Half(duration/2)/Full(duration)；
@@ -182,7 +184,7 @@ test("星之碎片立即充满并召唤向右飞行的分身", () => {
   assert.equal(cloneModel.explosionDamage, 400);
 });
 
-test("分身：200 血、向右飞、不索敌、到最右列爆炸", () => {
+test("分身：200 血、向右飞、不索敌、刚进入最右列即爆炸", () => {
   resetSim();
   const clone = spawnMob(BalloonTntCloneData, { col: 2, row: 1 });
 
@@ -198,13 +200,39 @@ test("分身：200 血、向右飞、不索敌、到最右列爆炸", () => {
   assert.equal(ProjectileCmd.calls.filter((call) => call.kind === "explosion").length, 0);
 
   const lastCol = PositionManager.Instance.Col_Number - 1;
-  const rightEdge = PositionManager.Instance.getGridTopLeft(lastCol, 1).x;
-  clone.entity.x = rightEdge + PositionManager.Instance.GRID_SIZEX;
+  const lastColLeft = PositionManager.Instance.getGridTopLeft(lastCol, 1).x;
 
+  // 还在倒数第二列：不爆炸。
+  clone.entity.x = lastColLeft - 1;
+  clone.model.onModelStep(clone.entity);
+  assert.equal(ProjectileCmd.calls.filter((call) => call.kind === "explosion").length, 0);
+
+  // 刚踏进最右列左边界：立即爆炸（不等走到格子中心）。
+  clone.entity.x = lastColLeft;
   clone.model.onModelStep(clone.entity);
   const explosions = ProjectileCmd.calls.filter((call) => call.kind === "explosion");
   assert.equal(explosions.length, 1);
   assert.equal(explosions[0].cfg.damage, clone.model.explosionDamage);
+});
+
+test("分身移动方向反转后，最后一格判定跟随 speed 而不是硬编码最右列", () => {
+  resetSim();
+  const clone = spawnMob(BalloonTntCloneData, { col: 4, row: 1 });
+
+  // 向左飞：speed 取正，最后一格变成 col 0。
+  clone.model.speed = Math.abs(clone.model.speed);
+
+  // 最右列不触发。
+  const lastCol = PositionManager.Instance.Col_Number - 1;
+  clone.entity.x = PositionManager.Instance.getGridTopLeft(lastCol, 1).x;
+  clone.model.onModelStep(clone.entity);
+  assert.equal(ProjectileCmd.calls.filter((call) => call.kind === "explosion").length, 0);
+
+  // 刚进入 col 0 右边界即触发。
+  clone.entity.x = PositionManager.Instance.getGridTopLeft(0, 1).x
+    + PositionManager.Instance.GRID_SIZEX;
+  clone.model.onModelStep(clone.entity);
+  assert.equal(ProjectileCmd.calls.filter((call) => call.kind === "explosion").length, 1);
 });
 
 test("分身碰到第一个僵尸立即爆炸（碰撞事件）", () => {

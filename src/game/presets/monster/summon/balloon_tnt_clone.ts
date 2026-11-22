@@ -2,7 +2,6 @@ import type { Game } from "../../../scenes/Game";
 import type { BaseEntity } from "../../../models/core/BaseEntity";
 import type { ModelHost } from "../../../core/logic/LogicModel";
 import type { CollisionContext } from "../../../types";
-import { PositionManager } from "../../../managers/view/PositionManager";
 import { MonsterEntity, PresetMonsterModel, type MonsterDefinition } from "../../../models/entities/MonsterEntity";
 import { Faction } from "../../../models/Enum";
 import { MonsterSpeed } from "../../../../constants/game";
@@ -17,7 +16,8 @@ export const BALLOON_TNT_CLONE_MID = 21;
  *
  * - PLANT 阵营的飞行单位：僵尸的箭/子弹可以打它，己方植物不会瞄准它。
  * - 以普通僵尸速度向右飞行，200 血。
- * - 碰到第一个僵尸，或飞到最右列时，产生一次与本体同伤害的 3x3 爆炸。
+ * - 碰到第一个僵尸，或刚进入移动方向上的最后一格（向右即最右列）时，
+ *   产生一次与本体同伤害的 3x3 爆炸。触发按格子边界而非格子中心判定。
  * - 不会攻击任何目标（`canStartAttack` 恒为 false），也不抢普攻定时器。
  */
 export class BalloonTntCloneModel extends PresetMonsterModel {
@@ -54,16 +54,17 @@ export class BalloonTntCloneModel extends PresetMonsterModel {
     this.explode(entity);
   }
 
-  /** 只保留右边界判定：飞出场地最右侧时自爆。 */
+  /**
+   * 刚进入移动方向上的最后一格时自爆。
+   *
+   * 用共用的方向判定（按 speed 符号推导最后一格、按格子边界触发），
+   * 不再硬编码"最右列 + 半格中心"：换方向时同样成立，且进入格子即引爆。
+   */
   public override onModelStep(host: ModelHost): void {
     const entity = host as BalloonTntCloneEntity;
     if (this.hasExploded || this.isDying) return;
     if (entity.currentHealth <= 0) return;
-
-    const gridX = PositionManager.Instance.GRID_SIZEX;
-    const lastCol = Math.max(0, PositionManager.Instance.Col_Number - 1);
-    const rightEdgeX = PositionManager.Instance.getGridTopLeft(lastCol, entity.row).x + gridX * 0.5;
-    if (entity.x >= rightEdgeX) this.explode(entity);
+    if (this.hasEnteredLastCellInMoveDirection(entity)) this.explode(entity);
   }
 
   public explode(entity: BalloonTntCloneEntity): void {

@@ -247,6 +247,35 @@ export abstract class MonsterModel extends LogicModel {
     CombatManager.Instance.EndGame(false);
   }
 
+  /**
+   * 移动方向上的最后一格列号。
+   *
+   * `MonsterEntity.startMove()` 用 `-speed` 作为横向速度，因此 speed 的符号
+   * 就是移动的反向：speed > 0 → vx < 0 → 向左 → 最后一格是 col 0；
+   * speed < 0 → vx > 0 → 向右 → 最后一格是最右列。
+   *
+   * 与"最左/最右列"的硬编码不同，这里从 speed 推导，保证换方向后判定仍成立。
+   */
+  public getLastColInMoveDirection(): number {
+    const lastCol = Math.max(0, PositionManager.Instance.Col_Number - 1);
+    return this.speed < 0 ? lastCol : 0;
+  }
+
+  /**
+   * 是否已"刚进入"移动方向上的最后一格。
+   *
+   * 判定用格子边界而不是格子中心：向左时踏进 col 0 的右边界即触发，
+   * 向右时踏进最右列的左边界即触发。x 来自刚体 translation 且进快照，
+   * 固定步重放与回滚恢复后结果一致。
+   */
+  public hasEnteredLastCellInMoveDirection(entity: MonsterEntity): boolean {
+    const pm = PositionManager.Instance;
+    const cellLeft = pm.getGridTopLeft(this.getLastColInMoveDirection(), entity.row).x;
+    return this.speed < 0
+      ? entity.x >= cellLeft
+      : entity.x <= cellLeft + pm.GRID_SIZEX;
+  }
+
   public tryStartAttack(entity: MonsterEntity, target: BaseEntity): boolean {
     if (this.isFrozen || !this.canStartAttack(target)) return false;
 
