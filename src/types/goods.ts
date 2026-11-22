@@ -56,6 +56,43 @@ export interface GoodsPrice {
   items: GoodsItem[];
 }
 
+/** 商店分类：前三类为主分类，dev 作为独立的小分类。 */
+export type ShopCategory = 'material' | 'card' | 'upgrade' | 'dev';
+
+export interface GoodsConditionLevel {
+  type: 'level';
+  levelId: number;
+  chapterId: number;
+  met: boolean;
+}
+
+export interface GoodsConditionSlots {
+  type: 'slots';
+  required: number;
+  current: number;
+  met: boolean;
+}
+
+export interface GoodsConditionGold {
+  type: 'gold';
+  required: number;
+  current: number;
+  met: boolean;
+}
+
+export interface GoodsConditionMaterial {
+  type: 'material';
+  items: Array<{ item: GoodsItem; current: number; required: number }>;
+  met: boolean;
+}
+
+/** 可展示的购买条件；UI 逐行显示未满足项。 */
+export type GoodsCondition =
+  | GoodsConditionLevel
+  | GoodsConditionSlots
+  | GoodsConditionGold
+  | GoodsConditionMaterial;
+
 export interface GoodsSaveCtx {
   gameProgress: GameProgress;
   gameManager: GameManager;
@@ -67,6 +104,7 @@ export abstract class Goods {
   public abstract readonly nameKey: string;
   public abstract readonly iconKey: string;
   public abstract readonly descriptionKey: string;
+  public abstract readonly category: ShopCategory;
 
   public abstract getPrice(saveCtx: GoodsSaveCtx): GoodsPrice;
 
@@ -75,10 +113,12 @@ export abstract class Goods {
   }
 
   public canAfford(saveCtx: GoodsSaveCtx): boolean {
-    return this.getPrice(saveCtx).items.every((priceItem) => {
-      const item = saveCtx.gameProgress.items.get(priceItem.id);
-      return (item?.count ?? 0) >= priceItem.count;
-    });
+    return this.getPriceConditions(saveCtx).every((condition) => condition.met);
+  }
+
+  /** 解锁条件 + 价格条件，顺序稳定，便于 UI 逐行展示。 */
+  public getConditions(saveCtx: GoodsSaveCtx): GoodsCondition[] {
+    return [...this.getUnlockConditions(saveCtx), ...this.getPriceConditions(saveCtx)];
   }
 
   public canPurchaseWithoutPrice(saveCtx: GoodsSaveCtx): boolean {
@@ -102,7 +142,51 @@ export abstract class Goods {
     return false;
   }
 
-  protected abstract isUnlocked(saveCtx: GoodsSaveCtx): boolean;
+  /** 子类只需声明自己的解锁条件；isUnlocked 由条件统一推导。 */
+  protected getUnlockConditions(_saveCtx: GoodsSaveCtx): GoodsCondition[] {
+    return [];
+  }
+
+  protected levelCondition(saveCtx: GoodsSaveCtx, levelId: number, chapterId: number = 1): GoodsConditionLevel {
+    return {
+      type: 'level',
+      levelId,
+      chapterId,
+      met: saveCtx.gameManager.isLevelUnlocked(levelId, chapterId),
+    };
+  }
+
+  protected slotCountCondition(saveCtx: GoodsSaveCtx, required: number): GoodsConditionSlots {
+    const current = saveCtx.gameProgress.slotNum;
+    return { type: 'slots', required, current, met: current === required };
+  }
+
+  protected getPriceConditions(saveCtx: GoodsSaveCtx): GoodsCondition[] {
+    const priceItems = this.getPrice(saveCtx).items;
+    const conditions: GoodsCondition[] = [];
+
+    const goldItem = priceItems.find((item) => item.id === 1);
+    if (goldItem) {
+      const current = saveCtx.gameProgress.items.get(1)?.count ?? 0;
+      conditions.push({ type: 'gold', required: goldItem.count, current, met: current >= goldItem.count });
+    }
+
+    const materialItems = priceItems.filter((item) => item.id !== 1 && item.count > 0);
+    if (materialItems.length > 0) {
+      const items = materialItems.map((item) => ({
+        item,
+        current: saveCtx.gameProgress.items.get(item.id)?.count ?? 0,
+        required: item.count,
+      }));
+      conditions.push({ type: 'material', items, met: items.every((entry) => entry.current >= entry.required) });
+    }
+
+    return conditions;
+  }
+
+  protected isUnlocked(saveCtx: GoodsSaveCtx): boolean {
+    return this.getUnlockConditions(saveCtx).every((condition) => condition.met);
+  }
 
   protected abstract onBought(saveCtx: GoodsSaveCtx): void;
 

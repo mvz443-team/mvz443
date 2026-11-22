@@ -1,11 +1,12 @@
 import { Goods } from "../../../types/goods";
-import type { GoodsPrice, GoodsSaveCtx } from "../../../types/goods";
+import type { GoodsCondition, GoodsPrice, GoodsSaveCtx } from "../../../types/goods";
 
 export class SeventhSlot extends Goods {
   public override readonly id = 1;
   public override readonly nameKey = "name_slot7";
   public override readonly iconKey = "/assets/card/items/slot7.svg";
   public override readonly descriptionKey = "slot7_description";
+  public override readonly category = 'upgrade' as const;
 
   public override hasBought(saveCtx: GoodsSaveCtx): boolean {
     return super.hasBought(saveCtx) || saveCtx.gameProgress.slotNum >= 7;
@@ -20,8 +21,11 @@ export class SeventhSlot extends Goods {
     };
   }
 
-  protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameManager.isLevelUnlocked(4) && saveCtx.gameProgress.slotNum === 6;
+  protected override getUnlockConditions(saveCtx: GoodsSaveCtx): GoodsCondition[] {
+    return [
+      this.levelCondition(saveCtx, 4),
+      this.slotCountCondition(saveCtx, 6),
+    ];
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {
@@ -34,6 +38,7 @@ export class EighthSlot extends Goods {
   public override readonly nameKey = "name_slot8";
   public override readonly iconKey = "/assets/card/items/slot8.svg";
   public override readonly descriptionKey = "slot8_description";
+  public override readonly category = 'upgrade' as const;
 
   public override hasBought(saveCtx: GoodsSaveCtx): boolean {
     return super.hasBought(saveCtx) || saveCtx.gameProgress.slotNum >= 8;
@@ -45,8 +50,11 @@ export class EighthSlot extends Goods {
     };
   }
 
-  protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameManager.isLevelUnlocked(5) && saveCtx.gameProgress.slotNum === 7;
+  protected override getUnlockConditions(saveCtx: GoodsSaveCtx): GoodsCondition[] {
+    return [
+      this.levelCondition(saveCtx, 5),
+      this.slotCountCondition(saveCtx, 7),
+    ];
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {
@@ -59,6 +67,7 @@ export class NinthSlot extends Goods {
   public override readonly nameKey = "name_slot9";
   public override readonly iconKey = "/assets/card/items/slot9.svg";
   public override readonly descriptionKey = "slot9_description";
+  public override readonly category = 'upgrade' as const;
 
   public override hasBought(saveCtx: GoodsSaveCtx): boolean {
     return super.hasBought(saveCtx) || saveCtx.gameProgress.slotNum >= 9;
@@ -70,8 +79,11 @@ export class NinthSlot extends Goods {
     };
   }
 
-  protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameManager.isLevelUnlocked(7) && saveCtx.gameProgress.slotNum === 8;
+  protected override getUnlockConditions(saveCtx: GoodsSaveCtx): GoodsCondition[] {
+    return [
+      this.levelCondition(saveCtx, 7),
+      this.slotCountCondition(saveCtx, 8),
+    ];
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {

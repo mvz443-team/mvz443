@@ -1,6 +1,6 @@
 import { DamageConstants } from "../../../constants/game";
 import { Goods } from "../../../types/goods";
-import type { GoodsPrice, GoodsSaveCtx } from "../../../types/goods";
+import type { GoodsCondition, GoodsPrice, GoodsSaveCtx } from "../../../types/goods";
 import { DistributePoints } from "../../../utils/random";
 
 export class Cp1Kit extends Goods {
@@ -8,6 +8,7 @@ export class Cp1Kit extends Goods {
   public override readonly nameKey = "name_chapter1_kit";
   public override readonly iconKey = "/assets/card/items/chapter1_kit.svg";
   public override readonly descriptionKey = "chapter1_kit_description";
+  public override readonly category = 'material' as const;
 
   public override hasBought(_saveCtx: GoodsSaveCtx): boolean {
     return false;
@@ -23,8 +24,8 @@ export class Cp1Kit extends Goods {
     return true;
   }
 
-  protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameManager.isLevelUnlocked(3);
+  protected override getUnlockConditions(saveCtx: GoodsSaveCtx): GoodsCondition[] {
+    return [this.levelCondition(saveCtx, 3)];
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {
@@ -43,6 +44,7 @@ export class ScarletborderCrystal extends Goods {
   public override readonly nameKey = "name_scarletborder_crystal";
   public override readonly iconKey = "/assets/card/items/scb.svg";
   public override readonly descriptionKey = "scarletborder_crystal_description";
+  public override readonly category = 'dev' as const;
 
   public override hasBought(_saveCtx: GoodsSaveCtx): boolean {
     return false;
@@ -58,8 +60,8 @@ export class ScarletborderCrystal extends Goods {
     return true;
   }
 
-  protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameManager.isLevelUnlocked(5);
+  protected override getUnlockConditions(saveCtx: GoodsSaveCtx): GoodsCondition[] {
+    return [this.levelCondition(saveCtx, 5)];
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {

@@ -1,12 +1,13 @@
 import { DamageConstants } from "../../../../constants/game";
 import { Goods } from "../../../../types/goods";
-import type { GoodsPrice, GoodsSaveCtx } from "../../../../types/goods";
+import type { GoodsCondition, GoodsPrice, GoodsSaveCtx } from "../../../../types/goods";
 
 export class PumpkinWan extends Goods {
   public override readonly id = 4;
   public override readonly nameKey = "name_pumpkin_wan";
   public override readonly iconKey = "/assets/card/plant/pumpkin_wan.png";
   public override readonly descriptionKey = "pumpkin_wan_shop_description";
+  public override readonly category = 'card' as const;
 
   public override hasBought(saveCtx: GoodsSaveCtx): boolean {
     return super.hasBought(saveCtx) || this.hasPlant(saveCtx, 11);
@@ -22,8 +23,8 @@ export class PumpkinWan extends Goods {
     };
   }
 
-  protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameManager.isLevelUnlocked(5);
+  protected override getUnlockConditions(saveCtx: GoodsSaveCtx): GoodsCondition[] {
+    return [this.levelCondition(saveCtx, 5)];
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {
@@ -36,6 +37,7 @@ export class ATDispenser extends Goods {
   public override readonly nameKey = "name_at_dispenser";
   public override readonly iconKey = "/assets/card/plant/at_dispenser.png";
   public override readonly descriptionKey = "at_dispenser_shop_description";
+  public override readonly category = 'card' as const;
 
   public override hasBought(saveCtx: GoodsSaveCtx): boolean {
     return super.hasBought(saveCtx) || this.hasPlant(saveCtx, 14);
@@ -50,8 +52,8 @@ export class ATDispenser extends Goods {
     };
   }
 
-  protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameManager.isLevelUnlocked(7);
+  protected override getUnlockConditions(saveCtx: GoodsSaveCtx): GoodsCondition[] {
+    return [this.levelCondition(saveCtx, 7)];
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {
@@ -66,6 +68,7 @@ export class Chapter2Plants extends Goods {
   public override readonly nameKey = "name_chapter2_plants";
   public override readonly iconKey = "/assets/card/plant/elastic_putin.png";
   public override readonly descriptionKey = "chapter2_plants_description";
+  public override readonly category = 'dev' as const;
 
   public override hasBought(saveCtx: GoodsSaveCtx): boolean {
     return super.hasBought(saveCtx) || this.hasAnyPlant(saveCtx, this.plantIds);
@@ -77,8 +80,8 @@ export class Chapter2Plants extends Goods {
     };
   }
 
-  protected override isUnlocked(saveCtx: GoodsSaveCtx): boolean {
-    return saveCtx.gameManager.isLevelUnlocked(6);
+  protected override getUnlockConditions(saveCtx: GoodsSaveCtx): GoodsCondition[] {
+    return [this.levelCondition(saveCtx, 6)];
   }
 
   protected override onBought(saveCtx: GoodsSaveCtx): void {

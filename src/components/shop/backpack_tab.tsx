@@ -84,7 +84,7 @@ export default function BackpackTab({ myItems }: BackpackTabProps) {
         scrollbarColor: "#888 #333"
       }}>
         {myItems.length === 0 ? (
-          <div style={{ color: "#999", padding: "16px" }}>{translate(shopKey("empty_backpack"))}</div>
+          <div style={{ gridColumn: "1 / -1", color: "#999", padding: "16px" }}>{translate(shopKey("empty_backpack"))}</div>
         ) : myItems.map(item => {
           const isSelected = selectedItem?.id === item.id;
           const name = goodsItemName(item, translate);

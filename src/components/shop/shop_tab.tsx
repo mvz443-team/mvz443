@@ -1,6 +1,6 @@
 import React from "react";
-import { DetailGoods, InitDetail, PurchasedDetailGoods, SidebarGoods } from "./widget";
-import type { Goods, GoodsItem, GoodsSaveCtx } from "../../types/goods";
+import { DetailGoods, PurchasedDetailGoods, SidebarGoods } from "./widget";
+import type { Goods, GoodsSaveCtx } from "../../types/goods";
 import { useLocaleMessages } from "../../hooks/useLocaleMessages";
 import { shopKey } from "../../i18n/keys";
 
@@ -16,7 +16,6 @@ interface ShopDetailProps {
     goodsList: Goods[];
     selectedGoodId: number | null;
     saveCtx: GoodsSaveCtx;
-    myItems: GoodsItem[];
     onPurchase: (good: Goods) => void;
 }
 
@@ -35,7 +34,7 @@ export function ShopList({
             overflowY: "auto",
             padding: "10px",
             display: "grid",
-            gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))",
             alignContent: "start",
             gap: "8px",
             scrollbarWidth: "thin",
@@ -76,9 +75,9 @@ export function ShopDetail({
     goodsList,
     selectedGoodId,
     saveCtx,
-    myItems,
     onPurchase,
 }: ShopDetailProps) {
+    const { translate } = useLocaleMessages();
     const selectedGood = React.useMemo(() => {
         if (selectedGoodId === null) return null;
         return goodsList.find(g => g.id === selectedGoodId) ?? null;
@@ -86,7 +85,7 @@ export function ShopDetail({
 
     return (
         <div
-            key={selectedGoodId ?? "inventory-preview"}
+            key={selectedGoodId ?? "shop-detail-init"}
             className="detail-switch"
             style={{
                 width: "100%",
@@ -94,18 +93,20 @@ export function ShopDetail({
             }}
         >
             {selectedGoodId === null ? (
-                <InitDetail myItems={myItems} />
+                <div className="shop-detail-hint">
+                    <div className="shop-detail-hint-mark">◆</div>
+                    <div>{translate(shopKey("select_good_hint"))}</div>
+                </div>
             ) : selectedGood ? (
                 selectedGood.hasBought(saveCtx) ? (
                     <PurchasedDetailGoods good={selectedGood} />
                 ) : (
                     <DetailGoods
                         good={selectedGood}
+                        saveCtx={saveCtx}
                         canAfford={selectedGood.canAfford(saveCtx)}
                         canPurchaseWithoutPrice={selectedGood.canPurchaseWithoutPrice(saveCtx)}
                         hasBought={selectedGood.hasBought(saveCtx)}
-                        priceItems={selectedGood.getPrice(saveCtx).items}
-                        myItems={myItems}
                         handlePurchase={onPurchase}
                     />
                 )

@@ -10,7 +10,8 @@ import {
   PhaserEventBus,
   PhaserEvents
 } from '../game/EventBus';
-import Shop from './shop/shop';
+import Shop, { InventoryPanel } from './shop/shop';
+import { Backpack, BookOpen, Info, Settings as SettingsIcon, Store } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLocaleMessages } from '../hooks/useLocaleMessages';
 import GlobalRoomListener from './GlobalRoomListener';
@@ -41,15 +42,14 @@ export default function DocFrame({ width, height, setGameParams, gameStart, init
   }
 
   // 状态管理
-  const [currentView, setCurrentView] = useState(initialRoomView ? 'levels' : 'main'); // main, levels, pokedex, shop, export, updates, about
-  const menuItems = [
-    "menu.homepage",
-    "menu.choose_level",
-    "menu.pokedex",
-    "menu.shop",
-    "menu.settings",
-    "menu.about",
-  ];
+  const [currentView, setCurrentView] = useState(initialRoomView ? 'levels' : 'main'); // main, levels, pokedex, shop, inventory, about
+  const navItems = [
+    { key: 'menu.shop', icon: Store, view: 'shop' },
+    { key: 'menu.inventory', icon: Backpack, view: 'inventory' },
+    { key: 'menu.pokedex', icon: BookOpen, view: 'pokedex' },
+    { key: 'menu.settings', icon: SettingsIcon, view: 'settings' },
+    { key: 'menu.about', icon: Info, view: 'about' },
+  ] as const;
 
   const [skipToParams, setSkipToParams] = useState(false);
   const [chosenStage, setChosenStage] = useState<number | null>(null);
@@ -200,202 +200,89 @@ export default function DocFrame({ width, height, setGameParams, gameStart, init
   }, []);
 
   // 主菜单组件
-  const MainMenu = () => (
-    <div style={{
-      width: `${width}px`,
-      height: `${height}px`,
-      backgroundImage: `url("${publicUrl}/assets/intro.jpg")`,
+  const MainMenu = () => {
+    const handleNavClick = (view: string) => {
+      if (view === 'settings') {
+        navigate(`${publicUrl}/settings`);
+      } else {
+        setCurrentView(view);
+      }
+    };
 
-      backgroundRepeat: 'no-repeat',
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      position: "relative",
-      overflow: "hidden",
-      border: "2px solid #444",
-      boxShadow: "0 0 15px rgba(0, 0, 0, 0.5)",
-      animation: "frameFadeIn 0.5s ease-out"
-    }}>
-      {/* 左侧菜单栏 */}
-      <div style={{
-        width: "25%",
-        height: "100%",
-        position: "absolute",
-        left: 0,
-        top: 0,
-        background: "rgba(20, 20, 20, 0.85)",
-        backdropFilter: "blur(5px)",
-        overflowY: "auto",
-        overflowX: 'hidden',
-        scrollbarWidth: "thin",
-        scrollbarColor: "#666 #333",
-        borderRight: "1px solid rgba(100, 100, 100, 0.3)"
-      }}>
-        {menuItems.map((item, index) => (
-          <button
-            key={index}
-            style={{
-              width: "100%",
-              padding: '4vh 20px',
-              maxHeight: deviceType === 'mobile' ? '15vh' : '5vh',
-              background: "none",
-              border: "none",
-              color: "#ddd",
-              textAlign: "center",
-              cursor: "pointer",
-              fontSize: "16px",
-              transition: "all 0.3s ease",
-              position: "relative",
-              margin: "5px 0",
-              boxShadow: "inset 0 0 0 2px rgba(100, 100, 100, 0.3)",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center"
-            }}
-            onMouseOver={(e) => {
-              const target = e.currentTarget;
-              target.style.background = "rgba(255, 255, 255, 0.1)";
-              target.style.boxShadow = "inset 0 0 0 2px #00ccff, 0 0 8px rgba(0, 204, 255, 0.5)";
-              target.style.color = "#fff";
-            }}
-            onMouseOut={(e) => {
-              const target = e.currentTarget;
-              target.style.background = "none";
-              target.style.boxShadow = "inset 0 0 0 2px rgba(100, 100, 100, 0.3)";
-              target.style.color = "#ddd";
-            }}
-            onClick={() => {
-              if (item === "menu.choose_level") void handleStartGame();
-              else if (item === "menu.pokedex") setCurrentView('pokedex');
-              else if (item === "menu.shop") setCurrentView('shop');
-              else if (item === "menu.settings") {
-                navigate(`${publicUrl}/settings`);
-              }
-              else if (item === "menu.about") setCurrentView('about');
-              else if (item === "menu.homepage") setCurrentView('main')
-            }}
-          >
-            <span style={{
-              position: "absolute",
-              top: "-4px",
-              left: "-4px",
-              width: "8px",
-              height: "8px",
-              borderTop: "2px solid #888",
-              borderLeft: "2px solid #888",
-              opacity: 0.7
-            }}></span>
-            <span style={{
-              position: "absolute",
-              bottom: "-4px",
-              right: "-4px",
-              width: "8px",
-              height: "8px",
-              borderBottom: "2px solid #888",
-              borderRight: "2px solid #888",
-              opacity: 0.7
-            }}></span>
-            {translate(item)}
-          </button>
-        ))}
-      </div>
+    return (
+      <div
+        className={`mm-root ${deviceType === 'mobile' ? 'mm-mobile' : ''}`}
+        style={{
+          width: `${width}px`,
+          height: `${height}px`,
+          backgroundImage: `url("${publicUrl}/assets/intro.jpg")`,
+          backgroundRepeat: 'no-repeat',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          position: "relative",
+          overflow: "hidden",
+          border: "2px solid #444",
+          boxShadow: "0 0 15px rgba(0, 0, 0, 0.5)",
+          animation: "frameFadeIn 0.5s ease-out"
+        }}
+      >
+        <div className="mm-vignette" />
+        <div className="mm-glow" />
 
-      {/* 右侧内容区域 */}
-      <div style={{
-        width: "75%",
-        height: "100%",
-        position: "absolute",
-        background: "rgba(20, 20, 20, 0.35)",
-        right: 0,
-        top: 0,
-      }}>
-        {currentView === 'main' && (
-          <>
-            <div style={{
-              width: "100%",
-              textAlign: "center",
-              padding: "20px 0",
-              color: "#fff",
-              fontSize: "32px",
-              fontWeight: "bold",
-              textShadow: "2px 2px 4px rgba(0, 0, 0, 0.5)"
-            }}>
-              {translate('menu.homepage_title')}
+        <div className="mm-brand">
+          <div className="mm-brand-eyebrow">MVZ 443</div>
+          <div className="mm-brand-title">{translate('menu.homepage_title')}</div>
+          <div className="mm-brand-line" />
+        </div>
+
+        {/* 左侧唯一主入口：开始冒险 */}
+        <button className="mm-start" onClick={() => void handleStartGame()}>
+          <span className="mm-start-frame" />
+          <span className="mm-start-kicker">ADVENTURE</span>
+          <span className="mm-start-title">{translate('menu.start_adventure')}</span>
+          <span className="mm-start-sub">{translate('menu.start_adventure_hint')}</span>
+          <span className="mm-start-arrow">›</span>
+        </button>
+
+        {/* 右下角导航 */}
+        <nav className="mm-nav">
+          {navItems.map(({ key, icon: Icon, view }) => (
+            <button key={key} className="mm-nav-item" onClick={() => handleNavClick(view)}>
+              <Icon size={15} strokeWidth={1.8} />
+              <span>{translate(key)}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="mm-version">
+          {translate('menu.homepage_version')}: v{VERSION} - COMMIT {commitVersion}
+        </div>
+        <div className="mm-copyright">© 2025 scarletborder.cn</div>
+
+        {currentView === 'about' && (
+          <div className="mm-overlay">
+            <div className="mm-overlay-panel">
+              <button className="mm-overlay-back" onClick={() => setCurrentView('main')}>
+                {translate('menu.back')}
+              </button>
+              <h2 className="mm-overlay-title">{translate('menu.about')}</h2>
+              <div className="mm-overlay-links">
+                <a href={`${docsBaseUrl}/game-docs/`} target="_blank" rel="noopener noreferrer">
+                  {translate('menu.docs')}
+                </a>
+                <a href={`${docsBaseUrl}/update-logs/`} target="_blank" rel="noopener noreferrer">
+                  {translate('menu.updates')}
+                </a>
+              </div>
+              <div className="mm-overlay-warning">{translate('menu.homepage_text')}</div>
+              <div className="mm-overlay-text">
+                {translate('menu.about_text', { VERSION, commitVersion })}
+              </div>
             </div>
-            <div style={{
-              position: 'absolute',
-              width: "96%",
-              margin: '2% 2%',
-              color: "#fff",
-              fontSize: "20px",
-              backgroundColor: 'rgba(0, 0, 0, 0.3)',
-              textShadow: "2px 2px 4px rgba(0, 0, 0, 0.5)",
-              whiteSpace: "pre-wrap"
-            }}>
-              {translate('menu.homepage_text')}
-            </div>
-            <div style={{
-              position: "absolute",
-              bottom: "10px",
-              left: "10px",
-              color: "#fff",
-              fontSize: "12px"
-            }}>
-              © 2025 scarletborder.cn
-            </div>
-            <div style={{
-              position: "absolute",
-              bottom: "10px",
-              right: "10px",
-              color: "#888",
-              fontSize: "12px"
-            }}>
-              {translate('menu.homepage_version')}: v{VERSION} - COMMIT {commitVersion}
-            </div>
-          </>
-        )}
-        {(currentView === 'about') && (
-          <div style={{
-            width: "100%",
-            height: "95%",
-            padding: "20px",
-            background: "rgba(20, 20, 20, 0.35)",
-            color: "#ddd",
-            overflowY: "auto",
-            scrollbarWidth: "thin",
-            scrollbarColor: "#666 #333",
-            whiteSpace: "pre-wrap",// 保留换行和空格
-            WebkitUserSelect: "text", // 针对Chrome/Safari
-            MozUserSelect: "text", // 针对Firefox
-            msUserSelect: "text", // 针对IE10及以上
-            userSelect: "text", // 标准属性
-          }}>
-            <div style={{ marginBottom: "12px", display: "flex", gap: "16px", flexWrap: "wrap" }}>
-              <a
-                href={`${docsBaseUrl}/game-docs/`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "#00ccff", textDecoration: "underline" }}
-              >
-                {translate('menu.docs')}
-              </a>
-              <a
-                href={`${docsBaseUrl}/update-logs/`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "#00ccff", textDecoration: "underline" }}
-              >
-                {translate('menu.updates')}
-              </a>
-            </div>
-            {translate('menu.about_text', {
-              VERSION: VERSION,
-              commitVersion: commitVersion,
-            })}
           </div>
         )}
       </div>
-    </div>
-  );
+    );
+  };
 
   // 根据当前视图渲染不同内容
   return (
@@ -412,32 +299,87 @@ export default function DocFrame({ width, height, setGameParams, gameStart, init
       />}
       {currentView === 'pokedex' && <CodexFrame width={width} height={height} onBack={() => setCurrentView('main')} />}
       {currentView === 'shop' && <Shop width={width} height={height} onBack={() => setCurrentView('main')} />}
+      {currentView === 'inventory' && <InventoryPanel width={width} height={height} onBack={() => setCurrentView('main')} />}
       {currentView === 'settings' && <Settings width={width} height={height} onBack={() => setCurrentView('main')} />}
 
       <style>
         {`
-                    @keyframes frameFadeIn {
-                        from {
-                            opacity: 0;
-                            transform: scale(0.98);
-                        }
-                        to {
-                            opacity: 1;
-                            transform: scale(1);
-                        }
-                    }
-                    
-                    @keyframes frameFadeOut {
-                        from {
-                            opacity: 1;
-                            transform: scale(1);
-                        }
-                        to {
-                            opacity: 0;
-                            transform: scale(0.98);
-                        }
-                    }
-                `}
+          @keyframes frameFadeIn {
+            from { opacity: 0; transform: scale(0.98); }
+            to { opacity: 1; transform: scale(1); }
+          }
+          @keyframes frameFadeOut {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(0.98); }
+          }
+
+          .mm-root { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; color: #f5f5f5; }
+          .mm-vignette {
+            position: absolute; inset: 0; pointer-events: none;
+            background: linear-gradient(90deg, rgba(6,8,12,.86) 0%, rgba(6,8,12,.42) 34%, rgba(6,8,12,.12) 64%, rgba(6,8,12,.62) 100%),
+                        linear-gradient(0deg, rgba(6,8,12,.88) 0%, rgba(6,8,12,0) 48%);
+          }
+          .mm-glow {
+            position: absolute; left: -12%; top: 18%; width: 46%; height: 62%; pointer-events: none;
+            background: radial-gradient(ellipse at center, rgba(190,58,76,.30), rgba(190,58,76,0) 68%);
+          }
+          .mm-brand { position: absolute; left: 5%; top: 7%; pointer-events: none; }
+          .mm-brand-eyebrow { color: #dcae66; font-size: 11px; letter-spacing: .5em; font-weight: 700; }
+          .mm-brand-title {
+            margin-top: 8px; font-size: clamp(22px, 3vw, 42px); font-weight: 900; letter-spacing: .04em;
+            text-shadow: 0 3px 14px rgba(0,0,0,.8);
+          }
+          .mm-brand-line {
+            margin-top: 14px; width: 92px; height: 2px;
+            background: linear-gradient(90deg, #dcae66, rgba(220,174,102,0));
+          }
+          .mm-start {
+            position: absolute; left: 5%; top: 30%;
+            width: clamp(200px, 22%, 280px); height: clamp(150px, 28%, 260px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+            background: linear-gradient(155deg, rgba(126,30,45,.94), rgba(34,12,20,.94));
+            border: 1px solid rgba(224,176,102,.55); border-radius: 3px;
+            box-shadow: 0 20px 45px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.05);
+            color: #fff; cursor: pointer; overflow: hidden;
+            transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+          }
+          .mm-start-frame { position: absolute; inset: 7px; border: 1px solid rgba(224,176,102,.28); pointer-events: none; }
+          .mm-start-kicker { color: #e6c07d; font-size: 11px; letter-spacing: .42em; font-weight: 700; }
+          .mm-start-title { font-size: clamp(24px, 2.2vw, 32px); font-weight: 900; letter-spacing: .1em; white-space: nowrap; text-shadow: 0 3px 10px rgba(0,0,0,.7); }
+          .mm-start-sub { color: #d7c4c7; font-size: 12px; letter-spacing: .08em; text-align: center; padding: 0 18px; }
+          .mm-start-arrow { position: absolute; right: 18px; bottom: 10px; color: #e6c07d; font-size: 26px; line-height: 1; }
+          .mm-start:hover { transform: translateY(-5px); border-color: #f0c884; box-shadow: 0 26px 55px rgba(0,0,0,.55), 0 0 34px rgba(214,92,92,.32); }
+          .mm-nav { position: absolute; right: 3%; bottom: 32px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+          .mm-nav-item {
+            display: flex; align-items: center; gap: 6px; padding: 9px 14px;
+            background: rgba(16,20,26,.76); border: 1px solid rgba(255,255,255,.16); border-radius: 3px;
+            color: #dcdcdc; font-size: 13px; cursor: pointer; backdrop-filter: blur(6px);
+            transition: border-color .2s ease, color .2s ease, background .2s ease, transform .2s ease;
+          }
+          .mm-nav-item:hover { border-color: #e0b46e; color: #fff; background: rgba(126,30,45,.72); transform: translateY(-2px); }
+          .mm-version { position: absolute; left: 5%; bottom: 54px; text-align: left; color: #b8b8b8; font-size: 12px; letter-spacing: .02em; }
+          .mm-copyright { position: absolute; left: 5%; bottom: 28px; text-align: left; color: #8b8b8b; font-size: 12px; }
+          .mm-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(6,8,12,.72); backdrop-filter: blur(8px); padding: 4%; }
+          .mm-overlay-panel {
+            width: min(720px, 92%); max-height: 92%; overflow: auto; padding: 18px 24px;
+            background: linear-gradient(150deg, rgba(32,26,30,.97), rgba(16,18,24,.97));
+            border: 1px solid rgba(224,176,102,.4); border-radius: 4px;
+            box-shadow: 0 24px 60px rgba(0,0,0,.6); color: #e6e6e6;
+            scrollbar-width: thin; scrollbar-color: #777 #333;
+          }
+          .mm-overlay-back { padding: 6px 14px; background: #3a3a3a; border: none; border-radius: 3px; color: #fff; cursor: pointer; font-size: 13px; }
+          .mm-overlay-title { margin: 10px 0 8px; font-size: 22px; color: #f0c884; letter-spacing: .08em; }
+          .mm-overlay-links { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 10px; }
+          .mm-overlay-links a { color: #7cc7e8; text-decoration: underline; font-size: 14px; }
+          .mm-overlay-warning {
+            margin: 0 0 10px; padding: 8px 10px; white-space: pre-wrap; line-height: 1.5;
+            border-left: 3px solid #dcae66; background: rgba(220,174,102,.10);
+            color: #e8d5b0; font-size: 12px;
+          }
+          .mm-overlay-text { white-space: pre-wrap; line-height: 1.6; font-size: 13px; user-select: text; }
+          .mm-mobile .mm-nav-item { padding: 7px 9px; font-size: 11px; }
+          .mm-mobile .mm-start { width: 160px; height: 170px; }
+        `}
       </style>
     </div>
   );
