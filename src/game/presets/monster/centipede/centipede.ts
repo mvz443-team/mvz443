@@ -9,6 +9,7 @@ import type { MonsterDefinition } from "../../../models/entities/MonsterEntity";
 import { BaseMonsterEntity, PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
 import { Faction } from "../../../models/Enum";
+import { effectiveFaction } from "../../../core/logic/FactionRelations";
 import type { Game } from "../../../scenes/Game";
 import { ArcSfx } from "../../../sfx/arc/ArcSfx";
 import { CentipedeSkillSfx } from "../../../sfx/centipede/CentipedeSkillSfx";
@@ -218,7 +219,7 @@ export class CentipedeModel extends PresetMonsterModel {
     }
     ObstacleCmd.createInGrid(MineRockObstacleData.oid, entity.scene, col, row, {
       hp: 300,
-      faction: Faction.ZOMBIE,
+      faction: effectiveFaction(entity) ?? Faction.ZOMBIE,
       summoner: entity,
     });
   }

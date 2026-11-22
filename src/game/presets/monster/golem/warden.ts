@@ -1,6 +1,7 @@
 import { PositionManager } from "../../../managers/view/PositionManager";
 import type { MonsterDefinition } from "../../../models/entities/MonsterEntity";
 import { Faction } from "../../../models/Enum";
+import { effectiveFaction } from "../../../core/logic/FactionRelations";
 import { WardenGolemAnimProps } from "../../../sprite/normal_golem";
 import MobCmd from "../../../utils/cmd/MobCmd";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
@@ -49,7 +50,7 @@ export class WardenModel extends GolemModel {
       damage: 1000,
       distance: 13,
       duration: 3500,
-      faction: Faction.ZOMBIE,
+      faction: effectiveFaction(entity) ?? Faction.ZOMBIE,
       color: 0x39c5bb,
       alphaFrom: 0.4,
       alphaTo: 0.9,

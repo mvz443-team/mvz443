@@ -15,6 +15,8 @@ export const TickEventNameEnums = {
   ProjectileExpire: "ProjectileExpire",
   /** 植物表现帧复位：随 Model 快照回滚，避免 scene.time 产生幽灵表现。 */
   GeneratorResetVisualFrame: "GeneratorResetVisualFrame",
+  /** 魅惑到期：Model 在到期帧清除 charmedBy 并按新阵营重选目标。 */
+  CharmExpired: "CharmExpired",
 } as const;
 
 export type TickEventNameEnums = typeof TickEventNameEnums[keyof typeof TickEventNameEnums];
@@ -22,6 +24,7 @@ export type TickEventNameEnums = typeof TickEventNameEnums[keyof typeof TickEven
 export const DEFAULT_TICK_EVENT_NAMES: readonly TickEventNameEnums[] = [
   TickEventNameEnums.LogicTick,
   TickEventNameEnums.TimerTriggered,
+  TickEventNameEnums.CharmExpired,
 ];
 
 type CallbackBinding = {

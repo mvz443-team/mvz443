@@ -4,6 +4,7 @@ import PlantsManager from "../../../managers/combat/PlantsManager";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import type { MonsterDefinition } from "../../../models/entities/MonsterEntity";
 import { Faction } from "../../../models/Enum";
+import { effectiveFaction } from "../../../core/logic/FactionRelations";
 import { ObsidianGolemAnimProps } from "../../../sprite/normal_golem";
 import { SfxCmd } from "../../../utils/cmd/SfxCmd";
 import { ArcSfx } from "../../../sfx/arc/ArcSfx";
@@ -107,7 +108,7 @@ export class ObsidianGolemModel extends GolemModel {
   private createObstacleAndDamage(entity: BaseGolemEntity, col: number, row: number, hp: number): void {
     ObstacleCmd.createInGrid(ObsidianObstacleData.oid, entity.scene, col, row, {
       hp,
-      faction: Faction.ZOMBIE,
+      faction: effectiveFaction(entity) ?? Faction.ZOMBIE,
       summoner: entity,
     });
     const plants = PlantsManager.Instance.PlantsMap.get(`${col}-${row}`) ?? [];

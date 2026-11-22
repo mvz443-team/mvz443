@@ -128,6 +128,10 @@ export abstract class MonsterModel extends LogicModel {
    * 不再用原型 getter 读非快照配置——否则回滚/重连后无法保留运行时改阵营。
    */
   public faction: Faction = Faction.ZOMBIE;
+  /** 临时魅惑归属；非 null 时覆盖 faction，进快照。 */
+  public charmedBy: Faction | null = null;
+  /** 魅惑到期绝对帧；0 表示未魅惑或永久魅惑。进快照，回滚后与定时器一致。 */
+  public charmUntilFrame: number = 0;
   public get damageThresholds(): readonly number[] { return this.definition.damageThresholds ?? []; }
   public get mountHealthConfig(): number { return this.definition.mountHealth ?? 0; }
   /** 运行时覆盖（测试/特殊变体）；默认读 Definition。 */
@@ -500,6 +504,34 @@ export abstract class MonsterModel extends LogicModel {
     const next = this.pickContactTarget(entity, destroyed);
     if (next && this.retargetAttack(entity, next)) return;
     this.stopAttacking(entity);
+  }
+
+  /**
+   * 阵营（被魅惑）改变后的确定性收尾。
+   *
+   * 当前啃食目标可能刚变成友军：按新的有效阵营重判一次。
+   * 仍敌对则保持；否则按 `attackTargetRank` 全序重选接触目标，`retargetAttack`
+   * 不重建普攻定时器，避免 flush / 渲染时机造成帧差。没有可啃目标才停攻。
+   */
+  public override onCharmChanged(): void {
+    const entity = this.host as MonsterEntity | null;
+    if (!entity || this.isDying || entity.currentHealth <= 0) return;
+
+    if (this.isFrozen) {
+      if (entity.attacking) {
+        this.stopAttacking(entity);
+        entity.stopMove();
+      }
+      return;
+    }
+
+    const current = entity.attacking;
+    if (current && this.isValidAttackTarget(current)) return;
+
+    const next = this.pickContactTarget(entity, current);
+    if (next && this.retargetAttack(entity, next)) return;
+    // 只有原本在啃的目标失效才停攻；本来空闲时不要无谓地重新 startMove。
+    if (current) this.stopAttacking(entity);
   }
 
   /**

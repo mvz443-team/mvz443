@@ -37,7 +37,13 @@ export class MagicPowderModel extends PlantModel {
   /** 种植即结算，不存在存活实体。 */
   public override isOneTimePlant = true;
 
-  public override applyInstantEffect(scene: Game, col: number, row: number, level: number): void {
+  public override applyInstantEffect(
+    scene: Game,
+    col: number,
+    row: number,
+    level: number,
+    faction: Faction = Faction.PLANT,
+  ): void {
     const { x, y } = PositionManager.Instance.getPlantBottomCenter(col, row);
     const damageValue = this.damage.getValueAt(level);
     const rangeWidth = PositionManager.Instance.GRID_SIZEX;
@@ -70,7 +76,7 @@ export class MagicPowderModel extends PlantModel {
         color: 0x00ffff,
         alphaFrom: 0.2,
         alphaTo: 0.1,
-        faction: Faction.PLANT,
+        faction,
       },
     );
   }

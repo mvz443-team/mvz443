@@ -52,7 +52,7 @@ export class ElasticPutinModel extends PlantModel {
   public onCollision(entity: ElasticPutinEntity, target: unknown): boolean {
     if (entity.isSleeping) return false;
     if (!this.isBounceableProjectile(target)) return false;
-    if (target.faction !== entity.faction) return false;
+    if (isHostile(entity, target)) return false;
 
     target.reverseVelocityX();
     if (this.isLightning) {

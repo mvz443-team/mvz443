@@ -47,6 +47,10 @@ export abstract class PlantModel extends LogicModel {
    * Entity 不得用自有字段遮蔽，访问器见 CombatEntity。
    */
   public faction: Faction = Faction.PLANT;
+  /** 临时魅惑归属；非 null 时覆盖 faction，进快照。索敌由 SightLine 动态读取。 */
+  public charmedBy: Faction | null = null;
+  /** 魅惑到期绝对帧；0 表示未魅惑或永久魅惑。进快照，回滚后与定时器一致。 */
+  public charmUntilFrame: number = 0;
 
   public abstract readonly pid: number;
   public abstract readonly nameKey: string;
@@ -150,7 +154,13 @@ export abstract class PlantModel extends LogicModel {
    * 由 `PlantsManager` 在 `isOneTimePlant === true` 时于 defer 回调中直接调用，
    * 不创建 Entity / 物理体，也不注册存活定时器；逻辑必须在同一确定性帧内完成。
    */
-  public applyInstantEffect(_scene: Game, _col: number, _row: number, _level: number): void { }
+  public applyInstantEffect(
+    _scene: Game,
+    _col: number,
+    _row: number,
+    _level: number,
+    _faction: Faction = Faction.PLANT,
+  ): void { }
 
   protected initializeEntity<TEntity extends PlantEntity>(entity: TEntity): TEntity {
     // 模板与实体各自持有 Model 副本；两边都要把配置迁入 config。

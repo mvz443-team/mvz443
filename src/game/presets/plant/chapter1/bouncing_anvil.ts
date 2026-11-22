@@ -12,6 +12,7 @@ import { Faction } from "../../../models/Enum";
 import type { Game } from "../../../scenes/Game";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import DepthHelper from "../../../utils/helper/DepthHelper";
+import { isHostile } from "../../../core/logic/FactionRelations";
 
 const BOUNCING_ANVIL_EVENTS = {
   Land: "BouncingAnvilLand",
@@ -111,7 +112,7 @@ export class BouncingAnvilModel extends PlantModel {
 
   public canTriggerOn(host: ModelHost, target: unknown): boolean {
     if (!(target instanceof MonsterEntity)) return false;
-    if (target.faction === host.faction) return false;
+    if (!isHostile(host, target)) return false;
     if (target.currentHealth <= 0 || target.model.isDying) return false;
     if (target.model.flying || target.model.inVoid) return false;
 
@@ -205,7 +206,7 @@ export class BouncingAnvilModel extends PlantModel {
         if (!(mob instanceof MonsterEntity) || seen.has(mob)) continue;
         seen.add(mob);
 
-        if (mob.faction === host.faction) continue;
+        if (!isHostile(host, mob)) continue;
         if (mob.currentHealth <= 0 || mob.model.isDying || mob.model.inVoid) continue;
         candidates.push(mob);
       }

@@ -19,6 +19,7 @@ import type { ModelHost } from "../../../core/logic/LogicModel";
 import { DEFAULT_TICK_EVENT_NAMES } from "../../../core/logic/TickEvents";
 import type { JsonValue } from "../../../core/SimulationState";
 import MobManager from "../../../managers/combat/MobManager";
+import { isHostile } from "../../../core/logic/FactionRelations";
 
 type VaultingMonster = MonsterEntity & {
   canVaultOverPlant?: (target: PlantEntity) => boolean;
@@ -72,7 +73,7 @@ export class TntMinesModel extends PlantModel {
   public handleContact(host: TntMinesEntity, target: unknown): TntContactResult {
     if (this.isBuried || this.hasExploded) return "ignore";
     if (!(target instanceof CombatEntity)) return "ignore";
-    if (target.faction === host.faction) return "ignore";
+    if (!isHostile(host, target)) return "ignore";
 
     if (target instanceof MonsterEntity) {
       if (target.model.inVoid) return "ignore";

@@ -9,6 +9,10 @@
 
 /**
  * 快照 / 哈希口径版本。
+ * v11：魅惑剩余时间以绝对帧 `charmUntilFrame` 进入快照与哈希，到期走
+ *      `CharmExpired` tick 事件清除；重连/回滚后端到端按同一帧到期。
+ * v10：植物与怪物新增运行时 `charmedBy` 字段（魅惑覆盖），进入快照与哈希；
+ *      MonsterModel 在阵营变化时按 attackTargetRank 确定性重选目标，不重建普攻定时器。
  * v9：植物与怪物的 `faction` 从非快照配置/Entity 自有字段改为 Model 运行时字段，
  *     随 `flags.model` 进入快照与哈希；敌对判定统一走 `FactionRelations.isHostile()`。
  * v8：投射物序号 `projectile.seq` 进入快照（刷新重连后不能从 1 重新计数）；
@@ -22,7 +26,7 @@
  * v3：跨端哈希只投影确定性逻辑状态，剔除表现消费游标、物理句柄与视觉事件队列。
  * 该值会随心跳上报，服务端用它拒绝新旧客户端混用。
  */
-export const SIMULATION_STATE_VERSION = 9;
+export const SIMULATION_STATE_VERSION = 11;
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };

@@ -338,7 +338,7 @@ export default class PlantsManager extends BaseManager {
       if (!this.scene) return;
       // 一次性植物在确定性帧内直接结算效果，不创建 Entity / 物理体 / 存活定时器。
       if (model.isOneTimePlant) {
-        model.applyInstantEffect(this.scene, col, row, level);
+        model.applyInstantEffect(this.scene, col, row, level, model.faction);
         return;
       }
       // 基本规则：高级植物在这里统一替换 requiredBasePid 指定的基座并继承睡眠。

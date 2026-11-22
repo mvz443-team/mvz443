@@ -63,6 +63,52 @@ export abstract class LogicModel {
   public flying: boolean = false;
   public inVoid: boolean = false;
 
+  /**
+   * 设置/清除临时魅惑归属。
+   *
+   * 字段 `charmedBy` 与 `charmUntilFrame` 由 PlantModel / MonsterModel 声明，
+   * 自动进入快照与哈希；有效阵营由 `FactionRelations.effectiveFaction()` 统一读取。
+   * durationMs <= 0 表示永久魅惑（charmUntilFrame=0，无到期定时器）。
+   * 必须在权威帧（Model tick 事件或 Cmd defer）中调用，禁止挂在 Tween / delayedCall。
+   */
+  public setCharm(faction: number | null, durationMs: number = 0): void {
+    const holder = this as unknown as { charmedBy?: number | null; charmUntilFrame?: number };
+    holder.charmedBy = faction;
+
+    const timed = faction !== null && Number.isFinite(durationMs) && durationMs > 0;
+    if (timed) {
+      const interval = this.tickmanager.frameInterval;
+      holder.charmUntilFrame = this.tickmanager.currentFrame + Math.ceil(durationMs / interval);
+      this.tickmanager.removeByEvent(TickEventNameEnums.CharmExpired);
+      this.tickmanager.schedule(TickEventNameEnums.CharmExpired, durationMs);
+    } else {
+      holder.charmUntilFrame = 0;
+      this.tickmanager.removeByEvent(TickEventNameEnums.CharmExpired);
+    }
+    this.onCharmChanged();
+  }
+
+  /** 剩余毫秒；基于逻辑帧，回滚后一致。0 表示未魅惑或永久魅惑。 */
+  public getCharmLeftMs(): number {
+    const until = (this as unknown as { charmUntilFrame?: number }).charmUntilFrame ?? 0;
+    if (until <= 0) return 0;
+    const left = until - this.tickmanager.currentFrame;
+    return left > 0 ? left * this.tickmanager.frameInterval : 0;
+  }
+
+  /** 到期回调统一清魅惑；setCharm(null) 会触发 onCharmChanged 做重选目标。 */
+  public onCharmExpired(): void {
+    const holder = this as unknown as { charmedBy?: number | null; charmUntilFrame?: number };
+    if (holder.charmedBy === null || holder.charmedBy === undefined) return;
+    const until = holder.charmUntilFrame ?? 0;
+    // 回滚后可能残留旧 timer：未到 untilFrame 的提前触发直接忽略。
+    if (until > 0 && this.tickmanager.currentFrame < until) return;
+    this.setCharm(null);
+  }
+
+  /** 阵营变化后的业务收尾；需要重选目标的 Model 覆写它。 */
+  public onCharmChanged(): void { }
+
   /** 体态的可读描述；仅用于日志与断言，不参与模拟。 */
   public get bodyLayers(): BodyLayers {
     return bodyLayers(this);
@@ -114,6 +160,10 @@ export abstract class LogicModel {
     args: JsonValue = null,
     _timerId?: number,
   ): void {
+    if (eventName === TickEventNameEnums.CharmExpired) {
+      this.onCharmExpired();
+      return;
+    }
     if (eventName === TickEventNameEnums.TimerTriggered) {
       const name = args && typeof args === "object" && !Array.isArray(args)
         ? (args as Record<string, JsonValue>).eventName

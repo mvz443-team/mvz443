@@ -11,6 +11,7 @@ import {
 import { ZombieData } from "../../src/game/presets/monster/zombie/zombie.ts";
 import { attackTargetRank } from "../../src/game/models/MonsterModel.ts";
 import { snapshotModel } from "../../src/game/core/logic/LogicModel.ts";
+import { Faction } from "../../src/game/models/Enum.ts";
 
 /**
  * 描述（Zombie）：
@@ -145,6 +146,60 @@ test("护盾被别处打碎时同样接力同格内部植物", () => {
 
   tick(sim, 200);
   assert.equal(entity.attacking, null);
+});
+
+test("魅惑改阵营后按有效阵营重选目标，不重建普攻定时器", () => {
+  const sim = resetSim();
+  const { model, entity } = spawnMob(ZombieData, { col: 8, row: 2 });
+  const shield = makePlantTarget({ col: 7, row: 2, hp: 100, pid: 19 });
+  const inner = makePlantTarget({ col: 7, row: 2, hp: 200, pid: 1 });
+  inner.faction = Faction.PLAYER2;
+  getPlantsMap().set("7-2", [shield, inner]);
+
+  assert.equal(model.tryStartAttack(entity, shield), true);
+  assert.equal(attackTimerCount(model), 1);
+
+  // 魅惑到 PLANT：原目标(PLANT)变成友军，同格 PLAYER2 植物成为新敌人。
+  model.setCharm(Faction.PLANT);
+  assert.equal(entity.attacking, inner);
+  assert.equal(model.attackingId, inner.SnapshotId);
+  assert.equal(attackTimerCount(model), 1, "换目标不能重建普攻循环");
+  assert.equal(entity.moveCalls.includes("start"), false);
+
+  // 下一个啃咬帧仍打在新目标上。
+  tick(sim, 200);
+  assert.equal(inner.model.health, 180);
+
+  // 同格再无敌对目标时停攻，并清掉唯一的普攻循环。
+  inner.faction = Faction.PLANT;
+  model.setCharm(Faction.PLANT);
+  assert.equal(entity.attacking, null);
+  assert.equal(attackTimerCount(model), 0);
+});
+
+test("魅惑持续时间按逻辑帧倒计时，到期清除并恢复敌对关系", () => {
+  const sim = resetSim();
+  const { model, entity } = spawnMob(ZombieData, { col: 8, row: 2 });
+  const plant = makePlantTarget({ col: 7, row: 2, hp: 200, pid: 1 });
+  getPlantsMap().set("7-2", [plant]);
+
+  assert.equal(model.tryStartAttack(entity, plant), true);
+  model.setCharm(Faction.PLANT, 400); // 8 帧（50ms/帧）
+
+  assert.equal(entity.attacking, null, "魅惑后同阵营植物不再是目标");
+  assert.equal(attackTimerCount(model), 0);
+  assert.equal(model.charmUntilFrame > 0, true);
+  assert.equal(snapshotModel(model).charmUntilFrame, model.charmUntilFrame);
+
+  tick(sim, 350);
+  assert.equal(model.charmedBy, Faction.PLANT, "未到期仍保持魅惑");
+  assert.equal(model.getCharmLeftMs(), 50);
+
+  tick(sim, 50);
+  assert.equal(model.charmedBy, null);
+  assert.equal(model.charmUntilFrame, 0);
+  assert.equal(model.getCharmLeftMs(), 0);
+  assert.equal(attackTimerCount(model), 0);
 });
 
 /** 统计本 Model 的普攻循环定时器数量（重连/多次碰撞都只能有 1 条）。 */

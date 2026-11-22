@@ -9,7 +9,7 @@ const { isHostile } = await import('./FactionRelations.ts');
 const { DispenserData } = await import('../../presets/plant/chapter1/dispenser.ts');
 const { BalloonTntCloneData } = await import('../../presets/monster/summon/balloon_tnt_clone.ts');
 
-function stateWithFaction(faction) {
+function stateWithFaction(faction, charmedBy = null, charmUntilFrame = 0) {
   return {
     version: SIMULATION_STATE_VERSION,
     seed: 1,
@@ -21,7 +21,7 @@ function stateWithFaction(faction) {
     entities: [{
       kind: 'monster', id: 'entity_1', col: 0, row: 0, x: 0, y: 0,
       hp: 100, maxHp: 100, speed: 0,
-      flags: { model: { faction } },
+      flags: { model: { faction, charmedBy, charmUntilFrame } },
       timers: [],
       extra: {},
     }],
@@ -75,6 +75,81 @@ test('cloneLogicModel 保留 faction，且不再依赖非快照 definition gette
   assert.equal('faction' in snapshotModel(clone), true);
 });
 
+test('charmedBy 进快照并随回滚恢复，有效阵营由它覆盖', () => {
+  const mob = BalloonTntCloneData.clone();
+  const plant = DispenserData.clone();
+
+  assert.equal(snapshotModel(mob).charmedBy, null);
+  mob.setCharm(Faction.PLAYER2);
+  plant.setCharm(Faction.ZOMBIE);
+  assert.equal(snapshotModel(mob).charmedBy, Faction.PLAYER2);
+  assert.equal(snapshotModel(plant).charmedBy, Faction.ZOMBIE);
+  assert.equal(isHostile(mob, Faction.PLAYER2), false, '魅惑后与覆盖阵营同属一方');
+  assert.equal(isHostile(mob, Faction.PLANT), true);
+
+  const saved = snapshotModel(mob);
+  const restored = BalloonTntCloneData.clone();
+  restoreModel(restored, saved);
+  assert.equal(restored.charmedBy, Faction.PLAYER2);
+  assert.equal(isHostile(restored, Faction.PLAYER2), false);
+
+  const handle = getLogicHandle(mob);
+  handle.setFrame(1);
+  mob.setCharm(Faction.NEUTRAL);
+  handle.rollbackTo(0);
+  assert.equal(mob.charmedBy, Faction.PLAYER2);
+  plant.setCharm(null);
+  assert.equal(snapshotModel(plant).charmedBy, null);
+});
+
+test('魅惑持续时间是绝对帧字段，进快照并随回滚恢复', () => {
+  const mob = BalloonTntCloneData.clone();
+  const handle = getLogicHandle(mob);
+  handle.setFrame(10);
+  mob.tickmanager.setFrame(10);
+
+  mob.setCharm(Faction.PLAYER2, 1000);
+  const until = mob.charmUntilFrame;
+  assert.equal(until, 10 + Math.ceil(1000 / mob.tickmanager.frameInterval));
+  assert.equal(snapshotModel(mob).charmUntilFrame, until);
+  assert.equal(mob.getCharmLeftMs(), 1000);
+  assert.equal(
+    mob.tickmanager.capture().filter((timer) => timer.kind === 'CharmExpired').length,
+    1,
+    '任何时刻只有一条魅惑到期 timer',
+  );
+
+  // 重复施加只保留最新一条 timer，到期帧更新为较短的那个。
+  mob.setCharm(Faction.PLAYER2, 500);
+  const savedUntil = mob.charmUntilFrame;
+  assert.equal(savedUntil, 10 + Math.ceil(500 / mob.tickmanager.frameInterval));
+  assert.equal(
+    mob.tickmanager.capture().filter((timer) => timer.kind === 'CharmExpired').length,
+    1,
+  );
+
+  const saved = snapshotModel(mob);
+  const restored = BalloonTntCloneData.clone();
+  restoreModel(restored, saved);
+  assert.equal(restored.charmUntilFrame, mob.charmUntilFrame);
+  assert.equal(restored.charmedBy, Faction.PLAYER2);
+
+  handle.setFrame(11);
+  mob.tickmanager.setFrame(11);
+  mob.setCharm(Faction.NEUTRAL, 300);
+  handle.rollbackTo(10);
+  assert.equal(mob.charmedBy, Faction.PLAYER2);
+  assert.equal(mob.charmUntilFrame, savedUntil);
+
+  // 解除魅惑必须同时清掉到期帧与 timer。
+  mob.setCharm(null);
+  assert.equal(mob.charmUntilFrame, 0);
+  assert.equal(
+    mob.tickmanager.capture().filter((timer) => timer.kind === 'CharmExpired').length,
+    0,
+  );
+});
+
 test('faction 进入跨端哈希；不同阵营必然分叉', () => {
   const a = hashSimulationState(stateWithFaction(Faction.PLANT));
   const b = hashSimulationState(stateWithFaction(Faction.ZOMBIE));
@@ -83,6 +158,13 @@ test('faction 进入跨端哈希；不同阵营必然分叉', () => {
   assert.notEqual(a.h32, b.h32);
   assert.notEqual(a.h64, b.h64);
   assert.deepEqual(a, again, '相同阵营两次采样哈希一致');
+
+  const charmed = hashSimulationState(stateWithFaction(Faction.PLANT, Faction.ZOMBIE));
+  assert.notEqual(charmed.h32, a.h32, '魅惑覆盖必须改变跨端哈希');
+  assert.equal(charmed.h64.length, 16);
+
+  const timed = hashSimulationState(stateWithFaction(Faction.PLANT, Faction.ZOMBIE, 42));
+  assert.notEqual(timed.h32, charmed.h32, '魅惑到期帧必须改变跨端哈希');
 });
 
 test('恢复快照后敌对判定同步改变，回滚后战斗关系一致', () => {

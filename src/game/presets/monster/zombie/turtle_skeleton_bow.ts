@@ -2,6 +2,7 @@ import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { ArrowModel } from "../../bullet/arrow";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { Faction } from "../../../models/Enum";
+import { effectiveFaction } from "../../../core/logic/FactionRelations";
 import type { Game } from "../../../scenes/Game";
 import type { JsonValue } from "../../../core/SimulationState";
 import { DEFAULT_TICK_EVENT_NAMES } from "../../../core/logic/TickEvents";
@@ -69,7 +70,7 @@ export class TurtleSkeletonBowModel extends SkeletonBowModel {
     if (!entity || entity.currentHealth <= 0) return;
     ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
       damage: 90,
-      faction: Faction.ZOMBIE,
+      faction: effectiveFaction(entity) ?? Faction.ZOMBIE,
       speed: -legacyRapierVelocityToUnitsPerSecond(320),
     });
   }
