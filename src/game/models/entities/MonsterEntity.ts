@@ -513,6 +513,9 @@ export class PresetMonsterModel extends MonsterModel {
       equipment: freezeEquipmentSet(def.equipment),
     });
     this.setConfigValue("definition", definition);
+    // 阵营是运行时快照字段（见 MonsterModel.faction），构造时就从 definition 注入，
+    // 模板与 clone 都带上正确阵营；不再靠原型 getter 读非快照 config。
+    this.faction = def.faction ?? Faction.ZOMBIE;
   }
 
   public getWeight(waveID: number): number {

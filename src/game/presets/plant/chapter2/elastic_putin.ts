@@ -9,6 +9,7 @@ import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import { CollisionContext } from "../../../types";
 import { Faction } from "../../../models/Enum";
+import { isHostile } from "../../../core/logic/FactionRelations";
 
 type BounceableProjectile = {
   faction: Faction;
@@ -73,7 +74,8 @@ export class ElasticPutinModel extends PlantModel {
   }
 
   public canExtendSightLineFor(faction: Faction): boolean {
-    return this.health > 0 && !this.isSleeping && faction === Faction.PLANT;
+    // 只给"与己方非敌对"的射线延长视野；魅惑/PvP 改阵营后不再写死 PLANT。
+    return this.health > 0 && !this.isSleeping && !isHostile(this, faction);
   }
 
   private isBounceableProjectile(target: unknown): target is BounceableProjectile {

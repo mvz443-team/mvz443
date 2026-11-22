@@ -89,7 +89,7 @@ export class ATDispenserModel extends PlantModel {
       row: () => entity.GetRow(),
       direction: 1,
       maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
-      excludeFactions: [entity.faction],
+      excludeSelf: true,
     });
 
     entity.model.tickmanager.addEvent({

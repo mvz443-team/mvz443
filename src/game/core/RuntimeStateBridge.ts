@@ -27,6 +27,7 @@ import { registerEntityLookupProvider } from "./EntityLookup";
 import { logicEvents } from "./logic/LogicEvents";
 import { ObstacleLibrary } from "../managers/library/ObstacleLibrary";
 import { Faction } from "../models/Enum";
+import { isFaction } from "./logic/FactionRelations";
 import { setAuthoritativeFrame } from "./logic/EntityTickManager";
 
 let installed = false;
@@ -189,9 +190,7 @@ function reconcileObstacles(snapshots: EntityLogicState[], context: RestoreConte
       continue;
     }
     const factionRaw = Number(snapshot.flags.faction);
-    const faction = factionRaw === Faction.PLANT || factionRaw === Faction.NEUTRAL
-      ? factionRaw
-      : Faction.ZOMBIE;
+    const faction = isFaction(factionRaw) ? factionRaw : Faction.ZOMBIE;
     const rebuilt = model.createEntity(scene, snapshot.col, snapshot.row, {
       hp: Number(snapshot.hp) || 1,
       faction,

@@ -9,6 +9,8 @@
 
 /**
  * 快照 / 哈希口径版本。
+ * v9：植物与怪物的 `faction` 从非快照配置/Entity 自有字段改为 Model 运行时字段，
+ *     随 `flags.model` 进入快照与哈希；敌对判定统一走 `FactionRelations.isHostile()`。
  * v8：投射物序号 `projectile.seq` 进入快照（刷新重连后不能从 1 重新计数）；
  *     `TimerTriggered` 定时器恢复改为沿用本机重建句柄，不再跨端沿用源端句柄。
  * v7：投射物使用确定性 `projectile:<seq>` 身份，运行时 faction/debuff/穿透关系
@@ -20,7 +22,7 @@
  * v3：跨端哈希只投影确定性逻辑状态，剔除表现消费游标、物理句柄与视觉事件队列。
  * 该值会随心跳上报，服务端用它拒绝新旧客户端混用。
  */
-export const SIMULATION_STATE_VERSION = 8;
+export const SIMULATION_STATE_VERSION = 9;
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };

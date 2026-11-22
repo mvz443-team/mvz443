@@ -59,7 +59,7 @@ export class PumpkinModel extends PlantModel {
       row: () => entity.row,
       direction: 1,
       maxDistance: this.attackDistance * PositionManager.Instance.GRID_SIZEX,
-      excludeFactions: [entity.faction],
+      excludeSelf: true,
       reach: { tiny: true },
       ignoreBounce: true,
     });

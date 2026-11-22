@@ -62,7 +62,7 @@ export class SmallDispenserModel extends PlantModel {
       row: () => entity.GetRow(),
       direction: 1,
       maxDistance: maxDistanceGrid * PositionManager.Instance.GRID_SIZEX,
-      excludeFactions: [entity.faction],
+      excludeSelf: true,
       // 雪球能打到潜水僵尸的非攻击态（tiny），判定线必须同样覆盖低矮层。
       reach: { tiny: true },
     });

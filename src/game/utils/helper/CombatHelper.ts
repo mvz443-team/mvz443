@@ -2,6 +2,7 @@ import MobManager from "../../managers/combat/MobManager";
 import PlantsManager from "../../managers/combat/PlantsManager";
 import { PositionManager } from "../../managers/view/PositionManager";
 import { Faction } from "../../models/Enum";
+import { effectiveFaction, isHostile } from "../../core/logic/FactionRelations";
 
 
 
@@ -20,14 +21,12 @@ namespace CombatHelper {
   }
 
   export function HasFactionBetween(faction: Faction, range: Range): boolean {
-    if (faction === Faction.PLANT) {
-      // 遍历 PlantsManager 中的所有植物
-      for (const plants of PlantsManager.Instance.PlantsMap.values()) {
-        for (const plant of plants) {
-          // 检查植物的 col 是否在范围内
-          if (isPointInRange(plant.col, range)) {
-            return true;
-          }
+    // 遍历 PlantsManager 中的所有植物；阵营比较统一走 effectiveFaction，
+    // 兼容被魅惑后临时改阵营的植物与 PvP 的 player1/player2。
+    for (const plants of PlantsManager.Instance.PlantsMap.values()) {
+      for (const plant of plants) {
+        if (effectiveFaction(plant) === faction && isPointInRange(plant.col, range)) {
+          return true;
         }
       }
     }
@@ -36,14 +35,10 @@ namespace CombatHelper {
 
   // 仅在指定行上检查是否存在指定阵营，减少判断开销
   export function HasFactionBetweenSingleRow(faction: Faction, range: Range, row: number): boolean {
-    if (faction === Faction.PLANT) {
-      // 直接遍历指定行的植物
-      for (const plants of PlantsManager.Instance.PlantsMap.values()) {
-        for (const plant of plants) {
-          // 检查植物是否在指定行，以及其 col 是否在范围内
-          if (plant.row === row && isPointInRange(plant.col, range)) {
-            return true;
-          }
+    for (const plants of PlantsManager.Instance.PlantsMap.values()) {
+      for (const plant of plants) {
+        if (plant.row === row && effectiveFaction(plant) === faction && isPointInRange(plant.col, range)) {
+          return true;
         }
       }
     }
@@ -76,7 +71,7 @@ namespace CombatHelper {
     // 检查敌方单位
     const rows = MobManager.Instance.MobsByLane.get(row) ?? [];
     for (const mob of rows) {
-      if (mob.faction !== myFaction && mob.x >= minX && mob.x <= maxX) {
+      if (isHostile(myFaction, mob) && mob.x >= minX && mob.x <= maxX) {
         return true;
       }
     }
@@ -86,7 +81,7 @@ namespace CombatHelper {
       for (const plant of plants) {
         if (
           plant.row === row &&
-          plant.faction !== myFaction &&
+          isHostile(myFaction, plant) &&
           plant.x >= minX &&
           plant.x <= maxX
         ) {
@@ -100,49 +95,29 @@ namespace CombatHelper {
 
   // 为发射系列的植物提供一个专门的接口，检查指定范围内是否存在，以决定是否发射
   export function HasFactionOnRow(faction: Faction, row: number): boolean {
-    let flag = false;
     const rows = MobManager.Instance.MobsByLane.get(row) ?? [];
     for (const mob of rows) {
-      if (mob.faction === faction) {
-        flag = true;
-        break;
+      if (effectiveFaction(mob) === faction) return true;
+    }
+    for (const plants of PlantsManager.Instance.PlantsMap.values()) {
+      for (const plant of plants) {
+        if (plant.row === row && effectiveFaction(plant) === faction) return true;
       }
     }
-    if (!flag) {
-      // 考虑植物
-      for (const plants of PlantsManager.Instance.PlantsMap.values()) {
-        for (const plant of plants) {
-          if (plant.row === row && plant.faction === faction) {
-            flag = true;
-            break;
-          }
-        }
-      }
-    }
-    return flag;
+    return false;
   }
 
   export function HasEnemyFactionOnRow(myFaction: Faction, row: number): boolean {
-    let flag = false;
     const rows = MobManager.Instance.MobsByLane.get(row) ?? [];
     for (const mob of rows) {
-      if (mob.faction !== myFaction) {
-        flag = true;
-        break;
+      if (isHostile(myFaction, mob)) return true;
+    }
+    for (const plants of PlantsManager.Instance.PlantsMap.values()) {
+      for (const plant of plants) {
+        if (plant.row === row && isHostile(myFaction, plant)) return true;
       }
     }
-    if (!flag) {
-      // 考虑植物
-      for (const plants of PlantsManager.Instance.PlantsMap.values()) {
-        for (const plant of plants) {
-          if (plant.row === row && plant.faction !== myFaction) {
-            flag = true;
-            break;
-          }
-        }
-      }
-    }
-    return flag;
+    return false;
   }
 
   // 辅助函数：检查点是否在范围内

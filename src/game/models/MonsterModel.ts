@@ -18,6 +18,7 @@ import {
   type BuffKind,
 } from "../core/logic/Buffs";
 import { Faction } from "./Enum";
+import { isHostile } from "../core/logic/FactionRelations";
 import PlantHelper from "../utils/helper/PlantHelper";
 import {
   isCarrierPlantPid,
@@ -121,8 +122,12 @@ export abstract class MonsterModel extends LogicModel {
   public get habitats(): readonly TerrainHabitat[] { return this.definition.habitats ?? DEFAULT_HABITATS; }
   /** 木船僵尸：无论出生行地形如何都挂载木船表现；普通怪在水面行仍按地形自动挂船。 */
   public get boatMounted(): boolean { return this.definition.boatMounted ?? false; }
-  /** 阵营：普通怪物是 ZOMBIE；友方召唤物（气球TNT分身）是 PLANT。 */
-  public get faction(): Faction { return this.definition.faction ?? Faction.ZOMBIE; }
+  /**
+   * 阵营，进快照。普通出怪为 ZOMBIE；星碎召唤的气球TNT分身为 PLANT；
+   * PvP 中公共出怪为 NEUTRAL。由 `PresetMonsterModel` 构造时从 definition 注入，
+   * 不再用原型 getter 读非快照配置——否则回滚/重连后无法保留运行时改阵营。
+   */
+  public faction: Faction = Faction.ZOMBIE;
   public get damageThresholds(): readonly number[] { return this.definition.damageThresholds ?? []; }
   public get mountHealthConfig(): number { return this.definition.mountHealth ?? 0; }
   /** 运行时覆盖（测试/特殊变体）；默认读 Definition。 */
@@ -579,7 +584,7 @@ export abstract class MonsterModel extends LogicModel {
   public canStartAttack(target: BaseEntity): boolean {
     if (!(target instanceof CombatEntity)) return false;
     if (target.currentHealth <= 0) return false;
-    if (target.faction === Faction.ZOMBIE) return false;
+    if (!isHostile(this, target)) return false;
     if ((target as { hasExploded?: boolean }).hasExploded) return false;
     const targetLayers = readBodyLayers(target);
     if (targetLayers.flying && !this.flying) return false;
@@ -603,7 +608,7 @@ export abstract class MonsterModel extends LogicModel {
 
   public onCollision(entity: MonsterEntity, ctx: CollisionContext): void {
     const target = ctx.targetEntity as unknown as BaseEntity;
-    if (target && (target as any).faction !== undefined && (target as any).faction !== Faction.ZOMBIE) {
+    if (target && (target as any).faction !== undefined && isHostile(this, target)) {
       this.tryStartAttack(entity, target);
     }
   }

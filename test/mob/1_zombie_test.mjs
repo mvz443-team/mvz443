@@ -166,7 +166,7 @@ function retargetPidWithOrder(order) {
   return entity.attacking?.pid ?? null;
 }
 
-test("怪物 Definition 配置不进快照，getter 仍可读", () => {
+test("怪物 Definition 配置不进快照，faction 作为运行时字段进快照", () => {
   resetSim();
   const { model } = spawnMob(ZombieData, { col: 8, row: 2 });
   const snapshot = snapshotModel(model);
@@ -185,7 +185,6 @@ test("怪物 Definition 配置不进快照，getter 仍可读", () => {
     "mountHealthConfig",
     "mountDamagePriority",
     "canDrown",
-    "faction",
     "damageThresholds",
     "tickEventNames",
   ]) {
@@ -196,6 +195,10 @@ test("怪物 Definition 配置不进快照，getter 仍可读", () => {
   assert.equal(model.maxHealth, 300);
   assert.equal(model.baseAttackDamage, 20);
   assert.equal(model.damageThresholds.length, 1);
+
+  // v9：阵营是运行时可回滚字段，必须随 Model 快照落地。
+  assert.equal(snapshot.faction, 2); // Faction.ZOMBIE
+  assert.equal(model.faction, 2);
 });
 
 test("同格接力目标与 PlantsMap 数组顺序无关（重连重建顺序不同不会分叉）", () => {

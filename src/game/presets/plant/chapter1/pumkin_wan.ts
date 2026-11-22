@@ -86,7 +86,7 @@ export class PumpkinWanModel extends PlantModel {
       originX: () => entity.x - this.startOffset.getValueAt(entity.level) * PositionManager.Instance.GRID_SIZEX,
       direction: 1,
       maxDistance: this.attackDistance.getValueAt(entity.level) * PositionManager.Instance.GRID_SIZEX,
-      excludeFactions: [entity.faction],
+      excludeSelf: true,
       reach: { tiny: true, flying: canAttackFlying },
       ignoreBounce: true,
     });

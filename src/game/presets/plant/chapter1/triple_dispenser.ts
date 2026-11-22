@@ -41,7 +41,7 @@ export class TripleDispenserModel extends PlantModel {
       rowOffsets: [-1, 0, 1],
       direction: 1,
       maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
-      excludeFactions: [entity.faction],
+      excludeSelf: true,
     });
 
     entity.model.tickmanager.addEvent({

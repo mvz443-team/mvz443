@@ -17,6 +17,7 @@ import {
 } from "../../src/game/presets/monster/summon/balloon_tnt_clone.ts";
 import { ZombieData } from "../../src/game/presets/monster/zombie/zombie.ts";
 import { PositionManager } from "../harness/sim.mjs";
+import { snapshotModel } from "../../src/game/core/logic/LogicModel.ts";
 
 /**
  * 描述（balloon_tnt_description）：
@@ -191,6 +192,8 @@ test("分身：200 血、向右飞、不索敌、刚进入最右列即爆炸", (
   assert.equal(clone.model.maxHealth, 200);
   assert.equal(clone.model.health, 200);
   assert.equal(clone.model.faction, 1); // Faction.PLANT
+  // v9：阵营是 Model 运行时字段，重连/回滚后必须能恢复。
+  assert.equal(snapshotModel(clone.model).faction, 1);
   assert.equal(clone.model.flying, true);
   assert.equal(clone.model.speed < 0, true);
   assert.equal(clone.model.canStartAttack({ faction: 2, currentHealth: 100 }), false);
@@ -213,6 +216,8 @@ test("分身：200 血、向右飞、不索敌、刚进入最右列即爆炸", (
   const explosions = ProjectileCmd.calls.filter((call) => call.kind === "explosion");
   assert.equal(explosions.length, 1);
   assert.equal(explosions[0].cfg.damage, clone.model.explosionDamage);
+  // 爆炸归属跟随分身的有效阵营（PLANT），而不是写死常量旁路。
+  assert.equal(explosions[0].cfg.faction, 1);
 });
 
 test("分身移动方向反转后，最后一格判定跟随 speed 而不是硬编码最右列", () => {

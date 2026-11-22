@@ -43,7 +43,7 @@ export class DoubleDispenserModel extends PlantModel {
       row: () => entity.GetRow(),
       directions: [-1, 1],
       maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
-      excludeFactions: [entity.faction],
+      excludeSelf: true,
     });
 
     entity.model.tickmanager.addEvent({

@@ -5,6 +5,7 @@ import { BaseEntity } from "./core/BaseEntity";
 import { PlantEntity } from "./entities/PlantEntity";
 import { LogicModel } from "../core/logic/LogicModel";
 import { isShieldPlantPid, pickShieldPlant } from "../utils/helper/PlantTargeting";
+import { Faction } from "./Enum";
 
 /** 可种植的地块类型白名单取值（与 GridProperty.type 对应）。 */
 export type PlantSlot = 'ground' | 'water' | 'sky';
@@ -40,6 +41,12 @@ export abstract class PlantModel extends LogicModel {
   public fuse: number = 0;
   public explosionDamage: number = 0;
   public customExplodeDamage: number = 0;
+
+  /**
+   * 植物阵营，进快照。PvE 恒为 PLANT；PvP 中由种植者决定（PLAYER1 / PLAYER2）。
+   * Entity 不得用自有字段遮蔽，访问器见 CombatEntity。
+   */
+  public faction: Faction = Faction.PLANT;
 
   public abstract readonly pid: number;
   public abstract readonly nameKey: string;

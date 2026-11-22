@@ -16,7 +16,17 @@ export abstract class CombatEntity extends BaseEntity implements IDamageable {
   public set maxHealth(value: number) {
     if (this.model) (this.model as unknown as Record<string, unknown>).healthMax = value;
   }
-  public faction: Faction;
+  /**
+   * 阵营实际存储在 Model；这里只提供兼容访问器。
+   * 不能用自有字段遮蔽，否则 `attachModelAccessors` 会跳过，阵营无法进入快照。
+   */
+  public get faction(): Faction {
+    return (this.model as { faction?: Faction } | null)?.faction ?? Faction.PLANT;
+  }
+  public set faction(value: Faction) {
+    const model = this.model as unknown as { faction?: Faction } | null;
+    if (model) model.faction = value;
+  }
 
   public ExtraData: Record<string, any> = {}; // 用于存储额外数据，供子类使用
 

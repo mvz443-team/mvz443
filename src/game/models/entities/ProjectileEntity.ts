@@ -7,6 +7,7 @@ import { ProjectileConfig, ProjectileModel } from "../projectiles/ProjectileMode
 import { Faction } from "../Enum";
 import { _Typedebuffs } from "../../../constants/game";
 import { PROJECTILE_RELATION_FIELDS } from "../../core/logic/LogicRelations";
+import { isHostile } from "../../core/logic/FactionRelations";
 import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
 import type { ExplosionConfig } from "../projectiles/ProjectileModels";
 
@@ -67,7 +68,7 @@ export abstract class ProjectileEntity<T extends ProjectileModel<any, any>> exte
     // 基本条件过滤
     if (!ctx.targetEntity.takeDamage) return; // 不是可受击对象
     if (this.hasAttackedSet.has(ctx.targetEntity)) return; // 已经攻击过
-    if (ctx.targetEntity.faction === this.faction) return; // 阵营不符
+    if (!isHostile(this, ctx.targetEntity)) return; // 阵营不符（统一走 FactionRelations）
 
     // 体态判定（tiny / flying / void）由 Model 与 BodyTraits 统一负责。
     if (!this.model.canHit(ctx.targetEntity)) return;

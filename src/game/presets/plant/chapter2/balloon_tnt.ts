@@ -8,6 +8,7 @@ import { readBodyLayers } from "../../../core/logic/BodyTraits";
 import type { JsonValue } from "../../../core/SimulationState";
 import type { CollisionContext } from "../../../types";
 import { Faction } from "../../../models/Enum";
+import { effectiveFaction, isHostile } from "../../../core/logic/FactionRelations";
 import MobCmd from "../../../utils/cmd/MobCmd";
 import DepthHelper from "../../../utils/helper/DepthHelper";
 import { BALLOON_TNT_CLONE_MID } from "../../monster/summon/balloon_tnt_clone";
@@ -129,7 +130,7 @@ export class BalloonTntModel extends PlantModel {
     const mob = target as PlantEntity | null;
     if (!mob || typeof mob.x !== "number") return false;
     if ((mob.currentHealth ?? 0) <= 0) return false;
-    if (mob.faction !== Faction.ZOMBIE) return false;
+    if (!isHostile(this, mob)) return false;
     return readBodyLayers(mob).flying;
   }
 
@@ -169,7 +170,7 @@ export class BalloonTntModel extends PlantModel {
       rightGrid: 1.5,
       upGrid: 1,
       downGrid: 1,
-      faction: Faction.PLANT,
+      faction: effectiveFaction(entity) ?? Faction.PLANT,
       dealer: entity,
     }, entity.x, undefined, entity.row);
 

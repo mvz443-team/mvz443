@@ -36,7 +36,7 @@ export class DispenserModel extends PlantModel {
       row: () => entity.GetRow(),
       direction: 1,
       maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
-      excludeFactions: [entity.faction],
+      excludeSelf: true,
     });
 
     // 启动普通发射定时器

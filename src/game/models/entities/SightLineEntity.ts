@@ -8,6 +8,7 @@ import { CollisionContext } from "../../types";
 import { BaseEntity } from "../core/BaseEntity";
 import { CombatEntity } from "../core/CombatEntity";
 import { canReachBody, readBodyLayers, type BodyLayers } from "../../core/logic/BodyTraits";
+import { effectiveFaction } from "../../core/logic/FactionRelations";
 import { Faction } from "../Enum";
 
 export type SightLineDirection = -1 | 1;
@@ -19,6 +20,11 @@ export type SightLineOptions = {
   maxDistance?: number;
   includeFactions?: Faction[];
   excludeFactions?: Faction[];
+  /**
+   * 排除 owner 当前的有效阵营。替代 preset 里写死的 `excludeFactions:[entity.faction]`：
+   * 后者在 owner 被魅惑改阵营后仍是旧值，会让射线继续把自己人当目标。
+   */
+  excludeSelf?: boolean;
   /**
    * 这条判定线（= 该植物的攻击）能到达的体态层，
    * 与投射物共用 `BodyTraits.canReachBody()`。省略表示只到普通地面目标。
@@ -104,8 +110,10 @@ export class SightLineEntity extends BaseEntity {
   private readonly maxDistance: number;
   private readonly includeFactions?: Set<Faction>;
   private readonly excludeFactions?: Set<Faction>;
+  private readonly excludeSelf: boolean;
   private readonly reach: BodyLayers;
-  private readonly ignoreBounce: boolean;
+  /** 显式配置；undefined 时按 owner 当前阵营动态推导，避免重建/魅惑后读到旧值。 */
+  private readonly ignoreBounceOverride: boolean | undefined;
   private readonly candidates: Set<CombatEntity> = new Set();
   private lineLength = 1;
   private lastRequestedX = Number.NaN;
@@ -129,12 +137,13 @@ export class SightLineEntity extends BaseEntity {
     this.maxDistance = maxDistance;
     this.includeFactions = options.includeFactions ? new Set(options.includeFactions) : undefined;
     this.excludeFactions = options.excludeFactions ? new Set(options.excludeFactions) : undefined;
+    this.excludeSelf = options.excludeSelf ?? false;
     this.reach = {
       tiny: options.reach?.tiny === true,
       flying: options.reach?.flying === true,
       inVoid: options.reach?.inVoid === true,
     };
-    this.ignoreBounce = options.ignoreBounce ?? this.owner.faction === Faction.ZOMBIE;
+    this.ignoreBounceOverride = options.ignoreBounce;
 
     this.buildView();
     this.buildPhysics();
@@ -174,7 +183,7 @@ export class SightLineEntity extends BaseEntity {
     if (!SightLineEntity.isValidRow(row)) return false;
 
     const originX = this.getOriginX();
-    const reflectors = this.ignoreBounce
+    const reflectors = this.shouldIgnoreBounce()
       ? undefined
       : PlantsManager.Instance.GetSightLineReflectorsByLane(row) as SightLineReflector[];
 
@@ -213,7 +222,7 @@ export class SightLineEntity extends BaseEntity {
     const row = this.getRow();
     if (!SightLineEntity.isValidRow(row)) return [];
     const originX = this.getOriginX();
-    const reflectors = this.ignoreBounce
+    const reflectors = this.shouldIgnoreBounce()
       ? undefined
       : PlantsManager.Instance.GetSightLineReflectorsByLane(row) as SightLineReflector[];
 
@@ -307,16 +316,27 @@ export class SightLineEntity extends BaseEntity {
   ): boolean {
     if (target === this.owner) return false;
     if (target.currentHealth <= 0) return false;
-    if (!this.matchFaction(target.faction)) return false;
+    if (!this.matchFaction(effectiveFaction(target), effectiveFaction(this.owner))) return false;
     if (!canReachBody(this.reach, readBodyLayers(target))) return false;
     if (target.GetRow() !== row) return false;
 
     return this.isInBaseRay(target.x, originX) || this.isInBounceRay(target, originX, reflectors);
   }
 
-  private matchFaction(faction: Faction): boolean {
+  /**
+   * 每次查询都读取 owner 当前有效阵营，而不是构造时缓存。
+   * checkpoint 重建实体时 `onCreate` 先于 `restoreSnapshot` 执行，
+   * 缓存值会停留在模板阵营；这里动态推导可保证回滚后判定一致。
+   */
+  private shouldIgnoreBounce(): boolean {
+    return this.ignoreBounceOverride ?? effectiveFaction(this.owner) === Faction.ZOMBIE;
+  }
+
+  private matchFaction(faction: Faction | null, ownerFaction: Faction | null): boolean {
+    if (faction === null) return false;
     if (this.includeFactions && !this.includeFactions.has(faction)) return false;
     if (this.excludeFactions?.has(faction)) return false;
+    if (this.excludeSelf && ownerFaction !== null && faction === ownerFaction) return false;
     return true;
   }
 
@@ -327,9 +347,11 @@ export class SightLineEntity extends BaseEntity {
 
   private isInBounceRay(target: CombatEntity, originX: number, reflectors?: SightLineReflector[]): boolean {
     if (!reflectors || reflectors.length === 0) return false;
+    const ownerFaction = effectiveFaction(this.owner);
+    if (ownerFaction === null) return false;
 
     for (const reflector of reflectors) {
-      if (!reflector.canExtendSightLineFor?.(this.owner.faction)) continue;
+      if (!reflector.canExtendSightLineFor?.(ownerFaction)) continue;
 
       const toReflector = (reflector.x - originX) * this.direction;
       if (toReflector < 0 || toReflector > this.maxDistance) continue;

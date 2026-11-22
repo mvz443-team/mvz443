@@ -13,6 +13,7 @@ import { CollisionContext } from "../../types";
 import { ProjectileCmd } from "../../utils/cmd/ProjectileCmd";
 import { LogicModel } from "../../core/logic/LogicModel";
 import { registerProjectileModel } from "../../utils/cmd/ProjectileModelRegistry";
+import { isHostile } from "../../core/logic/FactionRelations";
 
 export interface MineCartStandConfig {
   onLost?: (row: number) => void;
@@ -74,7 +75,8 @@ export class MineCartStandEntity extends BaseEntity {
     if (!(ctx.targetEntity instanceof CombatEntity)) {
       return;
     }
-    if (ctx.targetEntity.faction === Faction.PLANT) {
+    // 矿车支架属于植物方；只过滤非敌对目标，NEUTRAL 公共出怪也要触发。
+    if (!isHostile(Faction.PLANT, ctx.targetEntity)) {
       return;
     }
 

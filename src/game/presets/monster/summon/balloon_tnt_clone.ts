@@ -4,6 +4,7 @@ import type { ModelHost } from "../../../core/logic/LogicModel";
 import type { CollisionContext } from "../../../types";
 import { MonsterEntity, PresetMonsterModel, type MonsterDefinition } from "../../../models/entities/MonsterEntity";
 import { Faction } from "../../../models/Enum";
+import { effectiveFaction, isHostile } from "../../../core/logic/FactionRelations";
 import { MonsterSpeed } from "../../../../constants/game";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { createBalloonTntAnimController } from "../../../models/monster/anims/LegacyMonsterAnimControllers";
@@ -48,7 +49,8 @@ export class BalloonTntCloneModel extends PresetMonsterModel {
     if (entity.currentHealth <= 0) return;
 
     const target = ctx.targetEntity as BaseEntity | undefined;
-    if (!target || target.faction !== Faction.ZOMBIE) return;
+    // 分身是 PLANT 阵营的飞行召唤物：僵尸是敌人；PvP 中 NEUTRAL 公共出怪也是敌人。
+    if (!target || !isHostile(this, target)) return;
     if ((target.currentHealth ?? 0) <= 0) return;
 
     this.explode(entity);
@@ -77,7 +79,8 @@ export class BalloonTntCloneModel extends PresetMonsterModel {
       rightGrid: 1.5,
       upGrid: 1,
       downGrid: 1,
-      faction: Faction.PLANT,
+      // 爆炸归属跟随分身的有效阵营；魅惑/PvP 改阵营后仍然正确。
+      faction: effectiveFaction(entity) ?? Faction.PLANT,
       dealer: entity,
     });
 

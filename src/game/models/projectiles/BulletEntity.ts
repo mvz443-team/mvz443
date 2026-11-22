@@ -8,6 +8,7 @@ import { CombatEntity } from "../core/CombatEntity";
 import { PlantEntity } from "../entities/PlantEntity";
 import { ProjectileEntity } from "../entities/ProjectileEntity";
 import { BulletConfig, BulletModel } from "./ProjectileModels";
+import { isHostile } from "../../core/logic/FactionRelations";
 
 export class BulletEntity extends ProjectileEntity<BulletModel> {
   /** 逻辑字段全部在 Model 上；Entity 只保留视图与物理胶水。 */
@@ -131,7 +132,7 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
     // Basic filtering.
     if (!ctx.targetEntity.takeDamage) return;
     if (this.hasAttackedSet.has(ctx.targetEntity)) return;
-    if (ctx.targetEntity.faction === this.faction) return;
+    if (!isHostile(this, ctx.targetEntity)) return;
 
     // Height / flying / void filters：统一走 Model 的体态判定。
     if (!this.model.canHit(ctx.targetEntity)) return;
