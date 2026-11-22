@@ -13,7 +13,8 @@ import type { PlantEntity } from "../../models/entities/PlantEntity";
 
 type CursorManagerEvent = {
   // cursor只管有在某个格子有‘尝试种植’事件发生，具体种植什么 或 是否种植成功 由其他mangager负责
-  onAttemptPlant: (col: number, row: number) => void;
+  // 返回值表示本地校验是否通过：true=已发起种植，可清除选中；false=本地失败，保留当前卡槽
+  onAttemptPlant: (col: number, row: number) => boolean;
   onAttemptUseStarShards: (col: number, row: number, aspect: 'up' | 'down') => void;
   onAttemptRemovePlant: (col: number, row: number, aspect: 'up' | 'down') => void;
 }
@@ -279,9 +280,11 @@ export default class CursorManager extends BaseManager {
       if (col >= 0 && row >= 0) {
         // CAUTION : && PlantsManager.Instance.canPlant(choice.prePlantPid[0], col, row) 
         // 判断是否能够种植逻辑放在了PlantsManager里，CursorManager只负责发出尝试种植的事件，具体能不能种成功由PlantsManager根据规则判断后决定
-        this.EventBus.emit('onAttemptPlant', col, row);
-        // 取消Choice
-        CardpileManager.Instance.cancelSelection();
+        const [plantAccepted] = this.EventBus.emit('onAttemptPlant', col, row);
+        // 仅本地校验通过、真正发起种植时才清除选中；本地失败时保留卡槽，方便玩家直接改点其它格子
+        if (plantAccepted) {
+          CardpileManager.Instance.cancelSelection();
+        }
       }
     }
   }

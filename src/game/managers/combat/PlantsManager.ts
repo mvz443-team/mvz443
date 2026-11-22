@@ -447,22 +447,22 @@ export default class PlantsManager extends BaseManager {
     this.EventBus.emit('onDetermineRemovePlant', targetPlant.pid, col, row);
   }
 
-  handleAttemptPlant = (col: number, row: number) => {
+  handleAttemptPlant = (col: number, row: number): boolean => {
     const [pid, level] = CardpileManager.Instance.prePlantPid || [];
-    if (pid === undefined || level === undefined) return;
+    if (pid === undefined || level === undefined) return false;
     // cardpile是否有这张牌，以及是否正在冷却
-    if (!CardpileManager.Instance.isCardDisplayReloaded(pid)) return;
+    if (!CardpileManager.Instance.isCardDisplayReloaded(pid)) return false;
 
     // 阳光是否存在
     const model = PlantLibrary.GetModel(pid);
     if (!model) {
       console.error(`[AttemptPlant] Failed to attempt plant: Plant with pid ${pid} does not exist.`);
-      return;
+      return false;
     }
     const cost = model.cost.getValueAt(level);
     if (!ResourceManager.Instance.EnergySufficient(cost, 'mine')) {
       this.EventBus.emit('onEnergyInsufficient');
-      return;
+      return false;
     }
 
     const existedPlants = this.PlantsMap.get(`${col}-${row}`) || [];
@@ -472,9 +472,10 @@ export default class PlantsManager extends BaseManager {
     if (!targetGridProperty) return false;
 
     // 格子允许种植
-    if (!PlantHelper.CanPlantInGrid(existedPlants, pid, targetGridProperty, model)) return;
+    if (!PlantHelper.CanPlantInGrid(existedPlants, pid, targetGridProperty, model)) return false;
 
     // 种植
     this.EventBus.emit('onDeterminePlant', pid, level, col, row, cost);
+    return true;
   }
 }
