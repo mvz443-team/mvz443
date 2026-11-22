@@ -56,7 +56,10 @@ export class TurtleSkeletonBowModel extends SkeletonBowModel {
   }
 
   public override onHeadBroken(entity: MonsterEntity): void {
+    if (this.buffApplied) return;
+    this.buffApplied = true;
     this.speed = this.originalSpeed * 2;
+    if (!this.attackingId && !this.isFrozen) entity.startMove();
     for (let i = 0; i < SHELL_BURST_COUNT; i++) {
       this.tickmanager.schedule(TURTLE_SHELL_EVENTS.Burst, SHELL_BURST_INTERVAL_MS * i);
     }
