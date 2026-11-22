@@ -83,7 +83,7 @@ export abstract class MediumMonsterModel extends PresetMonsterModel {
   }
 
   /** 兼容旧 mountHealth 字段的坐骑定义；新 preset 可直接写 equipment.mount。 */
-  protected get mountDef(): EquipmentDef | null {
+  public get mountDef(): EquipmentDef | null {
     const explicit = this.definition.equipment?.mount;
     if (explicit) return { ...explicit, priority: this.mountDamagePriority };
 

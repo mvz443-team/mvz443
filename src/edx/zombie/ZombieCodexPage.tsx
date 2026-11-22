@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { CSSProperties } from 'react';
 import EdxPreviewHost from '../preview/EdxPreviewHost';
 import type { EdxPreviewSelection } from '../preview/edxPreviewConfig';
 import {
@@ -8,11 +9,12 @@ import {
   getMonsterCodexEntry,
   normalizeLocale,
   pickLocalized,
-  readMonsterStatRows,
-  readMonsterTraits,
+  readMonsterDetailSections,
+  readMonsterEquipmentSlots,
   type MonsterCodexEntry,
   type MonsterCodexGroup,
 } from '../data/monsterCodex';
+import EquipmentSlotGrid from './EquipmentSlotGrid';
 
 interface Props {
   width: number;
@@ -20,23 +22,30 @@ interface Props {
   onBack: () => void;
 }
 
-const GROUP_ORDER: MonsterCodexGroup[] = [
-  'zombie',
-  'armored',
-  'ranged',
-  'special',
-  'water',
-  'flying',
-  'summon',
-  'elite',
-  'boss',
-];
+const GROUP_ORDER: MonsterCodexGroup[] = ['medium', 'mutant', 'golem', 'boss', 'special'];
+
+const SECTION_TITLE_STYLE: CSSProperties = {
+  color: '#8d979d',
+  fontSize: '12px',
+  letterSpacing: '1px',
+  marginBottom: '4px',
+};
+
+const STAT_CARD_STYLE: CSSProperties = {
+  background: '#333a3f',
+  borderRadius: '5px',
+  padding: '8px 10px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '2px',
+};
 
 /**
  * 僵尸图鉴。
  *
- * 左栏按类型分组列出所有怪物（数据来自 MonsterLibrary 的 preset 表），
- * 右栏展示 Phaser 行动预览、数值与机制描述；预览里怪物会自己走向前排队友并开打。
+ * 左栏按类型分组列出怪物（中型僵尸 / 突变僵尸 / 傀儡 / BOSS / 特殊），
+ * 右栏展示 Phaser 行动预览、标题与描述、装备格与数值，最后逐行列出技能。
+ * 数值全部从 preset Model 与装备定义读取，不在图鉴里写死。
  */
 export default function ZombieCodexPage({ width, height, onBack }: Props) {
   const { t, i18n } = useTranslation();
@@ -61,6 +70,17 @@ export default function ZombieCodexPage({ width, height, onBack }: Props) {
     () => (selected ? { mode: 'monster', mid: selected.mid } : null),
     [selected?.mid],
   );
+
+  const sections = useMemo(
+    () => (selected ? readMonsterDetailSections(selected.mid, selected.group, locale) : []),
+    [selected?.mid, locale],
+  );
+  const slots = useMemo(
+    () => (selected ? readMonsterEquipmentSlots(selected.mid) : null),
+    [selected?.mid],
+  );
+  const showSlotGrid = selected?.group === 'medium' && slots !== null;
+  const skills = selected?.skills ?? [];
 
   return (
     <div style={{
@@ -169,7 +189,7 @@ export default function ZombieCodexPage({ width, height, onBack }: Props) {
         </div>
       </div>
 
-      {/* 右栏：预览 + 数值 + 描述 */}
+      {/* 右栏：预览 + 标题/描述 + 装备格与数值 + 技能 */}
       <div style={{
         flex: 1,
         minWidth: 0,
@@ -184,7 +204,7 @@ export default function ZombieCodexPage({ width, height, onBack }: Props) {
         overflow: 'hidden',
       }}>
         <div style={{
-          flex: '0 0 50%',
+          flex: '0 0 42%',
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
@@ -226,51 +246,73 @@ export default function ZombieCodexPage({ width, height, onBack }: Props) {
               {pickLocalized(selected.description, locale)}
             </div>
 
-            {readMonsterTraits(selected.mid, locale).length > 0 ? (
-              <div style={{ marginBottom: '12px' }}>
-                <div style={{ color: '#8d979d', fontSize: '12px', marginBottom: '4px' }}>
-                  {t('edx.traits')}
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+              {showSlotGrid ? (
+                <div style={{ flex: '0 0 5%', minWidth: '64px', maxWidth: '110px' }}>
+                  <EquipmentSlotGrid slots={slots!} />
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {readMonsterTraits(selected.mid, locale).map((trait) => (
-                    <span key={trait} style={{
-                      fontSize: '12px',
-                      color: '#e6d8a8',
-                      background: '#3a3524',
-                      border: '1px solid #5a5133',
-                      borderRadius: '4px',
-                      padding: '2px 8px',
+              ) : null}
+
+              <div style={{
+                flex: '1 1 auto',
+                minWidth: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+              }}>
+                {sections.map((section) => (
+                  <div key={section.key}>
+                    {sections.length > 1 ? (
+                      <div style={SECTION_TITLE_STYLE}>
+                        {t(`edx.section_${section.key}`)}
+                      </div>
+                    ) : null}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                      gap: '8px',
                     }}>
-                      {trait}
-                    </span>
+                      {section.rows.map((row) => (
+                        <div
+                          key={`${section.key}-${row.labelKey}`}
+                          style={row.labelKey === 'mount_rule'
+                            ? { ...STAT_CARD_STYLE, gridColumn: '1 / -1' }
+                            : STAT_CARD_STYLE}
+                        >
+                          <span style={{ fontSize: '11px', color: '#8d979d' }}>
+                            {t(`edx.stat_${row.labelKey}`)}
+                          </span>
+                          <span style={{ fontSize: '15px', fontWeight: 700, color: '#f0f4f6' }}>
+                            {row.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {skills.length > 0 ? (
+              <div style={{ marginTop: '12px' }}>
+                <div style={SECTION_TITLE_STYLE}>{t('edx.skills')}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {skills.map((skill) => (
+                    <div
+                      key={skill.name.zh_CN}
+                      style={{ display: 'flex', gap: '8px', alignItems: 'baseline', lineHeight: 1.5 }}
+                    >
+                      <span style={{ flex: '0 0 auto', color: '#e6d8a8', fontWeight: 700 }}>
+                        {pickLocalized(skill.name, locale)}
+                      </span>
+                      <span style={{ color: '#c8ced2' }}>
+                        {pickLocalized(skill.description, locale)}
+                      </span>
+                    </div>
                   ))}
                 </div>
               </div>
             ) : null}
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-              gap: '8px',
-            }}>
-              {readMonsterStatRows(selected.mid, locale).map((row) => (
-                <div key={row.labelKey} style={{
-                  background: '#333a3f',
-                  borderRadius: '5px',
-                  padding: '8px 10px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '2px',
-                }}>
-                  <span style={{ fontSize: '11px', color: '#8d979d' }}>
-                    {t(`edx.stat_${row.labelKey}`)}
-                  </span>
-                  <span style={{ fontSize: '15px', fontWeight: 700, color: '#f0f4f6' }}>
-                    {row.value}
-                  </span>
-                </div>
-              ))}
-            </div>
           </div>
         ) : (
           <div style={{ paddingTop: '20px', textAlign: 'center', color: '#888' }}>
