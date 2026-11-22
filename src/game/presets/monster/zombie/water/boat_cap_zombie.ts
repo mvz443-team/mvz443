@@ -1,5 +1,5 @@
 import type { Game } from "../../../../scenes/Game";
-import { CapZombieModel, CapZombieEntity } from "../cap_zombie";
+import { CAP_HELMET, CapZombieModel, CapZombieEntity } from "../cap_zombie";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../../constants/game";
 
 /** 木船帽僵尸：复用帽子装备逻辑，仅改为水生 + 木船。 */
@@ -18,6 +18,7 @@ export const BoatCapZombieData = new CapZombieModel({
   attackDamage: 20,
   attackInterval: ZombieAttackInterval.CapZombie,
   damageThresholds: [150],
+  equipment: { head: CAP_HELMET },
   createEntity: (scene: Game, col: number, row: number, model, waveID: number) =>
     new CapZombieEntity(scene, col, row, model as CapZombieModel, waveID),
 });

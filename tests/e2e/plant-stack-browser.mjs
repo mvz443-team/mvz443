@@ -232,6 +232,69 @@ try {
     };
   `, 'stack-S19.png');
 
+  await run('S20_mediumEquipmentView', `
+    const game = window.__MVZ443_GAME__;
+    const managers = game.ManagerGroup ?? [];
+    const mm = managers.find((m) => m?.constructor?.name === 'MobManager');
+    const dm = managers.find((m) => m?.constructor?.name === 'DeferredManager');
+    const { default: MobCmd } = await import('/src/game/utils/cmd/MobCmd.ts');
+    const mid = 11;
+    MobCmd.Spawn(mid, game, 8, 2, 1);
+    dm.flush();
+    const entity = [...(mm.MobsByLane.get(2) ?? [])].find((m) => m.model.mid === mid);
+    if (!entity) return { error: 'mob missing' };
+    const shield = entity.attachSprites.get('attach/hd_shield');
+    const axe = entity.attachSprites.get('attach/hd_axe');
+    const before = { shield: entity.model.shieldHealth, health: entity.model.health };
+    entity.takeDamage(100, undefined, {
+      model: { hitKind: 'bullet' },
+      rigidBody: { linvel: () => ({ x: 100 }) },
+    });
+    return {
+      keys: [...entity.attachSprites.keys()],
+      shieldVisible: shield?.visible ?? null,
+      axeVisible: axe?.visible ?? null,
+      before,
+      after: { shield: entity.model.shieldHealth, health: entity.model.health },
+    };
+  `, 'stack-S20.png');
+
+  await run('S21_divingMask', `
+    const game = window.__MVZ443_GAME__;
+    const managers = game.ManagerGroup ?? [];
+    const mm = managers.find((m) => m?.constructor?.name === 'MobManager');
+    const dm = managers.find((m) => m?.constructor?.name === 'DeferredManager');
+    const { default: MobCmd } = await import('/src/game/utils/cmd/MobCmd.ts');
+    const mid = 27;
+    MobCmd.Spawn(mid, game, 8, 2, 1);
+    dm.flush();
+    const entity = [...(mm.MobsByLane.get(2) ?? [])].find((m) => m.model.mid === mid);
+    if (!entity) return { error: 'diving zombie missing' };
+    const goggles = entity.attachSprites.get('diving_goggles');
+    const snorkel = entity.attachSprites.get('diving_snorkel');
+    const before = {
+      head: entity.model.equipment.head.health,
+      body: entity.model.health,
+      gogglesVisible: goggles?.visible ?? null,
+      snorkelVisible: snorkel?.visible ?? null,
+      genericMaskSprite: entity.attachSprites.has('attach/diving_goggles'),
+    };
+    entity.takeDamage(100, undefined, {
+      model: { hitKind: 'bullet' },
+      rigidBody: { linvel: () => ({ x: 100 }) },
+    });
+    return {
+      before,
+      after: {
+        head: entity.model.equipment.head.health,
+        body: entity.model.health,
+        gogglesVisible: goggles?.visible ?? null,
+        snorkelVisible: snorkel?.visible ?? null,
+      },
+      keys: [...entity.attachSprites.keys()],
+    };
+  `, 'stack-S21.png');
+
   await run('S15_S16_zombieBite', `
     ${SETUP}
     gm.setSingleGridProperty(col, row, { type: 'water' });
@@ -272,6 +335,14 @@ try {
   for (const [name, value] of Object.entries(results)) {
     if (value?.restX !== undefined) {
       console.log(name, '=> rest', value.restX, 'held', value.heldX, 'reset', value.resetX);
+      continue;
+    }
+    if (value?.before?.head !== undefined && value?.after?.head !== undefined) {
+      console.log(name, '=> head', value.before.head, '->', value.after.head, 'body', value.before.body, '->', value.after.body, 'genericMask', value.before.genericMaskSprite);
+      continue;
+    }
+    if (value?.before && value?.after && !Array.isArray(value.before)) {
+      console.log(name, '=> shield', value.before.shield, '->', value.after.shield, 'health', value.before.health, '->', value.after.health);
       continue;
     }
     const cell = value?.after ?? value?.cell ?? [];

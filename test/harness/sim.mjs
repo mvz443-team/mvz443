@@ -315,7 +315,13 @@ export function spawnMob(data, {
   entity.startAttacking = (target) => model.tryStartAttack(entity, target);
   entity.stopAttacking = () => model.stopAttacking(entity);
   entity.hurtTarget = () => model.hurtTarget(entity);
-  entity.takeDamage = (amount, dealer, source) => model.takeDamage(entity, amount, dealer, source);
+  entity.takeDamage = (amount, dealer, source) => {
+    if (typeof model.takeMediumDamage === "function") {
+      model.takeMediumDamage(entity, amount, dealer, source);
+    } else {
+      model.takeDamage(entity, amount, dealer, source);
+    }
+  };
   entity.destroySelf = () => { entity.destroyed = true; };
   entity.destroy = () => { entity.destroyed = true; };
   entity.setVelocityX = (value) => { entity.velocityX = value; };

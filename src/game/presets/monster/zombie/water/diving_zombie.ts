@@ -1,13 +1,23 @@
 import type { Game } from "../../../../scenes/Game";
 import type { BaseEntity } from "../../../../models/core/BaseEntity";
-import { PresetMonsterModel, type MonsterEntity } from "../../../../models/entities/MonsterEntity";
-import { BaseZombieEntity } from "../zombie";
+import type { MonsterEntity } from "../../../../models/entities/MonsterEntity";
+import { BaseZombieEntity, ZombieModel } from "../zombie";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../../constants/game";
 import { PositionManager } from "../../../../managers/view/PositionManager";
 import DepthHelper from "../../../../utils/helper/DepthHelper";
+import type { EquipmentDef } from "../../../../models/equipment/Equipment";
 
 /** 潜水波纹的两个独立图层，错相播放形成游动感。 */
 const RIPPLE_KEYS = ["diving_ripple_a", "diving_ripple_b"] as const;
+
+/** 氧气面罩：100 血，吸收 10% 伤害；视觉由 Entity 的两层自定义挂点负责。 */
+const DIVING_MASK: EquipmentDef = {
+  key: "attach/diving_goggles",
+  maxHealth: 100,
+  thresholds: [],
+  absorbRatio: 0.1,
+  viewless: true,
+};
 
 /**
  * 潜水僵尸：普通僵尸套上潜水镜与呼吸管两个独立图层，血量/速度与原版一致。
@@ -18,7 +28,7 @@ const RIPPLE_KEYS = ["diving_ripple_a", "diving_ripple_b"] as const;
  *
  * tiny 在 Model 里切换并自动进快照；视图只经 syncViewFromModel() 单向同步。
  */
-export class DivingZombieModel extends PresetMonsterModel {
+export class DivingZombieModel extends ZombieModel {
   /** 仅在 tryStartAttack 的同步调用栈内为真：优先级换目标会先 stopAttacking，此处抑制潜水。 */
   public suppressingDive = false;
 
@@ -114,8 +124,12 @@ export class DivingZombieEntity extends BaseZombieEntity {
     if (!goggles || !snorkel) return;
     const gridX = PositionManager.Instance.GRID_SIZEX;
     const gridY = PositionManager.Instance.GRID_SIZEY;
-    goggles.setPosition(head.x - gridX * 0.1, head.y);
-    snorkel.setPosition(head.x + gridX * 0.1, head.y - gridX * 0.06);
+    goggles.setPosition(head.x, head.y);
+    snorkel.setPosition(head.x + gridX * 0.2, head.y - gridX * 0.06);
+    const mask = this.model.equipment.head;
+    const maskAlive = !mask || (!mask.broken && mask.health > 0);
+    goggles.setVisible(maskAlive);
+    snorkel.setVisible(maskAlive);
     // 波纹跟随头部下方；Tween 只改 alpha/scaleX，不与每帧位置同步冲突。
     for (const key of RIPPLE_KEYS) {
       this.attachSprites.get(key)?.setPosition(head.x, head.y + gridY * 0.24);
@@ -164,6 +178,7 @@ export const DivingZombieData = new DivingZombieModel({
   attackDamage: 20,
   attackInterval: ZombieAttackInterval.Zombie,
   damageThresholds: [150],
+  equipment: { head: DIVING_MASK },
   createEntity: (scene, col, row, model, waveID) =>
     new DivingZombieEntity(scene, col, row, model as DivingZombieModel, waveID),
 });

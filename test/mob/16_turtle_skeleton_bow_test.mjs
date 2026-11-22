@@ -42,14 +42,13 @@ test("龟壳破碎后速度翻倍并连射 5 发 90 伤害箭", () => {
   const originalSpeed = model.originalSpeed;
   model.health = 2_000;
 
-  assert.equal(model.shieldKey, "attach/turtle");
-  assert.equal(model.shieldHealth, 375);
-  assert.equal(model.shieldDef.damageScale, 0.5);
-  assert.equal(model.shieldBreakOverflow(entity, 800, 400), 800);
+  assert.equal(model.helmetKey, "attach/turtle");
+  assert.equal(model.helmetHealth, 375);
+  assert.equal(model.helmetDef.damageScale, 0.5);
 
-  assert.equal(model.absorbShieldDamage(entity, 800), true);
-  assert.equal(model.shieldHealth, 0);
-  assert.equal(model.shieldBroken, true);
+  assert.equal(model.absorbHelmetDamage(entity, 800), true);
+  assert.equal(model.helmetHealth, 0);
+  assert.equal(model.helmetBroken, true);
   assert.equal(model.speed, originalSpeed * 2);
   assert.equal(model.health, 1_200);
 

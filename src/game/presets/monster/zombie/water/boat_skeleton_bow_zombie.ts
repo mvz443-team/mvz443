@@ -1,5 +1,5 @@
 import type { Game } from "../../../../scenes/Game";
-import { SkeletonBowModel } from "../../../../models/entities/BaseSkeletonBowEntity";
+import { BOW_WEAPON, SkeletonBowModel } from "../../../../models/entities/BaseSkeletonBowEntity";
 import { SkeletonBowEntity } from "../skeleton_bow";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../../constants/game";
 
@@ -18,6 +18,7 @@ export const BoatSkeletonBowZombieData = new SkeletonBowModel({
   baseSpeed: MonsterSpeed.SkeletonBow,
   attackDamage: 25,
   attackInterval: ZombieAttackInterval.SkeletonBow,
+  equipment: { mainHand: BOW_WEAPON },
   createEntity: (scene: Game, col: number, row: number, model, waveID: number) =>
     new SkeletonBowEntity(scene, col, row, model as SkeletonBowModel, waveID),
 });

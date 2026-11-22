@@ -20,6 +20,7 @@ import SoundCmd from "../../utils/cmd/SoundCmd";
 import { MONSTER_PRNG_FIELDS, MONSTER_RELATION_FIELDS } from "../../core/logic/LogicRelations";
 import { defaultRandom } from "../../../utils/random";
 import { applyMonsterDrowning } from "../../core/logic/Drowning";
+import type { EquipmentDef } from "../equipment/Equipment";
 
 type DeathSmokeSpawn = {
   x: number;
@@ -433,6 +434,30 @@ export type MonsterRank = "normal" | "elite" | "boss";
 /** 坐骑存在时谁来吃 bullet / laser；explosion 恒定同时结算二者。 */
 export type MountDamagePriority = "rider" | "mount";
 
+export type MediumEquipmentSet = {
+  head?: EquipmentDef;
+  mainHand?: EquipmentDef;
+  offHand?: EquipmentDef;
+  mount?: EquipmentDef;
+};
+
+/** 冻结中型怪物装备定义，避免运行时改写静态配置。 */
+function freezeEquipmentSet(equipment?: MediumEquipmentSet): MediumEquipmentSet | undefined {
+  if (!equipment) return undefined;
+  const frozen: Record<string, EquipmentDef> = {};
+  for (const [slot, def] of Object.entries(equipment)) {
+    if (!def) continue;
+    Object.freeze(def.thresholds);
+    if (def.visual) Object.freeze(def.visual);
+    if (def.blockHitKinds) Object.freeze(def.blockHitKinds);
+    if (def.pierceHitKinds) Object.freeze(def.pierceHitKinds);
+    if (def.absorbHitKinds) Object.freeze(def.absorbHitKinds);
+    if (def.mountPierceHitKinds) Object.freeze(def.mountPierceHitKinds);
+    frozen[slot] = Object.freeze(def);
+  }
+  return Object.freeze(frozen) as MediumEquipmentSet;
+}
+
 export type MonsterDefinition = {
   readonly mid: number;
   readonly nameKey: string;
@@ -465,6 +490,8 @@ export type MonsterDefinition = {
   readonly canDrown?: boolean;
   /** 阵营；默认为僵尸。友方召唤物（例如气球TNT分身）可以配成 PLANT。 */
   readonly faction?: Faction;
+  /** 中型怪物装备槽；不配置时沿用旧 mountHealth/vehicleHealth 字段。 */
+  readonly equipment?: MediumEquipmentSet;
   /** 骨架弓手类：箭伤害与射击间隔。 */
   readonly arrowDamage?: number;
   readonly arrowInterval?: number;
@@ -479,6 +506,7 @@ export class PresetMonsterModel extends MonsterModel {
       ...def,
       habitats: Object.freeze([...normalizeHabitats(def.habitats)]),
       damageThresholds: Object.freeze([...(def.damageThresholds ?? [])]),
+      equipment: freezeEquipmentSet(def.equipment),
     });
     this.setConfigValue("definition", definition);
   }

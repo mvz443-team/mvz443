@@ -53,6 +53,17 @@ Manager、Cmd 使用测试替身。逻辑统一按 50ms/帧推进，与游戏平
 - 静态配置与快照分离：植物配置在实体初始化时迁入非枚举 `config`；
   怪物配置来自不可变 `MonsterDefinition`；`tickEventNames` 是原型 getter。
   三者都不进入 `snapshotModel()`，但 getter API 保持不变。
+- 中型怪物（僵尸/骷髅/卫道士/唤魔者）共用 `MediumMonsterModel` / `MediumMonsterEntity`：
+  `head` / `mainHand` / `offHand` 装备槽 + `mount` 字段；伤害路由为
+  `mount → offHand → head → body`。木盾只挡正面 bullet；laser/explosion
+  同时伤害木盾和本体；头部破碎默认溢出，`immuneOverkill` 可丢弃超杀。
+  武器耐久：axe 450、pickaxe 20、bow 300，每次命中/射击 -1。
+- `BalloonTntClone` 是星之碎片召唤物，继承 `PresetMonsterModel` / `MonsterEntity`，
+  不属于中型怪物，也不参与中型装备/伤害路由。
+- 潜水僵尸氧气面罩是 `head` 槽：100 血、`absorbRatio=0.1`，小伤害按
+  10% 面罩 / 90% 本体分摊；面罩破碎后按头部溢出规则进入本体。
+  面罩视觉仍由 `DivingZombieEntity` 的潜水镜/呼吸管自定义图层负责，槽位标记
+  `viewless`，不会重复创建通用装备 sprite。
 - `PumpkinWan` 是高级植物，必须种在阴森南瓜头上（`requiredBasePid=9`）；
   普通激光覆盖以自身为中心的 3x3，9 级扩大到 5x5
   （前后各 2.5 格、上下各 2 行）；星碎爆炸范围不随等级扩大，

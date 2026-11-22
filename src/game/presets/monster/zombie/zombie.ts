@@ -1,14 +1,15 @@
-import { PresetMonsterModel, StagedBodyMonsterEntity } from "../../../models/entities/MonsterEntity";
 import { createZombieAnimController } from "../../../models/monster/anims/LegacyMonsterAnimControllers";
+import { MediumMonsterModel } from "../../../models/monster/MediumMonsterModel";
+import { MediumMonsterEntity } from "../../../models/entities/MediumMonsterEntity";
 import type { Game } from "../../../scenes/Game";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
 
+export class ZombieModel extends MediumMonsterModel { }
 
-export class BaseZombieEntity extends StagedBodyMonsterEntity {
-  declare protected damageThresholds: number[];
-
-  public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
-    super(scene, col, row, model, waveID);  }
+export class BaseZombieEntity extends MediumMonsterEntity {
+  public constructor(scene: Game, col: number, row: number, model: MediumMonsterModel, waveID: number) {
+    super(scene, col, row, model, waveID);
+  }
 
   protected createAnimController() {
     return createZombieAnimController("zombie", this.scene, this.x, this.y);
@@ -16,12 +17,12 @@ export class BaseZombieEntity extends StagedBodyMonsterEntity {
 }
 
 export class ZombieEntity extends BaseZombieEntity {
-  public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
+  public constructor(scene: Game, col: number, row: number, model: ZombieModel, waveID: number) {
     super(scene, col, row, model, waveID);
   }
 }
 
-export const ZombieData = new PresetMonsterModel({
+export const ZombieData = new ZombieModel({
   mid: 1,
   nameKey: "Zombie",
   level: 1,
@@ -32,5 +33,5 @@ export const ZombieData = new PresetMonsterModel({
   attackDamage: 20,
   attackInterval: ZombieAttackInterval.Zombie,
   damageThresholds: [150],
-  createEntity: (scene, col, row, model, waveID) => new ZombieEntity(scene, col, row, model, waveID),
+  createEntity: (scene, col, row, model, waveID) => new ZombieEntity(scene, col, row, model as ZombieModel, waveID),
 });

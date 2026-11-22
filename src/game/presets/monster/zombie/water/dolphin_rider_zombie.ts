@@ -1,8 +1,6 @@
 import type { Game } from "../../../../scenes/Game";
-import type { BaseEntity } from "../../../../models/core/BaseEntity";
 import type { MonsterEntity } from "../../../../models/entities/MonsterEntity";
-import { PresetMonsterModel } from "../../../../models/entities/MonsterEntity";
-import { BaseZombieEntity } from "../zombie";
+import { BaseZombieEntity, ZombieModel } from "../zombie";
 import { createZombieAnimController } from "../../../../models/monster/anims/LegacyMonsterAnimControllers";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../../constants/game";
 import { PositionManager } from "../../../../managers/view/PositionManager";
@@ -10,17 +8,11 @@ import DepthHelper from "../../../../utils/helper/DepthHelper";
 
 /**
  * 海豚骑乘僵尸：骑手是普通僵尸，坐骑是 250 血海豚，采用"优先打坐骑"。
- * 坐骑的血量、破碎与伤害路由都在通用 MonsterModel；这里只保留海豚图层与速度回退。
+ * 坐骑血量、破碎与伤害路由都在 MediumMonsterModel；这里只保留海豚图层与速度回退。
  */
-export class DolphinRiderModel extends PresetMonsterModel {
+export class DolphinRiderModel extends ZombieModel {
   public override onMountBroken(_entity: MonsterEntity): void {
     this.speed = MonsterSpeed.Zombie;
-  }
-
-  public override takeDamage(entity: MonsterEntity, amount: number, dealer?: BaseEntity, source?: BaseEntity): void {
-    super.takeDamage(entity, amount, dealer, source);
-    // 骑乘者死亡 → 整体死亡：坐骑层一并清空，避免回滚后残留"无主海豚"。
-    if (this.health <= 0 && this.hasMount()) this.breakMount(entity);
   }
 }
 

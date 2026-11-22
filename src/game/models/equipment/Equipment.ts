@@ -31,13 +31,43 @@ export type EquipmentVisualDef = {
   handObject?: boolean;
 };
 
+export type DamageKind = "melee" | "bullet" | "laser" | "explosion";
+
 export type EquipmentDef = {
   key: string;
   maxHealth: number;
   thresholds: number[];
   damageScale?: number;
   hitSound?: "ironHit" | "leatherHit";
+  /** 已有自定义挂点/图层的装备：槽位只维护状态，不创建通用 sprite。 */
+  viewless?: boolean;
   visual?: EquipmentVisualDef;
+  /** 头部：吸收比例；默认 1（破碎前全部由头部承担）。 */
+  absorbRatio?: number;
+  /** 头部：破碎时是否丢弃超出剩余血量的伤害；默认 false（溢出到本体）。 */
+  immuneOverkill?: boolean;
+  /** 副手：可吸收的命中类型；默认不吸收。 */
+  blockHitKinds?: DamageKind[];
+  /** 副手：只挡移动方向来的攻击。 */
+  blockDirection?: "facing" | "any";
+  /** 副手：这些命中类型会同时伤害副手和本体；默认 laser/explosion。 */
+  pierceHitKinds?: DamageKind[];
+  /** 副手：破碎时溢出策略；默认 overflow。 */
+  overflow?: "overflow" | "discard";
+  /** 副手：破碎时溢出按减伤后（scaled）还是原始伤害（full）。 */
+  breakOverflow?: "scaled" | "full";
+  /** 主手：武器破碎后损失的伤害（当前 attackDamage 已包含武器加成）。 */
+  damageLossOnBreak?: number;
+  /** 主手：每次攻击消耗的耐久；默认 1。 */
+  durabilityPerUse?: number;
+  /** 坐骑：bullet/laser/melee 的优先受体。 */
+  priority?: "rider" | "mount";
+  /** 坐骑：可完全吸收的命中类型。 */
+  absorbHitKinds?: DamageKind[];
+  /** 坐骑：这些命中类型同时伤害坐骑和本体；默认 explosion。 */
+  mountPierceHitKinds?: DamageKind[];
+  /** 坐骑表现类型。 */
+  mountKind?: "boat" | "dolphin" | "balloon";
 };
 
 type ModelCtor = abstract new (...args: any[]) => MonsterModel;
@@ -49,17 +79,21 @@ type DamageSource = BaseEntity | undefined;
 function freezeEquipmentDef(def: EquipmentDef): EquipmentDef {
   Object.freeze(def.thresholds);
   if (def.visual) Object.freeze(def.visual);
+  if (def.blockHitKinds) Object.freeze(def.blockHitKinds);
+  if (def.pierceHitKinds) Object.freeze(def.pierceHitKinds);
+  if (def.absorbHitKinds) Object.freeze(def.absorbHitKinds);
+  if (def.mountPierceHitKinds) Object.freeze(def.mountPierceHitKinds);
   return Object.freeze(def);
 }
 
-function equipmentFrame(health: number, thresholds: number[]): number {
+export function equipmentFrame(health: number, thresholds: readonly number[]): number {
   for (let i = 0; i < thresholds.length; i++) {
     if (health > thresholds[i]) return i;
   }
   return thresholds.length;
 }
 
-function createEquipmentSprite(
+export function createEquipmentSprite(
   entity: BaseMonsterEntity,
   key: string,
   visual: EquipmentVisualDef = {},

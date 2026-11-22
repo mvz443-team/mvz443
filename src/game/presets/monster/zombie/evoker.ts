@@ -1,6 +1,6 @@
 import type { JsonValue } from "../../../../game/core/SimulationState";
 import { DEFAULT_TICK_EVENT_NAMES } from "../../../core/logic/TickEvents";
-import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
+import { MediumMonsterModel } from "../../../models/monster/MediumMonsterModel";
 import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
 import { createZombieAnimController } from "../../../models/monster/anims/LegacyMonsterAnimControllers";
 import type { Game } from "../../../scenes/Game";
@@ -23,7 +23,7 @@ const EVOKER_EVENTS = {
  * Evoker 的召唤逻辑完全在 Model 中：
  * timer 只保存 (ownerId, TickEventNameEnums, TriggerFrame)，到点由 HandleTickEvent 派发。
  */
-export class EvokerModel extends PresetMonsterModel {
+export class EvokerModel extends MediumMonsterModel {
   public override get tickEventNames(): readonly string[] {
     return [
       ...DEFAULT_TICK_EVENT_NAMES,
@@ -95,15 +95,14 @@ export const EvokerData = new EvokerModel({
   attackDamage: 20,
   attackInterval: ZombieAttackInterval.Evoker,
   damageThresholds: [160],
-  createEntity: (scene, col, row, model, waveID) => new EvokerEntity(scene, col, row, model, waveID),
+  createEntity: (scene, col, row, model, waveID) => new EvokerEntity(scene, col, row, model as EvokerModel, waveID),
 });
 
 /** Entity 只负责视图与动画控制器，所有技能决策在 EvokerModel。 */
 export class EvokerEntity extends BaseZombieEntity {
-  declare protected damageThresholds: number[];
-
-  public constructor(scene: Game, col: number, row: number, model: PresetMonsterModel, waveID: number) {
-    super(scene, col, row, model, waveID);  }
+  public constructor(scene: Game, col: number, row: number, model: EvokerModel, waveID: number) {
+    super(scene, col, row, model, waveID);
+  }
 
   protected override createAnimController() {
     return createZombieAnimController("evoker", this.scene, this.x, this.y);

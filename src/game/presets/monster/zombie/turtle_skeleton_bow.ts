@@ -5,13 +5,11 @@ import { Faction } from "../../../models/Enum";
 import type { Game } from "../../../scenes/Game";
 import type { JsonValue } from "../../../core/SimulationState";
 import { DEFAULT_TICK_EVENT_NAMES } from "../../../core/logic/TickEvents";
-import type { MonsterDefinition } from "../../../models/entities/MonsterEntity";
-import { SkeletonBowModel } from "../../../models/entities/BaseSkeletonBowEntity";
-import { BaseSkeletonBowEntity } from "../../../models/entities/BaseSkeletonBowEntity";
+import { BOW_WEAPON, SkeletonBowModel, BaseSkeletonBowEntity } from "../../../models/entities/BaseSkeletonBowEntity";
 import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
 import { legacyRapierVelocityToUnitsPerSecond } from "../../../../constants/physics";
-import { withShieldModel, type EquipmentDef } from "../../../models/equipment/Equipment";
+import type { EquipmentDef } from "../../../models/equipment/Equipment";
 
 const SHELL_BURST_COUNT = 5;
 const SHELL_BURST_INTERVAL_MS = 600;
@@ -20,37 +18,29 @@ const TURTLE_SHELL_EVENTS = {
   Burst: "TurtleShellBurst",
 } as const;
 
-function createTurtleShellDef(): EquipmentDef {
-  return {
-    key: "attach/turtle",
-    maxHealth: 375,
-    thresholds: [250, 125],
-    damageScale: 0.5,
-    hitSound: "leatherHit",
-    visual: {
-      attachment: "fixed",
-      x: 0,
-      y: -PositionManager.Instance.GRID_SIZEY * 1.15,
-      scale: 1.4,
-      depth: 13,
-    },
-  };
-}
-
-const TurtleModelBase = withShieldModel(SkeletonBowModel);
+const TURTLE_SHELL_BOW: EquipmentDef = {
+  key: "attach/turtle",
+  maxHealth: 375,
+  thresholds: [250, 125],
+  damageScale: 0.5,
+  breakOverflow: "full",
+  hitSound: "leatherHit",
+  visual: {
+    attachment: "fixed",
+    x: 0,
+    y: -PositionManager.Instance.GRID_SIZEY * 1.15,
+    scale: 1.4,
+    depth: 13,
+  },
+};
 
 /** 龟壳数值与破碎后连射都在 Model；Entity 只按 Model 状态渲染龟壳。 */
-export class TurtleSkeletonBowModel extends TurtleModelBase {
+export class TurtleSkeletonBowModel extends SkeletonBowModel {
   public override get tickEventNames(): readonly string[] {
     return [
       ...DEFAULT_TICK_EVENT_NAMES,
       TURTLE_SHELL_EVENTS.Burst,
     ];
-  }
-
-  public override onCreate(entity: MonsterEntity): void {
-    super.onCreate(entity);
-    this.equipShield(entity, createTurtleShellDef());
   }
 
   public override handleTickEvent(
@@ -65,12 +55,7 @@ export class TurtleSkeletonBowModel extends TurtleModelBase {
     super.handleTickEvent(eventName, args, timerId);
   }
 
-  /** 原行为：龟壳破碎时本次伤害不再减半，直接结算完整伤害。 */
-  public override shieldBreakOverflow(_entity: MonsterEntity, amount: number): number {
-    return amount;
-  }
-
-  public override onShieldBroken(entity: MonsterEntity): void {
+  public override onHeadBroken(entity: MonsterEntity): void {
     this.speed = this.originalSpeed * 2;
     for (let i = 0; i < SHELL_BURST_COUNT; i++) {
       this.tickmanager.schedule(TURTLE_SHELL_EVENTS.Burst, SHELL_BURST_INTERVAL_MS * i);
@@ -108,5 +93,6 @@ export const TurtleSkeletonBowData = new TurtleSkeletonBowModel({
   attackInterval: ZombieAttackInterval.TurtleSkeletonBow,
   arrowDamage: 50,
   arrowInterval: 2000,
+  equipment: { head: TURTLE_SHELL_BOW, mainHand: BOW_WEAPON },
   createEntity: (scene, col, row, model, waveID) => new TurtleSkeletonBowEntity(scene, col, row, model as TurtleSkeletonBowModel, waveID),
 });

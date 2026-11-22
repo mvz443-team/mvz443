@@ -1,10 +1,7 @@
 import type { Game } from "../../../scenes/Game";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
-import { createZombieAnimController } from "../../../models/monster/anims/LegacyMonsterAnimControllers";
-import type { MonsterDefinition } from "../../../models/entities/MonsterEntity";
-import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
-import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
-import { EquippedMonsterEntity, withHelmetModel, type EquipmentDef } from "../../../models/equipment/Equipment";
+import type { EquipmentDef } from "../../../models/equipment/Equipment";
+import { ZombieEntity, ZombieModel } from "./zombie";
 
 export const STEEL_HELMET: EquipmentDef = {
   key: "attach/helmet",
@@ -15,22 +12,13 @@ export const STEEL_HELMET: EquipmentDef = {
 };
 
 /** 钢盔数值在 Model；Entity 只渲染。 */
-export class HelmetZombieModel extends withHelmetModel(PresetMonsterModel) {
-  constructor(def: MonsterDefinition) { super(def); }
+export class HelmetZombieModel extends ZombieModel { }
 
-  public override onCreate(entity: MonsterEntity): void {
-    this.equipHelmet(entity, STEEL_HELMET);
-  }
-}
-
-export class HelmetZombieEntity extends EquippedMonsterEntity {
+export class HelmetZombieEntity extends ZombieEntity {
   declare public model: HelmetZombieModel;
 
   public constructor(scene: Game, col: number, row: number, model: HelmetZombieModel, waveID: number) {
-    super(scene, col, row, model, waveID);  }
-
-  protected createAnimController() {
-    return createZombieAnimController("zombie", this.scene, this.x, this.y);
+    super(scene, col, row, model, waveID);
   }
 }
 
@@ -45,5 +33,6 @@ export const HelmetZombieData = new HelmetZombieModel({
   attackDamage: 20,
   attackInterval: ZombieAttackInterval.HelmetZombie,
   damageThresholds: [150],
+  equipment: { head: STEEL_HELMET },
   createEntity: (scene, col, row, model, waveID) => new HelmetZombieEntity(scene, col, row, model as HelmetZombieModel, waveID),
 });

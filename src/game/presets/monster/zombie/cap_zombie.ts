@@ -1,12 +1,10 @@
 import type { Game } from "../../../scenes/Game";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
 import { createZombieAnimController } from "../../../models/monster/anims/LegacyMonsterAnimControllers";
-import type { MonsterDefinition } from "../../../models/entities/MonsterEntity";
-import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
-import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
-import { EquippedMonsterEntity, withHelmetModel, type EquipmentDef } from "../../../models/equipment/Equipment";
+import type { EquipmentDef } from "../../../models/equipment/Equipment";
+import { ZombieEntity, ZombieModel } from "./zombie";
 
-const CAP_HELMET: EquipmentDef = {
+export const CAP_HELMET: EquipmentDef = {
   key: "attach/cap",
   maxHealth: 370,
   thresholds: [250, 125],
@@ -15,19 +13,14 @@ const CAP_HELMET: EquipmentDef = {
 };
 
 /** 帽子数值与破碎规则定义在 Model；Entity 只按 Model 状态渲染帽子。 */
-export class CapZombieModel extends withHelmetModel(PresetMonsterModel) {
-  constructor(def: MonsterDefinition) { super(def); }
+export class CapZombieModel extends ZombieModel { }
 
-  public override onCreate(entity: MonsterEntity): void {
-    this.equipHelmet(entity, CAP_HELMET);
-  }
-}
-
-export class CapZombieEntity extends EquippedMonsterEntity {
+export class CapZombieEntity extends ZombieEntity {
   declare public model: CapZombieModel;
 
   public constructor(scene: Game, col: number, row: number, model: CapZombieModel, waveID: number) {
-    super(scene, col, row, model, waveID);  }
+    super(scene, col, row, model, waveID);
+  }
 
   protected createAnimController() {
     return createZombieAnimController("zombie", this.scene, this.x, this.y);
@@ -45,5 +38,6 @@ export const CapZombieData = new CapZombieModel({
   attackDamage: 20,
   attackInterval: ZombieAttackInterval.CapZombie,
   damageThresholds: [150],
+  equipment: { head: CAP_HELMET },
   createEntity: (scene, col, row, model, waveID) => new CapZombieEntity(scene, col, row, model as CapZombieModel, waveID),
 });

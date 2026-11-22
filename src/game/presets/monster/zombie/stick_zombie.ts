@@ -1,7 +1,6 @@
 import type { Game } from "../../../scenes/Game";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import type { MonsterDefinition } from "../../../models/entities/MonsterEntity";
-import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
 import type { CombatEntity } from "../../../models/core/CombatEntity";
 import type { CollisionContext } from "../../../types";
@@ -10,27 +9,21 @@ import PlantsManager from "../../../managers/combat/PlantsManager";
 import PlantHelper from "../../../utils/helper/PlantHelper";
 import type { ModelHost } from "../../../core/logic/LogicModel";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
-import { BaseZombieEntity } from "./zombie";
-import { withWeaponEntity, withWeaponModel, type EquipmentDef } from "../../../models/equipment/Equipment";
+import { BaseZombieEntity, ZombieModel } from "./zombie";
+import type { EquipmentDef } from "../../../models/equipment/Equipment";
 
 const STICK_WEAPON: EquipmentDef = {
   key: "attach/hd_stick",
-  maxHealth: 0,
+  maxHealth: 450,
   thresholds: [],
   visual: { attachment: "hand", depth: 13 },
 };
 
-const StickModelBase = withWeaponModel(PresetMonsterModel);
-
 /** 手杖僵尸的撑杆跳决策在 Model；Entity 只保留抬升表现与视图同步。 */
-export class StickZombieModel extends StickModelBase {
+export class StickZombieModel extends ZombieModel {
   constructor(def: MonsterDefinition) {
     super(def);
     this.hasStick = true;
-  }
-
-  public override onCreate(entity: MonsterEntity): void {
-    this.equipWeapon(entity, STICK_WEAPON);
   }
 
   /** 起跳判定线长度（格）：从身体中心沿移动方向延伸。 */
@@ -105,7 +98,7 @@ export class StickZombieModel extends StickModelBase {
   public finishVault(entity: MonsterEntity): void {
     this.flying = false;
     this.speed = this.originalSpeed * 0.5;
-    this.consumeWeapon(entity);
+    this.breakMainHand(entity);
 
     const underfoot = this.findPlantUnderfoot(entity);
     (entity as any).vaultCollisionTarget = null;
@@ -117,9 +110,7 @@ export class StickZombieModel extends StickModelBase {
   }
 }
 
-const StickEntityBase = withWeaponEntity(BaseZombieEntity);
-
-export class StickZombieEntity extends StickEntityBase {
+export class StickZombieEntity extends BaseZombieEntity {
   declare public model: StickZombieModel;
 
   public constructor(scene: Game, col: number, row: number, model: StickZombieModel, waveID: number) {
@@ -165,5 +156,6 @@ export const StickZombieData = new StickZombieModel({
   baseSpeed: MonsterSpeed.StickZombie,
   attackDamage: 30,
   attackInterval: ZombieAttackInterval.StickZombie,
+  equipment: { mainHand: STICK_WEAPON },
   createEntity: (scene, col, row, model, waveID) => new StickZombieEntity(scene, col, row, model as StickZombieModel, waveID),
 });

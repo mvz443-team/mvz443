@@ -1,12 +1,10 @@
 import type { Game } from "../../../scenes/Game";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../constants/game";
-import { createZombieAnimController } from "../../../models/monster/anims/LegacyMonsterAnimControllers";
-import type { MonsterDefinition } from "../../../models/entities/MonsterEntity";
-import { PresetMonsterModel } from "../../../models/entities/MonsterEntity";
 import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
-import { EquippedMonsterEntity, withHelmetModel, type EquipmentDef } from "../../../models/equipment/Equipment";
+import type { EquipmentDef } from "../../../models/equipment/Equipment";
+import { ZombieEntity, ZombieModel } from "./zombie";
 
-const TURTLE_SHELL: EquipmentDef = {
+export const TURTLE_SHELL: EquipmentDef = {
   key: "attach/turtle",
   maxHealth: 370,
   thresholds: [250, 125],
@@ -16,14 +14,8 @@ const TURTLE_SHELL: EquipmentDef = {
 };
 
 /** 龟甲破碎后的加速决策在 Model；Entity 只接收视图刷新。 */
-export class TurtleZombieModel extends withHelmetModel(PresetMonsterModel) {
-  constructor(def: MonsterDefinition) { super(def); }
-
-  public override onCreate(entity: MonsterEntity): void {
-    this.equipHelmet(entity, TURTLE_SHELL);
-  }
-
-  public override onHelmetBroken(entity: MonsterEntity): void {
+export class TurtleZombieModel extends ZombieModel {
+  public override onHeadBroken(entity: MonsterEntity): void {
     if (this.buffApplied) return;
     this.buffApplied = true;
     this.speed = this.originalSpeed * 2;
@@ -31,14 +23,11 @@ export class TurtleZombieModel extends withHelmetModel(PresetMonsterModel) {
   }
 }
 
-export class TurtleZombieEntity extends EquippedMonsterEntity {
+export class TurtleZombieEntity extends ZombieEntity {
   declare public model: TurtleZombieModel;
 
   public constructor(scene: Game, col: number, row: number, model: TurtleZombieModel, waveID: number) {
-    super(scene, col, row, model, waveID);  }
-
-  protected createAnimController() {
-    return createZombieAnimController("zombie", this.scene, this.x, this.y);
+    super(scene, col, row, model, waveID);
   }
 }
 
@@ -53,5 +42,6 @@ export const TurtleZombieData = new TurtleZombieModel({
   attackDamage: 20,
   attackInterval: ZombieAttackInterval.TurtleZombie,
   damageThresholds: [150],
+  equipment: { head: TURTLE_SHELL },
   createEntity: (scene, col, row, model, waveID) => new TurtleZombieEntity(scene, col, row, model as TurtleZombieModel, waveID),
 });

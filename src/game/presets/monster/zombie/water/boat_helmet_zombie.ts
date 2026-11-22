@@ -1,5 +1,5 @@
 import type { Game } from "../../../../scenes/Game";
-import { HelmetZombieModel, HelmetZombieEntity } from "../helmet_zombie";
+import { STEEL_HELMET, HelmetZombieModel, HelmetZombieEntity } from "../helmet_zombie";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../../constants/game";
 
 /** 木船钢盔僵尸：复用钢盔装备逻辑，仅改为水生 + 木船。 */
@@ -18,6 +18,7 @@ export const BoatHelmetZombieData = new HelmetZombieModel({
   attackDamage: 20,
   attackInterval: ZombieAttackInterval.HelmetZombie,
   damageThresholds: [150],
+  equipment: { head: STEEL_HELMET },
   createEntity: (scene: Game, col: number, row: number, model, waveID: number) =>
     new HelmetZombieEntity(scene, col, row, model as HelmetZombieModel, waveID),
 });

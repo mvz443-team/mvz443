@@ -38,8 +38,7 @@ function source(hitKind) {
 }
 
 function hit(entity, amount, hitKind = "bullet") {
-  entity.updateBodyDamageStage ??= () => {};
-  MonsterEntity.prototype.takeDamage.call(entity, amount, undefined, source(hitKind));
+  entity.takeDamage(amount, undefined, source(hitKind));
 }
 
 function sync(entity) {

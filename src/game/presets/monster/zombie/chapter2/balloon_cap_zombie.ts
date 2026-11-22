@@ -1,10 +1,8 @@
 import type { Game } from "../../../../scenes/Game";
 import { MonsterSpeed, ZombieAttackInterval } from "../../../../../constants/game";
-import type { MonsterDefinition } from "../../../../models/entities/MonsterEntity";
-import type { MonsterEntity } from "../../../../models/entities/MonsterEntity";
 import { FlyingMonsterModel } from "../../../../models/monster/FlyingMonsterModel";
 import { FlyingMonsterEntity } from "../../../../models/entities/FlyingMonsterEntity";
-import { withHelmetModel, type EquipmentDef } from "../../../../models/equipment/Equipment";
+import type { EquipmentDef } from "../../../../models/equipment/Equipment";
 
 const BALLOON_CAP_HELMET: EquipmentDef = {
   key: "attach/cap",
@@ -18,15 +16,7 @@ const BALLOON_CAP_HELMET: EquipmentDef = {
  * 气球帽子僵尸（第 2 章）：飞行载具里装的是帽子僵尸。
  * 载具规则与气球僵尸完全一致，只是本体多一层 370 血的帽子护甲。
  */
-export class BalloonCapZombieModel extends withHelmetModel(FlyingMonsterModel) {
-  public constructor(def: MonsterDefinition) {
-    super(def);
-  }
-
-  public override onCreate(entity: MonsterEntity): void {
-    this.equipHelmet(entity, BALLOON_CAP_HELMET);
-  }
-}
+export class BalloonCapZombieModel extends FlyingMonsterModel { }
 
 export class BalloonCapZombieEntity extends FlyingMonsterEntity {
   declare public model: BalloonCapZombieModel;
@@ -49,6 +39,7 @@ export const BalloonCapZombieData = new BalloonCapZombieModel({
   damageThresholds: [150],
   isDefaultFlying: true,
   vehicleHealth: 1,
+  equipment: { head: BALLOON_CAP_HELMET },
   createEntity: (scene, col, row, model, waveID) =>
     new BalloonCapZombieEntity(scene, col, row, model as BalloonCapZombieModel, waveID),
 });

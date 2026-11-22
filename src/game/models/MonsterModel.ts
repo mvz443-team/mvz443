@@ -114,7 +114,10 @@ export abstract class MonsterModel extends LogicModel {
   /** 运行时覆盖（测试/特殊变体）；默认读 Definition。 */
   private mountDamagePriorityOverride: MountDamagePriority | null = null;
   public get mountDamagePriority(): MountDamagePriority {
-    return this.mountDamagePriorityOverride ?? this.definition.mountDamagePriority ?? "mount";
+    return this.mountDamagePriorityOverride
+      ?? this.definition.equipment?.mount?.priority
+      ?? this.definition.mountDamagePriority
+      ?? "mount";
   }
   public set mountDamagePriority(value: MountDamagePriority) {
     this.mountDamagePriorityOverride = value;
@@ -275,9 +278,13 @@ export abstract class MonsterModel extends LogicModel {
     entity.startMove();
   }
 
-  /** 武器能力 mixin 覆写；Model 决定开始/停止攻击，Entity 只按状态播放动画。 */
+  /** 武器能力覆写；Model 决定开始/停止攻击，Entity 只按状态播放动画。 */
   public onAttackStarted(_entity: MonsterEntity): void { }
   public onAttackStopped(_entity: MonsterEntity): void { }
+  /** 当前有效攻击力；中型怪物会在这里扣除已破碎武器的加成。 */
+  public getAttackDamage(): number { return this.attackDamage; }
+  /** 一次实际命中后触发；中型怪物用它消耗武器耐久。 */
+  public onAttackLanded(_entity: MonsterEntity): void { }
 
   public hurtTarget(entity: MonsterEntity): void {
     const target = entity.attacking;
@@ -285,7 +292,8 @@ export abstract class MonsterModel extends LogicModel {
       this.onAttackTargetDestroyed(entity, target);
       return;
     }
-    target.takeDamage(this.attackDamage, entity as any);
+    target.takeDamage(this.getAttackDamage(), entity as any);
+    this.onAttackLanded(entity);
     if (!this.isValidAttackTarget(entity.attacking)) {
       this.onAttackTargetDestroyed(entity, entity.attacking);
     }
