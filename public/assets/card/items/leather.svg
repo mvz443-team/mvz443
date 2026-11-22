@@ -1,5 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="lh" x1="0" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#d18c53"/>
+      <stop offset="1" stop-color="#96552e"/>
+    </linearGradient>
+  </defs>
   <rect width="64" height="64" rx="10" fill="#2a1a12"/>
-  <path d="M19 12h26l7 12-5 28H17l-5-28z" fill="#9b5c32" stroke="#e3a467" stroke-width="4" stroke-linejoin="round"/>
-  <path d="M21 23h22M22 35h20M25 46h14" stroke="#5b321f" stroke-width="4" stroke-linecap="round"/>
+  <!-- 鞣制皮革主体：不规则皮张 -->
+  <path d="M15 17 Q13 12 19 12 L45 12 Q52 12 50 18 L53 38 Q54 47 45 49 L19 50 Q11 50 12 42 Z"
+        fill="url(#lh)" stroke="#e8b07a" stroke-width="3.5" stroke-linejoin="round"/>
+  <!-- 边缘缝线 -->
+  <path d="M18 18 Q16 15 21 15 L44 15 Q49 15 47 20 L50 39 Q51 45 44 46 L20 47 Q14 47 15 41 Z"
+        fill="none" stroke="#f6d3a0" stroke-width="2" stroke-dasharray="3 3" stroke-linecap="round" opacity=".95"/>
+  <!-- 皮面折痕 -->
+  <path d="M20 25 Q32 21 44 26 M22 34 Q33 30 43 35 M24 42 Q32 39 39 42"
+        fill="none" stroke="#6b3d22" stroke-width="2.4" stroke-linecap="round" opacity=".8"/>
+  <!-- 顶部高光 -->
+  <path d="M20 17 Q32 14 44 17" fill="none" stroke="#f3c393" stroke-width="2" stroke-linecap="round" opacity=".75"/>
 </svg>
