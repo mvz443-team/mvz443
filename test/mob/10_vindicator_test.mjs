@@ -19,7 +19,7 @@ import { VindicatorData } from "../../src/game/presets/monster/zombie/vindicator
  *   停止后为 false。
  *
  * 为什么：
- *   VindicatorData.attackDamage=32、attackInterval=200；
+ *   VindicatorData.baseAttackDamage=20、axe.weaponDamage=12、attackInterval=200；
  *   withWeaponModel 在 onAttackStarted/Stopped 中切换 weaponSwinging。
  */
 
@@ -29,7 +29,8 @@ test("卫道士基础数值与战斧", () => {
 
   assert.equal(model.mid, 10);
   assert.equal(model.health, 360);
-  assert.equal(model.attackDamage, 32);
+  assert.equal(model.baseAttackDamage, 20);
+  assert.equal(model.getAttackDamage(), 32);
   assert.equal(model.attackInterval, 200);
   assert.equal(model.weaponKey, "attach/hd_axe");
 });

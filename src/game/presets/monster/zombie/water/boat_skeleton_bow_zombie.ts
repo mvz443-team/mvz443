@@ -16,7 +16,7 @@ export const BoatSkeletonBowZombieData = new SkeletonBowModel({
   mountDamagePriority: "rider",
   maxHealth: 250,
   baseSpeed: MonsterSpeed.SkeletonBow,
-  attackDamage: 25,
+  baseAttackDamage: 25,
   attackInterval: ZombieAttackInterval.SkeletonBow,
   equipment: { mainHand: BOW_WEAPON },
   createEntity: (scene: Game, col: number, row: number, model, waveID: number) =>

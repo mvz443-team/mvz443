@@ -58,6 +58,8 @@ Manager、Cmd 使用测试替身。逻辑统一按 50ms/帧推进，与游戏平
   `mount → offHand → head → body`。木盾只挡正面 bullet；laser/explosion
   同时伤害木盾和本体；头部破碎默认溢出，`immuneOverkill` 可丢弃超杀。
   武器耐久：axe 450、pickaxe 20、bow 300，每次命中/射击 -1。
+  怪物 `baseAttackDamage` 是空手近战伤害，主手 `weaponDamage` 在可用时叠加；
+  武器破碎后只保留 `baseAttackDamage`。
 - `BalloonTntClone` 是星之碎片召唤物，继承 `PresetMonsterModel` / `MonsterEntity`，
   不属于中型怪物，也不参与中型装备/伤害路由。
 - 潜水僵尸氧气面罩是 `head` 槽：100 血、`absorbRatio=0.1`，小伤害按

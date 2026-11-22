@@ -16,6 +16,7 @@ const STICK_WEAPON: EquipmentDef = {
   key: "attach/hd_stick",
   maxHealth: 450,
   thresholds: [],
+  weaponDamage: 0,
   visual: { attachment: "hand", depth: 13 },
 };
 
@@ -154,7 +155,7 @@ export const StickZombieData = new StickZombieModel({
   leastWaveID: 9,
   maxHealth: 300,
   baseSpeed: MonsterSpeed.StickZombie,
-  attackDamage: 30,
+  baseAttackDamage: 30,
   attackInterval: ZombieAttackInterval.StickZombie,
   equipment: { mainHand: STICK_WEAPON },
   createEntity: (scene, col, row, model, waveID) => new StickZombieEntity(scene, col, row, model as StickZombieModel, waveID),

@@ -44,7 +44,7 @@ export const VindicatorSoliderData = new ShieldVindicatorModel({
   leastWaveID: 14,
   maxHealth: 360,
   baseSpeed: MonsterSpeed.VindicatorSolider,
-  attackDamage: 32,
+  baseAttackDamage: 20,
   attackInterval: ZombieAttackInterval.VindicatorSolider,
   damageThresholds: [180],
   equipment: { mainHand: AXE_WEAPON, offHand: WOODEN_SHIELD },

@@ -362,7 +362,7 @@ export function readMonsterStatRows(mid: number, locale: EdxLocale): MonsterStat
   const rows: MonsterStatRow[] = [
     { labelKey: "health", value: String(model.maxHealth) },
     { labelKey: "speed", value: formatSpeed(model, locale) },
-    { labelKey: "damage", value: String(model.attackDamage) },
+    { labelKey: "damage", value: String(model.getAttackDamage()) },
     { labelKey: "interval", value: `${(model.attackInterval / 1000).toFixed(2)}s` },
     { labelKey: "level", value: `Lv.${model.level}` },
     { labelKey: "rank", value: model.rank },

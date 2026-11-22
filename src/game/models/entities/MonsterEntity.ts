@@ -469,7 +469,8 @@ export type MonsterDefinition = {
   readonly rank?: MonsterRank;
   readonly maxHealth: number;
   readonly baseSpeed: number;
-  readonly attackDamage: number;
+  /** 空手近战伤害；武器加成单独由 EquipmentDef.weaponDamage 提供。 */
+  readonly baseAttackDamage: number;
   readonly attackInterval?: number;
   /** 躯体破损阶段阈值；属于 Model 配置，不在 Entity 构造函数里定义。 */
   readonly damageThresholds?: readonly number[];

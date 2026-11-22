@@ -23,7 +23,7 @@ export const MinerHelmetZombieData = new MinerHelmetZombieModel({
   leastWaveID: 13,
   maxHealth: 300,
   baseSpeed: MonsterSpeed.MinerHelmetZombie,
-  attackDamage: 60,
+  baseAttackDamage: 20,
   attackInterval: ZombieAttackInterval.MinerHelmetZombie,
   damageThresholds: [150],
   equipment: { head: STEEL_HELMET, mainHand: PICKAXE_WEAPON },

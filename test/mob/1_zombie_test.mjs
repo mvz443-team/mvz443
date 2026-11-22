@@ -19,7 +19,7 @@ import { snapshotModel } from "../../src/game/core/logic/LogicModel.ts";
  *   同一格里叠着护盾植物（南瓜护照）和内部植物时，护盾碎了不能无视内部植物继续前进。
  *
  * 验收路径：
- *   1) 读取 Model 的 mid / maxHealth / attackDamage / attackInterval / damageThresholds。
+ *   1) 读取 Model 的 mid / maxHealth / baseAttackDamage / attackInterval / damageThresholds。
  *   2) 让僵尸攻击 100 血植物，统计 1s 内伤害次数与总伤害。
  *   3) 直接扣血后调用 updateBodyDamageStage，检查 currentStage。
  *   4) addStarShards 后击杀，检查 ResourceCmd 掉落。
@@ -52,7 +52,7 @@ test("基础数值与攻击节奏", () => {
 
   assert.equal(model.mid, 1);
   assert.equal(model.health, 300);
-  assert.equal(model.attackDamage, 20);
+  assert.equal(model.baseAttackDamage, 20);
   assert.equal(model.attackInterval, 200);
   assert.deepEqual(model.damageThresholds, [150]);
   assert.equal(entity.faction, 2);
@@ -177,7 +177,7 @@ test("怪物 Definition 配置不进快照，getter 仍可读", () => {
     "texturePath",
     "maxHealth",
     "baseSpeed",
-    "attackDamage",
+    "baseAttackDamage",
     "attackInterval",
     "rank",
     "habitats",
@@ -194,7 +194,7 @@ test("怪物 Definition 配置不进快照，getter 仍可读", () => {
 
   assert.equal(model.mid, ZombieData.mid);
   assert.equal(model.maxHealth, 300);
-  assert.equal(model.attackDamage, 20);
+  assert.equal(model.baseAttackDamage, 20);
   assert.equal(model.damageThresholds.length, 1);
 });
 

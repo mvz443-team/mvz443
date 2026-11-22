@@ -15,7 +15,7 @@ export const BoatHelmetZombieData = new HelmetZombieModel({
   mountDamagePriority: "rider",
   maxHealth: 300,
   baseSpeed: MonsterSpeed.HelmetZombie,
-  attackDamage: 20,
+  baseAttackDamage: 20,
   attackInterval: ZombieAttackInterval.HelmetZombie,
   damageThresholds: [150],
   equipment: { head: STEEL_HELMET },

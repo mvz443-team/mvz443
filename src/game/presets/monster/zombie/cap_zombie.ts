@@ -35,7 +35,7 @@ export const CapZombieData = new CapZombieModel({
   leastWaveID: 0,
   maxHealth: 300,
   baseSpeed: MonsterSpeed.CapZombie,
-  attackDamage: 20,
+  baseAttackDamage: 20,
   attackInterval: ZombieAttackInterval.CapZombie,
   damageThresholds: [150],
   equipment: { head: CAP_HELMET },

@@ -113,7 +113,7 @@ export const BalloonTntCloneData = new BalloonTntCloneModel({
   leastWaveID: 999999,
   maxHealth: 200,
   baseSpeed: MonsterSpeed.Zombie,
-  attackDamage: 0,
+  baseAttackDamage: 0,
   attackInterval: 1000,
   isDefaultFlying: true,
   couldCarryStarShards: false,

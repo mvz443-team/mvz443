@@ -7,7 +7,7 @@ export const PICKAXE_WEAPON: EquipmentDef = {
   key: "attach/hd_pickaxe",
   maxHealth: 20,
   thresholds: [],
-  damageLossOnBreak: 40,
+  weaponDamage: 40,
   visual: {
     attachment: "hand",
     swingAngle: -15,
@@ -35,7 +35,7 @@ export const MinerZombieData = new MinerZombieModel({
   leastWaveID: 2,
   maxHealth: 300,
   baseSpeed: MonsterSpeed.MinerZombie,
-  attackDamage: 60,
+  baseAttackDamage: 20,
   attackInterval: ZombieAttackInterval.MinerZombie,
   damageThresholds: [150],
   equipment: { mainHand: PICKAXE_WEAPON },

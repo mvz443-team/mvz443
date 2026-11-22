@@ -183,7 +183,7 @@ export const ObsidianGolemData = new ObsidianGolemModel({
   canDrown: false,
   maxHealth: 12000,
   baseSpeed: 0,
-  attackDamage: 50,
+  baseAttackDamage: 50,
   attackInterval: 1200,
   createEntity: (scene, col, row, model, waveID) => new ObsidianGolemEntity(scene, col, row, model as ObsidianGolemModel, waveID),
 });

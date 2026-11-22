@@ -28,7 +28,7 @@ test("骷髅基础数值", () => {
 
   assert.equal(model.mid, 6);
   assert.equal(model.health, 250);
-  assert.equal(model.attackDamage, 20);
+  assert.equal(model.baseAttackDamage, 20);
   assert.equal(model.attackInterval, 200);
   assert.deepEqual(model.damageThresholds, [100]);
 });

@@ -66,7 +66,7 @@ export const DolphinRiderZombieData = new DolphinRiderModel({
   mountDamagePriority: "mount",
   maxHealth: 300,
   baseSpeed: MonsterSpeed.StickZombie,
-  attackDamage: 20,
+  baseAttackDamage: 20,
   attackInterval: ZombieAttackInterval.Zombie,
   damageThresholds: [150],
   createEntity: (scene, col, row, model, waveID) =>

@@ -30,7 +30,7 @@ export const SkeletonData = new SkeletonModel({
   leastWaveID: 9999,
   maxHealth: 250,
   baseSpeed: MonsterSpeed.Skeleton,
-  attackDamage: 20,
+  baseAttackDamage: 20,
   attackInterval: ZombieAttackInterval.Skeleton,
   damageThresholds: [100],
   createEntity: (scene, col, row, model, waveID) => new SkeletonEntity(scene, col, row, model as SkeletonModel, waveID),

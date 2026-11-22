@@ -144,7 +144,7 @@ export const WardenData = new WardenModel({
   canDrown: false,
   maxHealth: 18000,
   baseSpeed: 0,
-  attackDamage: 60,
+  baseAttackDamage: 60,
   attackInterval: 1200,
   createEntity: (scene, col, row, model, waveID) => new WardenEntity(scene, col, row, model as WardenModel, waveID),
 });

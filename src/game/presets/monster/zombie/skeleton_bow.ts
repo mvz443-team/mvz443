@@ -17,7 +17,7 @@ export const SkeletonBowData = new SkeletonBowModel({
   leastWaveID: 7,
   maxHealth: 250,
   baseSpeed: MonsterSpeed.SkeletonBow,
-  attackDamage: 25,
+  baseAttackDamage: 25,
   attackInterval: ZombieAttackInterval.SkeletonBow,
   arrowDamage: 70,
   arrowInterval: 3500,

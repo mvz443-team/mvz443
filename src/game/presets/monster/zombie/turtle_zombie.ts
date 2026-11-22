@@ -39,7 +39,7 @@ export const TurtleZombieData = new TurtleZombieModel({
   leastWaveID: 4,
   maxHealth: 300,
   baseSpeed: MonsterSpeed.TurtleZombie,
-  attackDamage: 20,
+  baseAttackDamage: 20,
   attackInterval: ZombieAttackInterval.TurtleZombie,
   damageThresholds: [150],
   equipment: { head: TURTLE_SHELL },

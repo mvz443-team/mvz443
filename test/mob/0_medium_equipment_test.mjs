@@ -6,6 +6,7 @@ import { VindicatorSoliderData } from "../../src/game/presets/monster/zombie/vin
 import { BoatZombieData } from "../../src/game/presets/monster/zombie/water/boat_zombie.ts";
 import { DolphinRiderZombieData } from "../../src/game/presets/monster/zombie/water/dolphin_rider_zombie.ts";
 import { MinerZombieData } from "../../src/game/presets/monster/zombie/miner_zombie.ts";
+import { VindicatorData } from "../../src/game/presets/monster/zombie/vindicator.ts";
 import { SkeletonBowData } from "../../src/game/presets/monster/zombie/skeleton_bow.ts";
 import { DivingZombieData } from "../../src/game/presets/monster/zombie/water/diving_zombie.ts";
 import { BalloonTntCloneData } from "../../src/game/presets/monster/summon/balloon_tnt_clone.ts";
@@ -46,7 +47,7 @@ test("头部 immuneOverkill=true 时丢弃超杀伤害", () => {
     weight: () => 0,
     maxHealth: 300,
     baseSpeed: 0,
-    attackDamage: 0,
+    baseAttackDamage: 0,
     equipment: {
       head: {
         key: "attach/cap",
@@ -111,6 +112,16 @@ test("海豚优先坐骑，爆炸同时打坐骑和本体", () => {
   entity.takeDamage(100, undefined, source("explosion", 100));
   assert.equal(model.mountHealth, 50);
   assert.equal(model.health, 200);
+});
+
+test("战斧提供 12 近战伤害，破碎后回到空手 20", () => {
+  resetSim();
+  const { model, entity } = spawnMob(VindicatorData, { col: 8, row: 2 });
+  assert.equal(model.baseAttackDamage, 20);
+  assert.equal(model.getAttackDamage(), 32);
+
+  model.breakMainHand(entity);
+  assert.equal(model.getAttackDamage(), 20);
 });
 
 test("镐子 20 次攻击后破碎并降低攻击力", () => {

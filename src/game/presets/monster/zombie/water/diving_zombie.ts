@@ -175,7 +175,7 @@ export const DivingZombieData = new DivingZombieModel({
   canDrown: false,
   maxHealth: 300,
   baseSpeed: MonsterSpeed.Zombie,
-  attackDamage: 20,
+  baseAttackDamage: 20,
   attackInterval: ZombieAttackInterval.Zombie,
   damageThresholds: [150],
   equipment: { head: DIVING_MASK },

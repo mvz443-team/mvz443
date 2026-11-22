@@ -9,7 +9,7 @@ export const AXE_WEAPON: EquipmentDef = {
   key: "attach/hd_axe",
   maxHealth: 450,
   thresholds: [],
-  damageLossOnBreak: 12,
+  weaponDamage: 12,
   visual: {
     attachment: "hand",
     swingAngle: -15,
@@ -43,7 +43,7 @@ export const VindicatorData = new VindicatorModel({
   leastWaveID: 9999,
   maxHealth: 360,
   baseSpeed: MonsterSpeed.Vindicator,
-  attackDamage: 32,
+  baseAttackDamage: 20,
   attackInterval: ZombieAttackInterval.Vindicator,
   damageThresholds: [180],
   equipment: { mainHand: AXE_WEAPON },

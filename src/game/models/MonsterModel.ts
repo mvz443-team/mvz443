@@ -98,7 +98,7 @@ export abstract class MonsterModel extends LogicModel {
   public get rank(): "normal" | "elite" | "boss" { return this.definition.rank ?? "normal"; }
   public get maxHealth(): number { return this.definition.maxHealth; }
   public get baseSpeed(): number { return this.definition.baseSpeed; }
-  public get attackDamage(): number { return this.definition.attackDamage; }
+  public get baseAttackDamage(): number { return this.definition.baseAttackDamage; }
   public get attackInterval(): number { return this.definition.attackInterval ?? 1000; }
   public get isDefaultFlying(): boolean { return this.definition.isDefaultFlying ?? false; }
   public get isDefaultInVoid(): boolean { return this.definition.isDefaultInVoid ?? false; }
@@ -281,8 +281,8 @@ export abstract class MonsterModel extends LogicModel {
   /** 武器能力覆写；Model 决定开始/停止攻击，Entity 只按状态播放动画。 */
   public onAttackStarted(_entity: MonsterEntity): void { }
   public onAttackStopped(_entity: MonsterEntity): void { }
-  /** 当前有效攻击力；中型怪物会在这里扣除已破碎武器的加成。 */
-  public getAttackDamage(): number { return this.attackDamage; }
+  /** 当前有效近战攻击力；中型怪物会把可用武器的 weaponDamage 加到这里。 */
+  public getAttackDamage(): number { return this.baseAttackDamage; }
   /** 一次实际命中后触发；中型怪物用它消耗武器耐久。 */
   public onAttackLanded(_entity: MonsterEntity): void { }
 

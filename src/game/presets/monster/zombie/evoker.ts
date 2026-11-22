@@ -92,7 +92,7 @@ export const EvokerData = new EvokerModel({
   leastWaveID: 10,
   maxHealth: 400,
   baseSpeed: MonsterSpeed.Evoker,
-  attackDamage: 20,
+  baseAttackDamage: 20,
   attackInterval: ZombieAttackInterval.Evoker,
   damageThresholds: [160],
   createEntity: (scene, col, row, model, waveID) => new EvokerEntity(scene, col, row, model as EvokerModel, waveID),

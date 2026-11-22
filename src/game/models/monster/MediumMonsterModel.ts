@@ -161,14 +161,20 @@ export abstract class MediumMonsterModel extends PresetMonsterModel {
   // --- 武器 ---
 
   public isMainHandUsable(): boolean {
+    const def = this.equipmentDefs.mainHand;
+    if (!def) return false;
+    // 模板（尚未 initializeState）没有运行时槽位，按“配置了且未破碎”处理，
+    // 这样 codex / getAttackDamage 在库里的单例上也能读到总伤害。
     const slot = this.equipment.mainHand;
-    return !!slot && !slot.broken && slot.health > 0;
+    return !slot || (!slot.broken && slot.health > 0);
   }
 
-  /** 当前有效攻击力：武器破碎后扣掉 damageLossOnBreak。 */
+  /** 当前有效近战攻击力：空手基础 + 可用主手的 weaponDamage。 */
   public override getAttackDamage(): number {
-    if (this.isMainHandUsable()) return this.attackDamage;
-    return this.attackDamage - (this.equipmentDefs.mainHand?.damageLossOnBreak ?? 0);
+    const weaponDamage = this.isMainHandUsable()
+      ? (this.equipmentDefs.mainHand?.weaponDamage ?? 0)
+      : 0;
+    return this.baseAttackDamage + weaponDamage;
   }
 
   public override onAttackStarted(entity: MonsterEntity): void {

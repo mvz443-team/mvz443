@@ -30,7 +30,7 @@ export const ZombieData = new ZombieModel({
   leastWaveID: 0,
   maxHealth: 300,
   baseSpeed: MonsterSpeed.Zombie,
-  attackDamage: 20,
+  baseAttackDamage: 20,
   attackInterval: ZombieAttackInterval.Zombie,
   damageThresholds: [150],
   createEntity: (scene, col, row, model, waveID) => new ZombieEntity(scene, col, row, model as ZombieModel, waveID),

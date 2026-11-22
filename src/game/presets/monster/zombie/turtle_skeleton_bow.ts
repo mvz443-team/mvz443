@@ -89,7 +89,7 @@ export const TurtleSkeletonBowData = new TurtleSkeletonBowModel({
   leastWaveIDByStageID: (stageID) => stageID >= 6 ? 6 : 10,
   maxHealth: 250,
   baseSpeed: MonsterSpeed.TurtleSkeletonBow,
-  attackDamage: 40,
+  baseAttackDamage: 40,
   attackInterval: ZombieAttackInterval.TurtleSkeletonBow,
   arrowDamage: 50,
   arrowInterval: 2000,

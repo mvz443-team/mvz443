@@ -15,7 +15,7 @@ export const BoatTurtleZombieData = new TurtleZombieModel({
   mountDamagePriority: "rider",
   maxHealth: 300,
   baseSpeed: MonsterSpeed.TurtleZombie,
-  attackDamage: 20,
+  baseAttackDamage: 20,
   attackInterval: ZombieAttackInterval.TurtleZombie,
   damageThresholds: [150],
   equipment: { head: TURTLE_SHELL },

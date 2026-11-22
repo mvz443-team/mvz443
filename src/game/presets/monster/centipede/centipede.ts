@@ -515,7 +515,7 @@ export const CentipedeData = new CentipedeModel({
   canDrown: false,
   maxHealth: 20000,
   baseSpeed: 0,
-  attackDamage: 0,
+  baseAttackDamage: 0,
   attackInterval: 1200,
   couldCarryStarShards: false,
   createEntity: (scene, col, row, model, waveID) => new CentipedeEntity(scene, col, row, model as CentipedeModel, waveID),

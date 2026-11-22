@@ -59,7 +59,7 @@ test("木船僵尸保留原版数值", () => {
     const { model } = spawnMob(data, { col: 8, row: 2 });
     assert.equal(model.maxHealth, health, `mid=${data.mid} 血量`);
     assert.equal(model.health, health, `mid=${data.mid} 初始血量`);
-    assert.equal(model.attackDamage, damage, `mid=${data.mid} 伤害`);
+    assert.equal(model.baseAttackDamage, damage, `mid=${data.mid} 伤害`);
     assert.deepEqual(model.habitats, ["water"]);
     assert.equal(model.boatMounted, true);
   }

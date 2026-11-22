@@ -56,8 +56,8 @@ export type EquipmentDef = {
   overflow?: "overflow" | "discard";
   /** 副手：破碎时溢出按减伤后（scaled）还是原始伤害（full）。 */
   breakOverflow?: "scaled" | "full";
-  /** 主手：武器破碎后损失的伤害（当前 attackDamage 已包含武器加成）。 */
-  damageLossOnBreak?: number;
+  /** 主手：持有该武器时增加的近战伤害。 */
+  weaponDamage?: number;
   /** 主手：每次攻击消耗的耐久；默认 1。 */
   durabilityPerUse?: number;
   /** 坐骑：bullet/laser/melee 的优先受体。 */

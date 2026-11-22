@@ -16,6 +16,7 @@ export const BOW_WEAPON: EquipmentDef = {
   key: "attach/hd_bow",
   maxHealth: 300,
   thresholds: [],
+  weaponDamage: 0,
   durabilityPerUse: 1,
   visual: { attachment: "hand", depth: 13 },
 };

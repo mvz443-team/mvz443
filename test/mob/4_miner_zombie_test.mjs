@@ -19,7 +19,7 @@ import { MinerZombieData } from "../../src/game/presets/monster/zombie/miner_zom
  *
  * 为什么：
  *   withWeaponModel.onAttackStarted 置 weaponSwinging=true；
- *   MinerZombieData.attackDamage=60、attackInterval=200。
+ *   MinerZombieData.baseAttackDamage=20、pickaxe.weaponDamage=40、attackInterval=200。
  */
 
 test("镐子武器初始可见且不挥动", () => {
@@ -30,7 +30,8 @@ test("镐子武器初始可见且不挥动", () => {
   assert.equal(model.weaponKey, "attach/hd_pickaxe");
   assert.equal(model.weaponVisible, true);
   assert.equal(model.weaponSwinging, false);
-  assert.equal(model.attackDamage, 60);
+  assert.equal(model.baseAttackDamage, 20);
+  assert.equal(model.getAttackDamage(), 60);
 });
 
 test("攻击时挥动镐子并在 400ms 内击杀 100 血植物", () => {

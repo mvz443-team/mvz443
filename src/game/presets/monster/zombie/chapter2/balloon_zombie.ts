@@ -34,7 +34,7 @@ export const BalloonZombieData = new BalloonZombieModel({
   leastWaveID: 0,
   maxHealth: 300,
   baseSpeed: MonsterSpeed.BalloonZombie,
-  attackDamage: 20,
+  baseAttackDamage: 20,
   attackInterval: ZombieAttackInterval.BalloonZombie,
   damageThresholds: [150],
   isDefaultFlying: true,

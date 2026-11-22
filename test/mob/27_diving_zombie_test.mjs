@@ -41,7 +41,7 @@ test("潜水僵尸定义：普通僵尸数值 + 水生 + 初始潜行", () => {
   assert.equal(model.mid, 27);
   assert.equal(model.maxHealth, 300);
   assert.equal(model.health, 300);
-  assert.equal(model.attackDamage, 20);
+  assert.equal(model.baseAttackDamage, 20);
   assert.equal(model.baseSpeed, ZombieData.baseSpeed);
   assert.deepEqual(model.habitats, ["water"]);
   assert.equal(model.tiny, true);

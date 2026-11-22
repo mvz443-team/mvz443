@@ -28,6 +28,7 @@ const SIGN_WEAPON: EquipmentDef = {
   key: "attach/sign",
   maxHealth: 0,
   thresholds: [],
+  weaponDamage: 0,
   visual: { handObject: true },
 };
 
@@ -232,7 +233,7 @@ export const MutantData = new MutantModel({
   leastWaveID: 15,
   maxHealth: 3000,
   baseSpeed: MonsterSpeed.Mutant,
-  attackDamage: 5500,
+  baseAttackDamage: 5500,
   attackInterval: 1500,
   createEntity: (scene, col, row, model, waveID) => new MutantEntity(scene, col, row, model as MutantModel, waveID),
 });

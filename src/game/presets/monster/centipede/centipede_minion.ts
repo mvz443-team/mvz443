@@ -69,7 +69,7 @@ export const CentipedeMinionData = new CentipedeMinionModel({
   canDrown: false,
   maxHealth: 500,
   baseSpeed: 20,
-  attackDamage: 0,
+  baseAttackDamage: 0,
   attackInterval: 1000,
   couldCarryStarShards: false,
   createEntity: (scene, col, row, model, waveID) => new CentipedeMinionEntity(scene, col, row, model as CentipedeMinionModel, waveID),
