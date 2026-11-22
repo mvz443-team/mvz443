@@ -1,8 +1,6 @@
 import DepthHelper from "../../../utils/helper/DepthHelper";
 import ProjectileDamage from "../../../../constants/damage";
 import { LevelScaledValue } from "../../../../utils/numbervalue";
-import { DeferredManager } from "../../../managers/DeferredManager";
-import PlantsManager from "../../../managers/combat/PlantsManager";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -77,19 +75,11 @@ export class ATDispenserModel extends PlantModel {
   public damage = new LevelScaledValue(ProjectileDamage.bullet.firework).setIncRatio(1.4);
   public isNightPlant: boolean = false;
 
-  public override createEntity(scene: Game, col: number, row: number, level: number): ATDispenserEntity {
-    // 首先获得当前格子中作为基座的 发射器植物并销毁它
-    const key = `${col}-${row}`;
-    const plants = PlantsManager.Instance.PlantsMap.get(key) || [];
+  /** 必须种在普通发射器（pid 1）的基座上。 */
+  public override requiredBasePid = DispenserData.pid;
 
-    for (const plant of plants) {
-      if (plant.model.pid === DispenserData.pid) { // 基座
-        DeferredManager.Instance.defer(() => {
-          plant.destroy();
-        });
-        break;
-      }
-    }
+  public override createEntity(scene: Game, col: number, row: number, level: number): ATDispenserEntity {
+    // 基座替换与睡眠继承由 PlantHelper.CreateEntityWithBaseReplacement 统一处理。
     return this.initializeEntity(new ATDispenserEntity(scene, col, row, level));
   }
 

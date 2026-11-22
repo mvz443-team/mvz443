@@ -1,6 +1,5 @@
 import { LevelScaledValue } from "../../../../utils/numbervalue";
 import ProjectileDamage from "../../../../constants/damage";
-import PlantsManager from "../../../managers/combat/PlantsManager";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
@@ -9,7 +8,6 @@ import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { PumpkinData } from "./pumkin";
 import ShootHeadAnimationHelper from "../../../utils/helper/ShootHeadAnimationHelper";
 import { ExplosionConfig, LaserConfig } from "../../../models/projectiles/ProjectileModels";
-import { PlantCmd } from "../../../utils/cmd/PlantCmd";
 import { SightLineGroup } from "../../../models/entities/SightLineEntity";
 import SoundCmd from "../../../utils/cmd/SoundCmd";
 import { SfxCmd } from "../../../utils/cmd/SfxCmd";
@@ -44,6 +42,9 @@ export class PumpkinWanModel extends PlantModel {
 
   public damage = new LevelScaledValue(ProjectileDamage.laser.heavy_laser).setIncRatio(1.35);
   public isNightPlant = true;
+
+  /** 高级植物：必须种在阴森南瓜头（pid 9）的基座上。 */
+  public override requiredBasePid = PumpkinData.pid;
 
   /** 星碎爆炸队列；即使植物死亡，也要把已排队的爆炸执行完。 */
   public pendingBruteExplosions = 0;
@@ -239,22 +240,8 @@ export class PumpkinWanModel extends PlantModel {
   }
 
   public createEntity(scene: Game, col: number, row: number, level: number): PumpkinWanEntity {
-    // 替换基座的阴森南瓜头（如果存在）
-    const key = `${col}-${row}`;
-    const plants = PlantsManager.Instance.PlantsMap.get(key) || [];
-    let isSleeping = true;
-    for (const plant of plants) {
-      if (plant.pid === PumpkinData.pid) {
-        isSleeping = plant.isSleeping;
-        // 销毁基座植物
-        plant.destroy();
-        break;
-      }
-    }
-
-    const entity = this.initializeEntity(new PumpkinWanEntity(scene, col, row, level));
-    PlantCmd.SetSleeping(entity, isSleeping); // 继承睡眠状态
-    return entity;
+    // 基座替换与睡眠继承由 PlantHelper.CreateEntityWithBaseReplacement 统一处理。
+    return this.initializeEntity(new PumpkinWanEntity(scene, col, row, level));
   }
 }
 

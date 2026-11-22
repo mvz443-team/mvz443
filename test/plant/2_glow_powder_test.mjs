@@ -3,33 +3,34 @@ import assert from "node:assert/strict";
 import {
   resetSim,
   spawnPlant,
-  tick,
+  applyInstantPlant,
   getPlantsMap,
   SfxCmd,
   levelValues,
 } from "../harness/sim.mjs";
 import { GlowPowderData } from "../../src/game/presets/plant/chapter2/glow_powder.ts";
 import { GeneratorData } from "../../src/game/presets/plant/chapter1/generator.ts";
+import PlantHelper from "../../src/game/utils/helper/PlantHelper.ts";
 
 /**
  * 描述（glow_powder_description）：
- *   发光粉是即时效果器械：种下后唤醒同一格的其他器械，播放一次粉末特效，
- *   300ms 后销毁自身；自身拥有 SECKILL 级血量，5 级起消耗从 75 降到 50。
+ *   萤石粉是一次性唤醒植物：只能种在已有存活植物的格子上，
+ *   种下后同一确定性帧唤醒整格所有植物并播放一次粉末特效；
+ *   不创建 Entity、物理体，也没有 300ms 存活时间。5 级起消耗从 75 降到 50。
  *
  * 验收路径：
- *   1) 同格放入一个睡眠植物，创建 GlowPowder 后检查其 isSleeping。
+ *   1) 同格放入睡眠植物，直接驱动真实 applyInstantEffect，检查 isSleeping。
  *   2) 不同格植物不应被唤醒。
- *   3) 检查 createVisualEffect 记录与 300ms 后销毁。
+ *   3) 检查 SfxCmd 特效与 PlantsMap 不新增实体。
  *   4) 检查 maxHealth / cost 阈值。
  *
  * 预期结果：
- *   同格睡眠植物变为清醒，异格保持睡眠；300ms 后自身 destroyed=true；
+ *   同格睡眠植物变为清醒，异格保持睡眠；不产生任何植物实体；
  *   maxHealth=99889988；Lv1 消耗 75，Lv5 消耗 50。
  *
  * 为什么：
- *   onCreate 调用 entity.awakePlantsInGrid()（遍历 PlantsMap 同 key），
- *   再用 tickmanager.delayedCall(300) 销毁；SECKILL=99889988；
- *   cost = LevelScaledValue(75).setThreshold(5, 50)。
+ *   applyInstantEffect 遍历 PlantsMap 同 key 并 setSleeping(false)，
+ *   再直接 SfxCmd.Create；PlantsManager 对 isOneTimePlant 不 createEntity。
  */
 
 test("唤醒同格其他植物，不唤醒异格植物", () => {
@@ -41,25 +42,38 @@ test("唤醒同格其他植物，不唤醒异格植物", () => {
   getPlantsMap().set("4-2", [sameGrid.entity]);
   getPlantsMap().set("5-2", [otherGrid.entity]);
 
-  const { model } = spawnPlant(GlowPowderData, { level: 1, col: 4, row: 2 });
-  getPlantsMap().set("4-2", [sameGrid.entity, model]);
+  applyInstantPlant(GlowPowderData, { level: 1, col: 4, row: 2 });
 
   assert.equal(sameGrid.model.isSleeping, false);
   assert.equal(otherGrid.model.isSleeping, true);
 });
 
-test("播放特效并在 300ms 后销毁自身", () => {
-  const sim = resetSim();
+test("播放特效且不创建实体", () => {
+  resetSim();
   SfxCmd.reset();
-  const { entity } = spawnPlant(GlowPowderData, { level: 1, col: 4, row: 2 });
+  const before = getPlantsMap().size;
+  applyInstantPlant(GlowPowderData, { level: 1, col: 4, row: 2 });
 
-  assert.equal(entity.viewCalls.includes("createVisualEffect"), true);
   assert.equal(SfxCmd.calls.length, 1);
+  assert.equal(getPlantsMap().size, before, "一次性植物不进入 PlantsMap");
+});
 
-  tick(sim, 250);
-  assert.equal(entity.destroyed, undefined);
-  tick(sim, 50);
-  assert.equal(entity.destroyed, true);
+test("只能种在已有存活植物的格子上", () => {
+  resetSim();
+  const existing = spawnPlant(GeneratorData, { level: 1, col: 4, row: 2 });
+
+  assert.equal(
+    PlantHelper.CanPlantInGrid([], GlowPowderData.pid, { type: "ground" }, GlowPowderData),
+    false,
+    "空格子不能种萤石粉",
+  );
+  assert.equal(
+    PlantHelper.CanPlantInGrid([existing.entity], GlowPowderData.pid, { type: "ground" }, GlowPowderData),
+    true,
+    "已有植物可以种萤石粉",
+  );
+  assert.equal(GlowPowderData.placementRule, "overlayExisting");
+  assert.equal(GlowPowderData.isOneTimePlant, true);
 });
 
 test("血量与 5 级消耗阈值", () => {

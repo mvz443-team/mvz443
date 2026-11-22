@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   resetSim,
   spawnPlant,
-  spawnPlantViaData,
+  spawnPlantWithBaseRule,
   tick,
   setSightTarget,
   flushDeferred,
@@ -14,6 +14,7 @@ import {
 } from "../harness/sim.mjs";
 import { ATDispenserData, ATAirHFireWorkModel } from "../../src/game/presets/plant/chapter1/at_dispenser.ts";
 import { DispenserData } from "../../src/game/presets/plant/chapter1/dispenser.ts";
+import PlantHelper from "../../src/game/utils/helper/PlantHelper.ts";
 
 /**
  * 描述（at_dispenser_description）：
@@ -110,11 +111,49 @@ test("种在普通发射器上会替换并销毁基座", () => {
   const base = spawnPlant(DispenserData, { level: 1, col: 4, row: 2 });
   getPlantsMap().set("4-2", [base.entity]);
 
-  const { model } = spawnPlantViaData(ATDispenserData, { level: 1, col: 4, row: 2 });
+  const { model } = spawnPlantWithBaseRule(ATDispenserData, { level: 1, col: 4, row: 2 });
   flushDeferred();
 
   assert.equal(model.pid, 14);
   assert.equal(base.entity.destroyed, true);
+});
+
+test("替换基座后无论睡醒都继承睡眠状态", () => {
+  resetSim();
+  const sleepingBase = spawnPlant(DispenserData, { level: 1, col: 4, row: 2 });
+  sleepingBase.model.isSleeping = true;
+  getPlantsMap().set("4-2", [sleepingBase.entity]);
+
+  const sleepingResult = spawnPlantWithBaseRule(ATDispenserData, { level: 1, col: 4, row: 2 });
+  assert.equal(sleepingResult.model.isSleeping, true, "基座睡眠时继承睡眠");
+  flushDeferred();
+
+  resetSim();
+  const awakeBase = spawnPlant(DispenserData, { level: 1, col: 4, row: 2 });
+  awakeBase.model.isSleeping = false;
+  getPlantsMap().set("4-2", [awakeBase.entity]);
+
+  const awakeResult = spawnPlantWithBaseRule(ATDispenserData, { level: 1, col: 4, row: 2 });
+  assert.equal(awakeResult.model.isSleeping, false, "基座清醒时继承清醒");
+  flushDeferred();
+});
+
+test("必须种在普通发射器基座上", () => {
+  resetSim();
+  assert.equal(ATDispenserData.requiredBasePid, DispenserData.pid);
+
+  assert.equal(
+    PlantHelper.CanPlantInGrid([], ATDispenserData.pid, { type: "ground" }, ATDispenserData),
+    false,
+    "空格子不能种反坦克分发器",
+  );
+
+  const base = spawnPlant(DispenserData, { level: 1, col: 4, row: 2 });
+  assert.equal(
+    PlantHelper.CanPlantInGrid([base.entity], ATDispenserData.pid, { type: "ground" }, ATDispenserData),
+    true,
+    "有发射器基座时可以种",
+  );
 });
 
 test("睡眠时不发射普通火箭", () => {

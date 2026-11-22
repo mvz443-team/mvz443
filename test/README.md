@@ -47,9 +47,15 @@ Manager、Cmd 使用测试替身。逻辑统一按 50ms/帧推进，与游戏平
   1–6 级仍在首次爆炸后 50ms 销毁。
 - `Pumpkin` 的 5 级加速攻击是阈值效果：1–4 级攻击间隔 1950ms，
   5–9 级固定为 1462.5ms；9 级另外给激光附加 3s 减速。
-- `PumpkinWan` 普通激光覆盖以自身为中心的 3x3，9 级扩大到 5x5
+- `PumpkinWan` 是高级植物，必须种在阴森南瓜头上（`requiredBasePid=9`）；
+  普通激光覆盖以自身为中心的 3x3，9 级扩大到 5x5
   （前后各 2.5 格、上下各 2 行）；星碎爆炸范围不随等级扩大，
   植物死亡后仍会完成已排队的 5 次爆炸。
+- 高级植物替换基座后，无论基座睡醒都会继承其睡眠状态
+  （`PlantCmd.SetSleeping`）：南瓜头·晚上继承阴森南瓜头，反坦克分发器继承发射器。
+  替换只作用于 `requiredBasePid` 指定的基座，同格睡莲/护盾保持原状态；
+  测试用 `spawnPlantWithBaseRule()` 走与 `PlantsManager.PlantCard` 相同的
+  `PlantHelper.CreateEntityWithBaseReplacement`。
 - `ElasticPutin` 的反弹判定在 Model：只反弹己方、可反弹且自身清醒时的
   子弹；闪电窗口内会为带附魔接口的箭追加 `lightning`。
 - 星之碎片的目标规则集中在 `src/game/utils/helper/PlantTargeting.ts`：
@@ -57,6 +63,10 @@ Manager、Cmd 使用测试替身。逻辑统一按 50ms/帧推进，与游戏平
   测试直接 import 该纯函数断言选择结果。
 - 种植地块限制写在 `PlantModel.allowedPlantSlots`（白名单，`null` = 不限）：
   TNT 地雷配 `['ground']`，因此不能种在水面/睡莲上；气球TNT 不限制。
+- 放置方式写在 `PlantModel.placementRule`：`overlayAny` 忽略同格占用（魔术粉），
+  `overlayExisting` 必须种在已有存活植物上（萤石粉）。
+- 一次性植物用 `isOneTimePlant` + `applyInstantEffect()`：种植同帧结算，
+  不创建 Entity / 物理体；测试用 `applyInstantPlant()` 驱动，不要用 `spawnPlant()`。
 - 气球TNT 的充气阶段与引爆判定在 Model：`inflateStage` 0/1/2，升空后只被
   `flying` 怪物**碰撞**引爆，充满瞬间只做一次补判（不轮询）；星碎分身是
   mid 21 的 PLANT 阵营召唤物（waveID=-10，不计击杀），接触判定同样走碰撞事件。

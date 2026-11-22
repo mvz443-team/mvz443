@@ -1,10 +1,6 @@
 import DepthHelper from "../../../utils/helper/DepthHelper";
-/**
- * 发光粉 - 即时效果植物，唤醒同格器械并创建视觉效果
- */
-
 import { LevelScaledValue } from "../../../../utils/numbervalue";
-import { PlantEntity } from "../../../models/entities/PlantEntity";
+import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
 import PlantHelper from "../../../utils/helper/PlantHelper";
@@ -13,6 +9,12 @@ import { PowderScatterSfx } from "../../../sfx/powder/PowderScatterSfx";
 
 const SECKILL = 99889988; // 秒杀血量
 
+/**
+ * 发光粉（萤石粉）- 一次性唤醒植物。
+ *
+ * 只能种在已有存活植物的格子上；落地同一确定性帧内唤醒整格所有植物并播放特效，
+ * 不创建 Entity / 物理体，也没有存活定时器。
+ */
 export class GlowPowderModel extends PlantModel {
   public override pid = 17;
   public override nameKey = 'name_glow_powder';
@@ -26,63 +28,35 @@ export class GlowPowderModel extends PlantModel {
   public damage = new LevelScaledValue(0);
   public isNightPlant = false;
 
-  public override createEntity(scene: Game, col: number, row: number, level: number): GlowPowderEntity {
-    return this.initializeEntity(new GlowPowderEntity(scene, col, row, level));
-  }
+  /** 萤石粉只能种在已有存活植物的格子上。 */
+  public override placementRule = 'overlayExisting' as const;
+  /** 种植即结算，不存在存活实体。 */
+  public override isOneTimePlant = true;
 
-  public override onCreate(entity: GlowPowderEntity): void {
-    // 唤醒同一格的所有其他器械
-    entity.awakePlantsInGrid();
-
-    // 创建视觉效果
-    entity.createVisualEffect();
-
-    // 销毁时机决定对象生命周期，必须用可快照的定时系统。
-    entity.model.tickmanager.delayedCall({
-      delay: 300,
-      callback: () => {
-        if (entity.currentHealth > 0) {
-          entity.destroy();
-        }
-      },
-    });
-  }
-}
-
-export const GlowPowderData = new GlowPowderModel();
-
-export class GlowPowderEntity extends PlantEntity {
-  constructor(scene: Game, col: number, row: number, level: number) {
-    super(scene, col, row, GlowPowderData, level);
-  }
-
-  protected override buildView() {
-    // GlowPowder 是即时效果植物，无需可见的精灵
-    // 但为了保持架构一致性，可以创建一个不可见的占位符
-  }
-
-  /**
-   * 唤醒同一格的所有植物
-   */
-  public awakePlantsInGrid(): void {
-    const plants = PlantHelper.GetPlantsInGrid(this.col, this.row);
-    for (const plant of plants) {
-      // 不唤醒自己
-      if (plant === this) continue;
-      plant.setSleeping(false);
+  public override applyInstantEffect(scene: Game, col: number, row: number, _level: number): void {
+    // 唤醒整个格子的所有存活植物。
+    for (const plant of PlantHelper.GetPlantsInGrid(col, row)) {
+      if (plant.currentHealth > 0) {
+        plant.setSleeping(false);
+      }
     }
-  }
 
-  public createVisualEffect(): void {
+    const { x, y } = PositionManager.Instance.getPlantBottomCenter(col, row);
     SfxCmd.Create(PowderScatterSfx, {
-      scene: this.scene,
-      x: this.x,
-      y: this.y,
-      depth: DepthHelper.Plant.sfx(this.baseDepth),
+      scene,
+      x,
+      y,
+      depth: DepthHelper.Plant.sfx(DepthHelper.Plant.base(row)),
       color: 0xFFFF5A,
       count: 15,
     });
   }
+
+  /** 一次性植物没有实体入口；真实路径走 `applyInstantEffect()`。 */
+  public override createEntity(): never {
+    throw new Error("GlowPowder is an instant plant; use applyInstantEffect().");
+  }
 }
 
+export const GlowPowderData = new GlowPowderModel();
 export default GlowPowderData;

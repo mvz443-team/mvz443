@@ -21,7 +21,6 @@ import { updateAllTickManagers } from "../../game/core/logic/EntityTickManager";
 import { logicEvents } from "../../game/core/logic/LogicEvents";
 import MobCmd from "../../game/utils/cmd/MobCmd";
 import { ProjectileCmd } from "../../game/utils/cmd/ProjectileCmd";
-import { ADVANCED_PLANT } from "../../game/utils/helper/PlantHelper";
 import type { Game } from "../../game/scenes/Game";
 import { getRapierTimestepSeconds } from "../../constants/physics";
 import type { StageData } from "../../types/stage";
@@ -398,8 +397,8 @@ export class EdxPreviewStage extends Scene {
   }
 
   private ensureBasePlant(pid: number): void {
-    const basePid = ADVANCED_PLANT.get(pid);
-    if (basePid === undefined) return;
+    const basePid = PlantLibrary.GetModel(pid)?.requiredBasePid ?? null;
+    if (basePid === null) return;
     const cellKey = `${EDX_PREVIEW_PLANT_COL}-${EDX_PREVIEW_PLANT_ROW}`;
     const cell = PlantsManager.Instance.PlantsMap.get(cellKey);
     if (cell?.some((plant: PlantEntity) => plant.pid === basePid && plant.IsAlive)) {

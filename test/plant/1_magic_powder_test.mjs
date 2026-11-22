@@ -1,51 +1,60 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resetSim, spawnPlant, tick, ProjectileCmd, ResourceCmd, levelValues } from "../harness/sim.mjs";
+import {
+  resetSim,
+  applyInstantPlant,
+  ProjectileCmd,
+  ResourceCmd,
+  getPlantsMap,
+  levelValues,
+} from "../harness/sim.mjs";
 import { MagicPowderData } from "../../src/game/presets/plant/chapter1/magic_powder.ts";
 
 /**
  * 描述（magic_powder_description）：
- *   魔法粉是瞬发植物：落地立即发射一次近距离激光，并额外获得 1 星之碎片；
- *   300ms 后销毁。9 级激光伤害提升到 2000。
+ *   魔法粉是一次性瞬发植物：种植落地的同一确定性帧发射一次近距离激光并额外获得 1 星之碎片；
+ *   不创建 Entity、物理体，也没有 300ms 存活时间。9 级激光伤害提升到 2000。
  *
  * 验收路径：
- *   直接驱动真实 onCreate / onStarShards。
+ *   直接驱动真实 applyInstantEffect；检查 ProjectileCmd / ResourceCmd 调用与 PlantsMap 是否为空。
  *
  * 预期结果：
- *   Lv1 1 条激光伤害 1500、distance 1.2；+1 星碎；300ms 后 destroyed；
- *   Lv9 伤害 2000；onStarShards 不产生额外效果。
+ *   Lv1 1 条激光伤害 1500、distance 1.2；+1 星碎；不产生任何植物实体；
+ *   Lv9 伤害 2000；onStarShards 仍无额外效果。
  *
  * 为什么：
- *   shootLaser 立即 CreateLaser，damage = LevelScaledValue(1500).setThreshold(9, 2000)，
- *   随后 tickmanager.delayedCall(300) 销毁；onStarShards 是空实现。
+ *   applyInstantEffect 内 CreateLaser，damage = LevelScaledValue(1500).setThreshold(9, 2000)，
+ *   并调用 AddStarshardToAll(1)；PlantsManager 对 isOneTimePlant 直接走该入口，不 createEntity。
  */
 
-test("Lv1 落地立即发射 1500 伤害激光并 +1 星碎", () => {
-  const sim = resetSim();
-  const { entity } = spawnPlant(MagicPowderData, { level: 1 });
+test("Lv1 落地立即发射 1500 伤害激光并 +1 星碎，且不创建实体", () => {
+  resetSim();
+  applyInstantPlant(MagicPowderData, { level: 1 });
 
   assert.equal(ProjectileCmd.calls.length, 1);
   assert.equal(ProjectileCmd.calls[0].kind, "laser");
   assert.equal(ProjectileCmd.calls[0].cfg.damage, 1500);
   assert.equal(ProjectileCmd.calls[0].cfg.distance, 1.2);
   assert.deepEqual(ResourceCmd.calls, [{ kind: "starshard", amount: 1 }]);
-
-  tick(sim, 300);
-  assert.equal(entity.destroyed, true);
+  assert.equal(getPlantsMap().size, 0, "一次性植物不进入 PlantsMap");
 });
 
 test("Lv9 激光伤害 2000", () => {
   resetSim();
-  spawnPlant(MagicPowderData, { level: 9 });
+  applyInstantPlant(MagicPowderData, { level: 9 });
   assert.equal(ProjectileCmd.calls[0].cfg.damage, 2000);
 });
 
 test("星之碎片对魔法粉没有额外效果", () => {
   resetSim();
-  const { model, entity } = spawnPlant(MagicPowderData, { level: 1 });
   ProjectileCmd.reset();
-  model.onStarShards(entity);
+  MagicPowderData.onStarShards();
   assert.equal(ProjectileCmd.calls.length, 0);
+});
+
+test("一次性植物标记与放置规则", () => {
+  assert.equal(MagicPowderData.isOneTimePlant, true);
+  assert.equal(MagicPowderData.placementRule, "overlayAny");
 });
 
 /**

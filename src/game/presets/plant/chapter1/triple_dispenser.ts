@@ -228,7 +228,8 @@ export class TripleDispenserEntity extends PlantEntity {
   private declare head: Phaser.GameObjects.Sprite;
   private declare headX: number;
   public game: Game;
-  public inBruteShoot = false;
+  /** 是否处于暴力发射状态；状态存储在 Model，必须用 declare 避免遮蔽。 */
+  declare public inBruteShoot: boolean;
 
   constructor(scene: Game, col: number, row: number, level: number) {
     super(scene, col, row, TripleDispenserData, level);

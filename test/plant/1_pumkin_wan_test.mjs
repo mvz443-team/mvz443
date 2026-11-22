@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   resetSim,
   spawnPlant,
-  spawnPlantViaData,
+  spawnPlantWithBaseRule,
   tick,
   setSightTarget,
   getPlantsMap,
@@ -14,6 +14,9 @@ import {
 } from "../harness/sim.mjs";
 import { PumpkinWanData } from "../../src/game/presets/plant/chapter1/pumkin_wan.ts";
 import { PumpkinData } from "../../src/game/presets/plant/chapter1/pumkin.ts";
+import { LilyData } from "../../src/game/presets/plant/chapter1/lily.ts";
+import { PumpkinPassportData } from "../../src/game/presets/plant/chapter2/pumpkin_passport.ts";
+import PlantHelper from "../../src/game/utils/helper/PlantHelper.ts";
 
 /**
  * 描述（pumpkin_wan_description）：
@@ -158,17 +161,74 @@ test("星碎爆炸在植物死亡后仍完成全部 5 次", () => {
   assert.deepEqual(model.tickmanager.capture(), []);
 });
 
-test("替换同格基础南瓜并继承其睡眠状态", () => {
+test("必须种在阴森南瓜头基座上", () => {
+  resetSim();
+  assert.equal(PumpkinWanData.requiredBasePid, PumpkinData.pid);
+  assert.equal(
+    PlantHelper.CanPlantInGrid([], PumpkinWanData.pid, { type: "ground" }, PumpkinWanData),
+    false,
+    "空格子不能种南瓜头·晚上",
+  );
+
+  const base = spawnPlant(PumpkinData, { level: 1, col: 4, row: 2 });
+  assert.equal(
+    PlantHelper.CanPlantInGrid([base.entity], PumpkinWanData.pid, { type: "ground" }, PumpkinWanData),
+    true,
+    "有阴森南瓜头基座时可以种",
+  );
+});
+
+test("种在阴森南瓜头上会替换并继承其睡眠状态", () => {
   resetSim();
   const base = spawnPlant(PumpkinData, { level: 1, col: 4, row: 2 });
   base.model.isSleeping = true;
   getPlantsMap().set("4-2", [base.entity]);
 
-  const { model } = spawnPlantViaData(PumpkinWanData, { level: 1, col: 4, row: 2 });
+  const { model } = spawnPlantWithBaseRule(PumpkinWanData, { level: 1, col: 4, row: 2 });
 
   assert.equal(base.entity.destroyed, true);
   assert.equal(model.isSleeping, true);
   assert.equal(PlantCmd.calls.some((call) => call.kind === "sleeping" && call.value === true), true);
+});
+
+test("替换基座后无论睡醒都继承睡眠状态", () => {
+  resetSim();
+  const sleepingBase = spawnPlant(PumpkinData, { level: 1, col: 4, row: 2 });
+  sleepingBase.model.isSleeping = true;
+  getPlantsMap().set("4-2", [sleepingBase.entity]);
+
+  const sleepingResult = spawnPlantWithBaseRule(PumpkinWanData, { level: 1, col: 4, row: 2 });
+  assert.equal(sleepingResult.model.isSleeping, true, "基座睡眠时继承睡眠");
+
+  resetSim();
+  const awakeBase = spawnPlant(PumpkinData, { level: 1, col: 4, row: 2 });
+  awakeBase.model.isSleeping = false;
+  getPlantsMap().set("4-2", [awakeBase.entity]);
+
+  const awakeResult = spawnPlantWithBaseRule(PumpkinWanData, { level: 1, col: 4, row: 2 });
+  assert.equal(awakeResult.model.isSleeping, false, "基座清醒时继承清醒");
+});
+
+test("同格睡莲+护盾+南瓜时只替换南瓜，睡莲和护盾保持原状态", () => {
+  resetSim();
+  const lily = spawnPlant(LilyData, { level: 1, col: 4, row: 2 });
+  const shield = spawnPlant(PumpkinPassportData, { level: 1, col: 4, row: 2 });
+  const pumpkin = spawnPlant(PumpkinData, { level: 1, col: 4, row: 2 });
+  pumpkin.model.isSleeping = true;
+  getPlantsMap().set("4-2", [lily.entity, shield.entity, pumpkin.entity]);
+
+  const { entity } = spawnPlantWithBaseRule(PumpkinWanData, { level: 1, col: 4, row: 2 });
+
+  assert.equal(pumpkin.entity.destroyed, true, "只销毁阴森南瓜头基座");
+  assert.notEqual(lily.entity.destroyed, true, "睡莲保持原状态");
+  assert.notEqual(shield.entity.destroyed, true, "护盾保持原状态");
+  assert.equal(entity.model.isSleeping, true, "继承南瓜的睡眠状态");
+
+  const cell = getPlantsMap().get("4-2") ?? [];
+  assert.ok(cell.includes(lily.entity), "睡莲仍在格子里");
+  assert.ok(cell.includes(shield.entity), "护盾仍在格子里");
+  assert.ok(cell.includes(entity), "南瓜头·晚上已加入格子");
+  assert.ok(!cell.includes(pumpkin.entity), "南瓜基座已移除");
 });
 
 /**

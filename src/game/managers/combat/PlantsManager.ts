@@ -336,7 +336,13 @@ export default class PlantsManager extends BaseManager {
 
     DeferredManager.Instance.defer(() => {
       if (!this.scene) return;
-      model.createEntity(this.scene, col, row, level);
+      // 一次性植物在确定性帧内直接结算效果，不创建 Entity / 物理体 / 存活定时器。
+      if (model.isOneTimePlant) {
+        model.applyInstantEffect(this.scene, col, row, level);
+        return;
+      }
+      // 基本规则：高级植物在这里统一替换 requiredBasePid 指定的基座并继承睡眠。
+      PlantHelper.CreateEntityWithBaseReplacement(this.scene, col, row, level, model);
     });
     return { ok: true };
   }

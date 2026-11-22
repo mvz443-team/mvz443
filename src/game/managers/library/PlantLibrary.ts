@@ -1,5 +1,8 @@
 import type { PlantModel } from "../../models/PlantModel";
-import { registerPlantStackRole } from "../../utils/helper/PlantTargeting";
+import {
+  registerPlantPlacement,
+  registerPlantStackRole,
+} from "../../utils/helper/PlantTargeting";
 import { Chapter1Plants } from "../../presets/plant/chapter1";
 import { Chapter2Plants } from "../../presets/plant/chapter2";
 
@@ -16,6 +19,7 @@ export class PlantLibrary {
     for (const plant of AllPlants) {
       this.Register(plant);
       registerPlantStackRole(plant.pid, plant.stackRole);
+      registerPlantPlacement(plant.pid, plant.placementRule, plant.isOneTimePlant);
     }
 
     // this.Register(PeashooterData);

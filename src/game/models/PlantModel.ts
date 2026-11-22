@@ -17,6 +17,14 @@ export type PlantSlot = 'ground' | 'water' | 'sky';
  */
 export type PlantStackRole = 'normal' | 'carrier' | 'shield';
 
+/**
+ * 放置规则：只回答"能否放在这个格子上"，与 `stackRole`（目标选择角色）正交。
+ * - normal：常规，受地块白名单与同格植物冲突限制；
+ * - overlayAny：忽略同格植物占用（魔术粉），仍受地块规则限制；
+ * - overlayExisting：必须种在已有存活植物的格子上（萤石粉）。
+ */
+export type PlantPlacementRule = 'normal' | 'overlayAny' | 'overlayExisting';
+
 export abstract class PlantModel extends LogicModel {
   /** 以下运行时字段全部自动进入快照；新增字段直接写在这里即可。 */
   public level: number = 1;
@@ -55,6 +63,20 @@ export abstract class PlantModel extends LogicModel {
   public allowedPlantSlots: readonly PlantSlot[] | null = null;
   /** 错落角色；默认 normal，承载物/护罩由对应 preset 覆写。 */
   public stackRole: PlantStackRole = 'normal';
+  /** 放置规则；默认 normal，一次性/特殊叠种由对应 preset 覆写。 */
+  public placementRule: PlantPlacementRule = 'normal';
+  /**
+   * 必须种在哪个 pid 的基座植物上；`null` 表示不要求基座。
+   * 当前高级植物：
+   * - 南瓜头·晚上（pid 11）→ 阴森南瓜头（pid 9）
+   * - 反坦克分发器（pid 14）→ 发射器（pid 1）
+   */
+  public requiredBasePid: number | null = null;
+  /**
+   * 一次性植物：种植落地的同一确定性帧直接结算效果，不创建 Entity、物理体或存活定时器。
+   * 具体效果由 `applyInstantEffect()` 覆写。
+   */
+  public isOneTimePlant: boolean = false;
   /** 低矮植物由 `LogicModel.tiny` 表示（只有带 tiny 的投射物能命中）。 */
 
   protected readonly LevelThresholds1: number;
@@ -96,6 +118,14 @@ export abstract class PlantModel extends LogicModel {
   }
 
   public onDeath(_entity: PlantEntity) { };
+
+  /**
+   * 一次性植物的落地效果。
+   *
+   * 由 `PlantsManager` 在 `isOneTimePlant === true` 时于 defer 回调中直接调用，
+   * 不创建 Entity / 物理体，也不注册存活定时器；逻辑必须在同一确定性帧内完成。
+   */
+  public applyInstantEffect(_scene: Game, _col: number, _row: number, _level: number): void { }
 
   protected initializeEntity<TEntity extends PlantEntity>(entity: TEntity): TEntity {
     return entity.initializeEntity();

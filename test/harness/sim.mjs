@@ -24,6 +24,7 @@ import manager, {
   setGridType,
 } from "./stubs/manager-generic.mjs";
 import { PlantEntity } from "./stubs/plant-entity.mjs";
+import PlantHelper from "../../src/game/utils/helper/PlantHelper.ts";
 import { resetSightTarget, setSightTargetProvider } from "./stubs/sightline.mjs";
 import { ProjectileCmd } from "./stubs/cmd-projectile.mjs";
 import ResourceCmd from "./stubs/cmd-resource.mjs";
@@ -201,6 +202,11 @@ export function spawnPlant(data, {
   scene = makeScene(),
   initialize = true,
 } = {}) {
+  if (data.isOneTimePlant) {
+    throw new Error(
+      `spawnPlant 不适用于一次性植物 pid=${data.pid}；请使用 applyInstantPlant。`,
+    );
+  }
   const model = data.clone();
   trackModel(model);
   const entity = new PlantEntity(scene, col, row, model, level);
@@ -208,6 +214,17 @@ export function spawnPlant(data, {
   model.setTickOwnerId(`plant:${col}:${row}:${model.pid}`);
   if (initialize) entity.initializeEntity();
   return { model, entity, scene };
+}
+
+/** 一次性植物没有 Entity：直接驱动真实 applyInstantEffect。 */
+export function applyInstantPlant(data, {
+  level = 1,
+  col = 0,
+  row = 0,
+  scene = makeScene(),
+} = {}) {
+  data.applyInstantEffect(scene, col, row, level);
+  return { model: data, scene };
 }
 
 /** 通过真实 preset createEntity 创建，便于验证替换基座等 Entity 侧入口。 */
@@ -222,6 +239,26 @@ export function spawnPlantViaData(data, {
   const entity = model.createEntity(scene, col, row, level);
   // 真实 createEntity 可能使用 preset 单例作为 entity.model（例如 ATDispenser），
   // 也要纳入 resetSim 的清理范围，避免跨测试继续 tick。
+  if (entity?.model && entity.model !== model) trackModel(entity.model);
+  return { model: entity.model, entity, scene };
+}
+
+/**
+ * 通过真实基座替换基本规则创建高级植物。
+ * 与 PlantsManager.PlantCard 走同一条 PlantHelper.CreateEntityWithBaseReplacement 路径。
+ */
+export function spawnPlantWithBaseRule(data, {
+  level = 1,
+  col = 0,
+  row = 0,
+  scene = makeScene(),
+} = {}) {
+  const model = data.clone();
+  trackModel(model);
+  const entity = PlantHelper.CreateEntityWithBaseReplacement(scene, col, row, level, model);
+  // 真实 PlantEntity.initializeEntity 会调用 PlantsManager.RegisterPlant；
+  // 测试替身不注册，这里补上以保持格子状态与真实路径一致。
+  if (entity) manager.Instance.RegisterPlant(entity);
   if (entity?.model && entity.model !== model) trackModel(entity.model);
   return { model: entity.model, entity, scene };
 }

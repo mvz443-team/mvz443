@@ -11,7 +11,7 @@
  * 避免每个调用点各写一套顺序。
  */
 
-import type { PlantStackRole } from "../../models/PlantModel";
+import type { PlantPlacementRule, PlantStackRole } from "../../models/PlantModel";
 
 export interface PlantTargetLike {
   pid: number;
@@ -26,7 +26,7 @@ export const CARRIER_PLANT_PIDS: readonly number[] = [6, 100];
 /** 护盾植物：可以叠在其它植物外面、优先承受伤害的保护壳。仅作为回落表。 */
 export const SHIELD_PLANT_PIDS: readonly number[] = [19];
 
-/** 粉尘植物：可以随意叠种在任意格子上。 */
+/** 粉尘植物：仅作为 PlantLibrary 未初始化时的兼容回落表。 */
 export const POWDER_PLANT_PIDS: readonly number[] = [10, 17];
 
 /**
@@ -35,12 +35,39 @@ export const POWDER_PLANT_PIDS: readonly number[] = [10, 17];
  */
 const STACK_ROLE_BY_PID = new Map<number, PlantStackRole>();
 
+/** 放置规则缓存；与 stackRole 一样是静态 preset 配置，不进哈希。 */
+const PLACEMENT_RULE_BY_PID = new Map<number, PlantPlacementRule>();
+const ONE_TIME_PLANT_PIDS = new Set<number>();
+
 export function registerPlantStackRole(pid: number, role: PlantStackRole): void {
   STACK_ROLE_BY_PID.set(pid, role);
 }
 
 export function resetPlantStackRoles(): void {
   STACK_ROLE_BY_PID.clear();
+}
+
+export function registerPlantPlacement(
+  pid: number,
+  rule: PlantPlacementRule,
+  isOneTime = false,
+): void {
+  PLACEMENT_RULE_BY_PID.set(pid, rule);
+  if (isOneTime) ONE_TIME_PLANT_PIDS.add(pid);
+  else ONE_TIME_PLANT_PIDS.delete(pid);
+}
+
+export function resetPlantPlacements(): void {
+  PLACEMENT_RULE_BY_PID.clear();
+  ONE_TIME_PLANT_PIDS.clear();
+}
+
+export function placementRuleOfPid(pid: number): PlantPlacementRule {
+  return PLACEMENT_RULE_BY_PID.get(pid) ?? "normal";
+}
+
+export function isOneTimePlantPid(pid: number): boolean {
+  return ONE_TIME_PLANT_PIDS.has(pid);
 }
 
 function legacyStackRoleOfPid(pid: number): PlantStackRole {
@@ -66,6 +93,9 @@ export function isShieldPlantPid(pid: number): boolean {
 }
 
 export function isPowderPlantPid(pid: number): boolean {
+  const rule = PLACEMENT_RULE_BY_PID.get(pid);
+  if (rule) return rule === "overlayAny" || rule === "overlayExisting";
+  // 兼容 PlantLibrary 尚未初始化或测试替身的场景。
   return POWDER_PLANT_PIDS.includes(pid);
 }
 

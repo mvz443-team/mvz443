@@ -9,12 +9,21 @@ import { LilyData } from "../../src/game/presets/plant/chapter1/lily.ts";
 import { TntMinesData } from "../../src/game/presets/plant/chapter1/tnt_mines.ts";
 import { PumpkinPassportData } from "../../src/game/presets/plant/chapter2/pumpkin_passport.ts";
 import { DispenserData } from "../../src/game/presets/plant/chapter1/dispenser.ts";
+import { ATDispenserData } from "../../src/game/presets/plant/chapter1/at_dispenser.ts";
+import { PumpkinWanData } from "../../src/game/presets/plant/chapter1/pumkin_wan.ts";
+import { PumpkinData } from "../../src/game/presets/plant/chapter1/pumkin.ts";
+import { MagicPowderData } from "../../src/game/presets/plant/chapter1/magic_powder.ts";
+import { GlowPowderData } from "../../src/game/presets/plant/chapter2/glow_powder.ts";
 import {
   isCarrierPlantPid,
+  isOneTimePlantPid,
   isShieldPlantPid,
   pickShieldPlant,
   pickStarShardsTarget,
+  placementRuleOfPid,
+  registerPlantPlacement,
   registerPlantStackRole,
+  resetPlantPlacements,
   resetPlantStackRoles,
   stackRoleOfPid,
 } from "../../src/game/utils/helper/PlantTargeting.ts";
@@ -135,4 +144,88 @@ test("错落三态驱动星碎目标与护盾承伤", () => {
   assert.equal(pickStarShardsTarget([carrier, inner, shell], "up"), inner);
   assert.equal(pickStarShardsTarget([carrier, inner, shell], "down"), shell);
   assert.equal(pickStarShardsTarget([carrier], "down"), carrier, "只剩承载物时兜底");
+});
+
+test("放置规则由 Model 声明，一次性植物不再依赖 pid 表", () => {
+  resetSim();
+  resetPlantPlacements();
+  registerPlantPlacement(MagicPowderData.pid, MagicPowderData.placementRule, MagicPowderData.isOneTimePlant);
+  registerPlantPlacement(GlowPowderData.pid, GlowPowderData.placementRule, GlowPowderData.isOneTimePlant);
+
+  assert.equal(placementRuleOfPid(MagicPowderData.pid), "overlayAny");
+  assert.equal(placementRuleOfPid(GlowPowderData.pid), "overlayExisting");
+  assert.equal(isOneTimePlantPid(MagicPowderData.pid), true);
+  assert.equal(isOneTimePlantPid(GlowPowderData.pid), true);
+
+  assert.equal(
+    PlantHelper.CanPlantInGrid([], GlowPowderData.pid, { type: "ground" }, GlowPowderData),
+    false,
+    "萤石粉必须种在已有存活植物上",
+  );
+
+  const inner = spawnPlant(DispenserData, { level: 1, col: 2, row: 2 });
+  assert.equal(
+    PlantHelper.CanPlantInGrid([inner.entity], GlowPowderData.pid, { type: "ground" }, GlowPowderData),
+    true,
+    "已有植物时可种萤石粉",
+  );
+  assert.equal(
+    PlantHelper.CanPlantInGrid([inner.entity], MagicPowderData.pid, { type: "ground" }, MagicPowderData),
+    true,
+    "魔术粉忽略同格占用",
+  );
+});
+
+test("魔术粉沿用旧规则：水格无睡莲仍然拒绝", () => {
+  resetSim();
+  resetPlantStackRoles();
+  registerPlantStackRole(LilyData.pid, LilyData.stackRole);
+
+  assert.equal(
+    PlantHelper.CanPlantInGrid([], MagicPowderData.pid, { type: "water" }, MagicPowderData),
+    false,
+    "水格无承载物时魔术粉仍被拒绝",
+  );
+
+  const lily = spawnPlant(LilyData, { level: 1, col: 0, row: 0 });
+  assert.equal(
+    PlantHelper.CanPlantInGrid([lily.entity], MagicPowderData.pid, { type: "water" }, MagicPowderData),
+    true,
+    "睡莲上可放魔术粉",
+  );
+});
+
+test("基座关系由 requiredBasePid 声明：南瓜头与反坦克分发器都需要基座", () => {
+  resetSim();
+  resetPlantStackRoles();
+  registerPlantStackRole(DispenserData.pid, DispenserData.stackRole);
+
+  assert.equal(ATDispenserData.requiredBasePid, DispenserData.pid);
+  assert.equal(PumpkinWanData.requiredBasePid, PumpkinData.pid);
+
+  assert.equal(
+    PlantHelper.CanPlantInGrid([], ATDispenserData.pid, { type: "ground" }, ATDispenserData),
+    false,
+    "反坦克分发器不能种在空格子",
+  );
+
+  const dispenser = spawnPlant(DispenserData, { level: 1, col: 0, row: 0 });
+  assert.equal(
+    PlantHelper.CanPlantInGrid([dispenser.entity], ATDispenserData.pid, { type: "ground" }, ATDispenserData),
+    true,
+    "有发射器基座时可以种反坦克分发器",
+  );
+
+  assert.equal(
+    PlantHelper.CanPlantInGrid([], PumpkinWanData.pid, { type: "ground" }, PumpkinWanData),
+    false,
+    "南瓜头·晚上不能种在空格子",
+  );
+
+  const pumpkin = spawnPlant(PumpkinData, { level: 1, col: 1, row: 0 });
+  assert.equal(
+    PlantHelper.CanPlantInGrid([pumpkin.entity], PumpkinWanData.pid, { type: "ground" }, PumpkinWanData),
+    true,
+    "有阴森南瓜头基座时可以种南瓜头·晚上",
+  );
 });

@@ -2,52 +2,50 @@ import { GridProperty } from "../../managers/combat/GridManager";
 import PlantsManager from "../../managers/combat/PlantsManager";
 import { PlantEntity } from "../../models/entities/PlantEntity";
 import type { PlantModel, PlantSlot } from "../../models/PlantModel";
-import { MagicPowderData } from "../../presets/plant/chapter1/magic_powder";
+import type { Game } from "../../scenes/Game";
+import { PlantCmd } from "../../utils/cmd/PlantCmd";
 import {
   isCarrierPlantPid,
+  isPowderPlantPid,
   isShieldPlantPid,
   pickShieldPlant,
   pickStarShardsTarget,
-  POWDER_PLANT_PIDS,
   SHIELD_PLANT_PIDS,
 } from "./PlantTargeting";
 
-// 特殊的植物种植规则
-export const SHIELD_PLANT: readonly number[] = SHIELD_PLANT_PIDS; // 护盾植物,铲除上方时铲除,可以和任何非护盾器械兼容
-export const WATER_ONLY_PLANT: number[] = [6];// 水中植物,只能种植在水中
-export const SKY_ONLY_PLANT: number[] = [100]; // 船只,只能种植在天空中
-export const POWDER_PLANT: readonly number[] = POWDER_PLANT_PIDS; // 粉尘植物,可以随意种植
-
-export const ADVANCED_PLANT: Map<number, number> = new Map([
-  [11, 9], [14, 1]
-]); // 高级植物,只能种植在基座上, [advancedPid - basicPid]
-
+// 兼容导出：护盾 pid 列表仍由 PlantTargeting 维护；新增护盾请覆写 preset.stackRole。
+export const SHIELD_PLANT: readonly number[] = SHIELD_PLANT_PIDS;
 
 // 怪物的地形通行规则统一由 TerrainHabitat + MonsterModel.habitats 决定，不再在此维护 pid 白名单。
 
-const lilyPid = 6;
-const boatPid = 100; // unknown
-const magicPowderPid = MagicPowderData.pid;
+/** 仅水中：白名单恰好只有 water。 */
+function isWaterOnly(model: PlantModel | null | undefined): boolean {
+  const slots = model?.allowedPlantSlots;
+  return !!slots && slots.length === 1 && slots[0] === 'water';
+}
+
+/** 仅空中：白名单恰好只有 sky。 */
+function isSkyOnly(model: PlantModel | null | undefined): boolean {
+  const slots = model?.allowedPlantSlots;
+  return !!slots && slots.length === 1 && slots[0] === 'sky';
+}
+
+function isAlivePlant(plant: PlantEntity): boolean {
+  return (plant.currentHealth ?? 0) > 0;
+}
+
+function isCarrierPlant(plant: PlantEntity): boolean {
+  return plant.model.stackRole === 'carrier' || isCarrierPlantPid(plant.model.pid);
+}
+
+function isShieldPlant(plant: PlantEntity): boolean {
+  return plant.model.stackRole === 'shield' || isShieldPlantPid(plant.model.pid);
+}
 
 namespace PlantHelper {
-  export function hasBoat(plants: PlantEntity[]): boolean {
-    for (const plant of plants) {
-      if (plant.model.pid === boatPid) {
-        return true;
-      }
-    }
-    return false;
-
-  }
-
-  export function hasLily(plants: PlantEntity[]): boolean {
-    for (const plant of plants) {
-      if (plant.model.pid === lilyPid) {
-        return true;
-      }
-    }
-    return false;
-
+  /** 同格是否存在承载物（睡莲/船等，由 stackRole 或兼容表判定）。 */
+  export function hasCarrier(plants: PlantEntity[]): boolean {
+    return plants.some(isCarrierPlant);
   }
 
   // 是否是承载物
@@ -78,10 +76,6 @@ namespace PlantHelper {
     return { pid: target.pid, plantEntity: target };
   }
 
-  export function isPowder(pid: number): boolean {
-    return POWDER_PLANT.includes(pid);
-  }
-
   /**
    * 铲子（pickaxe）要移除的同格植物。
    * 与悬停预览共用同一份规则，保证"看到哪个就铲哪个"。
@@ -94,107 +88,128 @@ namespace PlantHelper {
   }
 
   /**
-   * 只考虑 格子 和 当前格子已有植物 的情况下判断能否种植
+   * 只考虑 格子 和 当前格子已有植物 的情况下判断能否种植。
+   *
+   * 规则来源：
+   * - 能种在哪 → `PlantModel.allowedPlantSlots`
+   * - 基座关系 → `PlantModel.requiredBasePid`
+   * - 叠种方式 → `PlantModel.placementRule` + `PlantModel.stackRole`
+   *
+   * 不再维护 water/sky/carrier 的 pid 白名单，避免新增植物时漏改 helper。
    */
   export function CanPlantInGrid(
-  existedPlants: PlantEntity[],
-  pid: number,
-  targetGridProperty: GridProperty,
-  model?: PlantModel | null,
-): boolean {
-    // 地块白名单：Model 声明 allowedPlantSlots 时，只允许列表内的地块类型。
-    const allowedSlots = model?.allowedPlantSlots ?? null;
-    if (allowedSlots && !allowedSlots.includes(targetGridProperty.type as PlantSlot)) {
+    existedPlants: PlantEntity[],
+    pid: number,
+    targetGridProperty: GridProperty,
+    model?: PlantModel | null,
+  ): boolean {
+    // 读取不到 Model 时保守拒绝：不同调用点不能各自回落到 pid 硬编码，
+    // 否则预览/执行/权威校验会对同一格得出不同结论。
+    if (!model) return false;
+
+    // 1) 地块白名单：null 表示不限。
+    if (model.allowedPlantSlots
+      && !model.allowedPlantSlots.includes(targetGridProperty.type as PlantSlot)) {
       return false;
     }
 
-    // 高级植物专门通道判断
-    if (ADVANCED_PLANT.has(pid)) {
-      const basicPid = ADVANCED_PLANT.get(pid);
-      for (const plant of existedPlants) {
-        if (plant.model.pid === basicPid) {
-          return true;
-        }
-      }
-      return false;
+    // 2) 基座关系：由 preset 声明 `requiredBasePid`。
+    if (model.requiredBasePid !== null) {
+      return existedPlants.some((plant) => plant.model.pid === model.requiredBasePid);
     }
 
-    // 仅水中/仅空中不再按 pid 硬编码，统一读取 PlantModel.allowedPlantSlots。
-    // 传入的 model 缺失时才回落到兼容常量，保证旧调用点不失效。
-    const slotsOnly = (plantPid: number, plantModel: PlantModel | null | undefined, slot: PlantSlot): boolean => {
-      const slots = plantModel?.allowedPlantSlots;
-      if (slots) return slots.length === 1 && slots[0] === slot;
-      return slot === 'water'
-        ? WATER_ONLY_PLANT.includes(plantPid)
-        : SKY_ONLY_PLANT.includes(plantPid);
-    };
-    const isWaterOnly = (plantPid: number, plantModel: PlantModel | null | undefined) => slotsOnly(plantPid, plantModel, 'water');
-    const isSkyOnly = (plantPid: number, plantModel: PlantModel | null | undefined) => slotsOnly(plantPid, plantModel, 'sky');
-
-    // 不考虑任何承载物的情况下,指定plant能否放置
-    const canPlantWithoutCarrier = (existedPlants: PlantEntity[], pid: number) => {
-      // 先考虑所有特殊植物
-      // 粉尘植物,随意种植
-      if (isPowder(pid)) {
-        return true;
+    // 3) 不考虑承载物时，指定 plant 能否放置。
+    const canPlantWithoutCarrier = (): boolean => {
+      // 一次性/特殊叠种规则由 Model 声明。
+      if (model.placementRule === 'overlayAny') return true;
+      if (model.placementRule === 'overlayExisting') {
+        return existedPlants.some(isAlivePlant);
       }
 
-      // 仅水中植物（睡莲等）：只能在水体放置，且同格不能再有另一株仅水中植物。
-      if (isWaterOnly(pid, model)) {
-        for (const plant of existedPlants) {
-          if (isWaterOnly(plant.model.pid, plant.model)) return false;
-        }
-        return targetGridProperty.type === 'water';
+      // 仅水中植物：只能水格，且同格不能再有另一株仅水中植物。
+      if (isWaterOnly(model)) {
+        return targetGridProperty.type === 'water'
+          && !existedPlants.some((plant) => isWaterOnly(plant.model));
       }
 
-      // 仅空中植物（船等）：只能在空域放置，且同格不能再有另一株船。
-      if (isSkyOnly(pid, model)) {
-        return targetGridProperty.type === 'sky' && !hasBoat(existedPlants);
+      // 仅空中植物：只能空域，且同格不能再有承载物。
+      if (isSkyOnly(model)) {
+        return targetGridProperty.type === 'sky' && !hasCarrier(existedPlants);
       }
 
-      // 护罩：可种在任意地块，但同格只能有一株护罩。
-      if (isShieldPlantPid(pid)) {
-        for (const plant of existedPlants) {
-          if (isShieldPlantPid(plant.model.pid)) return false;
-        }
-        return true;
+      // 承载物：同格只能有一株承载物。
+      if (model.stackRole === 'carrier' || isCarrierPlantPid(pid)) {
+        return !hasCarrier(existedPlants);
       }
-      // normal plant
-      // 本格中没有除了承载物/护罩外的其他植物
-      for (const plant of existedPlants) {
-        if (!isCarrierPlantPid(plant.model.pid) && !isShieldPlantPid(plant.model.pid)) {
-          return false;
-        }
+
+      // 护盾：可种在任意地块，但同格只能有一株护盾。
+      if (model.stackRole === 'shield' || isShieldPlantPid(pid)) {
+        return !existedPlants.some(isShieldPlant);
       }
-      return true;
+
+      // 普通植物：同格不能有除承载物/护盾外的其他植物。
+      return !existedPlants.some((plant) =>
+        !isCarrierPlant(plant) && !isShieldPlant(plant)
+      );
     };
 
-    // 首先判断目标grid的Property
+    // 4) 按目标地块收口。
     if (targetGridProperty.type === 'water') {
-      if (isWaterOnly(pid, model)) {
-        return canPlantWithoutCarrier(existedPlants, pid);
+      // 水本生植物可以直接种；普通植物必须已有承载物（睡莲/船）。
+      if (isWaterOnly(model)) return canPlantWithoutCarrier();
+      // 萤石粉这类"必须种在已有植物上"的规则优先于承载物要求。
+      if (model.placementRule === 'overlayExisting' && existedPlants.some(isAlivePlant)) {
+        return true;
       }
-
-      if (hasLily(existedPlants)) {
-        return canPlantWithoutCarrier(existedPlants, pid);
-      }
+      if (hasCarrier(existedPlants)) return canPlantWithoutCarrier();
       return false;
-    } else if (targetGridProperty.type === 'sky') {
-      if (isSkyOnly(pid, model)) {
-        return canPlantWithoutCarrier(existedPlants, pid);
-      }
-
-      // 其实可以直接种植,只不过被火烧而已
-      return canPlantWithoutCarrier(existedPlants, pid);
-    } else {
-      // ground
-      return canPlantWithoutCarrier(existedPlants, pid);
     }
+
+    // sky / ground 都走通用规则；sky 的"会被火烧"属于战斗逻辑，不是种植限制。
+    return canPlantWithoutCarrier();
   }
 
   export function GetPlantsInGrid(col: number, row: number): PlantEntity[] {
     const key = `${col}-${row}`;
     return PlantsManager.Instance.PlantsMap.get(key) || [];
+  }
+
+  /** 找到当前格子里指定 pid 的基座植物；高级植物替换基座时统一走这里。 */
+  export function FindBasePlant(
+    col: number,
+    row: number,
+    basePid: number | null,
+  ): PlantEntity | null {
+    if (basePid === null) return null;
+    return GetPlantsInGrid(col, row).find((plant) => plant.model.pid === basePid) ?? null;
+  }
+
+  /**
+   * 高级植物种植的基本规则：
+   * - 只替换 `requiredBasePid` 指定的那一株基座，同格其他植物（睡莲/护盾等）保持原状态；
+   * - 替换后无论昼夜都继承基座的睡眠状态。
+   *
+   * 所有种植路径（卡片、赠送、权威帧）都通过这里创建高级植物，preset 的
+   * `createEntity` 只负责实体本身，不再各自处理基座。
+   */
+  export function CreateEntityWithBaseReplacement(
+    scene: Game,
+    col: number,
+    row: number,
+    level: number,
+    model: PlantModel,
+  ): PlantEntity {
+    const base = FindBasePlant(col, row, model.requiredBasePid);
+    const inheritedSleeping = base?.isSleeping;
+
+    // 先创建新植物再销毁基座：正在啃咬基座的怪物能在同一次通知里
+    // 重新选到刚替换上去的高级植物，而不是短暂看到空位后继续前进。
+    const entity = model.createEntity(scene, col, row, level);
+    base?.destroy();
+    if (inheritedSleeping !== undefined) {
+      PlantCmd.SetSleeping(entity, inheritedSleeping);
+    }
+    return entity;
   }
 
   // 一个格子会有多个植物， 这里选择出做优先的
@@ -216,8 +231,8 @@ namespace PlantHelper {
       } else {
         // 处理多个植物情况
         // 有承载物,而只有两个plant,优先返回非承载物
-        if (list.length === 2 && (hasBoat(list) || hasLily(list))) {
-          const targetPlant = isCarrier(list[0].model.pid) ? list[1] : list[0];
+        if (list.length === 2 && hasCarrier(list)) {
+          const targetPlant = isCarrierPlant(list[0]) ? list[1] : list[0];
           return {
             pid: targetPlant.model.pid,
             plantEntity: targetPlant
@@ -226,7 +241,7 @@ namespace PlantHelper {
         // 有护盾,Normal plant(以及还有承载物)
         if (removeShield) { // 鼠标在grid下方,remove shield
           for (const plant of list) {
-            if (isShieldPlantPid(plant.model.pid)) {
+            if (isShieldPlant(plant)) {
               return {
                 pid: plant.model.pid,
                 plantEntity: plant
@@ -236,7 +251,7 @@ namespace PlantHelper {
         } else {
           // 即使是移除上面的目标,如果只有承载物和护盾,也会在上面的逻辑中返回护盾
           for (const plant of list) {
-            if (!isShieldPlantPid(plant.model.pid) && (!isCarrier(plant.model.pid))) {
+            if (!isShieldPlant(plant) && !isCarrierPlant(plant)) {
               return {
                 pid: plant.model.pid,
                 plantEntity: plant
@@ -255,15 +270,15 @@ namespace PlantHelper {
       return false;
     }
     // 承载物之上有了新的植物,无条件转移
-    if (isCarrier(prevPlant.pid) && !isCarrier(newPlant.pid)) {
+    if (isCarrierPlant(prevPlant) && !isCarrierPlant(newPlant)) {
       return true;
     }
     // 新plant是护盾,如果prev不是护盾,转
-    if (isShieldPlantPid(newPlant.pid) && !isShieldPlantPid(prevPlant.pid)) {
+    if (isShieldPlant(newPlant) && !isShieldPlant(prevPlant)) {
       return true;
     }
-    // 是以下特殊植物(魔术粉)
-    if (newPlant.pid === magicPowderPid) {
+    // 一次性粉尘植物（魔术粉/萤石粉）
+    if (isPowderPlantPid(newPlant.pid)) {
       return true;
     }
     return false;

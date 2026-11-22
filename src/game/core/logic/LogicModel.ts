@@ -210,7 +210,9 @@ export function attachModelAccessors(entity: object, model: LogicModel): void {
   for (const key of Object.keys(model)) {
     const source = model as unknown as Record<string, unknown>;
     if (key === "model" || typeof source[key] === "function") continue;
-    if (Object.prototype.hasOwnProperty.call(entity, key)) continue;
+    // 原型上已有访问器（如 CombatEntity.maxHealth）时不能再定义同名自有属性，
+    // 否则实体写 maxHealth 会覆盖 Model 上的 LevelScaledValue 配置。
+    if (key in entity) continue;
     Object.defineProperty(entity, key, {
       configurable: true,
       enumerable: false,
