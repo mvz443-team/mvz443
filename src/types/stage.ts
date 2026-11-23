@@ -65,6 +65,8 @@ export interface PreloadData {
   bgimg: string[];
   bgm: string[];
   plants?: number[];
+  /** 水面替代贴图变种（静态资源路径，相对 assets），运行时按 watertileN 加载。 */
+  waterTiles?: string[];
 }
 
 export interface StageData {

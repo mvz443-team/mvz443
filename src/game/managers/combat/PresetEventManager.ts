@@ -15,6 +15,7 @@ import { LOGICAL_BATTLE_HEIGHT, LOGICAL_BATTLE_WIDTH } from "../../../constants/
 import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
 import { defaultRandom } from "../../../utils/random";
 import { StageLibrary } from "../../stages/StageLibrary";
+import { WATER_TILE_VARIANT_COUNT, waterTileTextureKey } from "../../stages/waterTiles";
 import type {
   GridCell,
   LevelScript,
@@ -46,7 +47,7 @@ export class PresetEventManager extends BaseManager {
   public stage36LightRemoved: boolean = false;
 
   /** 纯视图对象：水面覆盖层 + 暗场遮罩，不进快照，由标记/脚本驱动重建。 */
-  private waterTileLayer: Phaser.GameObjects.Graphics | null = null;
+  private waterTileObjects: Phaser.GameObjects.GameObject[] = [];
   private waterTileSignature: string = "";
   private darkOverlays: Phaser.GameObjects.Rectangle[] = [];
   private cachedContext: LevelScriptContext | null = null;
@@ -216,43 +217,58 @@ export class PresetEventManager extends BaseManager {
   private syncWaterTiles(cells: readonly GridCell[], visible: boolean): void {
     if (!this.scene) return;
     if (!visible) {
-      if (this.waterTileLayer) {
-        this.waterTileLayer.destroy();
-        this.waterTileLayer = null;
-      }
-      this.waterTileSignature = "";
+      this.destroyWaterTiles();
       return;
     }
     const signature = cells.map((c) => `${c.col}-${c.row}`).join(",");
-    if (this.waterTileLayer && this.waterTileSignature === signature) return;
-    if (this.waterTileLayer) {
-      this.waterTileLayer.destroy();
-      this.waterTileLayer = null;
-    }
+    if (this.waterTileObjects.length > 0 && this.waterTileSignature === signature) return;
+    this.destroyWaterTiles();
     this.rebuildWaterTileLayer(cells);
     this.waterTileSignature = signature;
   }
 
-  /** 用逐格 Graphics 画出崩塌后的水面替代贴图（水色 + 波纹描边），纯表现。 */
+  private destroyWaterTiles(): void {
+    for (const obj of this.waterTileObjects) obj.destroy();
+    this.waterTileObjects = [];
+    this.waterTileSignature = "";
+  }
+
+  /** 已加载的水面贴图变种纹理 key（静态资源，由关卡 PreloadData.waterTiles 提供）。 */
+  private collectWaterTileTextures(): string[] {
+    if (!this.scene) return [];
+    const keys: string[] = [];
+    for (let i = 0; i < WATER_TILE_VARIANT_COUNT; i++) {
+      const key = waterTileTextureKey(i);
+      if (this.scene.textures.exists(key)) keys.push(key);
+    }
+    return keys;
+  }
+
+  /** 逐格铺水面贴图：每格从已加载的静态变种里随机挑一个（纯渲染，允许 Math.random）。 */
   private rebuildWaterTileLayer(cells: readonly GridCell[]): void {
     if (!this.scene) return;
     const size = PositionManager.Instance.getGridSize();
     const offset = PositionManager.Instance.getGridOffset();
-    const g = this.scene.add.graphics().setDepth(DepthHelper.Scene.presetImage());
+    const depth = DepthHelper.Scene.presetImage();
+    const textures = this.collectWaterTileTextures();
     for (const cell of cells) {
-      const x = offset.x + cell.col * size.width;
-      const y = offset.y + cell.row * size.height;
-      g.fillStyle(0x1f5a80, 0.78);
-      g.fillRect(x, y, size.width, size.height);
-      g.lineStyle(2, 0x5ac8e0, 0.55);
-      g.strokeRect(x + 2, y + 2, size.width - 4, size.height - 4);
-      g.lineStyle(1, 0x9fe8ff, 0.4);
-      g.lineBetween(x + size.width * 0.2, y + size.height * 0.42,
-        x + size.width * 0.8, y + size.height * 0.42);
-      g.lineBetween(x + size.width * 0.3, y + size.height * 0.62,
-        x + size.width * 0.7, y + size.height * 0.62);
+      const centerX = offset.x + (cell.col + 0.5) * size.width;
+      const centerY = offset.y + (cell.row + 0.5) * size.height;
+      if (textures.length > 0) {
+        const key = textures[Math.floor(Math.random() * textures.length)];
+        this.waterTileObjects.push(
+          this.scene.add.image(centerX, centerY, key)
+            .setDisplaySize(size.width, size.height)
+            .setDepth(depth),
+        );
+      } else {
+        // 兜底：纹理未加载时用纯色块。
+        this.waterTileObjects.push(
+          this.scene.add.rectangle(centerX, centerY, size.width, size.height, 0x1f5a80, 0.78)
+            .setDepth(depth),
+        );
+      }
     }
-    this.waterTileLayer = g;
   }
 
   /**
@@ -268,9 +284,7 @@ export class PresetEventManager extends BaseManager {
     this.stage22Collapsed = false;
     this.stage36LightRemoved = false;
     this.cachedContext = null;
-    this.waterTileLayer?.destroy();
-    this.waterTileLayer = null;
-    this.waterTileSignature = "";
+    this.destroyWaterTiles();
     for (const overlay of this.darkOverlays) overlay.destroy();
     this.darkOverlays = [];
     this.scene = null;

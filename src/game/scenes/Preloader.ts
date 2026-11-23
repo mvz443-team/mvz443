@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { GameParams } from '../models/GameParams';
 import type { PreloadData, StageData } from '../../types/stage';
 import { StageLibrary } from '../stages/StageLibrary';
+import { waterTileTextureKey } from '../stages/waterTiles';
 import { PlantLibrary } from '../managers/library/PlantLibrary';
 import {
   queueAllMonsterAssets,
@@ -304,6 +305,10 @@ export class Preloader extends Scene {
       }
       this.load.spritesheet(texture, texture + '.png', { frameWidth: 64, frameHeight: 64 });
     }
+    // 水面替代贴图变种（静态资源），按 watertileN 作为纹理 key。
+    (preloadData.waterTiles || []).forEach((path, index) => {
+      this.load.image(waterTileTextureKey(index), path);
+    });
     void params;
   }
 

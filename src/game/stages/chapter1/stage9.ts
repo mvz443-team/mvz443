@@ -59,6 +59,13 @@ const content: StageData = {
   load: {
     bgimg: ["bg/bgDeepMine.png"],
     bgm: ["audio/OLJA-0021-08.ogg", "audio/ZCDS-0014-05.ogg"],
+    // 从 bgDeepMine.png 右侧 20% 区域离线截取的 4 个 80x90 水面贴图变种。
+    waterTiles: [
+      "bg/water/bgDeepMine_water_0.png",
+      "bg/water/bgDeepMine_water_1.png",
+      "bg/water/bgDeepMine_water_2.png",
+      "bg/water/bgDeepMine_water_3.png",
+    ],
   },
 };
 
