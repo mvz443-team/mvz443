@@ -5,6 +5,7 @@ import { useSettings } from '../../context/settings_ctx';
 import { debounce } from '../../utils/debounce';
 import { Locale, useLocaleMessages } from '../../hooks/useLocaleMessages';
 import OnlineSettings from './settings/OnlineSettings';
+import GameResourcesSettings from './settings/GameResourcesSettings';
 import { showAlert } from '../../utils/uiDialog';
 
 interface Props {
@@ -278,6 +279,7 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
       }
     ],
     online: [],
+    resources: [],
     debug: [
       {
         title: "menu.settings_debug_title",
@@ -323,6 +325,7 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
     { name: "menu.settings_general", key: "general" },
     { name: "menu.settings_gaming", key: "game" },
     { name: "menu.settings_online", key: "online" },
+    { name: "menu.settings_resources", key: "resources" },
     { name: "menu.settings_debug", key: "debug" }
   ];
   return (
@@ -425,6 +428,7 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
         background: "rgba(30, 30, 30, 0.9)"
       }}>
         {selectedCategory === 'online' && <OnlineSettings />}
+        {selectedCategory === 'resources' && <GameResourcesSettings />}
         {settingsData[selectedCategory].filter(panel => panel !== null).map((panel, index) => (
           <div key={index} style={{
             marginBottom: "30px",
@@ -561,6 +565,19 @@ export default function Settings({ width, height, onBack: onBackOriginal }: Prop
             ))}
           </div>
         ))}
+        {selectedCategory === 'general' && (
+          <div style={{
+            marginBottom: '30px',
+            border: '1px solid rgba(100, 100, 100, 0.5)',
+            padding: '15px',
+            borderRadius: '5px',
+          }}>
+            <h3 style={{ marginBottom: '15px', color: '#fff' }}>
+              {translate('resources.category_title')}
+            </h3>
+            <GameResourcesSettings />
+          </div>
+        )}
         {/* 隐藏的文件输入框 */}
         <input
           type="file"

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import removeConsole from 'vite-plugin-remove-console'
+import { pwaAssetsPlugin } from './plugin.pwa.mjs'
 
 const APP_VERSION = process.env.VITE_APP_VERSION || 'develop';
 const APP_COMMIT = process.env.VITE_APP_COMMIT || 'local';
@@ -35,7 +36,8 @@ export default defineConfig({
     plugins: [
         react(),
         phasermsg(),
-        removeConsole()
+        removeConsole(),
+        pwaAssetsPlugin({ appVersion: APP_VERSION })
     ],
     logLevel: 'warning',
     build: {

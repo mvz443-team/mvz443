@@ -144,8 +144,9 @@ export default class SoundManager extends BaseManager {
 
     const hasBgm = this.scene.cache.audio.exists("bgm");
     const hasSfx = this.scene.cache.audio.exists("sfx");
+    // 音量为 0 或最小资源模式（未下载 BGM）时不创建音乐对象，彻底不播放。
     if (hasBgm) {
-      this.music = this.scene.sound.add("bgm", { loop: true, volume: this.bgmVolume });
+      this.ensureMusic("bgm");
     }
     if (!hasSfx) {
       // Safari/WebKit does not decode OGG audio sprites. Keep the battle
@@ -182,6 +183,17 @@ export default class SoundManager extends BaseManager {
     return Math.max(0, Math.min(1, volume));
   }
 
+  /** 只有音量 > 0 且资源真实存在于 Phaser 缓存时才创建音乐。 */
+  private ensureMusic(key: string) {
+    if (!this.scene || this.bgmVolume <= 0 || this.music) return;
+    if (!this.scene.cache.audio.exists(key)) return;
+    try {
+      this.music = this.scene.sound.add(key, { loop: true, volume: this.bgmVolume });
+    } catch (error) {
+      console.warn("[SoundManager] ensureMusic skipped because audio is unavailable.", error);
+    }
+  }
+
   private applyMusicVolume(sound: Phaser.Sound.BaseSound | null, volume = this.bgmVolume) {
     if (!sound) return;
     // 音频底层对象可能已被场景 shutdown 释放（setVolume 内部访问空节点），
@@ -199,13 +211,22 @@ export default class SoundManager extends BaseManager {
   }
 
   public setBgmVolume(volume: number) {
+    const wasMuted = this.bgmVolume <= 0;
     this.bgmVolume = this.normalizeVolume(volume);
     if (this.scene) {
       this.scene.params.gameSettings.bgmVolume = this.bgmVolume;
       this.scene.params.gameSettings.isBgm = this.bgmVolume > 0;
     }
+    if (this.bgmVolume <= 0) {
+      this.music?.stop();
+      return;
+    }
+    this.ensureMusic("bgm");
     this.applyMusicVolume(this.music);
     this.applyMusicVolume(this.dumpMusic);
+    if (wasMuted && this.music) {
+      this.playCurrent();
+    }
   }
 
   public setSoundAudioVolume(volume: number) {
@@ -231,6 +252,11 @@ export default class SoundManager extends BaseManager {
   }
 
   public playCurrent() {
+    if (this.bgmVolume <= 0) {
+      // 0% 时不播放，也不解码/占用音频节点。
+      this.music?.stop();
+      return;
+    }
     this.applyMusicVolume(this.music);
     if (!this.music) return;
     try {
@@ -241,7 +267,9 @@ export default class SoundManager extends BaseManager {
   }
 
   public coverCurrent(key: string) {
-    if (!this.scene || !this.music) return;
+    if (!this.scene || !this.music || this.bgmVolume <= 0) return;
+    // 额外资源未下载时 key 不存在，直接保留当前音乐而不是抛异常。
+    if (!this.scene.cache.audio.exists(key)) return;
     this.music.pause();
     this.dumpMusic = this.music;
     this.music = this.scene.sound.add(key, { loop: true, volume: this.bgmVolume });
@@ -249,6 +277,11 @@ export default class SoundManager extends BaseManager {
   }
 
   public backToDump() {
+    if (this.bgmVolume <= 0) {
+      this.music?.stop();
+      this.dumpMusic?.stop();
+      return;
+    }
     if (!this.music) return;
     this.music.stop();
     if (!this.dumpMusic) return;
@@ -263,7 +296,7 @@ export default class SoundManager extends BaseManager {
   }
 
   public resume() {
-    if (!this.music) return;
+    if (!this.music || this.bgmVolume <= 0) return;
     try {
       this.applyMusicVolume(this.music);
       this.music.resume();

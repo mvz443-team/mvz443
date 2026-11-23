@@ -3,6 +3,7 @@ import { IRefPhaserGame } from './game/PhaserGame';
 import GlobalOnlineStateListener from './components/GlobalOnlineStateListener';
 import NetworkStatusOverlay from './components/NetworkStatusOverlay';
 import GlobalDialogHost from './components/GlobalDialogHost';
+import ResourceGateDialog from './components/ResourceGateDialog';
 import GameMainWindow from './components/GameMainWindow';
 import { useSettings } from './context/settings_ctx';
 import { GameParams } from './game/models/GameParams';
@@ -218,6 +219,8 @@ function App() {
 
   if (!librariesReady) {
     return (
+      <>
+        <ResourceGateDialog />
       <div id="app" style={{
         width: "100vw",
         height: "100dvh",
@@ -230,6 +233,7 @@ function App() {
       }}>
         {librariesError ? "Failed to load stage library" : "Loading..."}
       </div>
+      </>
     );
   }
 
@@ -241,6 +245,8 @@ function App() {
       <NetworkStatusOverlay />
       {/* 全局前端级对话框（替代系统 alert/confirm） */}
       <GlobalDialogHost />
+      {/* 首屏强制资源检查：最小资源缺失/过期时不可关闭 */}
+      <ResourceGateDialog />
 
       <Routes>
         <Route path={`${publicUrl}/`} element={

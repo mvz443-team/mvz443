@@ -6,6 +6,7 @@ import { publicUrl } from '../../../utils/browser';
 import { useSettings } from '../../../context/settings_ctx';
 
 import { useLocaleMessages } from '../../../hooks/useLocaleMessages';
+import { useGameResources } from '../../../hooks/useGameResources';
 import { isUnlockAllEnabled } from '../../../utils/debugFlags';
 
 import { stageKey } from '../../../i18n/keys';
@@ -54,6 +55,7 @@ interface StageSelectorProps {
 
 const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBack, initialRoomView }) => {
   const settings = useSettings();
+  const resources = useGameResources();
   const [state, setState] = useSetState({
     selectedStage: null as number | null,
     stagesIds: [] as number[],
@@ -477,6 +479,26 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
             if (item.type === 'img') {
               if (!settings.showLevelIntroImages) {
                 return null;
+              }
+              if (!resources.illustrations.ready) {
+                return (
+                  <div
+                    key={`${item.src}-${index}`}
+                    style={{
+                      width: '100%',
+                      height: '120px',
+                      marginBottom: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px dashed rgba(0, 204, 255, 0.35)',
+                      color: '#9fe8ff',
+                      fontSize: '13px',
+                    }}
+                  >
+                    {translate('resources.illustration_missing')}
+                  </div>
+                );
               }
               return (
                 <img

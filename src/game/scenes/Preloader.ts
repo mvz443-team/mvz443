@@ -18,6 +18,7 @@ import { onlineStateManager } from '../../store/OnlineStateManager';
 import type { PlayerSyncInfo } from '../../types/online';
 import { Game } from './Game';
 import { desyncDiagnostics } from '../../utils/debug/desyncDiagnostics';
+import { isBundleReady } from '../../utils/cache/gameResources';
 
 type LoadPhase = 'loadAssets' | 'loadAudio' | 'initBattle' | 'waitSync';
 
@@ -103,10 +104,16 @@ export class Preloader extends Scene {
         this.queueStageImages(stageData.load, params);
       });
 
+      // 音量为 0 或最小资源模式（BGM 额外包未下载）时不加载背景音乐。
+      const settings = params.gameSettings;
+      const bgmEnabled = (settings?.bgmVolume ?? (settings?.isBgm ? 1 : 0)) > 0;
+      const bgmReady = bgmEnabled && await isBundleReady('bgm');
       await this.runLoaderPhase('loadAudio', 51, 90, () => {
         this.load.setPath('assets');
         this.load.audioSprite('sfx', 'audio/sounds/sfx-sprite.json', 'audio/sounds/sfx-sprite.ogg');
-        this.queueStageAudio(stageData.load);
+        if (bgmReady) {
+          this.queueStageAudio(stageData.load);
+        }
       });
 
       const gameScene = this.scene.get('Game') as Game;

@@ -5,9 +5,11 @@ import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import { SettingsProvider } from './context/settings_ctx.tsx';
 import { SaveProvider } from './context/save_ctx.tsx';
+import { registerServiceWorker } from './utils/cache/gameResources';
 
 // TEMP-DESYNC-LOG: 尽早安装控制台/异常捕获，覆盖进入战斗前的联机消息。
 desyncDiagnostics.install();
+registerServiceWorker();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
