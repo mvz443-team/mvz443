@@ -12,6 +12,7 @@ import type {
 import type { RestoreContext } from "./SimulationState";
 import { simulationState } from "./SimulationState";
 import CombatManager from "../managers/CombatManager";
+import { PresetEventManager } from "../managers/combat/PresetEventManager";
 import TickerManager from "../managers/combat/TickerManager";
 import MobManager from "../managers/combat/MobManager";
 import PlantsManager from "../managers/combat/PlantsManager";
@@ -290,6 +291,25 @@ export function installRuntimeStateSources(): void {
       grid.setGridProperty(
         value as unknown as Parameters<typeof grid.setGridProperty>[0],
       );
+    },
+  );
+  // 第 9 关地图事件触发标记。必须进快照 + 跨端哈希：
+  // onNewWave 回调会随回滚重放重复触发，标记决定"一次性"效果是否已生效。
+  // 恢复后把视图对齐到标记，保证回滚/重连后水面覆盖与光照表现一致。
+  simulationState.registerValue(
+    "preset.stage22Collapsed",
+    () => PresetEventManager.Instance.stage22Collapsed,
+    (value) => {
+      PresetEventManager.Instance.stage22Collapsed = Boolean(value);
+      PresetEventManager.Instance.applyRestoredStageMapState();
+    },
+  );
+  simulationState.registerValue(
+    "preset.stage36LightRemoved",
+    () => PresetEventManager.Instance.stage36LightRemoved,
+    (value) => {
+      PresetEventManager.Instance.stage36LightRemoved = Boolean(value);
+      PresetEventManager.Instance.applyRestoredStageMapState();
     },
   );
   simulationState.registerValue(

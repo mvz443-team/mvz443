@@ -9,7 +9,6 @@ import { PositionManager } from "../../managers/view/PositionManager";
 import { CombatEntity } from "../core/CombatEntity";
 import { Faction } from "../Enum";
 import { normalizeHabitats, type TerrainHabitat } from "../../core/logic/TerrainHabitat";
-import GridManager from "../../managers/combat/GridManager";
 import { BaseEntity } from "../core/BaseEntity";
 import { LegacyMonsterAnimController } from "../monster/anims/LegacyMonsterAnimControllers";
 import { SfxCmd } from "../../utils/cmd/SfxCmd";
@@ -19,7 +18,7 @@ import { DeathSmokeSfx } from "../../sfx/death/DeathSmokeSfx";
 import SoundCmd from "../../utils/cmd/SoundCmd";
 import { MONSTER_PRNG_FIELDS, MONSTER_RELATION_FIELDS } from "../../core/logic/LogicRelations";
 import { defaultRandom } from "../../../utils/random";
-import { applyMonsterDrowning } from "../../core/logic/Drowning";
+import { applyMonsterDrowning, isMonsterCenterOnWater } from "../../core/logic/Drowning";
 import type { EquipmentDef } from "../equipment/Equipment";
 
 type DeathSmokeSpawn = {
@@ -260,7 +259,10 @@ export abstract class MonsterEntity extends CombatEntity {
   }
 
   private checkAndAddBoat() {
-    if (this.model.boatMounted || GridManager.Instance.RowPropertyRatio(this.row, "water") > 0) {
+    // 只在出生时判定一次：中心点落在水格（或 preset 强制挂船）才挂船表现。
+    // 局中崩塌成水路时不对存量怪物补挂船，只影响之后新生成的怪物；
+    // 用中心格而非整行占比，与溺水规则保持一致（部分崩塌行里陆地格上的怪不该挂船）。
+    if (this.model.boatMounted || isMonsterCenterOnWater(this)) {
       const boatY = this.y + 15 * PositionManager.Instance.scaleFactor;
       const boat1 = this.scene.add.sprite(this.x, boatY, "attach/boat1")
         .setScale(PositionManager.Instance.scaleFactor * 1.4)

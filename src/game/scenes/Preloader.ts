@@ -1,7 +1,7 @@
 import { Scene } from 'phaser';
 import { GameParams } from '../models/GameParams';
 import type { PreloadData, StageData } from '../../types/stage';
-import { StageDataRecords } from '../managers/library/ChapterLibrary';
+import { StageLibrary } from '../stages/StageLibrary';
 import { PlantLibrary } from '../managers/library/PlantLibrary';
 import {
   queueAllMonsterAssets,
@@ -10,7 +10,6 @@ import {
   queueAllSpriteAssets,
 } from '../../edx/preview/battleAssetManifest';
 import { translate } from '../../i18n';
-import { publicUrl } from '../../utils/browser';
 import { PhaserEventBus, PhaserEvents } from '../EventBus';
 import { SendPlayerLoaded } from '../../utils/net/room';
 import BackendWS from '../../utils/net/sync';
@@ -184,15 +183,9 @@ export class Preloader extends Scene {
   }
 
   private async loadStageJson(params: GameParams): Promise<StageData> {
-    const stageRecord = StageDataRecords[params.level];
-    if (!stageRecord) {
-      throw new Error(`Stage ${params.level} is not registered.`);
-    }
-    const response = await fetch(`${publicUrl}/${stageRecord.dataPath}`, { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error(`Failed to fetch stage data: ${response.status}`);
-    }
-    const data = await response.json() as StageData;
+    // 关卡配置由 ts 模块懒加载（每关独立 chunk），不再 fetch JSON。
+    const module = await StageLibrary.load(params.level);
+    const data = module.content;
     const key = `ch${params.level}`;
     if (this.cache.json.exists(key)) {
       this.cache.json.remove(key);

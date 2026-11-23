@@ -29,6 +29,7 @@ import DebugManager from '../managers/view/DebugManager';
 import { BaseEntity } from '../models/core/BaseEntity';
 import { DeferredManager } from '../managers/DeferredManager';
 import { PresetEventManager } from '../managers/combat/PresetEventManager';
+import { StageLibrary } from '../stages/StageLibrary';
 import TileItemManager from '../managers/combat/TileItemManager';
 import ConsoleCmd from '../utils/ConsoleCmd';
 import { ProjectileCmd } from '../utils/cmd/ProjectileCmd';
@@ -246,6 +247,10 @@ export class Game extends Scene {
     this.innerSettings = this.params.gameSettings;
     if (!Game.isPrepared(this)) {
       this.stageData = this.cache.json.get(`ch${this.params.level}`) as StageData;
+      if (!this.stageData) {
+        // 直接启动 Game 场景（调试）时，懒加载关卡模块兜底。
+        this.stageData = (await StageLibrary.load(this.params.level)).content;
+      }
       await Game.prepareBattle(this, this.params, this.stageData);
     }
     const deviceType = this.params.deviceType ?? 'pc';
@@ -463,6 +468,8 @@ export class Game extends Scene {
 
   update(time: number, delta: number): void {
     CombatManager.Instance.update(time, delta);
+    // 地图事件视图从快照标记派生：回滚/重连后由这里补建，避免残留或缺失。
+    PresetEventManager.Instance.syncStageMapView();
     this.updateNetStatusBadge();
     DebugManager.Instance.update();
     this.syncCameraLayers();

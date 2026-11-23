@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { GameParams } from '../../../game/models/GameParams';
 import { useSaveManager } from '../../../context/save_ctx';
 import { StageDataRecords } from '../../../game/managers/library/ChapterLibrary';
+import { StageLibrary } from '../../../game/stages/StageLibrary';
 import { publicUrl } from '../../../utils/browser';
 import { useSettings } from '../../../context/settings_ctx';
 import { useLocaleMessages } from '../../../hooks/useLocaleMessages';
@@ -92,12 +93,9 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
       if (!stageRecord) {
         return undefined;
       }
-      const response = await fetch(`${publicUrl}/${stageRecord.dataPath}`);
-      if (!response.ok) {
-        return undefined;
-      }
-      const stage = await response.json() as Pick<StageData, 'rows'>;
-      return Number.isInteger(stage.rows) ? stage.rows : undefined;
+      const module = await StageLibrary.load(stageId);
+      const rows = module.content.rows;
+      return Number.isInteger(rows) ? rows : undefined;
     } catch {
       return undefined;
     }

@@ -1,6 +1,7 @@
 // src/components/StageSelector.tsx
 import React, { useEffect } from 'react';
 import { ChapterDataRecords, StageDataRecords } from '../../../game/managers/library/ChapterLibrary';
+import { StageLibrary } from '../../../game/stages/StageLibrary';
 import { useSaveManager } from '../../../context/save_ctx';
 import { publicUrl } from '../../../utils/browser';
 import { useSettings } from '../../../context/settings_ctx';
@@ -181,11 +182,8 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
     const loadIntro = async () => {
       setState({ selectedStageData: null, isIntroLoading: true });
       try {
-        const response = await fetch(`${publicUrl}/${stageRecord.dataPath}`);
-        if (!response.ok) {
-          throw new Error(`Failed to load stage intro: ${stageRecord.dataPath}`);
-        }
-        const stageData = await response.json() as StageSelectorStageData;
+        const module = await StageLibrary.load(state.selectedStage as number);
+        const stageData = module.content as unknown as StageSelectorStageData;
         if (isCancelled) {
           return;
         }

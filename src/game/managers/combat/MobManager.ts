@@ -21,6 +21,7 @@ import { onlineStateManager } from "../../../store/OnlineStateManager";
 import StageHelper from "../../utils/helper/StageHelper";
 import MobHelper from "../../utils/helper/MobHelper";
 import TileItemManager from "./TileItemManager";
+import { StageLibrary } from "../../stages/StageLibrary";
 import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
 import { createAleaWithState } from "../../core/DeterministicRandom";
 import { SpawnSequence, mobSnapshotId } from "../../core/logic/MobSpawnIdentity";
@@ -654,11 +655,14 @@ export default class MobManager extends BaseManager {
     }
     this.gameStartInitialized = true;
     const stageScriptRandom = seedrandom.alea(String(this.seed));
+    // 地形白名单由关卡脚本声明；战斗开始前 Preloader 已加载完整关卡模块。
+    const terrain = StageLibrary.getLoaded(this.scene.params.level)?.script.terrain;
     this.setWaves(StageHelper.generateStageScript(
       this.scene.stageData.stageScript,
       stageScriptRandom,
       this.scene.params.level,
       PositionManager.Instance.Row_Number,
+      terrain,
     ));
     this.startFirstWave();
   }

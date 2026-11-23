@@ -1,0 +1,53 @@
+import type { StageData } from "../../../types/stage";
+import type { LevelScript, StageModule } from "../types";
+import { CHAPTER1_STAGES } from "./metadata.ts";
+
+const metadata = CHAPTER1_STAGES.find((s) => s.levelId === 6)!;
+
+const content: StageData = {
+  ...metadata,
+  levelIntro: [
+    { type: "img", src: "img/sg6.png" },
+    { type: "text", content: "sg6" },
+  ],
+  rows: 7,
+  type: 1,
+  stageScript: {
+    first_wave_id: 0,
+    total_waves: 27,
+    base_difficulty: 0,
+    difficulty_limit: 35,
+    phase1_end: 9,
+    phase2_end: 17,
+    dayOrNight: 1,
+    flagWaves: [10, 18, 25],
+    AllowedMobs: [1, 2, 3, 8, 5, 7, 9, 11, 14, 15, 16],
+    globalRatio: [[0, 1.4], [25, 1.6]],
+    bossInsert: [],
+  },
+  onWin: {
+    unLock: [{ chapterId: 1, levelId: 7 }],
+    unLockPlant: [13],
+  },
+  energy: 50,
+  rewards: [
+    { progress: 55, reward: { id: 1, number: 75 } },
+    { progress: 75, reward: { id: 2, number: 2 } },
+    { progress: 95, reward: { id: 1, number: 120 } },
+    { progress: 98, reward: { id: 3, number: 2 } },
+  ],
+  load: {
+    bgimg: ["bg/bgRainbowCave1.png"],
+    bgm: ["audio/OLJA-0021-08.ogg", "audio/ZCDS-0014-05.ogg"],
+  },
+};
+
+const script: LevelScript = {
+  id: "ch1_stage6",
+  onCombatStart(ctx) {
+    ctx.addDarkOverlay(0.5);
+  },
+};
+
+const stage6: StageModule = { metadata, content, script };
+export default stage6;

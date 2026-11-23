@@ -8,17 +8,6 @@ export type LevelIntroItem =
     src: string;
   };
 
-export interface StageDramaConfig {
-  dataPath: string;
-}
-
-export interface ChapterDramaConfig {
-  chapterId: number;
-  nameKey: string;
-  descriptionKey: string;
-  stages: StageDramaConfig[];
-}
-
 export interface ChapterDescription {
   id: number;
   nameKey: string;
@@ -32,5 +21,4 @@ export interface StageDescription {
   chapterId: number;
   nameKey: string;
   descriptionKey: string;
-  dataPath: string;
 }

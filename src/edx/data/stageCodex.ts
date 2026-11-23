@@ -1,7 +1,6 @@
 import { ChapterLibrary, StageDataRecords } from "../../game/managers/library/ChapterLibrary";
 import { BATTLE_GRID_COLS } from "../../constants/gameLayout";
-import { publicUrl } from "../../utils/browser";
-import type { StageData } from "../../types/stage";
+import { StageLibrary } from "../../game/stages/StageLibrary";
 import { getInitialWaterRows } from "../../game/utils/helper/StageTerrain";
 
 export interface StageCodexEntry {
@@ -58,11 +57,8 @@ async function fetchSingleStage(stageId: number): Promise<StageCodexEntry | null
   const record = StageDataRecords[stageId];
   if (!record) return null;
   try {
-    const response = await fetch(`${publicUrl}/${record.dataPath}`, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const data = await response.json() as StageData;
+    const module = await StageLibrary.load(stageId);
+    const data = module.content;
     return {
       stageId,
       chapterId: data.chapterId ?? record.chapterId,
@@ -70,7 +66,7 @@ async function fetchSingleStage(stageId: number): Promise<StageCodexEntry | null
       descriptionKey: data.descriptionKey ?? record.descriptionKey,
       rows: Number(data.rows) > 0 ? Number(data.rows) : 0,
       cols: BATTLE_GRID_COLS,
-      waterWays: [...getInitialWaterRows(stageId)],
+      waterWays: [...getInitialWaterRows(module.script.terrain)],
       energy: Number(data.energy) || 0,
       totalWaves: Number(data.stageScript?.total_waves) || 0,
       dayOrNight: Number(data.stageScript?.dayOrNight) || 0,

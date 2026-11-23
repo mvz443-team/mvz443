@@ -1,12 +1,8 @@
 import { setCentipedeHooks } from "../../presets/monster/centipede/centipede";
 import DepthHelper from "../../utils/helper/DepthHelper";
-import { DispenserData } from "../../presets/plant/chapter1/dispenser";
-import { FurnaceData } from "../../presets/plant/chapter1/furnace";
 import type { Game } from "../../scenes/Game";
 import { GainEnergySfx } from "../../sfx/energy/GainEnergySfx";
-import { PlantCmd } from "../../utils/cmd/PlantCmd";
 import { SfxCmd } from "../../utils/cmd/SfxCmd";
-import { StageDataRecords } from "../library/ChapterLibrary";
 import { BaseManager } from "../BaseManager";
 import CombatManager from "../CombatManager";
 import { PositionManager } from "../view/PositionManager";
@@ -16,16 +12,28 @@ import PlantsManager from "./PlantsManager";
 import ResourceManager from "./ResourceManager";
 import TickerManager, { FrameTimer } from "./TickerManager";
 import { LOGICAL_BATTLE_HEIGHT, LOGICAL_BATTLE_WIDTH } from "../../../constants/gameLayout";
-import { SmallDispenserData } from "../../presets/plant/chapter1/small_dispenser";
-import { GeneratorData } from "../../presets/plant/chapter1/generator";
-import { LilyData } from "../../presets/plant/chapter1/lily";
 import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
 import { defaultRandom } from "../../../utils/random";
-import { getInitialWaterRows } from "../../utils/helper/StageTerrain";
+import { StageLibrary } from "../../stages/StageLibrary";
+import type {
+  GridCell,
+  LevelScript,
+  LevelScriptContext,
+  StageEventFlagKey,
+} from "../../stages/types";
+import { playCollapseSfx, playLightRemovalSfx } from "../../sfx/map/StageMapViewSfx";
 
 /**
- * 预设事件管理
- * 负责预设事件的加载、管理和重置
+ * 预设事件管理：关卡脚本的通用调度器。
+ *
+ * 关卡特有逻辑（赠送植物、初始水路、波次事件等）全部在 `src/game/stages/**` 的
+ * 关卡脚本里声明；本类只负责：
+ * - 在权威帧的 onNewWave 回调里调用脚本的 onCombatStart / onWaveStart；
+ * - 提供 LevelScriptContext（改格子、昼夜、停产能、事件标记、纯表现）；
+ * - 维护自动产能、初始能量等所有关卡共用的基础设施。
+ *
+ * 事件标记（stage22Collapsed / stage36LightRemoved）为具名快照布尔，注册进
+ * RuntimeStateBridge，随回滚/重连恢复；脚本通过 ctx.getFlag/setFlag 访问。
  */
 export class PresetEventManager extends BaseManager {
   private static _instance: PresetEventManager;
@@ -33,12 +41,23 @@ export class PresetEventManager extends BaseManager {
   private autoEnergyTimer: FrameTimer | null = null;
   private autoEnergyStartTimer: FrameTimer | null = null;
 
+  /** 关卡事件触发标记（具名快照布尔，进快照 + 跨端哈希）。 */
+  public stage22Collapsed: boolean = false;
+  public stage36LightRemoved: boolean = false;
+
+  /** 纯视图对象：水面覆盖层 + 暗场遮罩，不进快照，由标记/脚本驱动重建。 */
+  private waterTileLayer: Phaser.GameObjects.Graphics | null = null;
+  private waterTileSignature: string = "";
+  private darkOverlays: Phaser.GameObjects.Rectangle[] = [];
+  private cachedContext: LevelScriptContext | null = null;
+
   public static get Instance(): PresetEventManager {
     if (!this._instance) {
       this._instance = new PresetEventManager();
     }
     return this._instance;
   }
+
   /**
    * 加载预设事件
    */
@@ -79,10 +98,12 @@ export class PresetEventManager extends BaseManager {
       return;
     }
     console.log('Combat start event triggered at wave 0');
-    // 实现游戏开始时的预设事件处理逻辑
+    // wave 0 是一局的权威起点：回滚重放或跨局重启时都应清空地图事件标记与上下文。
+    this.stage22Collapsed = false;
+    this.stage36LightRemoved = false;
+    this.cachedContext = null;
+
     GridManager.Instance.initGridProperties();
-    const stageId = this.scene.params.level || 0;
-    const chapterId = StageDataRecords[stageId].chapterId;
 
     this.setInitialEnergy(this.scene.stageData.energy);
     // dayOrNight 触发自动产能
@@ -92,31 +113,166 @@ export class PresetEventManager extends BaseManager {
       this.startAutoGenerateEnergy(17000, 25000, 25);
     }
 
-    // dispatch stage or chapter
-    if (chapterId === 1) {
-      this.Chapter1Dispatch(this.scene, stageId);
-    }
+    const ctx = this.getContext();
+    if (ctx) this.getScript()?.onCombatStart?.(ctx);
   }
 
   /**
    * 特定波数触发的事??
+   *
+   * 由 MobManager 在固定权威帧 emit 的 onNewWave 驱动，两端一致。
+   * 关卡脚本的 onWaveStart 必须幂等：回滚重放时 onNewWave 会再次触发。
    */
   private triggerSpecifiedWaveEvent(waveId: number, isFlag: boolean): void {
-    console.log(`Specified wave event triggered at wave ${waveId}, isFlag: ${isFlag}`);
-    // 实现特定波数的预设事件处理逻辑
+    void isFlag;
+    const script = this.getScript();
+    if (!script?.onWaveStart) return;
+    const ctx = this.getContext();
+    if (ctx) script.onWaveStart(ctx, waveId);
+  }
+
+  /**
+   * 从脚本 + 快照标记重建地图事件视图。在 render 更新里每帧调用（幂等、廉价），
+   * 也在事件触发与 checkpoint 恢复后调用，保证回滚/重连后表现与状态一致。
+   */
+  public syncStageMapView(): void {
+    const script = this.getScript();
+    if (!script?.syncView) return;
+    const ctx = this.getContext();
+    if (ctx) script.syncView(ctx);
+  }
+
+  /**
+   * checkpoint 恢复后的钩子：把视图对齐到快照标记。
+   * 只重建视图，不改逻辑状态：dayOrNight 与产能 timer 各有独立快照源，
+   * 由 SimulationState 统一恢复。
+   */
+  public applyRestoredStageMapState(): void {
+    this.syncStageMapView();
+  }
+
+  /** 取当前关卡的脚本（未加载则返回 null）。 */
+  private getScript(): LevelScript | null {
+    const stageId = this.scene?.params?.level;
+    if (!stageId) return null;
+    return StageLibrary.getLoaded(stageId)?.script ?? null;
+  }
+
+  /** 构建并缓存关卡脚本上下文（每局/每次 Reset 后重建）。 */
+  private getContext(): LevelScriptContext | null {
+    if (!this.scene) return null;
+    if (this.cachedContext) return this.cachedContext;
+    const scene = this.scene;
+    const pos = PositionManager.Instance;
+    const ctx: LevelScriptContext = {
+      stageId: scene.params.level,
+      rows: pos.Row_Number,
+      cols: pos.Col_Number,
+      giftPlant: (pid, level, col, row) => {
+        PlantsManager.Instance.PlantCardDirect(9961, pid, level, col, row);
+      },
+      fillRowWater: (row) => {
+        for (let col = 0; col < pos.Col_Number; col++) {
+          GridManager.Instance.setSingleGridProperty(col, row, { type: "water" });
+        }
+      },
+      setCellWater: (col, row) => {
+        GridManager.Instance.setSingleGridProperty(col, row, { type: "water" });
+      },
+      addDarkOverlay: (alpha) => {
+        const rect = scene.add.rectangle(
+          LOGICAL_BATTLE_WIDTH / 2, LOGICAL_BATTLE_HEIGHT / 2,
+          LOGICAL_BATTLE_WIDTH, LOGICAL_BATTLE_HEIGHT, 0x000000, alpha,
+        ).setDepth(DepthHelper.Scene.presetOverlay());
+        this.darkOverlays.push(rect);
+      },
+      setDayOrNight: (day) => {
+        CombatManager.Instance.combatStatus.dayOrNight = day;
+      },
+      stopAutoEnergy: () => this.stopAutoGenerateEnergy(),
+      registerBossHooks: (hooks) => setCentipedeHooks(hooks),
+      playCollapseVisual: (cells) => playCollapseSfx(scene, cells),
+      playLightFlicker: (count) => playLightRemovalSfx(scene, count),
+      syncWaterTiles: (cells, visible) => this.syncWaterTiles(cells, visible),
+      getFlag: (key) => this.getFlag(key),
+      setFlag: (key, value) => this.setFlag(key, value),
+    };
+    this.cachedContext = ctx;
+    return ctx;
+  }
+
+  private getFlag(key: StageEventFlagKey): boolean {
+    if (key === "collapse") return this.stage22Collapsed;
+    if (key === "lightsOut") return this.stage36LightRemoved;
+    return false;
+  }
+
+  private setFlag(key: StageEventFlagKey, value: boolean): void {
+    if (key === "collapse") this.stage22Collapsed = value;
+    else if (key === "lightsOut") this.stage36LightRemoved = value;
+  }
+
+  /** 按脚本要求重建/回收水面替代贴图（幂等，纯表现）。 */
+  private syncWaterTiles(cells: readonly GridCell[], visible: boolean): void {
+    if (!this.scene) return;
+    if (!visible) {
+      if (this.waterTileLayer) {
+        this.waterTileLayer.destroy();
+        this.waterTileLayer = null;
+      }
+      this.waterTileSignature = "";
+      return;
+    }
+    const signature = cells.map((c) => `${c.col}-${c.row}`).join(",");
+    if (this.waterTileLayer && this.waterTileSignature === signature) return;
+    if (this.waterTileLayer) {
+      this.waterTileLayer.destroy();
+      this.waterTileLayer = null;
+    }
+    this.rebuildWaterTileLayer(cells);
+    this.waterTileSignature = signature;
+  }
+
+  /** 用逐格 Graphics 画出崩塌后的水面替代贴图（水色 + 波纹描边），纯表现。 */
+  private rebuildWaterTileLayer(cells: readonly GridCell[]): void {
+    if (!this.scene) return;
+    const size = PositionManager.Instance.getGridSize();
+    const offset = PositionManager.Instance.getGridOffset();
+    const g = this.scene.add.graphics().setDepth(DepthHelper.Scene.presetImage());
+    for (const cell of cells) {
+      const x = offset.x + cell.col * size.width;
+      const y = offset.y + cell.row * size.height;
+      g.fillStyle(0x1f5a80, 0.78);
+      g.fillRect(x, y, size.width, size.height);
+      g.lineStyle(2, 0x5ac8e0, 0.55);
+      g.strokeRect(x + 2, y + 2, size.width - 4, size.height - 4);
+      g.lineStyle(1, 0x9fe8ff, 0.4);
+      g.lineBetween(x + size.width * 0.2, y + size.height * 0.42,
+        x + size.width * 0.8, y + size.height * 0.42);
+      g.lineBetween(x + size.width * 0.3, y + size.height * 0.62,
+        x + size.width * 0.7, y + size.height * 0.62);
+    }
+    this.waterTileLayer = g;
   }
 
   /**
    * 重置预设事件状??
    */
   public Reset(): void {
-    // 移除事件监听
     if (this.onNewWaveHandler) {
       MobManager.Instance.EventBus.off('onNewWave', this.onNewWaveHandler);
       this.onNewWaveHandler = null;
     }
     this.stopAutoGenerateEnergy();
     setCentipedeHooks(null);
+    this.stage22Collapsed = false;
+    this.stage36LightRemoved = false;
+    this.cachedContext = null;
+    this.waterTileLayer?.destroy();
+    this.waterTileLayer = null;
+    this.waterTileSignature = "";
+    for (const overlay of this.darkOverlays) overlay.destroy();
+    this.darkOverlays = [];
     this.scene = null;
   }
 
@@ -188,102 +344,4 @@ export class PresetEventManager extends BaseManager {
       size: "medium",
     });
   }
-
-  Chapter1Dispatch(game: Game, stageId: number) {
-    // 第一章的
-    const width = LOGICAL_BATTLE_WIDTH;
-    const height = LOGICAL_BATTLE_HEIGHT;
-
-
-    if (stageId === 1) {
-      PlantsManager.Instance.PlantCardDirect(9961, DispenserData.pid, 1, 0, 0);
-      PlantsManager.Instance.PlantCardDirect(9961, DispenserData.pid, 1, 0, 4);
-      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 1);
-      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 2);
-      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 3);
-    }
-
-    if (stageId === 2) {
-      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 1);
-      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 2);
-      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 3);
-    }
-
-    if (stageId === 3) {
-      //darker
-      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.3).setDepth(DepthHelper.Scene.presetOverlay());
-
-      PlantsManager.Instance.PlantCardDirect(9961, SmallDispenserData.pid, 1, 4, 1);
-      PlantsManager.Instance.PlantCardDirect(9961, SmallDispenserData.pid, 1, 4, 2);
-    }
-
-    if (stageId === 4) {
-      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
-      PlantsManager.Instance.PlantCardDirect(9961, GeneratorData.pid, 1, 5, 1);
-      PlantsManager.Instance.PlantCardDirect(9961, GeneratorData.pid, 1, 5, 4);
-    }
-
-    const initialWaterRows = getInitialWaterRows(stageId);
-    if (initialWaterRows.length > 0) {
-      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
-      for (const row of initialWaterRows) {
-        for (let col = 0; col < PositionManager.Instance.Col_Number; col++) {
-          GridManager.Instance.setSingleGridProperty(col, row, { type: 'water' });
-        }
-      }
-      PlantsManager.Instance.PlantCardDirect(9961, LilyData.pid, 1, 0, 2);
-      PlantsManager.Instance.PlantCardDirect(9961, LilyData.pid, 1, 0, 3);
-      PlantsManager.Instance.PlantCardDirect(9961, LilyData.pid, 1, 1, 2);
-      PlantsManager.Instance.PlantCardDirect(9961, LilyData.pid, 1, 1, 3);
-    }
-
-    if (stageId === 6) {
-      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
-    }
-
-    if (stageId === 7) {
-      game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
-
-      PlantsManager.Instance.PlantCardDirect(9961, SmallDispenserData.pid, 1, 4, 1);
-      PlantsManager.Instance.PlantCardDirect(9961, SmallDispenserData.pid, 1, 4, 2);
-      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 1);
-      PlantsManager.Instance.PlantCardDirect(9961, FurnaceData.pid, 1, 1, 2);
-    }
-
-    if (stageId === 9) {
-      setCentipedeHooks({
-        onSpawn: () => {
-          // 关卡开局即自动产能；boss 出场时停??
-          this.stopAutoGenerateEnergy();
-          game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
-        },
-        onHalfHealth: () => {
-          // 到达 50% 血量时再恢??
-          // this.startAutoGenerateEnergy(0, 20000, 25);
-        }
-      });
-    }
-
-
-
-
-    // // 绘制阴影表格
-    // // stage1 黑色
-    // if (game.params.level === 1) {
-    //   for (let row = 0; row < PositionManager.Instance.Row_Number; row++) {
-    //     // game.grid[row] = [];
-    //     for (let col = 0; col < PositionManager.Instance.Col_Number; col++) {
-    //       const { x, y } = PositionManager.Instance.getGridTopLeft(col, row);
-    //       const rect = game.add.rectangle(x, y, PositionManager.Instance.GRID_SIZEX,
-    //         PositionManager.Instance.GRID_SIZEY, 0x000000, 0.12)
-    //         .setOrigin(0, 0).setDepth(DepthHelper.Scene.presetImage());
-    //       rect.setStrokeStyle(1, 0xffffff, 0.1);
-    //     }
-    //   }
-    // }
-
-    // stage 4,5 手动暗淡
-  }
-
-
 }

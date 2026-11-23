@@ -1,100 +1,49 @@
-import type {
-  ChapterDescription,
-  ChapterDramaConfig,
-  StageDescription,
-} from "../../../types/drama";
-import type { StageData } from "../../../types/stage";
-import { publicUrl } from "../../../utils/browser";
+import type { ChapterDescription, StageDescription } from "../../../types/drama";
+import { StageLibrary } from "../../stages/StageLibrary";
 
-const CHAPTER_INDEX_PATH = "stages/chapters/index.json";
-
-type ChapterIndex = string[];
-type StageMetadata = Pick<StageData, "chapterId" | "levelId" | "nameKey" | "descriptionKey">;
-
+/**
+ * 章节 / 关卡轻量元数据注册表。
+ *
+ * 关卡配置已从 JSON 迁到 `src/game/stages/**` 的 ts 模块：本类只同步构建
+ * id / 名称 key 等轻量元数据（供关卡列表、结算页等 UI 直接读取），
+ * 完整关卡数据与脚本由 `StageLibrary.load(stageId)` 懒加载。
+ */
 export class ChapterLibrary {
   public static readonly ChapterDataRecords: Record<number, ChapterDescription> = {};
   public static readonly StageDataRecords: Record<number, StageDescription> = {};
-  private static initializePromise: Promise<void> | null = null;
 
-  public static async Initialize() {
+  public static async Initialize(): Promise<void> {
     if (Object.keys(this.ChapterDataRecords).length > 0) return;
-    if (this.initializePromise) return this.initializePromise;
-
-    this.initializePromise = this.LoadChapters();
-    return this.initializePromise;
-  }
-
-  private static async LoadChapters() {
-    const chapterFiles = await this.FetchJson<ChapterIndex>(CHAPTER_INDEX_PATH);
-    for (const chapterFile of chapterFiles) {
-      const fallbackChapterId = this.ParseId(chapterFile, "cp");
-      const chapterData = await this.FetchJson<ChapterDramaConfig[]>(
-        `stages/chapters/${chapterFile}`,
-      );
-      for (const chapter of chapterData) {
-        const chapterId = chapter.chapterId ?? fallbackChapterId;
-        await this.RegisterChapter(chapterId, chapter);
+    StageLibrary.initialize();
+    for (const chapter of StageLibrary.getChapters()) {
+      if (this.ChapterDataRecords[chapter.chapterId]) {
+        console.warn(`[ChapterLibrary] Chapter ID ${chapter.chapterId} is already registered!`);
+        continue;
+      }
+      this.ChapterDataRecords[chapter.chapterId] = {
+        id: chapter.chapterId,
+        nameKey: chapter.nameKey,
+        descriptionKey: chapter.descriptionKey,
+        stages: chapter.stages.map((stage) => stage.levelId),
+      };
+      for (const stage of chapter.stages) {
+        if (this.StageDataRecords[stage.levelId]) {
+          console.warn(`[ChapterLibrary] Stage ID ${stage.levelId} is already registered!`);
+          continue;
+        }
+        this.StageDataRecords[stage.levelId] = {
+          id: stage.levelId,
+          levelId: stage.levelId,
+          chapterId: stage.chapterId,
+          nameKey: stage.nameKey,
+          descriptionKey: stage.descriptionKey,
+        };
       }
     }
-    console.log(`[ChapterLibrary] Initialized ${Object.keys(this.ChapterDataRecords).length} chapters, ${Object.keys(this.StageDataRecords).length} stages.`);
-  }
-
-  private static async RegisterChapter(chapterId: number, chapter: ChapterDramaConfig) {
-    if (this.ChapterDataRecords[chapterId]) {
-      console.warn(`[ChapterLibrary] Chapter ID ${chapterId} is already registered!`);
-      return;
-    }
-
-    this.ChapterDataRecords[chapterId] = {
-      id: chapterId,
-      nameKey: chapter.nameKey,
-      descriptionKey: chapter.descriptionKey,
-      stages: [],
-    };
-
-    for (const stage of chapter.stages) {
-      await this.RegisterStage(chapterId, stage);
-    }
-  }
-
-  private static async RegisterStage(chapterId: number, stage: ChapterDramaConfig["stages"][number]) {
-    const stageMetadata = await this.FetchJson<StageMetadata>(stage.dataPath);
-    const stageId = stageMetadata.levelId ?? this.ParseId(stage.dataPath, "ch");
-    const stageChapterId = stageMetadata.chapterId ?? chapterId;
-    if (stageChapterId !== chapterId) {
-      console.warn(`[ChapterLibrary] Stage ${stageId} chapterId ${stageChapterId} does not match chapter ${chapterId}.`);
-    }
-
-    if (this.StageDataRecords[stageId]) {
-      console.warn(`[ChapterLibrary] Stage ID ${stageId} is already registered!`);
-      return;
-    }
-
-    this.StageDataRecords[stageId] = {
-      id: stageId,
-      levelId: stageId,
-      chapterId,
-      nameKey: stageMetadata.nameKey,
-      descriptionKey: stageMetadata.descriptionKey,
-      dataPath: stage.dataPath,
-    };
-    this.ChapterDataRecords[chapterId].stages.push(stageId);
-  }
-
-  private static async FetchJson<T>(path: string): Promise<T> {
-    const response = await fetch(`${publicUrl}/${path}`);
-    if (!response.ok) {
-      throw new Error(`[ChapterLibrary] Failed to load ${path}`);
-    }
-    return await response.json() as T;
-  }
-
-  private static ParseId(path: string, prefix: "cp" | "ch"): number {
-    const match = new RegExp(`${prefix}(\\d+)\\.json$`).exec(path);
-    if (!match) {
-      throw new Error(`[ChapterLibrary] Cannot parse ${prefix} id from ${path}`);
-    }
-    return Number(match[1]);
+    console.log(
+      `[ChapterLibrary] Initialized ${Object.keys(this.ChapterDataRecords).length} chapters, `
+      + `${Object.keys(this.StageDataRecords).length} stages.`,
+    );
   }
 
   public static GetChapter(chapterId: number): ChapterDescription | undefined {

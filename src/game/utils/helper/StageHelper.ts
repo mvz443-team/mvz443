@@ -1,7 +1,7 @@
 import seedrandom from "seedrandom";
 import type { Monster, StageScript, Wave } from "../../../types/stage";
 import { MonsterLibrary } from "../../managers/library/MonsterLibrary";
-import { getEarlyWaterwayExceptLine } from "./StageTerrain";
+import { getEarlyWaterwayExceptLine, type StageTerrainConfig } from "./StageTerrain";
 
 namespace StageHelper {
   export type RowPickSmoothingState = {
@@ -191,7 +191,13 @@ namespace StageHelper {
   }
 
   // 主函数：根据 StageScript 生成 Wave[]
-  export function generateStageScript(stage: StageScript, random: seedrandom.PRNG, stageID: number, rowCount: number): Wave[] {
+  export function generateStageScript(
+    stage: StageScript,
+    random: seedrandom.PRNG,
+    stageID: number,
+    rowCount: number,
+    terrain?: StageTerrainConfig,
+  ): Wave[] {
     // 调试入口, totalwaves = 114514
     if (stage.total_waves === 114514) {
       // 
@@ -393,8 +399,8 @@ namespace StageHelper {
       const levelSum = getLevelSum(waveId);
       const { duration, minDelay, maxDelay } = getAllTimes(waveId);
 
-      // 早期阶段只在前 3 波允许行刷怪（白名单来自 StageTerrain 纯函数）。
-      const exceptLine = getEarlyWaterwayExceptLine(stageID, waveId, rowCount);
+      // 早期阶段只在前 3 波允许行刷怪（白名单来自关卡脚本声明的 terrain）。
+      const exceptLine = getEarlyWaterwayExceptLine(terrain, waveId, rowCount);
 
       // 生成怪物列表
       const mobDict = generateMobs(levelSum, waveId);
@@ -462,7 +468,7 @@ namespace StageHelper {
       ret[i].waveId = i;
       // 重新计算 progress, 最后一波为 100%
       ret[i].progress = Math.ceil((i / (total - 1)) * 100);
-      ret[i].exceptLine = ret[i].flag === "normal" ? getEarlyWaterwayExceptLine(stageID, i, rowCount) : [];
+      ret[i].exceptLine = ret[i].flag === "normal" ? getEarlyWaterwayExceptLine(terrain, i, rowCount) : [];
     }
     ret[0].monsters = []; // 第一波不刷怪
     ret[0].maxDelay = dayOrNight === 1 ? 20 : 26;

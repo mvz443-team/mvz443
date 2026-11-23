@@ -14,7 +14,7 @@ import { DolphinRiderZombieData } from "../../src/game/presets/monster/zombie/wa
 import { DivingZombieData } from "../../src/game/presets/monster/zombie/water/diving_zombie.ts";
 import { TurtleZombieData } from "../../src/game/presets/monster/zombie/turtle_zombie.ts";
 import { MonsterLibrary } from "../../src/game/managers/library/MonsterLibrary.ts";
-import ch8 from "../../public/stages/levels/ch8.json" with { type: "json" };
+import stage8 from "../../src/game/stages/chapter1/stage8.ts";
 
 // 测试环境不会自动注册怪物库，这里显式初始化，确保 GetModel 能解析到真实 preset。
 MonsterLibrary.Initialize();
@@ -152,7 +152,7 @@ test("变种解析确定性：相同 seed 下行与 mid 序列可复现", () => 
 });
 
 test("潜水僵尸加入 ch8（矿洞深处-水elite）刷怪表", () => {
-  assert.ok(ch8.stageScript.AllowedMobs.includes(27), "ch8.AllowedMobs 应包含潜水僵尸 mid=27");
+  assert.ok(stage8.content.stageScript.AllowedMobs.includes(27), "ch8.AllowedMobs 应包含潜水僵尸 mid=27");
   assert.ok(DivingZombieData.weight(10) > 0, "潜水僵尸应保留普通出怪权重");
   assert.equal(DivingZombieData.mid, 27);
 });
