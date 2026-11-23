@@ -3,6 +3,7 @@ import type { StageScript, Wave } from "../../../types/stage";
 import StageHelper from "./StageHelper";
 import {
   canSpawnMonsterInRow,
+  dominantHabitat,
   type RowTerrainRatio,
   type TerrainHabitat,
 } from "../../core/logic/TerrainHabitat";
@@ -35,12 +36,16 @@ export type SelectSpawnRowContext = {
   rowPropertyRatio: RowPropertyRatioGetter;
   getHabitats: (mid: number) => readonly TerrainHabitat[];
   isFlying: (mid: number) => boolean;
+  /** 读取怪物的刷怪变种表（主导地形 → 替换 mid）；可选，缺省为空。 */
+  getSpawnVariants?: (mid: number) => Readonly<Record<string, number>>;
 };
 
 export type SelectSpawnRowResult = {
   row: number;
   rowWeights: number[];
   rowPickSmoothingState: StageHelper.RowPickSmoothingState;
+  /** 按所选行的主导地形解析后的实际生成 mid（应用变种后）。 */
+  mid: number;
 };
 
 const MINECART_PROTECTION_FADE_WAVES = 10;
@@ -87,17 +92,24 @@ namespace MobHelper {
         })
         : ctx.rowWeights;
 
+    const variants = ctx.getSpawnVariants?.(ctx.mid) ?? {};
     const habitats = ctx.getHabitats(ctx.mid);
     const isFlying = ctx.isFlying(ctx.mid);
+    const rowRatios: RowTerrainRatio[] = selectableRowWeights.map((_, row) => ({
+      ground: ctx.rowPropertyRatio(row, "ground"),
+      water: ctx.rowPropertyRatio(row, "water"),
+      void: ctx.rowPropertyRatio(row, "void"),
+      sky: ctx.rowPropertyRatio(row, "sky"),
+    }));
+
     const filteredWeights = selectableRowWeights.map((weight, row) => {
       if (weight <= 0) return 0;
-      const ratios: RowTerrainRatio = {
-        ground: ctx.rowPropertyRatio(row, "ground"),
-        water: ctx.rowPropertyRatio(row, "water"),
-        void: ctx.rowPropertyRatio(row, "void"),
-        sky: ctx.rowPropertyRatio(row, "sky"),
-      };
-      return canSpawnMonsterInRow({ habitats, isFlying, ratios }) ? weight : 0;
+      const ratios = rowRatios[row];
+      if (canSpawnMonsterInRow({ habitats, isFlying, ratios })) return weight;
+      // 本体刷不了该地形时，若配置了对应变种（例如普通僵尸 → 木船僵尸），
+      // 该行仍可选：变种会接管这只怪，因此行为与"能刷"一致。
+      const dominant = dominantHabitat(ratios);
+      return dominant && variants[dominant] !== undefined ? weight : 0;
     });
 
     // 若该怪的通行域与当前地形完全不匹配（例如全水路关卡刷陆地怪），不能回落到
@@ -110,10 +122,18 @@ namespace MobHelper {
       smoothingState: ctx.rowPickSmoothingState,
     });
 
+    // 变种解析只读所选行的主导地形，不额外消费 rng，回滚/重连后结果一致。
+    // 注意：只有在本体确实无法刷该地形时才替换，避免本就能水陆两栖的怪被误换。
+    const chosenRatios = rowRatios[rowResult.row];
+    const dominant = dominantHabitat(chosenRatios);
+    const needsVariant = !canSpawnMonsterInRow({ habitats, isFlying, ratios: chosenRatios });
+    const mid = needsVariant && dominant ? variants[dominant] ?? ctx.mid : ctx.mid;
+
     return {
       row: rowResult.row,
       rowWeights: ctx.rowWeights,
       rowPickSmoothingState: rowResult.smoothingState,
+      mid,
     };
   }
 

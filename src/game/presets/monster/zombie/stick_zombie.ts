@@ -153,6 +153,7 @@ export const StickZombieData = new StickZombieModel({
   level: 2,
   weight: () => 2000,
   leastWaveID: 9,
+  spawnVariants: { water: 28 },
   maxHealth: 300,
   baseSpeed: MonsterSpeed.StickZombie,
   baseAttackDamage: 30,

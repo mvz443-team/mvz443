@@ -28,6 +28,7 @@ export const HelmetZombieData = new HelmetZombieModel({
   level: 4,
   weight: () => 3000,
   leastWaveID: 1,
+  spawnVariants: { water: 24 },
   maxHealth: 300,
   baseSpeed: MonsterSpeed.HelmetZombie,
   baseAttackDamage: 20,

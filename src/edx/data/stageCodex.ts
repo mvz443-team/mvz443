@@ -2,6 +2,7 @@ import { ChapterLibrary, StageDataRecords } from "../../game/managers/library/Ch
 import { BATTLE_GRID_COLS } from "../../constants/gameLayout";
 import { publicUrl } from "../../utils/browser";
 import type { StageData } from "../../types/stage";
+import { getInitialWaterRows } from "../../game/utils/helper/StageTerrain";
 
 export interface StageCodexEntry {
   stageId: number;
@@ -12,7 +13,7 @@ export interface StageCodexEntry {
   rows: number;
   /** 列数：战斗网格固定 9 列，关卡配置里没有列字段。 */
   cols: number;
-  /** 水路行号（0 基），来自 `stageScript.waterWays`。 */
+  /** 水路行号（0 基），由 StageTerrain.getInitialWaterRows(stageId) 推导。 */
   waterWays: number[];
   energy: number;
   totalWaves: number;
@@ -69,7 +70,7 @@ async function fetchSingleStage(stageId: number): Promise<StageCodexEntry | null
       descriptionKey: data.descriptionKey ?? record.descriptionKey,
       rows: Number(data.rows) > 0 ? Number(data.rows) : 0,
       cols: BATTLE_GRID_COLS,
-      waterWays: normalizeWaterWays(data.stageScript?.waterWays, Number(data.rows)),
+      waterWays: [...getInitialWaterRows(stageId)],
       energy: Number(data.energy) || 0,
       totalWaves: Number(data.stageScript?.total_waves) || 0,
       dayOrNight: Number(data.stageScript?.dayOrNight) || 0,
@@ -91,13 +92,3 @@ async function fetchSingleStage(stageId: number): Promise<StageCodexEntry | null
   }
 }
 
-/** 水路行号去重、排序并裁剪到合法行范围。 */
-function normalizeWaterWays(waterWays: number[] | undefined, rows: number): number[] {
-  if (!Array.isArray(waterWays)) return [];
-  const maxRow = rows > 0 ? rows - 1 : Number.POSITIVE_INFINITY;
-  return [...new Set(
-    waterWays
-      .map((row) => Number(row))
-      .filter((row) => Number.isInteger(row) && row >= 0 && row <= maxRow),
-  )].sort((a, b) => a - b);
-}

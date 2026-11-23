@@ -33,6 +33,7 @@ export const CapZombieData = new CapZombieModel({
   level: 2,
   weight: (waveID) => Math.max(800, 4000 - (waveID - 4) * 150),
   leastWaveID: 0,
+  spawnVariants: { water: 23 },
   maxHealth: 300,
   baseSpeed: MonsterSpeed.CapZombie,
   baseAttackDamage: 20,

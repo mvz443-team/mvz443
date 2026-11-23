@@ -7,7 +7,8 @@ export const BoatCapZombieData = new CapZombieModel({
   mid: 23,
   nameKey: "BoatCapZombie",
   level: 2,
-  weight: (waveID) => Math.max(400, 2200 - (waveID - 7) * 120),
+  // 作为皮革帽僵尸的 water 变种生成，不进普通出怪池。
+  weight: () => 0,
   leastWaveID: 5,
   habitats: ["water"],
   boatMounted: true,

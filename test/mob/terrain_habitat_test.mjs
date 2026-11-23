@@ -46,7 +46,7 @@ import { BalloonZombieData } from "../../src/game/presets/monster/zombie/chapter
 function makeCtx({ waterRows = [], skyRows = [], habitats, isFlying = false, seed = "habitat" }) {
   return {
     wave: { flag: "normal", waveId: 4 },
-    stageScript: { waterWays: waterRows },
+    stageScript: {},
     rowWeights: [1, 1, 1, 1, 1],
     rowPickSmoothingState: StageHelper.createRowPickSmoothingState(5),
     currentWaveId: 4,

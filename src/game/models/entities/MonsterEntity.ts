@@ -482,6 +482,12 @@ export type MonsterDefinition = {
   readonly couldCarryStarShards?: boolean;
   /** 能刷在哪、能活在哪的地形通行域；缺省为仅地面。 */
   readonly habitats?: readonly TerrainHabitat[];
+  /**
+   * 刷怪变种表：key 是主导地形（water/sky），value 是替换用的怪物 mid。
+   * 本体的 weight 决定被抽中的概率；选中行后若该行主导地形命中某个 key，
+   * 则实际生成 value 对应的怪物（变种自身 weight 应为 0，不进普通池）。
+   */
+  readonly spawnVariants?: Readonly<Record<string, number>>;
   /** 木船僵尸：强制挂载木船表现，不依赖出生行地形。 */
   readonly boatMounted?: boolean;
   /** 飞行载具（气球等）血量；配置后该怪物有第二条血条，归零即迫降。 */

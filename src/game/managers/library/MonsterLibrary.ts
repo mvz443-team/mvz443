@@ -60,7 +60,7 @@ export class MonsterLibrary {
     this.Register(CentipedeMinionData);
     this.Register(BalloonZombieData);
     this.Register(BalloonCapZombieData);
-    // 水生木船僵尸：只在第 4 波起的水路行出没（前 3 波 waterWays 被排除）。
+    // 水生木船僵尸：作为本体怪的 water 变种生成（前 3 波水路行不刷怪）。
     this.Register(BoatZombieData);
     this.Register(BoatCapZombieData);
     this.Register(BoatHelmetZombieData);

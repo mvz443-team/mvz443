@@ -7,7 +7,8 @@ export const BoatHelmetZombieData = new HelmetZombieModel({
   mid: 24,
   nameKey: "BoatHelmetZombie",
   level: 4,
-  weight: () => 900,
+  // 作为钢盔僵尸的 water 变种生成，不进普通出怪池。
+  weight: () => 0,
   leastWaveID: 8,
   habitats: ["water"],
   boatMounted: true,

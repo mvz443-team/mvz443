@@ -12,7 +12,7 @@ interface Props {
  * 地图图鉴。
  *
  * 只展示关卡地图本身：格子数量、水路行、初始能量与波次，全部来自
- * `public/stages/**` 的关卡配置（`rows` + `stageScript.waterWays`）。
+ * `public/stages/**` 的关卡配置（rows）+ StageTerrain 推导的水路行。
  */
 export default function StageCodexPage({ width, height, onBack }: Props) {
   const { t, i18n } = useTranslation();

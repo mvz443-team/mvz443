@@ -9,7 +9,6 @@ export interface StageScript {
   phase2_end: number;
   dayOrNight: number;
   flagWaves: number[];
-  waterWays: number[];
   AllowedMobs: number[];
   globalRatio: [number, number][];
   bossInsert: [number, number][];

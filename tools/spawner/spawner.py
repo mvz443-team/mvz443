@@ -12,8 +12,10 @@ dayOrNight = 2                  # 1: 白天 2: 晚上
 # 定义 flag wave,这些wave之前会给很充足的准备时间
 flagWaves = [10,25,35]
 
-# 水之道,这些路在前几波不会刷怪
-waterWays = [1,2,3]
+# 行数与前 3 波允许刷怪的行（与 TS 侧 StageTerrain.getEarlySpawnRows 对齐）
+rows = 5
+# 前 3 波允许刷的行（白名单）；留空表示全部行
+earlySpawnRows = []
 
 # 用于冒险模式,有些怪物还没有遇到,不允许刷怪
 AllowedMobs = {1,2,3,4,8, 7,5,9,11}              # 允许的怪物
@@ -324,9 +326,10 @@ def oneObject(waveId:int):
 
     levelSum = getLevelSum(waveId)
     duration, minDelay, maxDelay = getAllTimes(waveId)
-    if waveId <= 3:
-        # 早期阶段,不刷水道
-        obj['exceptLine'] = waterWays or None
+    if waveId <= 3 and earlySpawnRows:
+        # 早期阶段只在前 3 波允许行刷怪，其余行作为 exceptLine
+        allowed = set(earlySpawnRows)
+        obj['exceptLine'] = [r for r in range(rows) if r not in allowed] or None
     else:
         obj['exceptLine'] = None
 

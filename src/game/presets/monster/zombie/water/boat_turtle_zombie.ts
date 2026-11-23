@@ -7,7 +7,8 @@ export const BoatTurtleZombieData = new TurtleZombieModel({
   mid: 25,
   nameKey: "BoatTurtleZombie",
   level: 2,
-  weight: () => 700,
+  // 不进普通出怪池（保留 preset 供特殊召唤使用）。
+  weight: () => 0,
   leastWaveID: 9,
   habitats: ["water"],
   boatMounted: true,

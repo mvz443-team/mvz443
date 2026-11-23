@@ -8,7 +8,8 @@ export const BoatSkeletonBowZombieData = new SkeletonBowModel({
   mid: 26,
   nameKey: "BoatSkeletonBowZombie",
   level: 2,
-  weight: (waveID) => Math.max(400, 1200 - (waveID - 16) * 80),
+  // 不进普通出怪池（保留 preset 供特殊召唤使用）。
+  weight: () => 0,
   leastWaveID: 10,
   habitats: ["water"],
   boatMounted: true,

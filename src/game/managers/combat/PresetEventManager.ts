@@ -21,6 +21,7 @@ import { GeneratorData } from "../../presets/plant/chapter1/generator";
 import { LilyData } from "../../presets/plant/chapter1/lily";
 import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
 import { defaultRandom } from "../../../utils/random";
+import { getInitialWaterRows } from "../../utils/helper/StageTerrain";
 
 /**
  * 预设事件管理
@@ -222,12 +223,13 @@ export class PresetEventManager extends BaseManager {
       PlantsManager.Instance.PlantCardDirect(9961, GeneratorData.pid, 1, 5, 4);
     }
 
-    if (stageId === 5 || stageId === 8) {
+    const initialWaterRows = getInitialWaterRows(stageId);
+    if (initialWaterRows.length > 0) {
       game.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5).setDepth(DepthHelper.Scene.presetOverlay());
-      // row:2, 3  = water
-      for (let col = 0; col < PositionManager.Instance.Col_Number; col++) {
-        GridManager.Instance.setSingleGridProperty(col, 2, { type: 'water' });
-        GridManager.Instance.setSingleGridProperty(col, 3, { type: 'water' });
+      for (const row of initialWaterRows) {
+        for (let col = 0; col < PositionManager.Instance.Col_Number; col++) {
+          GridManager.Instance.setSingleGridProperty(col, row, { type: 'water' });
+        }
       }
       PlantsManager.Instance.PlantCardDirect(9961, LilyData.pid, 1, 0, 2);
       PlantsManager.Instance.PlantCardDirect(9961, LilyData.pid, 1, 0, 3);

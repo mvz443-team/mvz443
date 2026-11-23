@@ -84,7 +84,6 @@ function createPreviewStageData(): StageData {
       phase2_end: 0,
       dayOrNight: 0,
       flagWaves: [],
-      waterWays: [],
       AllowedMobs: [],
       globalRatio: [],
       bossInsert: [],

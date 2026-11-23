@@ -6,7 +6,8 @@ export const BoatZombieData = new ZombieModel({
   mid: 22,
   nameKey: "BoatZombie",
   level: 1,
-  weight: (waveID) => Math.max(300, 3000 - (waveID - 6) * 160),
+  // 作为普通僵尸的 water 变种生成，不进普通出怪池。
+  weight: () => 0,
   leastWaveID: 4,
   habitats: ["water"],
   boatMounted: true,

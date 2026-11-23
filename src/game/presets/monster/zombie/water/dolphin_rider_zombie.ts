@@ -59,7 +59,8 @@ export const DolphinRiderZombieData = new DolphinRiderModel({
   mid: 28,
   nameKey: "DolphinRiderZombie",
   level: 3,
-  weight: (waveID) => Math.max(300, 1400 - (waveID - 10) * 80),
+  // 作为手杖僵尸的 water 变种生成，不进普通出怪池。
+  weight: () => 0,
   leastWaveID: 8,
   habitats: ["water"],
   mountHealth: 250,

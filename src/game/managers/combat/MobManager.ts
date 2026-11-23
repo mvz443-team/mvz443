@@ -464,13 +464,16 @@ export default class MobManager extends BaseManager {
       rowPropertyRatio: (row, type) => GridManager.Instance.RowPropertyRatio(row, type),
       getHabitats: mid => MonsterLibrary.GetModel(mid)?.habitats ?? DEFAULT_HABITATS,
       isFlying: mid => MonsterLibrary.GetModel(mid)?.isDefaultFlying ?? false,
+      getSpawnVariants: mid => MonsterLibrary.GetModel(mid)?.spawnVariants ?? {},
     });
     const row = rowResult.row;
+    // 变种在选行阶段按主导地形替换（如普通僵尸落水行 → 木船僵尸），建怪必须用解析后的 mid。
+    const spawnMid = rowResult.mid;
 
     // 换成新版本的新建怪物函数
-    const model = MonsterLibrary.GetModel(monsterData.mid);
+    const model = MonsterLibrary.GetModel(spawnMid);
     if (!model) {
-      console.error(`Monster model with mid ${monsterData.mid} not found!`);
+      console.error(`Monster model with mid ${spawnMid} not found!`);
       return;
     }
 
@@ -655,6 +658,7 @@ export default class MobManager extends BaseManager {
       this.scene.stageData.stageScript,
       stageScriptRandom,
       this.scene.params.level,
+      PositionManager.Instance.Row_Number,
     ));
     this.startFirstWave();
   }

@@ -28,6 +28,7 @@ export const ZombieData = new ZombieModel({
   level: 1,
   weight: (waveID) => Math.max(400, 4000 - (waveID - 4) * 180),
   leastWaveID: 0,
+  spawnVariants: { water: 22 },
   maxHealth: 300,
   baseSpeed: MonsterSpeed.Zombie,
   baseAttackDamage: 20,

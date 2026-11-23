@@ -1,6 +1,7 @@
 import seedrandom from "seedrandom";
 import type { Monster, StageScript, Wave } from "../../../types/stage";
 import { MonsterLibrary } from "../../managers/library/MonsterLibrary";
+import { getEarlyWaterwayExceptLine } from "./StageTerrain";
 
 namespace StageHelper {
   export type RowPickSmoothingState = {
@@ -17,7 +18,6 @@ namespace StageHelper {
   const MIN_SMOOTH_FACTOR = 0.01;
   const MAX_SMOOTH_FACTOR = 100;
   const MIN_POSITIVE_WEIGHT = 1e-6;
-  const EARLY_WATERWAY_SAFE_WAVES = 3;
 
   export function createRowPickSmoothingState(rowCount: number): RowPickSmoothingState {
     return {
@@ -89,10 +89,6 @@ namespace StageHelper {
     }
 
     return { lastPicked, secondLastPicked };
-  }
-
-  export function getEarlyWaterwayExceptLine(stage: StageScript, waveId: number): number[] {
-    return waveId <= EARLY_WATERWAY_SAFE_WAVES && stage.waterWays.length > 0 ? [...stage.waterWays] : [];
   }
 
   function weightedRandomRow(weights: number[], rng: seedrandom.PRNG): number {
@@ -195,7 +191,7 @@ namespace StageHelper {
   }
 
   // 主函数：根据 StageScript 生成 Wave[]
-  export function generateStageScript(stage: StageScript, random: seedrandom.PRNG, stageID: number): Wave[] {
+  export function generateStageScript(stage: StageScript, random: seedrandom.PRNG, stageID: number, rowCount: number): Wave[] {
     // 调试入口, totalwaves = 114514
     if (stage.total_waves === 114514) {
       // 
@@ -397,8 +393,8 @@ namespace StageHelper {
       const levelSum = getLevelSum(waveId);
       const { duration, minDelay, maxDelay } = getAllTimes(waveId);
 
-      // 早期阶段不刷水道；若 waterWays 存在则设置 exceptLine，否则为空数组
-      const exceptLine = getEarlyWaterwayExceptLine(stage, waveId);
+      // 早期阶段只在前 3 波允许行刷怪（白名单来自 StageTerrain 纯函数）。
+      const exceptLine = getEarlyWaterwayExceptLine(stageID, waveId, rowCount);
 
       // 生成怪物列表
       const mobDict = generateMobs(levelSum, waveId);
@@ -466,7 +462,7 @@ namespace StageHelper {
       ret[i].waveId = i;
       // 重新计算 progress, 最后一波为 100%
       ret[i].progress = Math.ceil((i / (total - 1)) * 100);
-      ret[i].exceptLine = ret[i].flag === "normal" ? getEarlyWaterwayExceptLine(stage, i) : [];
+      ret[i].exceptLine = ret[i].flag === "normal" ? getEarlyWaterwayExceptLine(stageID, i, rowCount) : [];
     }
     ret[0].monsters = []; // 第一波不刷怪
     ret[0].maxDelay = dayOrNight === 1 ? 20 : 26;

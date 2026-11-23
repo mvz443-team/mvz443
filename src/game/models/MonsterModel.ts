@@ -122,6 +122,8 @@ export abstract class MonsterModel extends LogicModel {
   public get couldCarryStarShards(): boolean { return this.definition.couldCarryStarShards ?? true; }
   /** 通行域：决定该怪能被刷在什么地形、能在什么地形存活；与命中体态层正交。 */
   public get habitats(): readonly TerrainHabitat[] { return this.definition.habitats ?? DEFAULT_HABITATS; }
+  /** 刷怪变种表（主导地形 → 替换 mid）；缺省为空对象。只读配置，不进快照。 */
+  public get spawnVariants(): Readonly<Record<string, number>> { return this.definition.spawnVariants ?? {}; }
   /** 木船僵尸：无论出生行地形如何都挂载木船表现；普通怪在水面行仍按地形自动挂船。 */
   public get boatMounted(): boolean { return this.definition.boatMounted ?? false; }
   /**
