@@ -42,11 +42,15 @@ const STAR_CLONE_SHADOW_MIN_SCALE = 0.6;
 /** 空中拉伸，让起跳与落地不再像直线位移。 */
 const STAR_CLONE_STRETCH_X = 0.06;
 const STAR_CLONE_STRETCH_Y = 0.1;
-/** Lv5 常驻分身的待机弹跳（纯表现，权威坐标与 Model 状态都不参与）。 */
-const CLONE_IDLE_DURATION_MS = 520;
-const CLONE_IDLE_LIFT_GRID = 0.08;
-const CLONE_IDLE_SQUASH_X = 0.97;
-const CLONE_IDLE_STRETCH_Y = 1.05;
+/**
+ * Lv5 分身只在跃击动画里出现：开场从本体向左分离出 0.45 格并淡入，
+ * 随后与本体一起跃向目标；落地时与本体重合。纯表现，权威坐标不变。
+ */
+const CLONE_SPLIT_OFFSET_GRID = 0.45;
+/** 分离动作占整段跃击的比例，之后才开始收拢。 */
+const CLONE_SPLIT_RATIO = 0.35;
+/** 分身淡入占整段跃击的比例。 */
+const CLONE_SPLIT_FADE_RATIO = 0.2;
 
 /** Entity 表现层复用的时序配置；战斗时序仍以 Model 的 schedule 为准。 */
 export const BOUNCING_ANVIL_TIMING = {
@@ -355,7 +359,6 @@ export class BouncingAnvilEntity extends PlantEntity {
   private declare starShadowB: Phaser.GameObjects.Ellipse;
   private jumpTween: Phaser.Tweens.Tween | null = null;
   private starShardTween: Phaser.Tweens.Tween | null = null;
-  private cloneIdleTween: Phaser.Tweens.Tween | null = null;
   private starShardVisualKey = "";
 
   constructor(scene: Game, col: number, row: number, level: number) {
@@ -373,8 +376,6 @@ export class BouncingAnvilEntity extends PlantEntity {
     this.cloneSprite = createSprite()
       .setDepth(this.baseDepth - 1)
       .setVisible(false);
-    this.cloneSprite.setData("baseScaleX", this.cloneSprite.scaleX);
-    this.cloneSprite.setData("baseScaleY", this.cloneSprite.scaleY);
     const createStarClone = () => {
       const sprite = createSprite().setVisible(false);
       sprite.setData("baseScaleX", sprite.scaleX);
@@ -420,15 +421,15 @@ export class BouncingAnvilEntity extends PlantEntity {
 
     const alive = this.currentHealth > 0;
     if (!alive) {
-      this.stopCloneIdleVisual();
+      this.stopJumpVisual();
       this.stopStarShardVisual();
+      this.cloneSprite.setVisible(false);
       return;
     }
 
-    // 星碎期间由专用分身承担表现，隐藏 5 级常驻分身，避免出现三个分身。
+    // 星碎期间由专用分身承担表现，隐藏 Lv5 跃击分身，避免出现三个分身。
     if (this.model.starShardActive) {
       this.stopJumpVisual();
-      this.stopCloneIdleVisual();
       this.mainSprite.setVisible(true);
       this.mainSprite.setPosition(this.x, this.y);
       this.cloneSprite.setVisible(false);
@@ -439,73 +440,25 @@ export class BouncingAnvilEntity extends PlantEntity {
     this.stopStarShardVisual();
 
     const hasClone = this.model.hasClone;
-    this.cloneSprite.setVisible(hasClone);
 
+    // Lv5 分身只在跃击过程中存在；待机时不显示。
     if (this.model.isJumping) {
-      this.stopCloneIdleVisual();
+      this.cloneSprite.setVisible(hasClone);
       this.playJumpVisual(hasClone);
       return;
     }
 
     this.stopJumpVisual();
+    this.cloneSprite.setVisible(false);
+
     if (this.model.hasTriggered) {
-      this.stopCloneIdleVisual();
       this.placeAtLandingPoint(hasClone);
       return;
     }
 
-    const cloneX = this.x - PositionManager.Instance.GRID_SIZEX * 0.45;
+    // 待机时把分身收回到本体位置，下次跃击才能从本体向左分离出去。
     this.mainSprite.setPosition(this.x, this.y);
-    if (hasClone) {
-      this.startCloneIdleVisual(cloneX);
-    } else {
-      this.stopCloneIdleVisual();
-      this.cloneSprite.setPosition(cloneX, this.y);
-    }
-  }
-
-  /**
-   * Lv5 常驻分身的待机弹跳：只改 Sprite 的 y/缩放，权威坐标与 Model 不受影响。
-   * 回滚后由 syncViewFromModel() 重新拉起，不会留下不可恢复的中间态。
-   */
-  private startCloneIdleVisual(cloneX: number): void {
-    if (this.cloneIdleTween) {
-      if (this.cloneIdleTween.isPlaying()) return;
-      this.cloneIdleTween.stop();
-      this.cloneIdleTween.remove();
-      this.cloneIdleTween = null;
-    }
-
-    const base = this.getStarCloneBaseScale(this.cloneSprite);
-    const lift = PositionManager.Instance.GRID_SIZEY * CLONE_IDLE_LIFT_GRID;
-
-    this.cloneSprite
-      .setPosition(cloneX, this.y)
-      .setScale(base.x, base.y)
-      .setAlpha(1);
-
-    this.cloneIdleTween = this.scene.tweens.add({
-      targets: this.cloneSprite,
-      y: this.y - lift,
-      scaleX: base.x * CLONE_IDLE_SQUASH_X,
-      scaleY: base.y * CLONE_IDLE_STRETCH_Y,
-      duration: CLONE_IDLE_DURATION_MS,
-      ease: "Sine.easeInOut",
-      yoyo: true,
-      repeat: -1,
-    });
-  }
-
-  private stopCloneIdleVisual(): void {
-    if (this.cloneIdleTween) {
-      this.cloneIdleTween.stop();
-      this.cloneIdleTween.remove();
-      this.cloneIdleTween = null;
-    }
-    if (!this.cloneSprite) return;
-
-    const base = this.getStarCloneBaseScale(this.cloneSprite);
-    this.cloneSprite.setScale(base.x, base.y).setAlpha(1);
+    this.cloneSprite.setPosition(this.x, this.y).setAlpha(1);
   }
 
   private syncStarShardVisual(): void {
@@ -836,12 +789,22 @@ export class BouncingAnvilEntity extends PlantEntity {
     this.stopJumpVisual();
 
     const targetY = this.getLandingY(this.model.jumpTargetRow);
-    const targets = hasClone
-      ? [this.mainSprite, this.cloneSprite]
-      : [this.mainSprite];
-    const startPositions = targets.map((sprite) => ({ x: sprite.x, y: sprite.y }));
+    const gridX = PositionManager.Instance.GRID_SIZEX;
     const jumpHeight = PositionManager.Instance.GRID_SIZEY * 1.2;
     const progress = { t: 0 };
+    // 以本体当前视觉位置为起点：中途重建动画时不会回跳。
+    const startX = this.mainSprite.x;
+    const startY = this.mainSprite.y;
+
+    this.mainSprite.setAlpha(1);
+
+    // 分身从本体位置出发，开场向左分离并淡入，之后收拢随本体落地。
+    if (hasClone) {
+      this.cloneSprite
+        .setPosition(startX, startY)
+        .setAlpha(0)
+        .setVisible(true);
+    }
 
     this.jumpTween = this.scene.tweens.add({
       targets: progress,
@@ -851,11 +814,21 @@ export class BouncingAnvilEntity extends PlantEntity {
       onUpdate: () => {
         const t = progress.t;
         const lift = Math.sin(Math.PI * t) * jumpHeight;
-        targets.forEach((sprite, index) => {
-          const start = startPositions[index];
-          sprite.x = start.x + (this.model.jumpTargetX - start.x) * t;
-          sprite.y = start.y + (targetY - start.y) * t - lift;
-        });
+        const baseX = startX + (this.model.jumpTargetX - startX) * t;
+        const baseY = startY + (targetY - startY) * t - lift;
+
+        this.mainSprite.setPosition(baseX, baseY);
+        if (!hasClone) return;
+
+        const splitT = Math.min(1, t / CLONE_SPLIT_RATIO);
+        const split = 1 - Math.pow(1 - splitT, 3);
+        const settleT = Math.min(1, Math.max(0, (t - CLONE_SPLIT_RATIO) / (1 - CLONE_SPLIT_RATIO)));
+        const settle = settleT * settleT * (3 - 2 * settleT);
+        const offset = -CLONE_SPLIT_OFFSET_GRID * gridX * split * (1 - settle);
+
+        this.cloneSprite
+          .setPosition(baseX + offset, baseY)
+          .setAlpha(Math.min(1, t / CLONE_SPLIT_FADE_RATIO));
       },
     });
   }
@@ -891,7 +864,6 @@ export class BouncingAnvilEntity extends PlantEntity {
   private stopAllVisualTweens(): void {
     this.stopJumpVisual();
     this.stopStarShardTween();
-    this.stopCloneIdleVisual();
   }
 }
 

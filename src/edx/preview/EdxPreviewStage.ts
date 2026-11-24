@@ -41,6 +41,7 @@ import {
   EDX_PREVIEW_VIEW_WIDTH,
   EDX_PREVIEW_ZOMBIE_MID,
   isSameSelection,
+  isSameSelectionTarget,
   type EdxPreviewSelection,
 } from "./edxPreviewConfig";
 
@@ -185,7 +186,13 @@ export class EdxPreviewStage extends Scene {
     this.applySelection(value ?? null);
   }
 
-  /** React 侧调用：切换图鉴条目。同一选择不会重建场景。 */
+  /**
+   * React 侧调用：切换图鉴条目或切换等级。
+   *
+   * - 同一条目同等级：什么都不做；
+   * - 同一条目不同等级：只重种预览格里的器械，僵尸与循环保持不动；
+   * - 换了条目：整场清空重建。
+   */
   public applySelection(selection: EdxPreviewSelection | null): void {
     if (this.hasTornDown) return;
     if (!this.ready) {
@@ -193,7 +200,42 @@ export class EdxPreviewStage extends Scene {
       return;
     }
     if (isSameSelection(this.selection, selection)) return;
+    if (isSameSelectionTarget(this.selection, selection)) {
+      this.applyLevelChange(selection);
+      return;
+    }
     this.rebuild(selection);
+  }
+
+  /**
+   * 同一条目换等级：等级在 Entity 构造期就固化进血量/伤害，必须重建实体。
+   * 只销毁预览格里的旧器械，重新按新等级种植，避免等级点击把整场清空。
+   */
+  private applyLevelChange(selection: EdxPreviewSelection | null): void {
+    this.selection = selection;
+    this.plantRespawnFrames = 0;
+    this.despawnPreviewPlantCell();
+    if (selection?.mode === "plant") {
+      this.spawnPlant(selection);
+    }
+  }
+
+  /** 静默销毁预览格里的全部器械（含基座），并清掉管理器登记。 */
+  private despawnPreviewPlantCell(): void {
+    // 连续点等级时，上一等级的种植可能还排在 DeferredManager 里；
+    // 先落地再收集，否则它会在本函数结束后才出现，与新等级植物同格重叠。
+    DeferredManager.Instance.flush();
+    const plants = [
+      ...(PlantsManager.Instance.PlantsMap.get(
+        `${EDX_PREVIEW_PLANT_COL}-${EDX_PREVIEW_PLANT_ROW}`,
+      ) ?? []),
+    ];
+    if (plants.length === 0) return;
+    for (const plant of plants) {
+      plant.destroySilently();
+    }
+    // 刚体/视图销毁也排在 DeferredManager 里，刷新后再种，避免与旧实体同格重叠。
+    DeferredManager.Instance.flush();
   }
 
   // --- 初始化 ---------------------------------------------------------------

@@ -59,15 +59,30 @@ export interface EdxPreviewSelection {
 }
 
 /**
- * 是否属于同一条目。
+ * 是否属于同一条目（只看 mode / pid / mid，不看等级）。
  *
- * 等级不参与比较：升级只会改数值，按需求“切换植物才清场重建”，
- * 不能让升级把正在无限运行的预览清掉。
+ * 用于区分“换条目”和“换等级”：换条目整场重建，
+ * 同一条目换等级只需重种预览格里的器械，保留正在运行的僵尸与循环。
  */
-export function isSameSelection(
+export function isSameSelectionTarget(
   a: EdxPreviewSelection | null,
   b: EdxPreviewSelection | null,
 ): boolean {
   if (!a || !b) return a === b;
   return a.mode === b.mode && a.pid === b.pid && a.mid === b.mid;
+}
+
+/**
+ * 是否是完全相同的选择（含等级）。
+ *
+ * 等级会改变血量、伤害、冷却等数值，且这些数值在实体构造期就固化，
+ * 所以等级变化也必须刷新预览（由场景重种该格器械实现）。
+ */
+export function isSameSelection(
+  a: EdxPreviewSelection | null,
+  b: EdxPreviewSelection | null,
+): boolean {
+  if (!isSameSelectionTarget(a, b)) return false;
+  if (!a || !b) return true;
+  return a.level === b.level;
 }
