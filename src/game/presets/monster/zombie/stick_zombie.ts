@@ -49,13 +49,26 @@ export class StickZombieModel extends ZombieModel {
   /** 一次撑杆跳的飞行距离（格）。 */
   public readonly vaultDistance = 1.4;
 
+  /**
+   * 是否还能起跳：一次性消耗品是手杖还是坐骑由子类决定。
+   * 所有起跳入口（判定线 / 普攻拦截）共用此判定，保证"只跳一次"不重复。
+   */
+  protected get canVault(): boolean {
+    return this.hasStick && !this.flying && !this.isDying && !this.isFrozen;
+  }
+
+  /** 落地时消耗跳跃能力：手杖版断杆，坐骑版由子类改为破碎坐骑。 */
+  protected consumeVault(entity: MonsterEntity): void {
+    this.breakMainHand(entity);
+  }
+
   public canVaultOverPlant(target: PlantEntity): boolean {
-    return this.hasStick && Boolean(target) && typeof target.col === "number";
+    return this.canVault && Boolean(target) && typeof target.col === "number";
   }
 
   /** 起跳：不再依赖"撞到植物"，判定线命中后直接飞固定距离。 */
   public tryStartVault(entity: MonsterEntity): boolean {
-    if (!this.hasStick || this.flying || this.isDying || this.isFrozen) return false;
+    if (!this.canVault) return false;
     this.hasStick = false;
     this.flying = true;
     entity.setVelocityX(-this.originalSpeed * 2.2);
@@ -83,7 +96,7 @@ export class StickZombieModel extends ZombieModel {
   }
 
   private tryVaultOnContact(entity: MonsterEntity, target: BaseEntity): boolean {
-    if (!this.hasStick || this.flying || this.isDying || this.isFrozen) return false;
+    if (!this.canVault) return false;
     if (!(target instanceof PlantEntity)) return false;
     if (target.currentHealth <= 0) return false;
     return this.tryStartVault(entity);
@@ -124,7 +137,7 @@ export class StickZombieModel extends ZombieModel {
 
   public override onModelStep(host: ModelHost): void {
     const entity = host as MonsterEntity;
-    if (this.flying || !this.hasStick || this.isDying || this.isFrozen || this.isStop) return;
+    if (!this.canVault || this.isStop) return;
     if (!this.findPlantOnVaultLine(entity)) return;
     this.tryStartVault(entity);
   }
@@ -142,7 +155,7 @@ export class StickZombieModel extends ZombieModel {
   public finishVault(entity: MonsterEntity): void {
     this.flying = false;
     this.speed = this.originalSpeed * 0.5;
-    this.breakMainHand(entity);
+    this.consumeVault(entity);
 
     const underfoot = this.findPlantUnderfoot(entity);
     (entity as any).vaultCollisionTarget = null;
