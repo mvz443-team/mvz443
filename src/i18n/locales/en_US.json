@@ -206,6 +206,8 @@
     "settings_connect": "Connect",
     "settings_connected": "Connected",
     "settings_connecting": "Connecting",
+    "settings_connecting_t": "Requesting the server. Other actions are blocked until it responds.",
+    "settings_connect_elapsed": "Elapsed {{elapsed}}s, max wait {{timeout}}s",
     "settings_offline": "Offline",
     "settings_latency_up": "Upload latency",
     "settings_latency_down": "Download latency",

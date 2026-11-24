@@ -16,14 +16,10 @@ import type { Game } from "../Game";
 import { PositionManager } from "../../managers/view/PositionManager";
 import DepthHelper from "../../utils/helper/DepthHelper";
 import {
-  BATTLE_GRID_CELL_HEIGHT,
-  BATTLE_GRID_CELL_WIDTH,
   LOGICAL_BATTLE_HEIGHT,
   LOGICAL_BATTLE_WIDTH,
-  MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO,
-  MOBILE_BATTLE_LEFT_CART_OVERSCAN_COLS,
-  MOBILE_BATTLE_RIGHT_OVERSCAN_COLS,
 } from "../../../constants/gameLayout";
+import { getMobileBattleWorldView } from "./mobileBattleCameraView";
 
 type CameraLayer = "battle" | "ui" | "cardBand";
 type Rect = { x: number; y: number; width: number; height: number };
@@ -232,26 +228,11 @@ export class BattleViewLayers {
     viewport: Phaser.Geom.Rectangle | { width: number; height: number },
     gridBounds: { x: number; y: number; width: number; height: number },
   ): BattleCameraView {
-    const rowCount = PositionManager.Instance.getRowCount();
-    const rowTuning = this.getMobileCameraRowTuning(rowCount);
-    const topCrop = BATTLE_GRID_CELL_HEIGHT * rowTuning.topCropRows;
-    const bottomOverscanRatio = Math.max(
-      MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO,
-      rowTuning.bottomOverscanRows,
+    const { zoom, worldViewX, worldViewY } = getMobileBattleWorldView(
+      viewport,
+      gridBounds,
+      PositionManager.Instance.getRowCount(),
     );
-    const bottomOverscan = BATTLE_GRID_CELL_HEIGHT * bottomOverscanRatio;
-    const targetHeight = gridBounds.height - topCrop + bottomOverscan;
-    const verticalZoom = viewport.height / targetHeight * rowTuning.zoomScale;
-    const worldViewX = gridBounds.x
-      - BATTLE_GRID_CELL_WIDTH * MOBILE_BATTLE_LEFT_CART_OVERSCAN_COLS;
-    const worldViewRight = gridBounds.x
-      + gridBounds.width
-      + BATTLE_GRID_CELL_WIDTH * MOBILE_BATTLE_RIGHT_OVERSCAN_COLS;
-    const targetWorldWidth = Math.max(1, worldViewRight - worldViewX);
-    const widthZoom = viewport.width / targetWorldWidth;
-    const zoom = Math.min(verticalZoom, widthZoom);
-
-    const worldViewY = gridBounds.y + topCrop;
     const scroll = this.getCameraScrollForWorldView(
       worldViewX,
       worldViewY,
@@ -261,19 +242,6 @@ export class BattleViewLayers {
     );
 
     return { zoom, worldViewX, worldViewY, ...scroll };
-  }
-
-  private getMobileCameraRowTuning(rowCount: number): {
-    topCropRows: number;
-    bottomOverscanRows: number;
-    zoomScale: number;
-    horizontalShiftCols: number;
-  } {
-    if (rowCount >= 5) {
-      // Negative crop keeps the top minecart above row 0 fully visible.
-      return { topCropRows: -0.15, bottomOverscanRows: 0.1, zoomScale: 1, horizontalShiftCols: 0 };
-    }
-    return { topCropRows: -0.5, bottomOverscanRows: 0.5, zoomScale: 0.95, horizontalShiftCols: 0 };
   }
 
   private getDesktopBattleCameraView(

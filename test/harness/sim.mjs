@@ -24,6 +24,7 @@ import manager, {
   setGridType,
 } from "./stubs/manager-generic.mjs";
 import { PlantEntity } from "./stubs/plant-entity.mjs";
+import TickerManager from "../../src/game/managers/combat/TickerManager.ts";
 import PlantHelper from "../../src/game/utils/helper/PlantHelper.ts";
 import { resetSightTarget, setSightTargetProvider } from "./stubs/sightline.mjs";
 import { ProjectileCmd } from "./stubs/cmd-projectile.mjs";
@@ -433,6 +434,10 @@ export function tick(sim, ms = FRAME_MS) {
   for (let i = 0; i < frames; i++) {
     sim.frame += 1;
     updateAllTickManagers(sim.frame, FRAME_MS);
+    // 全局 TickerManager 与 updateAllTickManagers 共用权威帧计数：资源延迟到账 timer
+    // 通过 Update() 推进，保证 WithAnim API 的"动画先播、延迟到账"在测试中真实生效。
+    TickerManager.Instance.currentFrame = sim.frame - 1;
+    TickerManager.Instance.Update();
     flushDeferred();
   }
   return sim.frame;

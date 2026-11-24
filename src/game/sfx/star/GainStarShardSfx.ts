@@ -11,6 +11,8 @@ export interface GainStarShardSfxArgs extends BaseSfxArgs {
   x: number;
   y: number;
   amount?: number;
+  /** 半块星碎：联机收益减半后出现 0.5 块时只显示左半边星形。 */
+  half?: boolean;
   /** 动画总时长（ms）：按飞行距离反推停留时间，使远近起点动画都在此时长内结束。 */
   totalDurationMs?: number;
   targetX?: number;
@@ -110,8 +112,14 @@ export class GainStarShardSfx extends BaseSfx<GainStarShardSfxArgs> {
     container.add(ring);
 
     const star = this.scene.add.image(0, 0, "starshards")
-      .setDisplaySize(diameter * 0.52, diameter * 0.52)
       .setAlpha(0.98);
+    if (this.args.half) {
+      // 32x32 单帧纹理：裁掉右半边，再按半宽显示，得到一块“半星”。
+      star.setCrop(0, 0, star.width / 2, star.height);
+      star.setDisplaySize(diameter * 0.26, diameter * 0.52);
+    } else {
+      star.setDisplaySize(diameter * 0.52, diameter * 0.52);
+    }
     container.add(star);
   }
 

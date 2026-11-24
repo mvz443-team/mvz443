@@ -12,6 +12,7 @@ import { CardSlots } from "../../ui/cardslots";
 import { BottomBar } from "../../ui/bottom";
 import { MobileBottomBar } from "../../ui/bottom_mobile";
 import NetStatusBadge, { type NetBadgeState } from "../../ui/NetStatusBadge";
+import { getMobileSideBarLayout } from "../../ui/mobileSideBarLayout";
 
 type Rect = { x: number; y: number; width: number; height: number };
 
@@ -36,9 +37,12 @@ export class GameHud {
     }
     this.cardSlotsUi = new CardSlots(scene);
 
+    // 移动端卡槽栏会向右延伸并盖住战斗视口左侧（见 MOBILE_SIDE_BAR_RIGHT_EXTEND_RATIO），
+    // 徽标必须避开这段被覆盖的区域，否则会藏在面板下面。
+    const sidebarRight = deviceType === "mobile" ? getMobileSideBarLayout().bounds.width : 0;
     this.netStatusBadge = new NetStatusBadge(
       scene,
-      gameViewport.x + 8,
+      Math.max(gameViewport.x, sidebarRight) + 8,
       gameViewport.y + 8,
       Math.max(24, Math.round(scene.scale.displaySize.width / 42)),
       DepthHelper.UI.waitingText(),

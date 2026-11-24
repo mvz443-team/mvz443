@@ -206,6 +206,8 @@
     "settings_connect": "连接",
     "settings_connected": "已连接",
     "settings_connecting": "连接中",
+    "settings_connecting_t": "正在请求服务器，请求期间无法进行其他操作",
+    "settings_connect_elapsed": "已用时 {{elapsed}} 秒，最长等待 {{timeout}} 秒",
     "settings_offline": "离线",
     "settings_latency_up": "上行延迟",
     "settings_latency_down": "下行延迟",

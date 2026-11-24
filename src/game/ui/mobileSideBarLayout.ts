@@ -1,5 +1,7 @@
 import { PositionManager } from "../managers/view/PositionManager";
-import type { Rect } from "../../constants/gameLayout";
+import type { GameSceneChromeLayout, Rect } from "../../constants/gameLayout";
+import { MOBILE_SIDE_BAR_RIGHT_EXTEND_RATIO } from "../../constants/gameLayout";
+import { getMobileBattleLeftGap } from "../scenes/view/mobileBattleCameraView";
 import {
   MOBILE_GRID_ROWS,
   MOBILE_SLOT_GAP,
@@ -27,14 +29,37 @@ function rect(x: number, y: number, width: number, height: number): Rect {
   return { x, y, width, height };
 }
 
-export function getMobileSideBarLayout(): MobileSideBarLayout {
-  const chrome = PositionManager.Instance.getSceneChromeLayout("mobile");
-  const bounds = rect(
+/**
+ * 侧边栏实际占用的矩形：在原有三列宽度基础上，向右吃掉战斗画面左侧那段
+ * 只有背景的空白（见 `MOBILE_SIDE_BAR_RIGHT_EXTEND_RATIO`，默认停在矿车左侧）。
+ *
+ * 只改渲染宽度，战斗摄像机视口与网格坐标保持不变，因此延伸出来的部分会盖在
+ * 战斗画面之上；卡槽、能量、进度条等组件都按这个宽度响应式重算。
+ */
+function getMobileSideBarBounds(chrome: GameSceneChromeLayout): Rect {
+  const baseWidth = chrome.mobileBottomToolbarWidth + chrome.leftCardSlotWidth;
+  const gridBounds = PositionManager.Instance.getGridBounds();
+  const leftGap = getMobileBattleLeftGap(
+    chrome.mainViewport,
+    gridBounds,
+    PositionManager.Instance.getRowCount(),
+  );
+  const ratio = Math.min(1, Math.max(0, MOBILE_SIDE_BAR_RIGHT_EXTEND_RATIO));
+  // 向上取整，避免亚像素缝隙在面板与网格之间留下一条背景色细线。
+  const width = Math.ceil(baseWidth + leftGap * ratio);
+  const maxWidth = Math.max(baseWidth, chrome.sceneBounds.width);
+
+  return rect(
     0,
     chrome.mainViewport.y,
-    chrome.mobileBottomToolbarWidth + chrome.leftCardSlotWidth,
+    Math.min(maxWidth, width),
     chrome.mainTotalHeight,
   );
+}
+
+export function getMobileSideBarLayout(): MobileSideBarLayout {
+  const chrome = PositionManager.Instance.getSceneChromeLayout("mobile");
+  const bounds = getMobileSideBarBounds(chrome);
   const padding = MOBILE_SLOT_PADDING;
   const laneGap = MOBILE_SLOT_GAP;
   const cardHeight = Math.max(1, bounds.height - STATUS_HEIGHT);

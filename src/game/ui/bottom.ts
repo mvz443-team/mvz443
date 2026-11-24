@@ -94,6 +94,7 @@ export class BottomBar {
       this.bounds.y,
       Math.max(this.bounds.width * 0.1, this.bounds.height * 2.4),
       this.bounds.height,
+      "icons",
     );
 
     this.progressBg = this.scene.add.graphics();

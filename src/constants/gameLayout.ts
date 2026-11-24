@@ -40,6 +40,25 @@ export const MOBILE_BATTLE_RIGHT_EXTRA_COL_RATIO = 0.25;
 export const MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO = 0.25;
 export const MOBILE_BATTLE_LEFT_CART_OVERSCAN_COLS = 1.7;
 export const MOBILE_BATTLE_RIGHT_OVERSCAN_COLS = 0.15;
+/**
+ * 移动端侧边卡槽栏向右延伸的比例（人工微调入口）。
+ *
+ * 战斗画面左侧从视口左边缘到网格左边缘之间有一段只有背景、没有网格内容的
+ * 空白（世界宽度固定 1.7 格 = 136，屏幕上是战斗视口宽度的 10%~16%）。
+ * 该值让卡槽栏吃掉其中一部分，卡槽、能量、星之碎片、进度条、暂停按钮
+ * 按新宽度响应式放大。
+ *
+ * 比例按“这段空白的世界宽度 136”换算：
+ * - `0`     保持原布局，空白全部露出；
+ * - `0.34`  右边缘停在矿车左侧（默认）。矿车中心在世界 x=26、纹理 64 宽，
+ *           占 -6..58；可见左边界是 -54，所以最多只能吃 48 ≈ 136*0.35。
+ *           取 0.34 留 1~2px 余量，保证矿车完整可见；
+ * - `0.35`  正好贴住矿车左缘；
+ * - `1`     贴到网格左边缘（会把整排矿车支架盖掉，不推荐）。
+ *
+ * 只影响渲染，不改变战斗视口、网格坐标、相机缩放与任何战斗逻辑。
+ */
+export const MOBILE_SIDE_BAR_RIGHT_EXTEND_RATIO = 0.38;
 export const BOTTOM_TOOLBAR_RATIO = PC_BOTTOM_TOOLBAR_HEIGHT / LOGICAL_BATTLE_HEIGHT;
 
 export type GameDeviceType = 'pc' | 'mobile' | string;

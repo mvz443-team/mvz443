@@ -132,6 +132,11 @@ export default function BottomTools({ width, chapterID }: Props) {
   });
 
   const StarShardsDisplay = () => {
+    const wholeStars = Math.floor(starShards);
+    const hasHalfStar = starShards - wholeStars >= 0.5;
+    // 联机收益减半后可能出现 0.5 块，文本保留一位小数。
+    const label = Number.isInteger(starShards) ? `${starShards}` : starShards.toFixed(1);
+
     if (starShards >= 5) {
       return (
         <div className="stars-count">
@@ -140,14 +145,14 @@ export default function BottomTools({ width, chapterID }: Props) {
             src={starUri}
             alt=""
           />
-          <span>x {starShards}</span>
+          <span>x {label}</span>
         </div>
       );
     }
 
     return (
       <>
-        {Array.from({ length: starShards }).map((_, index) => (
+        {Array.from({ length: wholeStars }).map((_, index) => (
           <img
             draggable={false}
             key={index}
@@ -155,6 +160,15 @@ export default function BottomTools({ width, chapterID }: Props) {
             alt=""
           />
         ))}
+        {hasHalfStar && (
+          <span className="star-half">
+            <img
+              draggable={false}
+              src={starUri}
+              alt=""
+            />
+          </span>
+        )}
       </>
     );
   };

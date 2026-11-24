@@ -57,6 +57,25 @@
     height: 80%;
 }
 
+/* 半块星碎：容器宽度为正方形整星的一半，内部图片按高度铺满后被裁掉右半边。 */
+.stars .star-half {
+    position: relative;
+    display: inline-block;
+    flex: 0 0 auto;
+    height: 80%;
+    aspect-ratio: 1 / 2;
+    overflow: hidden;
+}
+
+.stars .star-half img {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: auto;
+    max-width: none;
+}
+
 .stars.insufficient-flash::after {
     content: "";
     position: absolute;
