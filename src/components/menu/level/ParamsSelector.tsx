@@ -1,5 +1,5 @@
 // src/components/ParamsSelector.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { GameParams } from '../../../game/models/GameParams';
 import { useSaveManager } from '../../../context/save_ctx';
 import { StageDataRecords } from '../../../game/managers/library/ChapterLibrary';
@@ -20,6 +20,8 @@ import { SendReady } from '../../../utils/net/room';
 import type { StageData } from '../../../types/stage';
 import { isUnlockAllEnabled } from '../../../utils/debugFlags';
 import { MAX_CARD_SLOTS } from '../../../constants/cardSlotLayout';
+import { useDeviceType } from '../../../hooks/useDeviceType';
+import CardInfoContent from './CardInfoContent';
 
 interface ParamsSelectorProps {
   chapterId: number;
@@ -86,6 +88,57 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
   const waitingText = translate('common.waiting_other_players_select') || '等待其他玩家选择';
   const isSelectionLocked = state.hasUserClicked || isLoading;
   const canStart = canProceed && !isSelectionLocked;
+
+  const deviceType = useDeviceType();
+  const isMobile = deviceType === 'mobile';
+
+  // PC：鼠标悬浮卡片时显示的浮层（锚定在卡片右侧/左侧）。
+  const [hoveredPid, setHoveredPid] = useState<number | null>(null);
+  const [hoverAnchor, setHoverAnchor] = useState<{ left: number; right: number; top: number } | null>(null);
+  // 移动端：长按卡片后右栏切换为该卡说明。
+  const [descriptionPid, setDescriptionPid] = useState<number | null>(null);
+
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
+  const touchStartPointRef = useRef<{ x: number; y: number } | null>(null);
+
+  const cancelLongPress = useMemoizedFn(() => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    touchStartPointRef.current = null;
+  });
+
+  const startLongPress = useMemoizedFn((pid: number, clientX: number, clientY: number) => {
+    cancelLongPress();
+    touchStartPointRef.current = { x: clientX, y: clientY };
+    longPressFiredRef.current = false;
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTimerRef.current = null;
+      longPressFiredRef.current = true;
+      setDescriptionPid(pid);
+    }, 420);
+  });
+
+  /** 抬手即收起说明：说明只在长按持续期间可见。 */
+  const endLongPress = useMemoizedFn(() => {
+    cancelLongPress();
+    setDescriptionPid(null);
+  });
+
+  useEffect(() => () => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+    }
+  }, []);
+
+  const hoveredPlant = hoveredPid === null
+    ? null
+    : state.availablePlants.find(plant => plant.pid === hoveredPid) ?? null;
+  const descriptionPlant = descriptionPid === null
+    ? null
+    : state.availablePlants.find(plant => plant.pid === descriptionPid) ?? null;
 
   const loadStageRows = useMemoizedFn(async () => {
     try {
@@ -337,6 +390,40 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
     }, 0);
   });
 
+  // PC 悬浮浮层：跟随光标并夹在视口内，避免右侧/底部被裁掉。
+  const hoverPopupStyle: React.CSSProperties | null = (() => {
+    if (isMobile || !hoveredPlant || !hoverAnchor) return null;
+    const popupWidth = 300;
+    const maxHeight = Math.max(160, Math.min(360, window.innerHeight - 24));
+    const margin = 12;
+    let left = hoverAnchor.right + margin;
+    if (left + popupWidth > window.innerWidth - 8) {
+      left = hoverAnchor.left - popupWidth - margin;
+    }
+    left = Math.max(8, left);
+    let top = hoverAnchor.top;
+    if (top + maxHeight > window.innerHeight - 8) {
+      top = Math.max(8, window.innerHeight - maxHeight - 8);
+    }
+    return {
+      position: 'fixed',
+      left,
+      top,
+      width: popupWidth,
+      maxHeight,
+      overflowY: 'auto',
+      zIndex: 10000,
+      pointerEvents: 'none',
+      padding: '12px 14px',
+      borderRadius: '6px',
+      border: '1px solid rgba(224,176,102,.5)',
+      background: 'rgba(18,22,28,.97)',
+      boxShadow: '0 14px 32px rgba(0,0,0,.6)',
+      scrollbarWidth: 'thin',
+      scrollbarColor: '#888 #333',
+    };
+  })();
+
   return (
     <div style={{
       width: '100%',
@@ -357,7 +444,12 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
         padding: '5px 0px 10px 10px',
         display: 'flex',
         flexFlow: 'column nowrap',
-      }}>
+      }}
+        onScroll={() => {
+          setHoveredPid(null);
+          setHoverAnchor(null);
+        }}
+      >
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -438,9 +530,31 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
                 alignItems: 'center',
                 padding: '5px',
                 background: 'rgba(255, 255, 255, 0.05)',
-                opacity: isSelectionLocked && !state.selectedPlants.includes(plant.pid) ? 0.55 : 1
+                opacity: isSelectionLocked && !state.selectedPlants.includes(plant.pid) ? 0.55 : 1,
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                WebkitTouchCallout: 'none',
               }}
-              onClick={() => handlePlantToggle(plant.pid)}
+              onClick={() => {
+                // 长按已经弹出说明时，这次点击只用于收尾，不再切换选中。
+                if (longPressFiredRef.current) {
+                  longPressFiredRef.current = false;
+                  return;
+                }
+                setDescriptionPid(null);
+                handlePlantToggle(plant.pid);
+              }}
+              onMouseEnter={(e) => {
+                if (isMobile) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoveredPid(plant.pid);
+                setHoverAnchor({ left: rect.left, right: rect.right, top: rect.top });
+              }}
+              onMouseLeave={() => {
+                if (isMobile) return;
+                setHoveredPid(null);
+                setHoverAnchor(null);
+              }}
               onMouseOver={(e) => {
                 if (!isSelectionLocked && !state.selectedPlants.includes(plant.pid))
                   e.currentTarget.style.borderColor = '#00ccff';
@@ -449,6 +563,21 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
                 if (!isSelectionLocked && !state.selectedPlants.includes(plant.pid))
                   e.currentTarget.style.borderColor = 'rgba(100, 100, 100, 0.5)';
               }}
+              onTouchStart={(e) => {
+                const touch = e.touches[0];
+                if (touch) startLongPress(plant.pid, touch.clientX, touch.clientY);
+              }}
+              onTouchMove={(e) => {
+                const start = touchStartPointRef.current;
+                const touch = e.touches[0];
+                if (!start || !touch) return;
+                if (Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > 12) {
+                  cancelLongPress();
+                }
+              }}
+              onTouchEnd={endLongPress}
+              onTouchCancel={endLongPress}
+              onContextMenu={(e) => e.preventDefault()}
             >
               <div style={{ width: "64px", height: "64px", overflow: "hidden" }}>
                 <img
@@ -483,17 +612,45 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
         display: 'flex',
         flexDirection: 'column'
       }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
-          <h3
-            style={{
-              marginTop: 0,
-              marginBottom: '0.2rem'
-            }}
-          >
+        {descriptionPlant ? (
+          <>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+            }}>
+              <h3 style={{ marginTop: 0, marginBottom: '0.2rem' }}>
+                {translate(cardKey(descriptionPlant.name))}
+              </h3>
+            </div>
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              minHeight: 0,
+              scrollbarColor: '#888 #333',
+              scrollbarGutter: 'stable',
+              paddingRight: '6px',
+            }}>
+              <CardInfoContent
+                pid={descriptionPlant.pid}
+                level={descriptionPlant.level}
+                showTitle={false}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <h3
+                style={{
+                  marginTop: 0,
+                  marginBottom: '0.2rem'
+                }}
+              >
             {`${translate('menu.level_chosen_plants')} `}
             <span style={{
               color: state.isOverLimit ? 'red' : '#ddd',
@@ -601,6 +758,8 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
             })}
           </div>
         </div>
+          </>
+        )}
 
         <button
           style={isSelectionLocked || !canProceed ? {
@@ -641,6 +800,12 @@ const ParamsSelector: React.FC<ParamsSelectorProps> = ({
           }
         </button>
       </div>
+
+      {hoverPopupStyle && hoveredPlant ? (
+        <div style={hoverPopupStyle}>
+          <CardInfoContent pid={hoveredPlant.pid} level={hoveredPlant.level} />
+        </div>
+      ) : null}
     </div>
   );
 };

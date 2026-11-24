@@ -9,6 +9,8 @@ interface Props {
   unlockedLevel: number;
   /** 是否让“升级后即将解锁”的那一条在灰色/蓝色之间闪烁 */
   blinkNextUnlock?: boolean;
+  /** 只显示已解锁的进阶（选卡界面的悬浮/长按说明用） */
+  onlyUnlocked?: boolean;
 }
 
 interface AdvanceEntry {
@@ -22,7 +24,7 @@ interface AdvanceEntry {
  * 进阶文案来自 `card.<base>_advance-<level>`，等级本身就是解锁条件；
  * 已解锁用蓝色条目，未解锁用灰色条目，可选的“下一条”做灰蓝交替闪烁。
  */
-export default function CardAdvanceList({ base, unlockedLevel, blinkNextUnlock = false }: Props) {
+export default function CardAdvanceList({ base, unlockedLevel, blinkNextUnlock = false, onlyUnlocked = false }: Props) {
   const { translate } = useLocaleMessages();
 
   const entries: AdvanceEntry[] = [];
@@ -33,14 +35,18 @@ export default function CardAdvanceList({ base, unlockedLevel, blinkNextUnlock =
     }
   }
 
-  if (entries.length === 0) return null;
+  const visibleEntries = onlyUnlocked
+    ? entries.filter(entry => entry.level <= unlockedLevel)
+    : entries;
+
+  if (visibleEntries.length === 0) return null;
 
   // 只有“再升一级就解锁”的那条才闪烁；更远的进阶保持灰色。
   const blinkLevel = blinkNextUnlock ? unlockedLevel + 1 : null;
 
   return (
     <div className="card-advances">
-      {entries.map(entry => {
+      {visibleEntries.map(entry => {
         const unlocked = entry.level <= unlockedLevel;
         const blinking = entry.level === blinkLevel;
         return (
