@@ -18,6 +18,7 @@ import RoomSidebar from './RoomSidebar';
 import { getRoomsInfo, RoomInfo } from '../../../utils/net/lobby';
 import BackendWS from '../../../utils/net/sync';
 import EnumGameStage from '../../../utils/net/game_state';
+import { serverStatus, type ServerConnectionState } from '../../../utils/net/server_status';
 import { onlineStateManager } from '../../../store/OnlineStateManager';
 import { PhaserEventBus, PhaserEvents } from '../../../game/EventBus';
 
@@ -81,6 +82,20 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
   const [roomPanelOpen, setRoomPanelOpen] = React.useState(false);
   const [inRoom, setInRoom] = React.useState(Boolean(initialRoomView && BackendWS.isRoomSessionMode()));
   const serverAddress = saveManager.getOnlineConfig().serverAddr;
+  const [serverState, setServerState] = React.useState<ServerConnectionState>(() => serverStatus.getState());
+  const canMultiplayer = Boolean(serverAddress) && serverState === 'connected';
+
+  useEffect(() => {
+    const unsubscribe = serverStatus.subscribe(() => {
+      setServerState(serverStatus.getState());
+    });
+    return unsubscribe;
+  }, []);
+
+  // 进入选关页时按存档地址恢复探测，保证连接状态与设置页一致
+  useEffect(() => {
+    serverStatus.resume(serverAddress);
+  }, [serverAddress]);
 
   const refreshRooms = useMemoizedFn(async () => {
     const targetStage = state.selectedStage;
@@ -218,6 +233,9 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
   });
 
   const handleMultiplayer = useMemoizedFn(() => {
+    if (!canMultiplayer) {
+      return;
+    }
     setRoomPanelOpen(true);
     void refreshRooms();
   });
@@ -427,14 +445,15 @@ const StageSelector: React.FC<StageSelectorProps> = ({ chapterId, onSelect, onBa
                   style={{
                     flex: 1,
                     padding: '10px 12px',
-                    background: 'linear-gradient(45deg, #4CAF50, #45a049)',
+                    background: canMultiplayer ? 'linear-gradient(45deg, #4CAF50, #45a049)' : '#666',
                     border: 'none',
-                    color: '#fff',
-                    cursor: 'pointer',
+                    color: canMultiplayer ? '#fff' : '#ccc',
+                    cursor: canMultiplayer ? 'pointer' : 'not-allowed',
                     transition: 'all 0.3s ease',
                     whiteSpace: 'nowrap',
                   }}
                   onClick={handleMultiplayer}
+                  disabled={!canMultiplayer}
                 >
                   {roomList && roomList.length > 0
                     ? translate('menu.online_multiplayer_count', { count: roomList.length })

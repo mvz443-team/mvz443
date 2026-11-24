@@ -53,6 +53,8 @@ class ServerStatusMonitor {
   private probing: boolean = false;
   private suspended: boolean = false;
   private listeners: Set<Listener> = new Set();
+  /** 断开/挂起后让在途探测结果失效，避免把状态重新点亮成 connected */
+  private generation: number = 0;
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -90,9 +92,13 @@ class ServerStatusMonitor {
     this.state = "connecting";
     this.latency = null;
     this.failureCount = 0;
+    const generation = ++this.generation;
     this.emit();
 
     const probe = await this.probe();
+    if (generation !== this.generation) {
+      return probe;
+    }
     if (!probe.ok) {
       this.state = "offline";
       this.latency = null;
@@ -121,6 +127,7 @@ class ServerStatusMonitor {
   }
 
   disconnect(): void {
+    this.generation += 1;
     this.stopTimer();
     this.address = "";
     this.state = "offline";
@@ -133,6 +140,7 @@ class ServerStatusMonitor {
   suspend(): void {
     if (!this.suspended) {
       this.suspended = true;
+      this.generation += 1;
       this.stopTimer();
     }
   }
@@ -148,7 +156,11 @@ class ServerStatusMonitor {
     if (!this.address) {
       return { ok: false, failure: "network", message: "未配置服务器地址" };
     }
+    const generation = this.generation;
     const probe = await this.probe();
+    if (generation !== this.generation) {
+      return probe;
+    }
     if (probe.ok && !this.suspended) {
       this.state = "connected";
       this.latency = probe.latency ?? null;
@@ -186,7 +198,11 @@ class ServerStatusMonitor {
     if (!this.address || this.probing || this.suspended) {
       return;
     }
+    const generation = this.generation;
     const probe = await this.probe();
+    if (generation !== this.generation) {
+      return;
+    }
     if (probe.ok) {
       this.failureCount = 0;
       this.state = "connected";

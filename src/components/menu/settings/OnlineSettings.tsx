@@ -145,6 +145,10 @@ export default function OnlineSettings() {
       void showAlert(`${translate('menu.settings_server_unreachable')}：${result.message ?? result.failure}`);
       return;
     }
+    // 探测期间用户又点了"断开"：不要再写回存档地址，否则断开会被立刻撤销
+    if (serverStatus.getState() !== 'connected' || serverStatus.getAddress() !== address) {
+      return;
+    }
 
     if (selectedServer === CUSTOM_SERVER_VALUE) {
       saveManager.addCustomServer(address);
@@ -153,10 +157,12 @@ export default function OnlineSettings() {
   };
 
   const handleDisconnect = () => {
-    if (BackendWS.isRoomSessionMode()) {
-      BackendWS.closeConnection();
-    }
+    BackendWS.cancelReconnect();
+    BackendWS.closeConnection();
     serverStatus.disconnect();
+    // 同时清掉存档里的地址：否则进选关页/退出对局时 resume(serverAddr) 会按旧地址
+    // 重新探测并把状态点亮成 connected，"断开"过一会儿就失效了。
+    setOnlineConfig(saveManager.updateOnlineConfig({ serverAddr: '' }));
   };
 
   return (
