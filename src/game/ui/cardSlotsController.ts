@@ -40,7 +40,10 @@ export class CardSlots {
   };
 
   private clearLayout() {
-    for (const panel of this.panels.splice(0)) panel.destroy();
+    for (const panel of this.panels.splice(0)) {
+      this.scene.unregisterCardBandObject(panel);
+      panel.destroy();
+    }
     this.energyPanel?.destroy();
     this.energyPanel = null;
     if (this.controller) {

@@ -147,6 +147,7 @@ export class PlantCardView {
     this.cost = options.plantModel.cost.getValueAt(options.level);
     this.container = this.scene.add.container(options.slot.x, options.slot.y)
       .setDepth(DepthHelper.UI.chromeControl());
+    this.scene.registerCardBandObject(this.container);
     this.bg = this.scene.add.graphics();
     this.overlay = this.scene.add.graphics();
     this.selectionGlow = this.scene.add.graphics();
@@ -217,6 +218,7 @@ export class PlantCardView {
   public destroy() {
     this.selectionTween?.remove();
     this.selectionTween = null;
+    this.scene.unregisterCardBandObject(this.container);
     this.container.destroy(true);
   }
 
@@ -402,6 +404,7 @@ export class EnergyPanelView {
     this.width = width;
     this.height = height;
     this.container = scene.add.container(x, y).setDepth(DepthHelper.UI.chromeControl());
+    scene.registerCardBandObject(this.container);
     this.bg = scene.add.graphics();
     this.container.add(this.bg);
     const icon = scene.add.image(width / 2, height * 0.34, "redstone");
@@ -460,6 +463,7 @@ export class EnergyPanelView {
 
   public destroy() {
     this.flashTimer?.remove(false);
+    this.scene.unregisterCardBandObject(this.container);
     this.container.destroy(true);
   }
 }
@@ -489,6 +493,7 @@ export class ToolButtonView {
     this.height = height;
     this.allowHover = allowHover;
     this.container = scene.add.container(x, y).setDepth(DepthHelper.UI.chromeControl());
+    scene.registerCardBandObject(this.container);
     this.bg = scene.add.graphics();
     this.selectionGlow = scene.add.graphics();
     this.container.add(this.bg);
@@ -543,6 +548,7 @@ export class ToolButtonView {
   public destroy() {
     this.selectionTween?.remove();
     this.selectionTween = null;
+    this.scene.unregisterCardBandObject(this.container);
     this.container.destroy(true);
   }
 
@@ -594,6 +600,7 @@ export function drawChromePanel(scene: Game, x: number, y: number, width: number
   graphics.fillRect(x, y, width, height);
   graphics.lineStyle(2, PANEL_BORDER, 0.55);
   graphics.strokeRect(x, y, width, height);
+  scene.registerCardBandObject(graphics);
   return graphics;
 }
 

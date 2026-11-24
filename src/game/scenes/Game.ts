@@ -34,35 +34,27 @@ import TileItemManager from '../managers/combat/TileItemManager';
 import ConsoleCmd from '../utils/ConsoleCmd';
 import { ProjectileCmd } from '../utils/cmd/ProjectileCmd';
 import {
-  BATTLE_GRID_CELL_HEIGHT,
-  BATTLE_GRID_CELL_WIDTH,
   BATTLE_GRID_COLS,
   LOGICAL_BATTLE_HEIGHT,
   LOGICAL_BATTLE_WIDTH,
-  MOBILE_BATTLE_LEFT_CART_OVERSCAN_COLS,
-  MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO,
-  MOBILE_BATTLE_RIGHT_OVERSCAN_COLS,
 } from '../../constants/gameLayout';
 import {
   LEGACY_BALANCE_FRAME_INTERVAL_MS,
   getRapierTimestepSeconds
 } from '../../constants/physics';
-import { CardSlots } from '../ui/cardslots';
-import { BottomBar } from '../ui/bottom';
-import { MobileBottomBar } from '../ui/bottom_mobile';
 import { installRuntimeStateSources, registerPhysicsSource } from '../core/RuntimeStateBridge';
 import { onlineStateManager } from '../../store/OnlineStateManager';
-import NetStatusBadge, { type NetBadgeState } from '../ui/NetStatusBadge';
+import { BattleViewLayers } from './view/BattleViewLayers';
+import { GameHud } from './view/GameHud';
+import { GameMediaReadiness } from './view/GameMediaReadiness';
 import { desyncDiagnostics } from '../../utils/debug/desyncDiagnostics';
 
 
 export class Game extends Scene {
   private ManagerGroup: BaseManager[] = [];
-  private scaleFactor: number = 1;
-  private battleCamera: Phaser.Cameras.Scene2D.Camera | null = null;
-  private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
-  private readonly cameraLayerState = new WeakMap<Phaser.GameObjects.GameObject, "battle" | "ui">();
-  private readonly uiDepthThreshold = DepthHelper.UI.threshold();
+  private viewLayers: BattleViewLayers | null = null;
+  private hud: GameHud | null = null;
+  private mediaReadiness: GameMediaReadiness | null = null;
 
   public innerSettings: GameSettings;
 
@@ -76,11 +68,7 @@ export class Game extends Scene {
 
   pauseBtn: Phaser.GameObjects.Text;
   speedText: Phaser.GameObjects.Text;
-  debugFrameText: Phaser.GameObjects.Text | null = null;
-  private netStatusBadge: NetStatusBadge | null = null;
   private frameWaitExceeded = false;
-  private cardSlotsUi: CardSlots | null = null;
-  private bottomBarUi: BottomBar | MobileBottomBar | null = null;
 
   params: GameParams;
 
@@ -123,7 +111,7 @@ export class Game extends Scene {
 
   /** 调试/E2E：卡槽能量面板当前显示的文本。 */
   public getCardSlotEnergyText(): string | null {
-    return this.cardSlotsUi?.getDisplayedEnergyText() ?? null;
+    return this.hud?.getCardSlotEnergyText() ?? null;
   }
 
   public getPauseMenuState() {
@@ -254,7 +242,6 @@ export class Game extends Scene {
       await Game.prepareBattle(this, this.params, this.stageData);
     }
     const deviceType = this.params.deviceType ?? 'pc';
-    this.scaleFactor = 1;
 
     // 菜单
     CreateInnerMenu(this);
@@ -272,39 +259,14 @@ export class Game extends Scene {
       .setDepth(DepthHelper.Scene.background())
       .setDisplaySize(LOGICAL_BATTLE_WIDTH, LOGICAL_BATTLE_HEIGHT);
 
-    if (deviceType === 'mobile') {
-      this.bottomBarUi = new MobileBottomBar(this);
-    } else {
-      this.bottomBarUi = new BottomBar(this);
-    }
-    this.cardSlotsUi = new CardSlots(this);
+    // 视图分层（战斗 / 卡槽 / UI 三相机）。卡槽对象在 HUD 创建时注册，因此先建分层再建 HUD。
+    this.viewLayers = new BattleViewLayers(this, this.background);
+    this.hud = new GameHud(this);
+    this.hud.create(deviceType, gameViewport, this.innerSettings.basicDebug);
+    this.viewLayers.configure(deviceType);
 
-    this.configureBattleViewCameras(deviceType);
     if (import.meta.env.DEV) {
       (window as unknown as { __MVZ443_GAME__?: Game }).__MVZ443_GAME__ = this;
-    }
-
-    this.netStatusBadge = new NetStatusBadge(
-      this,
-      gameViewport.x + 8 * this.scaleFactor,
-      gameViewport.y + 8 * this.scaleFactor,
-      Math.max(24, Math.round(this.scale.displaySize.width / 42)),
-      DepthHelper.UI.waitingText(),
-    );
-
-    if (this.innerSettings.basicDebug) {
-      const sceneBounds = PositionManager.Instance.getSceneBounds(deviceType);
-      this.debugFrameText = this.add.text(
-        8,
-        sceneBounds.height - 64,
-        'frameId: 0\nackFrameId: 0',
-        {
-          fontSize: '12px',
-          color: '#b8ffb5',
-          backgroundColor: 'rgba(0, 0, 0, 0.45)',
-          padding: { x: 6, y: 4 },
-        }
-      ).setOrigin(0, 1).setDepth(DepthHelper.UI.debugFrameText());
     }
 
     PhaserEventBus.on(PhaserEvents.RoomGameEnd, this.handleRoomGameEnd, this);
@@ -321,130 +283,8 @@ export class Game extends Scene {
 
   /** 供 Preloader 在“加载音乐音效资源”阶段复用：等待音频/视频缓存真正可用。 */
   public async waitForMediaReady(): Promise<void> {
-    await Promise.all([
-      this.waitForAudioCacheReady(),
-      this.waitForVideoCacheReady(),
-      this.waitForBrowserMediaTick(),
-    ]);
-  }
-
-  private async waitForAudioCacheReady(): Promise<void> {
-    const audioCache = this.cache.audio;
-    const keys = audioCache.getKeys();
-    const waits: Array<Promise<void>> = [];
-    const supportsAudioBuffer = typeof AudioBuffer !== "undefined";
-
-    for (const key of keys) {
-      const data = audioCache.get(key);
-
-      if (supportsAudioBuffer && data instanceof AudioBuffer) {
-        if (data.duration <= 0) {
-          throw new Error(`Decoded audio "${key}" has invalid duration.`);
-        }
-        continue;
-      }
-
-      if (Array.isArray(data)) {
-        for (const audio of data) {
-          if (audio instanceof HTMLMediaElement) {
-            waits.push(this.waitForMediaElementReady(audio, `audio:${key}`));
-          }
-        }
-      }
-    }
-
-    await Promise.all(waits);
-  }
-
-  private async waitForVideoCacheReady(): Promise<void> {
-    const videoCache = this.cache.video;
-    const keys = videoCache.getKeys();
-    const waits: Array<Promise<void>> = [];
-
-    for (const key of keys) {
-      const data = videoCache.get(key) as {
-        url?: string;
-        noAudio?: boolean;
-        crossOrigin?: string;
-      } | null;
-
-      if (!data?.url) {
-        continue;
-      }
-
-      const video = document.createElement("video");
-      video.preload = "auto";
-      video.playsInline = true;
-      video.muted = true;
-      if (data.crossOrigin) {
-        video.crossOrigin = data.crossOrigin;
-      }
-      video.src = data.url;
-
-      waits.push(
-        this.waitForMediaElementReady(video, `video:${key}`).finally(() => {
-          video.removeAttribute("src");
-          video.load();
-        })
-      );
-    }
-
-    await Promise.all(waits);
-  }
-
-  private waitForMediaElementReady(media: HTMLMediaElement, label: string): Promise<void> {
-    const enoughData = () => media.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA;
-    if (enoughData()) {
-      return Promise.resolve();
-    }
-
-    return new Promise((resolve, reject) => {
-      const timeout = window.setTimeout(() => {
-        cleanup();
-        reject(new Error(`${label} did not become ready in time.`));
-      }, 20000);
-
-      const onReady = () => {
-        if (!enoughData()) {
-          return;
-        }
-        cleanup();
-        resolve();
-      };
-
-      const onError = () => {
-        cleanup();
-        reject(new Error(`${label} failed to load.`));
-      };
-
-      const cleanup = () => {
-        window.clearTimeout(timeout);
-        media.removeEventListener("loadeddata", onReady);
-        media.removeEventListener("canplay", onReady);
-        media.removeEventListener("canplaythrough", onReady);
-        media.removeEventListener("error", onError);
-      };
-
-      media.addEventListener("loadeddata", onReady);
-      media.addEventListener("canplay", onReady);
-      media.addEventListener("canplaythrough", onReady);
-      media.addEventListener("error", onError);
-
-      try {
-        media.load();
-      } catch (error) {
-        cleanup();
-        reject(error);
-      }
-    });
-  }
-
-  private waitForBrowserMediaTick(): Promise<void> {
-    return new Promise(resolve => {
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => resolve());
-      });
-    });
+    this.mediaReadiness ??= new GameMediaReadiness(this.cache);
+    await this.mediaReadiness.waitForMediaReady();
   }
 
   /**
@@ -470,12 +310,9 @@ export class Game extends Scene {
     CombatManager.Instance.update(time, delta);
     // 地图事件视图从快照标记派生：回滚/重连后由这里补建，避免残留或缺失。
     PresetEventManager.Instance.syncStageMapView();
-    this.updateNetStatusBadge();
+    this.hud?.update(this.innerSettings.basicDebug);
     DebugManager.Instance.update();
-    this.syncCameraLayers();
-    if (this.debugFrameText && this.innerSettings.basicDebug) {
-      this.debugFrameText.setText(`frameId: ${BackendWS.FrameID}\nackFrameId: ${BackendWS.AckFrameID}`);
-    }
+    this.viewLayers?.sync();
   }
 
   /** 固定步之外只驱动视图表现；禁止写回 Model 或权威坐标。 */
@@ -489,20 +326,6 @@ export class Game extends Scene {
     });
   }
 
-  private updateNetStatusBadge(): void {
-    if (!this.netStatusBadge) return;
-    let state: NetBadgeState = { kind: "offline" };
-    if (BackendWS.isDesyncOfflineMode() || CombatManager.Instance.isDesyncOffline()) {
-      state = { kind: "desync" };
-    } else if (BackendWS.isReconnecting()) {
-      state = { kind: "reconnecting" };
-    } else if (BackendWS.isOnlineMode() || BackendWS.isMockRoomMode()) {
-      const latency = BackendWS.getAverageLatencyMs();
-      state = latency === null ? { kind: "offline" } : { kind: "latency", latencyMs: latency };
-    }
-    this.netStatusBadge.update(state);
-  }
-
   changeScene() {
     this.scene.start('GameOver');
   }
@@ -513,7 +336,7 @@ export class Game extends Scene {
 
   public toggleFrameWaiting(waiting: boolean): void {
     this.frameWaitExceeded = waiting;
-    this.updateNetStatusBadge();
+    this.hud?.updateNetStatusBadge();
   }
 
 
@@ -603,156 +426,18 @@ export class Game extends Scene {
   }
 
   public getBattleWorldPoint(pointer: Phaser.Input.Pointer): { x: number; y: number } {
-    const camera = this.battleCamera ?? this.cameras.main;
-    const point = camera.getWorldPoint(pointer.x, pointer.y);
+    if (this.viewLayers) return this.viewLayers.getBattleWorldPoint(pointer);
+    const point = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     return { x: point.x, y: point.y };
   }
 
-  private configureBattleViewCameras(deviceType: string) {
-    const layout = PositionManager.Instance.getSceneChromeLayout(deviceType);
-    const viewport = layout.mainViewport;
-    const gridBounds = PositionManager.Instance.getGridBounds();
-    const cameraView = deviceType === "mobile"
-      ? this.getMobileBattleCameraView(viewport, gridBounds)
-      : this.getDesktopBattleCameraView(viewport);
-
-    this.battleCamera = this.cameras.main;
-    this.battleCamera.setName("battle");
-    this.battleCamera.setViewport(viewport.x, viewport.y, viewport.width, viewport.height);
-    this.battleCamera.setZoom(cameraView.zoom);
-    this.battleCamera.setScroll(cameraView.scrollX, cameraView.scrollY);
-    this.battleCamera.setBackgroundColor('rgba(0,0,0,0)');
-
-    this.uiCamera = this.cameras.add(
-      0,
-      0,
-      layout.sceneBounds.width,
-      layout.sceneBounds.height,
-      false,
-      "ui",
-    );
-    this.uiCamera.setScroll(0, 0);
-    this.uiCamera.setZoom(1);
-    this.uiCamera.setBackgroundColor('rgba(0,0,0,0)');
-    this.syncCameraLayers();
+  /** 注册卡槽带对象（默认在战斗相机之下；悬停时切到最上层）。 */
+  public registerCardBandObject(object: Phaser.GameObjects.GameObject): void {
+    this.viewLayers?.registerCardBandObject(object);
   }
 
-  private getMobileBattleCameraView(viewport: Phaser.Geom.Rectangle | { width: number; height: number }, gridBounds: { x: number; y: number; width: number; height: number }) {
-    const rowCount = PositionManager.Instance.getRowCount();
-    const rowTuning = this.getMobileCameraRowTuning(rowCount);
-    const topCrop = BATTLE_GRID_CELL_HEIGHT * rowTuning.topCropRows;
-    const bottomOverscanRatio = Math.max(
-      MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO,
-      rowTuning.bottomOverscanRows,
-    );
-    const bottomOverscan = BATTLE_GRID_CELL_HEIGHT * bottomOverscanRatio;
-    const targetHeight = gridBounds.height - topCrop + bottomOverscan;
-    const verticalZoom = viewport.height / targetHeight * rowTuning.zoomScale;
-    const worldViewX = gridBounds.x
-      - BATTLE_GRID_CELL_WIDTH * MOBILE_BATTLE_LEFT_CART_OVERSCAN_COLS;
-    const worldViewRight = gridBounds.x
-      + gridBounds.width
-      + BATTLE_GRID_CELL_WIDTH * MOBILE_BATTLE_RIGHT_OVERSCAN_COLS;
-    const targetWorldWidth = Math.max(1, worldViewRight - worldViewX);
-    const widthZoom = viewport.width / targetWorldWidth;
-    const zoom = Math.min(verticalZoom, widthZoom);
-
-    const scroll = this.getCameraScrollForWorldView(
-      worldViewX,
-      gridBounds.y + topCrop,
-      viewport.width,
-      viewport.height,
-      zoom,
-    );
-
-    return { zoom, ...scroll };
-  }
-
-  /**
-  根据行数返回移动端摄像机的调优参数。
-  返回对象字段含义：
-  topCropRows: 从网格顶部裁剪的“行数”（可为小数）。实际顶部裁剪像素 = topCropRows * BATTLE_GRID_CELL_HEIGHT。
-  bottomOverscanRows: 底部的超出/外溢“行数”（可为小数）。函数内部会与常量 MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO 取最大值，再乘以 BATTLE_GRID_CELL_HEIGHT 得到底部像素超出量。
-  zoomScale: 额外的缩放系数，作用于基于视口与目标高度计算出的 zoom（>1 表示放大，<1 表示缩小，1 表示不变）。
-  horizontalShiftCols: 横向左移量，单位是网格列宽。值越大，战斗画面越向左贴近卡槽，右侧显示越多。
-*/
-  private getMobileCameraRowTuning(rowCount: number): { topCropRows: number; bottomOverscanRows: number; zoomScale: number; horizontalShiftCols: number } {
-    if (rowCount >= 5) {
-      // Negative crop keeps the top minecart above row 0 fully visible.
-      return { topCropRows: -0.15, bottomOverscanRows: 0.1, zoomScale: 1, horizontalShiftCols: 0 };
-    }
-    return { topCropRows: -0.5, bottomOverscanRows: 0.5, zoomScale: 0.95, horizontalShiftCols: 0 };
-
-    // return { topCropRows: 0, bottomOverscanRows: MOBILE_BATTLE_BOTTOM_OVERSCAN_ROW_RATIO, zoomScale: 1 };
-  }
-
-  private getDesktopBattleCameraView(viewport: Phaser.Geom.Rectangle | { width: number; height: number }) {
-    const zoom = Math.max(
-      viewport.width / LOGICAL_BATTLE_WIDTH,
-      viewport.height / LOGICAL_BATTLE_HEIGHT,
-    );
-    const visibleWidth = viewport.width / zoom;
-    const visibleHeight = viewport.height / zoom;
-    const worldViewX = (LOGICAL_BATTLE_WIDTH - visibleWidth) / 2;
-    const worldViewY = (LOGICAL_BATTLE_HEIGHT - visibleHeight) / 2;
-    const scroll = this.getCameraScrollForWorldView(
-      worldViewX,
-      worldViewY,
-      viewport.width,
-      viewport.height,
-      zoom,
-    );
-
-    return { zoom, ...scroll };
-  }
-
-  /**
-   * Phaser's camera scroll is the center anchor, while worldView describes the
-   * top-left of the visible world. Convert one to the other so FIT scaling never
-   * leaves an off-center gap next to the UI chrome.
-   */
-  private getCameraScrollForWorldView(
-    worldViewX: number,
-    worldViewY: number,
-    viewportWidth: number,
-    viewportHeight: number,
-    zoom: number,
-  ) {
-    return {
-      scrollX: worldViewX + (viewportWidth / zoom - viewportWidth) / 2,
-      scrollY: worldViewY + (viewportHeight / zoom - viewportHeight) / 2,
-    };
-  }
-
-  private syncCameraLayers() {
-    if (!this.battleCamera || !this.uiCamera) {
-      return;
-    }
-
-    for (const object of this.children.list) {
-      const depth = (object as Phaser.GameObjects.GameObject & { depth?: number }).depth ?? 0;
-      const layer = depth >= this.uiDepthThreshold ? "ui" : "battle";
-      if (this.cameraLayerState.get(object) === layer) {
-        continue;
-      }
-
-      this.cameraLayerState.set(object, layer);
-      this.setCameraIgnore(this.battleCamera, object, layer === "ui");
-      this.setCameraIgnore(this.uiCamera, object, layer === "battle");
-    }
-  }
-
-  private setCameraIgnore(
-    camera: Phaser.Cameras.Scene2D.Camera,
-    object: Phaser.GameObjects.GameObject,
-    ignored: boolean,
-  ) {
-    if (ignored) {
-      camera.ignore(object);
-      return;
-    }
-
-    object.cameraFilter &= ~camera.id;
+  public unregisterCardBandObject(object: Phaser.GameObjects.GameObject): void {
+    this.viewLayers?.unregisterCardBandObject(object);
   }
 
   private cleanupSceneListeners() {
@@ -775,14 +460,11 @@ export class Game extends Scene {
     this.cleanupSceneListeners();
 
     ConsoleCmd.uninstall(this);
-    this.debugFrameText?.destroy();
-    this.debugFrameText = null;
-    this.netStatusBadge?.destroy();
-    this.netStatusBadge = null;
-    this.cardSlotsUi?.destroy();
-    this.cardSlotsUi = null;
-    this.bottomBarUi?.destroy();
-    this.bottomBarUi = null;
+    this.hud?.destroy();
+    this.hud = null;
+    this.viewLayers?.destroy();
+    this.viewLayers = null;
+    this.mediaReadiness = null;
 
     const pauseMenu = (this as any).pauseMenu as import('../ui/menu/PauseMenu').PauseMenu | null;
     if (pauseMenu) {
