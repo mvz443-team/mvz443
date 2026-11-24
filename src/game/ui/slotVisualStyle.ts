@@ -1,5 +1,14 @@
 export const SLOT_STROKE = 2;
+/** 正常可用（能量足够且冷却完成）的卡槽底色。 */
 export const SLOT_FILL = 0xf6f6f6;
+/**
+ * 能量足够但仍在冷却：灰色底。
+ * 比可用态深，但比冷却遮罩（`0x111111` @ 0.62 叠在底色上）浅，
+ * 保证遮罩扫过时仍能看出更暗的一段。
+ */
+export const SLOT_FILL_COOLING = 0xb8b8b8;
+/** 冷却遮罩透明度；能量是否足够不改变遮罩强度。 */
+export const SLOT_MASK_ALPHA = 0.62;
 export const SLOT_BORDER = 0x333333;
 export const SLOT_BORDER_CHOSEN = 0xffee22;
 

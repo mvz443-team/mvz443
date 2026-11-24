@@ -20,6 +20,8 @@ import {
   SLOT_BORDER,
   SLOT_BORDER_CHOSEN,
   SLOT_FILL,
+  SLOT_FILL_COOLING,
+  SLOT_MASK_ALPHA,
   SLOT_STROKE,
   slotRadius,
 } from "./slotVisualStyle";
@@ -309,6 +311,16 @@ export class PlantCardView {
     return this.energy < this.cost;
   }
 
+  /**
+   * 卡槽底色（PC 与移动端共用），只由冷却状态决定：
+   * - 冷却完成：正常浅色（能量不足时另叠红色）；
+   * - 冷却中：灰色，浅于冷却遮罩、深于可用态。
+   * 能量是否足够不再改变底色，避免出现"能量不足 + 冷却中"的独立配色。
+   */
+  private getFillColor(cooling: boolean): number {
+    return cooling ? SLOT_FILL_COOLING : SLOT_FILL;
+  }
+
   private canPress(): boolean {
     if (!CardpileManager.Instance.CouldOperateCardpile() || !this.reloaded) {
       return false;
@@ -340,22 +352,24 @@ export class PlantCardView {
     // 与 EnergyPanelView.setEnergy 一致：表现层异常必须吞掉。
     if (!this.container?.scene || !this.overlay?.scene || !this.selectionGlow?.scene) return;
     try {
+      const cooling = !this.reloaded && this.leftPercent > 0;
       redrawSlotFrame(
         this.bg,
         this.width,
         this.height,
-        SLOT_FILL,
+        this.getFillColor(cooling),
         SLOT_BORDER,
         SLOT_STROKE,
         this.radius,
       );
       this.overlay.clear();
+      // 能量不足统一叠浅红，冷却与否只由遮罩表达。
       if (this.expensive) {
         this.overlay.fillStyle(0x921f1f, 0.24);
         this.overlay.fillRoundedRect(0, 0, this.width, this.height, this.radius);
       }
-      if (!this.reloaded && this.leftPercent > 0) {
-        this.overlay.fillStyle(0x111111, 0.62);
+      if (cooling) {
+        this.overlay.fillStyle(0x111111, SLOT_MASK_ALPHA);
         if (this.frame === "mobile-square") {
           const fillWidth = this.width * this.leftPercent;
           this.overlay.fillRoundedRect(
