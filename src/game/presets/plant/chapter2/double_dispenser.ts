@@ -149,49 +149,40 @@ export class DoubleDispenserModel extends PlantModel {
   private shootBackArrow(entity: DoubleDispenserEntity, damage: number): void {
     const reverseSpeed = -legacyRapierVelocityToUnitsPerSecond(800); // 反向速度
 
+    const shootReverseArrow = () => {
+      if (entity.currentHealth <= 0) return;
+      ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
+        damage: damage,
+        maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
+        faction: entity.faction,
+        dealer: entity,
+        penetratePower: 1,
+        speed: reverseSpeed
+      });
+    };
+
     // 后方箭矢1（反向）
-    ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
-      damage: damage,
-      maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
-      faction: entity.faction,
-      dealer: entity,
-      penetratePower: 1,
-      speed: reverseSpeed
+    shootReverseArrow();
+
+    // 基础第2发：100ms后必发（1级起就是前后不等量，后方更密）
+    entity.model.tickmanager.delayedCall({
+      delay: 100,
+      callback: shootReverseArrow
     });
 
-    // Lv3+：100ms后再发一发反向箭
+    // Lv3+：200ms后再补一发反向箭
     if (entity.level >= 3) {
       entity.model.tickmanager.delayedCall({
-        delay: 100,
-        callback: () => {
-          if (entity.currentHealth <= 0) return;
-          ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
-            damage: damage,
-            maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
-            faction: entity.faction,
-            dealer: entity,
-            penetratePower: 1,
-            speed: reverseSpeed
-          });
-        }
+        delay: 200,
+        callback: shootReverseArrow
       });
     }
 
-    // Lv7+：150ms后再发一发反向箭
+    // Lv7+：300ms后再补一发反向箭
     if (entity.level >= 7) {
       entity.model.tickmanager.delayedCall({
-        delay: 150,
-        callback: () => {
-          if (entity.currentHealth <= 0) return;
-          ProjectileCmd.Create(ArrowModel, entity.scene, entity.x, entity.row, {
-            damage: damage,
-            maxDistance: PositionManager.Instance.GRID_SIZEX * 32,
-            faction: entity.faction,
-            dealer: entity,
-            penetratePower: 1,
-            speed: reverseSpeed
-          });
-        }
+        delay: 300,
+        callback: shootReverseArrow
       });
     }
   }
