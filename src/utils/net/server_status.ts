@@ -20,7 +20,9 @@ export const PRESET_SERVERS: ServerPreset[] = [
 ];
 
 const PROBE_INTERVAL_MS = 10000;
-const PROBE_TIMEOUT_MS = 5000;
+export const PROBE_TIMEOUT_MS = 5000;
+/** connect 最坏情况：/ping 超时或返回 404 后再请求 /list，共两次请求 */
+export const CONNECT_MAX_WAIT_MS = PROBE_TIMEOUT_MS * 2;
 const MAX_FAILURES_BEFORE_OFFLINE = 3;
 
 type Listener = () => void;

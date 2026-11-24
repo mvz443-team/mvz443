@@ -6,7 +6,7 @@ import { useSaveManager } from '../../../context/save_ctx';
 import { useLocaleMessages } from '../../../hooks/useLocaleMessages';
 import BackendWS from '../../../utils/net/sync';
 import { normalizeServerAddress } from '../../../utils/net/lobby';
-import { PRESET_SERVERS, serverStatus } from '../../../utils/net/server_status';
+import { CONNECT_MAX_WAIT_MS, PRESET_SERVERS, serverStatus } from '../../../utils/net/server_status';
 import { showAlert, showConfirm } from '../../../utils/uiDialog';
 import NetLatencyStatus from '../../widget/NetLatencyStatus';
 
@@ -66,6 +66,7 @@ export default function OnlineSettings() {
     latency: serverStatus.getLatency(),
   }));
   const [connecting, setConnecting] = useState(false);
+  const [connectElapsedMs, setConnectElapsedMs] = useState(0);
   const [selectedServer, setSelectedServer] = useState<string>(() => {
     const current = normalizeServerAddress(saveManager.getOnlineConfig().serverAddr);
     const known = [
@@ -96,6 +97,19 @@ export default function OnlineSettings() {
   useEffect(() => {
     serverStatus.resume(saveManager.getOnlineConfig().serverAddr);
   }, [saveManager]);
+
+  // 连接请求期间的计时，仅用于不可关闭的进度弹窗
+  useEffect(() => {
+    if (!connecting) {
+      setConnectElapsedMs(0);
+      return;
+    }
+    const startedAt = performance.now();
+    const timer = window.setInterval(() => {
+      setConnectElapsedMs(performance.now() - startedAt);
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [connecting]);
 
   const serverOptions = useMemo(() => {
     const options = PRESET_SERVERS.map((preset) => ({
@@ -166,6 +180,7 @@ export default function OnlineSettings() {
   };
 
   return (
+    <>
     <div style={{
       marginBottom: '30px',
       border: '1px solid rgba(100, 100, 100, 0.5)',
@@ -256,7 +271,7 @@ export default function OnlineSettings() {
           <div style={{ fontSize: '12px', color: '#aaa' }}>{translate('menu.settings_disconnect_t')}</div>
         </div>
         <div style={controlStyle}>
-          <button style={buttonStyle} onClick={handleDisconnect}>
+          <button style={buttonStyle} onClick={handleDisconnect} disabled={connecting}>
             {translate('menu.settings_disconnect')}
           </button>
         </div>
@@ -302,5 +317,46 @@ export default function OnlineSettings() {
         </div>
       </div>
     </div>
+
+    {connecting && (
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 10000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(0, 0, 0, 0.72)',
+      }}>
+        <div style={{
+          minWidth: '340px',
+          padding: '28px 32px',
+          background: '#1f1f1f',
+          border: '1px solid #00ccff',
+          borderRadius: '6px',
+          boxShadow: '0 0 28px rgba(0, 204, 255, 0.25)',
+          color: '#ddd',
+          textAlign: 'center',
+        }}>
+          <div style={{ fontSize: '20px', color: '#fff', marginBottom: '12px' }}>
+            {translate('menu.settings_connecting')}
+          </div>
+          <div style={{ fontSize: '13px', color: '#9aa7ae', marginBottom: '16px' }}>
+            {translate('menu.settings_connecting_t')}
+          </div>
+          <div style={{
+            fontSize: '15px',
+            color: '#9fe8ff',
+            fontVariantNumeric: 'tabular-nums',
+          }}>
+            {translate('menu.settings_connect_elapsed', {
+              elapsed: (connectElapsedMs / 1000).toFixed(1),
+              timeout: (CONNECT_MAX_WAIT_MS / 1000).toFixed(0),
+            })}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
