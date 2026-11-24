@@ -2,7 +2,7 @@ import type { Game } from "../../../scenes/Game";
 import { PositionManager } from "../../../managers/view/PositionManager";
 import type { MonsterDefinition } from "../../../models/entities/MonsterEntity";
 import type { MonsterEntity } from "../../../models/entities/MonsterEntity";
-import type { CombatEntity } from "../../../models/core/CombatEntity";
+import type { BaseEntity } from "../../../models/core/BaseEntity";
 import type { CollisionContext } from "../../../types";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import PlantsManager from "../../../managers/combat/PlantsManager";
@@ -19,6 +19,23 @@ const STICK_WEAPON: EquipmentDef = {
   weaponDamage: 0,
   visual: { attachment: "hand", depth: 13 },
 };
+
+/**
+ * 越杆目标的确定性全序：距离近者优先（原版"遇到的第一个"），
+ * 同距按 pid / 稳定 id 兜底。
+ *
+ * 只用于让判定线返回值与数组插入顺序无关；起跳本身不消费目标植物，
+ * 但显式全序可以避免重连后按快照 id 重建实体时选到不同的一株。
+ */
+function isCloserVaultTarget(a: PlantEntity, b: PlantEntity, fromX: number): boolean {
+  const da = fromX - a.x;
+  const db = fromX - b.x;
+  if (da !== db) return da < db;
+  if (a.pid !== b.pid) return a.pid < b.pid;
+  const aId = a.SnapshotId ?? "";
+  const bId = b.SnapshotId ?? "";
+  return aId < bId;
+}
 
 /** 手杖僵尸的撑杆跳决策在 Model；Entity 只保留抬升表现与视图同步。 */
 export class StickZombieModel extends ZombieModel {
@@ -47,6 +64,32 @@ export class StickZombieModel extends ZombieModel {
   }
 
   /**
+   * 普攻入口拦截：撑杆跳优先于啃食。
+   *
+   * 固定帧里 rapier 的 overlap-start 先于 Entity.stepUpdate 派发，行进中现放的
+   * 植物会先走 MonsterModel.tryStartAttack 把 isStop 锁死，本帧的 onModelStep
+   * 随即被 isStop 挡在起跳分支外，于是僵尸开啃而不跳。这里在写入任何攻击状态、
+   * 创建普攻定时器之前拦截：手杖还在且接触的是可越过的存活植物时直接起跳。
+   *
+   * 判定只来自 Model 快照字段（hasStick / flying / health）与传入实体类型；
+   * 起跳不创建攻击 timer，不触碰 beginAttackTimer 的 removeByEvent 兜底语义，
+   * 也不会在重连 / 回滚后留下第二条普攻循环。返回 true 表示本次接触已消费。
+   */
+  public override tryStartAttack(entity: MonsterEntity, target: BaseEntity): boolean {
+    // 飞行中任何接触都不进入啃食；真实碰撞已由 onVaultCollision 吞掉，这里是兜底。
+    if (this.flying) return true;
+    if (this.tryVaultOnContact(entity, target)) return true;
+    return super.tryStartAttack(entity, target);
+  }
+
+  private tryVaultOnContact(entity: MonsterEntity, target: BaseEntity): boolean {
+    if (!this.hasStick || this.flying || this.isDying || this.isFrozen) return false;
+    if (!(target instanceof PlantEntity)) return false;
+    if (target.currentHealth <= 0) return false;
+    return this.tryStartVault(entity);
+  }
+
+  /**
    * 判定线：身体中心沿移动方向（向左）0.7 格内的第一个存活植物。
    *
    * 用判定线而不是碰撞，是为了在"已经出地的 TNT 地雷""气球TNT"这类
@@ -62,7 +105,7 @@ export class StickZombieModel extends ZombieModel {
       if (!(plant instanceof PlantEntity)) continue;
       if (plant.currentHealth <= 0) continue;
       if (plant.x < left || plant.x > entity.x) continue;
-      if (!found || plant.x < found.x) found = plant;
+      if (!found || isCloserVaultTarget(plant, found, entity.x)) found = plant;
     }
     return found;
   }
@@ -118,16 +161,13 @@ export class StickZombieEntity extends BaseZombieEntity {
     super(scene, col, row, model, waveID);
   }
 
+  /** 供 TNT 地雷判断"这只僵尸能否越过我"的查询入口，逻辑在 Model。 */
   public canVaultOverPlant(target: PlantEntity): boolean {
     return this.model.canVaultOverPlant(target);
   }
 
-  public override startAttacking(target: CombatEntity): void {
-    if (this.model.flying) return;
-    // 判定线是主路径；这里保留碰撞兜底（例如植物正好被种在脚下）。
-    if (this.model.canVaultOverPlant(target as PlantEntity) && this.model.tryStartVault(this)) return;
-    super.startAttacking(target);
-  }
+  // 不再覆写 startAttacking：碰撞路径直接走 Model.tryStartAttack，
+  // 起跳拦截已下沉到 StickZombieModel.tryStartAttack，Entity 侧保持纯胶水。
 
   public override onCollision(ctx: CollisionContext): void {
     if (this.model.onVaultCollision(this, ctx.targetEntity)) return;
