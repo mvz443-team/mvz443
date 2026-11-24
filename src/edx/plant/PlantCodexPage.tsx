@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import Pokedex from '../../components/menu/pokedex';
-import { useLocaleMessages } from '../../hooks/useLocaleMessages';
 import EdxPreviewHost from '../preview/EdxPreviewHost';
 import type { EdxPreviewSelection } from '../preview/edxPreviewConfig';
 
@@ -34,25 +33,12 @@ export default function PlantCodexPage({ width, height, onBack, onOpenInventory 
 }
 
 function PlantPreview({ item }: { item: PreviewItem | null }) {
-  const { translate } = useLocaleMessages();
   // 选择对象必须稳定：每次渲染新建对象会让预览宿主重复下发选择。
   const selection = useMemo<EdxPreviewSelection | null>(
     () => (item ? { mode: 'plant', pid: item.pid, level: item.level } : null),
     [item?.pid, item?.level],
   );
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <div style={{
-        color: '#9aa4aa',
-        fontSize: '12px',
-        marginBottom: '4px',
-        letterSpacing: '1px',
-        flex: '0 0 auto',
-      }}>
-        {translate('edx.plant_preview')}
-      </div>
-      <EdxPreviewHost selection={selection} style={{ flex: '1 1 auto', minHeight: 0 }} />
-    </div>
-  );
+  // 不渲染标题行，预览直接占满右栏顶部槽位。
+  return <EdxPreviewHost selection={selection} style={{ flex: '1 1 auto', minHeight: 0 }} />;
 }

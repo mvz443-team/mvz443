@@ -338,7 +338,8 @@ export default function Pokedex({ width, height, onBack, renderPreview, onOpenIn
           minWidth: 0,
           height: "100%",
           boxSizing: "border-box",
-          padding: isMobile ? "16px" : "20px",
+          // 底部留白收窄，让下方详情滚动区尽量贴到面板底边。
+          padding: isMobile ? "16px 16px 10px" : "20px 20px 10px",
           color: "#ddd",
           background: "rgba(30, 30, 30, 0.9)",
           display: 'flex',
@@ -346,8 +347,8 @@ export default function Pokedex({ width, height, onBack, renderPreview, onOpenIn
         }}>
           {previewSlot ? (
             <div style={{
-              marginBottom: '12px',
-              flex: '0 0 55%',
+              marginBottom: '10px',
+              flex: '0 0 50%',
               minHeight: 0,
               display: 'flex',
               flexDirection: 'column',
