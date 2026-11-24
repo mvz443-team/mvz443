@@ -52,7 +52,7 @@ export class MobileBottomBar {
   private readonly flagGraphics: Phaser.GameObjects.Graphics;
   private readonly pauseText: Phaser.GameObjects.Text;
   private readonly unsubs: Array<() => void> = [];
-  private readonly layout = getMobileSideBarLayout();
+  private readonly layout: ReturnType<typeof getMobileSideBarLayout>;
   private progressState: ProgressUpdateEvent = {
     mode: ProgressMode.Normal,
     totalWaves: 99,
@@ -61,6 +61,7 @@ export class MobileBottomBar {
   };
   constructor(scene: Game) {
     this.scene = scene;
+    this.layout = getMobileSideBarLayout(scene.params.plants.length);
     const bounds = this.layout.bounds;
 
     this.container = this.scene.add.container(bounds.x, bounds.y).setDepth(DepthHelper.UI.chromeContainer());

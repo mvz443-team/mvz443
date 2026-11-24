@@ -18,6 +18,7 @@ import {
   drawSlotSelectionOutline,
   redrawSlotFrame,
   SLOT_BORDER,
+  SLOT_BORDER_CHOSEN,
   SLOT_FILL,
   SLOT_STROKE,
   slotRadius,
@@ -91,6 +92,17 @@ function getArtLayout(frame: SlotFrameKind, width: number, height: number): ArtL
   };
 }
 
+/**
+ * 卡槽圆角：移动端同一列卡槽上下紧贴（`MOBILE_SLOT_ROW_GAP = 0`），
+ * 默认的大圆角会在贴合处露出两个月牙缝，看起来仍像有 gap；
+ * 因此移动端方槽收敛到很小的圆角，PC 保持原样。
+ */
+function frameRadius(frame: SlotFrameKind, width: number, height: number): number {
+  return frame === "mobile-square"
+    ? Math.min(3, width * 0.08, height * 0.08)
+    : slotRadius(width, height);
+}
+
 function getCostLayout(frame: SlotFrameKind, width: number, height: number): CostLayout {
   if (frame === "mobile-square") {
     return {
@@ -120,6 +132,7 @@ export class PlantCardView {
   private readonly width: number;
   private readonly height: number;
   private readonly frame: SlotFrameKind;
+  private readonly radius: number;
   private readonly disableWhenExpensive: boolean;
   private readonly container: Phaser.GameObjects.Container;
   private readonly bg: Phaser.GameObjects.Graphics;
@@ -141,6 +154,7 @@ export class PlantCardView {
     this.width = options.slot.width;
     this.height = options.slot.height;
     this.frame = options.slot.frame;
+    this.radius = frameRadius(this.frame, this.width, this.height);
     this.disableWhenExpensive = options.disableWhenExpensive ?? false;
     this.pid = options.plantModel.pid;
     this.level = options.level;
@@ -333,11 +347,12 @@ export class PlantCardView {
         SLOT_FILL,
         SLOT_BORDER,
         SLOT_STROKE,
+        this.radius,
       );
       this.overlay.clear();
       if (this.expensive) {
         this.overlay.fillStyle(0x921f1f, 0.24);
-        this.overlay.fillRoundedRect(0, 0, this.width, this.height, slotRadius(this.width, this.height));
+        this.overlay.fillRoundedRect(0, 0, this.width, this.height, this.radius);
       }
       if (!this.reloaded && this.leftPercent > 0) {
         this.overlay.fillStyle(0x111111, 0.62);
@@ -348,7 +363,7 @@ export class PlantCardView {
             0,
             fillWidth,
             this.height,
-            Math.min(slotRadius(this.width, this.height), fillWidth * 0.5),
+            Math.min(this.radius, fillWidth * 0.5),
           );
         } else {
           const fillHeight = this.height * this.leftPercent;
@@ -357,14 +372,14 @@ export class PlantCardView {
             0,
             this.width,
             fillHeight,
-            Math.min(slotRadius(this.width, this.height), fillHeight * 0.5),
+            Math.min(this.radius, fillHeight * 0.5),
           );
         }
       }
       this.costText?.setColor(this.expensive ? "#ff2f2f" : "#ffffff");
       this.selectionGlow.clear();
       if (this.selected) {
-        drawSlotSelectionOutline(this.selectionGlow, this.width, this.height);
+        drawSlotSelectionOutline(this.selectionGlow, this.width, this.height, SLOT_BORDER_CHOSEN, this.radius);
       }
     } catch (error) {
       console.warn("[PlantCardView] draw skipped because the view is no longer available.", error);
@@ -390,6 +405,49 @@ export class PlantCardView {
   }
 }
 
+type EnergyContentLayout = {
+  icon: { x: number; y: number; size: number };
+  text: { x: number; y: number; fontSize: number; maxWidth: number };
+};
+
+/**
+ * 能量槽内部排版：
+ * - `mobile-square`（移动端侧边栏）：宽扁槽，icon 在左、数字在右横向排列；
+ * - `pc-horizontal`（PC 顶部条）：icon 在上、数字在下的竖向排列。
+ */
+function getEnergyContentLayout(
+  frame: SlotFrameKind,
+  width: number,
+  height: number,
+): EnergyContentLayout {
+  if (frame === "mobile-square") {
+    const size = Math.max(8, Math.min(height * 0.72, width * 0.4));
+    return {
+      icon: {
+        x: Math.max(size * 0.5 + 4, width * 0.26),
+        y: height / 2,
+        size,
+      },
+      text: {
+        x: width * 0.72,
+        y: height / 2,
+        fontSize: Math.max(10, Math.round(height * 0.5)),
+        maxWidth: width * 0.44,
+      },
+    };
+  }
+
+  return {
+    icon: { x: width / 2, y: height * 0.34, size: Math.min(width * 0.52, height * 0.42) },
+    text: {
+      x: width / 2,
+      y: height * 0.72,
+      fontSize: Math.max(10, Math.round(height * 0.27)),
+      maxWidth: width * 0.72,
+    },
+  };
+}
+
 export class EnergyPanelView {
   private readonly scene: Game;
   private readonly container: Phaser.GameObjects.Container;
@@ -397,28 +455,45 @@ export class EnergyPanelView {
   private readonly valueText: Phaser.GameObjects.Text;
   private readonly width: number;
   private readonly height: number;
+  private readonly contentLayout: EnergyContentLayout;
   private flashTimer: Phaser.Time.TimerEvent | null = null;
 
-  constructor(scene: Game, x: number, y: number, width: number, height: number) {
+  constructor(
+    scene: Game,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    frame: SlotFrameKind = "pc-horizontal",
+  ) {
     this.scene = scene;
     this.width = width;
     this.height = height;
+    this.contentLayout = getEnergyContentLayout(frame, width, height);
+    const content = this.contentLayout;
     this.container = scene.add.container(x, y).setDepth(DepthHelper.UI.chromeControl());
     scene.registerCardBandObject(this.container);
     this.bg = scene.add.graphics();
     this.container.add(this.bg);
-    const icon = scene.add.image(width / 2, height * 0.34, "redstone");
-    const iconSize = Math.min(width * 0.52, height * 0.42);
-    icon.setDisplaySize(iconSize, iconSize);
+    const icon = scene.add.image(content.icon.x, content.icon.y, "redstone");
+    icon.setDisplaySize(content.icon.size, content.icon.size);
     this.container.add(icon);
-    this.valueText = scene.add.text(width / 2, height * 0.72, "0", {
+    this.valueText = scene.add.text(content.text.x, content.text.y, "0", {
       fontFamily: "Arial, sans-serif",
-      fontSize: `${Math.max(10, Math.round(height * 0.27))}px`,
+      fontSize: `${content.text.fontSize}px`,
       color: "#111111",
       fontStyle: "bold",
     }).setOrigin(0.5);
     this.container.add(this.valueText);
-    redrawSlotFrame(this.bg, width, height, 0xf0f0f0);
+    redrawSlotFrame(
+      this.bg,
+      width,
+      height,
+      0xf0f0f0,
+      SLOT_BORDER,
+      SLOT_STROKE,
+      frameRadius(frame, width, height),
+    );
   }
 
   public setEnergy(energy: number) {
@@ -431,8 +506,8 @@ export class EnergyPanelView {
       text.setText(String(energy));
       setTextSizeToFit(
         text,
-        this.width * 0.72,
-        Math.max(10, Math.round(this.height * 0.27)),
+        this.contentLayout.text.maxWidth,
+        this.contentLayout.text.fontSize,
         9,
       );
     } catch (error) {
@@ -476,6 +551,7 @@ export class ToolButtonView {
   private readonly width: number;
   private readonly height: number;
   private readonly allowHover: boolean;
+  private readonly radius: number;
   private selected = false;
   private hovered = false;
   private selectionTween: Phaser.Tweens.Tween | null = null;
@@ -487,11 +563,13 @@ export class ToolButtonView {
     width: number,
     height: number,
     allowHover = true,
+    frame: SlotFrameKind = "pc-horizontal",
   ) {
     this.scene = scene;
     this.width = width;
     this.height = height;
     this.allowHover = allowHover;
+    this.radius = frameRadius(frame, width, height);
     this.container = scene.add.container(x, y).setDepth(DepthHelper.UI.chromeControl());
     scene.registerCardBandObject(this.container);
     this.bg = scene.add.graphics();
@@ -568,10 +646,11 @@ export class ToolButtonView {
       SLOT_FILL,
       SLOT_BORDER,
       SLOT_STROKE,
+      this.radius,
     );
     this.selectionGlow.clear();
     if (this.selected) {
-      drawSlotSelectionOutline(this.selectionGlow, this.width, this.height);
+      drawSlotSelectionOutline(this.selectionGlow, this.width, this.height, SLOT_BORDER_CHOSEN, this.radius);
     }
   }
 
@@ -634,6 +713,7 @@ export function createCardSlotsController(
     layout.pickaxe.width,
     layout.pickaxe.height,
     layout.pickaxe.frame !== "mobile-square",
+    layout.pickaxe.frame,
   );
   return { cards, pickaxe };
 }

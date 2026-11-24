@@ -3,7 +3,8 @@ import type { GameSceneChromeLayout, Rect } from "../../constants/gameLayout";
 import { MOBILE_SIDE_BAR_RIGHT_EXTEND_RATIO } from "../../constants/gameLayout";
 import { getMobileBattleLeftGap } from "../scenes/view/mobileBattleCameraView";
 import {
-  MOBILE_GRID_ROWS,
+  getMobileCardSlotChromeLayout,
+  MOBILE_PRIMARY_CARD_SLOTS,
   MOBILE_SLOT_GAP,
   MOBILE_SLOT_PADDING,
 } from "../../constants/cardSlotLayout";
@@ -57,28 +58,38 @@ function getMobileSideBarBounds(chrome: GameSceneChromeLayout): Rect {
   );
 }
 
-export function getMobileSideBarLayout(): MobileSideBarLayout {
+/**
+ * 移动端侧边栏布局。
+ *
+ * `slotWidth` / `slotHeight` 直接取自卡槽排布（行数随卡组数量自适应），
+ * 避免这里和 `getMobileCardSlotChromeLayout` 各算一份、卡少时对不上。
+ */
+export function getMobileSideBarLayout(
+  cardCount: number = MOBILE_PRIMARY_CARD_SLOTS,
+): MobileSideBarLayout {
   const chrome = PositionManager.Instance.getSceneChromeLayout("mobile");
   const bounds = getMobileSideBarBounds(chrome);
   const padding = MOBILE_SLOT_PADDING;
   const laneGap = MOBILE_SLOT_GAP;
   const cardHeight = Math.max(1, bounds.height - STATUS_HEIGHT);
+  const cardSection = rect(0, 0, bounds.width, cardHeight);
+  const slotLayout = getMobileCardSlotChromeLayout(
+    {
+      x: bounds.x,
+      y: bounds.y + cardSection.y,
+      width: cardSection.width,
+      height: cardSection.height,
+    },
+    cardCount,
+  );
   const laneWidth = Math.max(
     1,
     (bounds.width - padding * 2 - laneGap) / 2,
   );
-  const slotHeight = Math.max(
-    1,
-    Math.floor(
-      (cardHeight - padding * 2 - (MOBILE_GRID_ROWS - 1) * laneGap)
-      / MOBILE_GRID_ROWS,
-    ),
-  );
-  const slotWidth = Math.max(1, Math.floor(laneWidth));
 
   return {
     bounds,
-    cardSection: rect(0, 0, bounds.width, cardHeight),
+    cardSection,
     progressSection: rect(0, cardHeight, bounds.width, PROGRESS_HEIGHT),
     actionSection: rect(
       0,
@@ -90,7 +101,7 @@ export function getMobileSideBarLayout(): MobileSideBarLayout {
     laneGap,
     padding,
     progressBarHeight: 8,
-    slotWidth,
-    slotHeight,
+    slotWidth: slotLayout.energy.width,
+    slotHeight: slotLayout.energy.height,
   };
 }

@@ -174,7 +174,7 @@ export class GainEnergySfx extends BaseSfx<GainEnergySfxArgs> {
     }
 
     if ((this.scene.params?.deviceType ?? "pc") === "mobile") {
-      const layout = getMobileSideBarLayout();
+      const layout = getMobileSideBarLayout(this.scene.params?.plants?.length ?? 0);
       const bounds = layout.bounds;
       const cardSection = layout.cardSection;
 

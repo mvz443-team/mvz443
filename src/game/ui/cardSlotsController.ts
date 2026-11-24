@@ -58,7 +58,7 @@ export class CardSlots {
     this.clearLayout();
     this.cardCount = this.scene.params.plants.length;
     if (this.deviceType === "mobile") {
-      const layout = getMobileSideBarLayout();
+      const layout = getMobileSideBarLayout(this.cardCount);
       const cardSection = {
         x: layout.bounds.x,
         y: layout.bounds.y + layout.cardSection.y,
@@ -73,6 +73,7 @@ export class CardSlots {
         slotLayout.energy.y,
         slotLayout.energy.width,
         slotLayout.energy.height,
+        slotLayout.energy.frame,
       );
       this.controller = createCardSlotsController(this.scene, slotLayout);
       this.pullCurrentState();

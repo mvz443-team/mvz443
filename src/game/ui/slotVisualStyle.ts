@@ -14,8 +14,10 @@ export function redrawSlotFrame(
   fillColor = SLOT_FILL,
   lineColor = SLOT_BORDER,
   lineWidth = SLOT_STROKE,
+  /** 覆盖默认圆角（移动端卡槽上下紧贴时用更小的圆角，避免贴合处露出月牙缝）。 */
+  radiusOverride?: number,
 ) {
-  const radius = slotRadius(width, height);
+  const radius = radiusOverride ?? slotRadius(width, height);
   graphics.clear();
   graphics.fillStyle(fillColor, 1);
   graphics.fillRoundedRect(0, 0, width, height, radius);
@@ -28,7 +30,10 @@ export function drawSlotSelectionOutline(
   width: number,
   height: number,
   color = SLOT_BORDER_CHOSEN,
+  /** 覆盖默认圆角，必须与 `redrawSlotFrame` 保持一致。 */
+  radiusOverride?: number,
 ) {
+  const radius = radiusOverride ?? slotRadius(width, height);
   graphics.clear();
   graphics.lineStyle(
     Math.max(3, Math.min(5, width * 0.07)),
@@ -40,6 +45,6 @@ export function drawSlotSelectionOutline(
     -2,
     width + 4,
     height + 4,
-    slotRadius(width, height) + 2,
+    radius + 2,
   );
 }
