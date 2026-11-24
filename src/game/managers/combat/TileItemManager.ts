@@ -18,6 +18,8 @@ export default class TileItemManager extends BaseManager {
   protected scene: Game | null = null;
   private readonly slotsByRow: Map<number, TileItemSlot> = new Map();
   private readonly minecartLostWaveByRow: Map<number, number> = new Map();
+  /** 每行当前存活的矿车支架实体；只用于回滚/重连对账，不进快照。 */
+  private readonly standsByRow: Map<number, MineCartStandEntity> = new Map();
   private currentWaveId = -1;
   private offNewWave: (() => void) | null = null;
 
@@ -46,6 +48,10 @@ export default class TileItemManager extends BaseManager {
   public Reset(): void {
     this.offNewWave?.();
     this.offNewWave = null;
+    for (const stand of this.standsByRow.values()) {
+      stand.destroySilently();
+    }
+    this.standsByRow.clear();
     this.slotsByRow.clear();
     this.minecartLostWaveByRow.clear();
     this.currentWaveId = -1;
@@ -132,9 +138,40 @@ export default class TileItemManager extends BaseManager {
     if (!this.scene || this.slotsByRow.get(row)?.kind !== "minecart") {
       return;
     }
+    // 重连/回滚对账与尚未到点的生成 timer 可能指向同一行，必须幂等。
+    if (this.standsByRow.get(row)?.IsAlive) {
+      return;
+    }
     const position = PositionManager.Instance.getGridCenter(TileItemManager.MINECART_COL, row);
-    new MineCartStandEntity(this.scene, position.x, row, {
-      onLost: (lostRow) => this.recordMinecartLost(lostRow),
+    const stand = new MineCartStandEntity(this.scene, position.x, row, {
+      onLost: (lostRow) => {
+        this.standsByRow.delete(lostRow);
+        this.recordMinecartLost(lostRow);
+      },
     });
+    this.standsByRow.set(row, stand);
+  }
+
+  /**
+   * 快照恢复后按 tileitem 的 slots 对账支架实体。
+   *
+   * 支架不在任何 entities provider 里，model 的 row/hasTriggered 不会被快照
+   * round-trip；"tile.minecart" 工厂也只能重建尚未到点的生成 timer。checkpoint
+   * 落在生成之后、或回滚到支架已触发之前时，必须在这里补齐/移除实体，否则
+   * 重连端场景里没有支架，而 tileitem 快照却认为有。
+   * 必须在 simulationState.restore 之后调用（physics / 其他实体已就绪）。
+   */
+  public reconcileStandEntities(): void {
+    for (const [row, stand] of this.standsByRow) {
+      if (!this.slotsByRow.has(row)) {
+        stand.destroySilently();
+        this.standsByRow.delete(row);
+      } else if (!stand.IsAlive) {
+        this.standsByRow.delete(row);
+      }
+    }
+    for (const row of this.slotsByRow.keys()) {
+      this.spawnMinecartEntity(row);
+    }
   }
 }

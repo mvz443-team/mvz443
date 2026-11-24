@@ -14,6 +14,7 @@ import { RoomAllReadyEvent } from "../../types/online";
 import BackendWS from "../../utils/net/sync";
 import CardpileManager from "./combat/CardpileManager";
 import ResourceManager from "./combat/ResourceManager";
+import TileItemManager from "./combat/TileItemManager";
 import {
   simulationState,
   SimulationState,
@@ -606,6 +607,10 @@ export default class CombatManager extends BaseManager {
       mode,
       resolveEntity: resolveEntityBySnapshotId,
     });
+    // 矿车支架实体不进任何 entities provider，tileitem 快照只记录"哪一行应当有
+    // 支架"。整份快照恢复完后再按 slots 对账：checkpoint 里已过点的生成 timer
+    // 无法重建支架，回滚也需要让已触发的支架重新出现。
+    TileItemManager.Instance.reconcileStandEntities();
     this.lastRestoreReport = report;
     if (!report.ok || report.missing.length > 0 || report.errors.length > 0) {
       console.warn("[CombatManager] restoreState incomplete", {
