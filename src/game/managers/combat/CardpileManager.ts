@@ -457,17 +457,19 @@ export default class CardpileManager extends BaseManager {
       return;
     }
 
-    // 选择星星碎片
-    this.prePlantPid = null;
-    this.useStarShards = false;
-    this.usePickaxe = false;
-
     // 如果自己有多余的星之碎片，那么才允许选择
     if (!ResourceManager.Instance.StarShardsSufficient(1, 'mine')) {
+      // 碎片不足只提示、不改当前选中态：
+      // 之前这里先把 prePlantPid / usePickaxe 清成 false 再 return，
+      // 但不发任何事件，CursorManager 的光标和格子高亮就停住不动了
+      // （表现为按 W 之后铲子/植物预览不再跟随鼠标）。
       PlantsManager.Instance.EventBus.emit('onStarshardsInsufficient');
       return;
     }
 
+    // 选择星星碎片（切换选中态由 onChosenStarShards 通知视图切换光标）
+    this.prePlantPid = null;
+    this.usePickaxe = false;
     this.useStarShards = true;
     this.EventBus.emit('onChosenStarShards');
   }

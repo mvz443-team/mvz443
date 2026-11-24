@@ -38,6 +38,33 @@ type HighlightPart = {
 /** 会悬浮高亮目标植物的工具。 */
 type TargetGlowMode = 'starshards' | 'pickaxe';
 
+/** 可被拖到格子上使用的卡槽对象。 */
+export type DragKind = 'plant' | 'pickaxe' | 'starshards';
+
+/**
+ * 按下卡槽后登记的候选拖拽。
+ *
+ * 先登记、移动超过阈值才真正进入拖拽：轻点卡片仍然是原来的"选中"交互，
+ * 只有明确拖出卡槽才按拖放落地，两种手势互不干扰。
+ */
+type DragPress = {
+  kind: DragKind;
+  pid: number;
+  level: number;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  /** 拖拽时随手走的卡面幽灵（只对卡片有，工具用自身的光标精灵）。 */
+  ghostTexture?: string;
+  ghostWidth?: number;
+  ghostHeight?: number;
+};
+
+/** 指针从按下点移动超过该距离（CSS 像素）才判定为拖拽。 */
+const DRAG_START_DISTANCE = 10;
+/** 拖拽幽灵相对手指上移的比例：避免卡片被手指整个盖住。 */
+const DRAG_GHOST_LIFT = 0.45;
+
 export default class CursorManager extends BaseManager {
   private static _instance: CursorManager;
   protected scene: Game | null = null;
@@ -67,12 +94,56 @@ export default class CursorManager extends BaseManager {
   prevRow: number = -1;
   prevMovementTime = 0;
   UPDATE_INTERVAL = 50;
+
+  /** 按下卡槽但还没拖出卡槽的候选手势。 */
+  private dragPress: DragPress | null = null;
+  /** 是否已进入拖拽：此时选中态由拖拽持有，抬起时在格子上落地。 */
+  private draggingCard = false;
+  /** 拖拽中的卡面幽灵（纯表现，跟随指针）。 */
+  private dragGhost: Phaser.GameObjects.Image | null = null;
+
   private readonly handlePointerMove = (pointer: Phaser.Input.Pointer) => {
+    this.updateDragPress(pointer);
     this.onMouseMoveEvent(pointer);
   };
   private readonly handlePointerUp = (pointer: Phaser.Input.Pointer) => {
+    // 只跟踪发起按下的那根指针，其它指针（多点触控）仍走普通点击流程。
+    if (this.dragPress && pointer.id === this.dragPress.pointerId) {
+      if (this.draggingCard) {
+        this.finishCardDrag(pointer);
+        return;
+      }
+      // 没拖出卡槽就松手：交回卡片自身的点击流程处理。
+      this.clearDragPress();
+      return;
+    }
     if (pointer.leftButtonReleased()) {
       this.onClickUp(pointer);
+    }
+  };
+  /**
+   * 新的按下开始 = 上一轮手势结束。
+   *
+   * 卡槽控件自身会 `stopPropagation`，所以这里的 pointerdown 只会在"按在网格 /
+   * 空白处"时触发；用它兜底清掉可能因释放事件被别的 UI 吞掉而残留的拖拽状态。
+   * 若发起拖拽的那根手指仍按着（多点触控下的第二根手指），则不能中断它。
+   */
+  private readonly handlePointerDown = () => {
+    const press = this.dragPress;
+    if (press) {
+      const tracked = this.scene?.input.manager.pointers[press.pointerId];
+      if (tracked?.isDown) return;
+    }
+    this.clearDragPress();
+  };
+  /** 指针在画布外松开：拖拽作废，避免手势与选中态残留。 */
+  private readonly handlePointerUpOutside = () => {
+    if (!this.dragPress) return;
+    const wasDragging = this.draggingCard;
+    this.clearDragPress();
+    if (wasDragging) {
+      this.changeCursorMode({ mode: 'default' });
+      CardpileManager.Instance.cancelSelection();
     }
   };
 
@@ -84,6 +155,8 @@ export default class CursorManager extends BaseManager {
   public Load(): void {
     this.scene?.input.on('pointermove', this.handlePointerMove);
     this.scene?.input.on('pointerup', this.handlePointerUp);
+    this.scene?.input.on('pointerdown', this.handlePointerDown);
+    this.scene?.input.on('pointerupoutside', this.handlePointerUpOutside);
 
     CardpileManager.Instance.EventBus.on('onChosenCard', this.handleChosenCard);
     CardpileManager.Instance.EventBus.on('onChosenPickaxe', this.handleChosenPickaxe);
@@ -115,6 +188,9 @@ export default class CursorManager extends BaseManager {
   public Reset() {
     this.scene?.input.off('pointermove', this.handlePointerMove);
     this.scene?.input.off('pointerup', this.handlePointerUp);
+    this.scene?.input.off('pointerdown', this.handlePointerDown);
+    this.scene?.input.off('pointerupoutside', this.handlePointerUpOutside);
+    this.clearDragPress();
     CardpileManager.Instance.EventBus.off('onChosenCard', this.handleChosenCard);
     CardpileManager.Instance.EventBus.off('onChosenPickaxe', this.handleChosenPickaxe);
     CardpileManager.Instance.EventBus.off('onChosenStarShards', this.handleChosenStarShards);
@@ -181,10 +257,196 @@ export default class CursorManager extends BaseManager {
     this.changeCursorMode({ mode: 'default' });
   }
 
+  /**
+   * 卡槽按下时登记"候选拖拽"（由卡片 / 铲子 / 星碎按钮的 pointerdown 调用）。
+   *
+   * 移动端手感：手指按住卡槽直接拖到格子上松手即可种植 / 铲除 / 使用星碎，
+   * 不必再"先点卡片、再点格子"。轻点不动仍然是原有的选中交互：
+   * 只有位移超过 `DRAG_START_DISTANCE` 才会真正进入拖拽。
+   */
+  public beginCardDragPress(
+    kind: DragKind,
+    pointer: Phaser.Input.Pointer,
+    pid: number = -1,
+    level: number = 1,
+    ghost?: { texture: string; width: number; height: number },
+  ) {
+    if (!this.scene) return;
+    if (this.draggingCard) return;
+    this.dragPress = {
+      kind,
+      pid,
+      level,
+      pointerId: pointer.id,
+      startX: pointer.x,
+      startY: pointer.y,
+      ghostTexture: ghost?.texture,
+      ghostWidth: ghost?.width,
+      ghostHeight: ghost?.height,
+    };
+  }
+
+  /**
+   * 卡槽控件收到 pointerup：结束本轮拖拽判定。
+   *
+   * 返回 `true` 表示刚才确实处于拖拽中（松手正好落在某个卡槽控件上），
+   * 此时不能再当成"点击该卡槽"处理——否则拖拽途中划过的卡片会被误选。
+   * 手势结束、状态必须清干净，否则残留的 `draggingCard` 会让下一次按下无法开始新的拖拽。
+   */
+  public endCardDragPress(): boolean {
+    const wasDragging = this.draggingCard;
+    this.clearDragPress();
+    if (wasDragging) {
+      // 拖拽落在卡槽上（而不是格子上）：与"拖到网格外"一致，撤销这次拖拽。
+      this.changeCursorMode({ mode: 'default' });
+      CardpileManager.Instance.cancelSelection();
+    }
+    return wasDragging;
+  }
+
+  private clearDragPress() {
+    this.dragPress = null;
+    this.draggingCard = false;
+    this.hideDragGhost();
+  }
+
+  /** 按住卡槽移动超过阈值 → 真正开始拖拽。 */
+  private updateDragPress(pointer: Phaser.Input.Pointer) {
+    const press = this.dragPress;
+    if (!press) return;
+    if (pointer.id !== press.pointerId) return;
+
+    if (this.draggingCard) {
+      this.moveDragGhost(pointer);
+      return;
+    }
+
+    if (!this.movedBeyondDragThreshold(pointer, press)) return;
+
+    if (!this.armCardSelection(press)) {
+      this.clearDragPress();
+      return;
+    }
+    this.draggingCard = true;
+    this.showDragGhost(press, pointer);
+  }
+
+  /**
+   * 位移是否超过拖拽阈值。
+   *
+   * 指针坐标是游戏坐标，画布可能被 CSS 非等比拉伸（移动端竖屏尤其明显），
+   * 直接比较游戏坐标会让横向阈值小得离谱——手指刚按下就被判成拖拽。
+   * 这里先换算成 CSS 像素再比较，保证不同机型上手感一致。
+   */
+  private movedBeyondDragThreshold(pointer: Phaser.Input.Pointer, press: DragPress): boolean {
+    let dx = pointer.x - press.startX;
+    let dy = pointer.y - press.startY;
+    const scale = this.scene?.scale;
+    const canvas = scale?.game?.canvas as HTMLCanvasElement | undefined;
+    const cssWidth = canvas?.clientWidth ?? 0;
+    const cssHeight = canvas?.clientHeight ?? 0;
+    if (scale && cssWidth > 0 && cssHeight > 0 && scale.gameSize.width > 0 && scale.gameSize.height > 0) {
+      dx = (dx * cssWidth) / scale.gameSize.width;
+      dy = (dy * cssHeight) / scale.gameSize.height;
+    }
+    return dx * dx + dy * dy >= DRAG_START_DISTANCE * DRAG_START_DISTANCE;
+  }
+
+  /** 拖拽中的卡面幽灵：跟随手指并抬高一点，避免被手指盖住。 */
+  private showDragGhost(press: DragPress, pointer: Phaser.Input.Pointer) {
+    if (!this.scene || !press.ghostTexture) return;
+    this.hideDragGhost();
+    // 幽灵必须压在卡槽栏之上：移动端侧边栏是 ui 层的不透明面板，
+    // 排在 chrome 之下的精灵在手指还没拖出侧边栏时就完全看不见。
+    const ghost = this.scene.add.image(pointer.x, pointer.y, press.ghostTexture)
+      .setDepth(DepthHelper.UI.chromeControl() + 8)
+      .setAlpha(0.9);
+    if (press.ghostWidth && press.ghostHeight) {
+      ghost.setDisplaySize(press.ghostWidth, press.ghostHeight);
+    }
+    this.dragGhost = ghost;
+    this.moveDragGhost(pointer);
+  }
+
+  private moveDragGhost(pointer: Phaser.Input.Pointer) {
+    const ghost = this.dragGhost;
+    if (!ghost || !ghost.scene) return;
+    ghost.setPosition(pointer.x, pointer.y - ghost.displayHeight * DRAG_GHOST_LIFT);
+  }
+
+  private hideDragGhost() {
+    if (this.dragGhost) {
+      this.dragGhost.destroy();
+      this.dragGhost = null;
+    }
+  }
+
+  /**
+   * 拖拽开始时把卡槽切到选中态，之后完全复用既有的跟随 / 高亮 / 落地逻辑：
+   * 预览看到的目标就是松手后真正作用的目标。
+   */
+  private armCardSelection(press: DragPress): boolean {
+    const choice = CardpileManager.Instance;
+    if (press.kind === 'plant') {
+      if (choice.prePlantPid?.[0] !== press.pid) {
+        choice.ClickCard(press.pid, press.level);
+      }
+      return choice.prePlantPid?.[0] === press.pid;
+    }
+    if (press.kind === 'pickaxe') {
+      if (!choice.usePickaxe) choice.ClickPickaxe();
+      return choice.usePickaxe;
+    }
+    if (!choice.useStarShards) choice.ClickStarShards();
+    return choice.useStarShards;
+  }
+
+  /** 拖拽松手：落在格子上就按点击同一套路径落地，落在网格外则取消。 */
+  private finishCardDrag(pointer: Phaser.Input.Pointer) {
+    this.clearDragPress();
+    if (!this.scene) return;
+
+    if (!this.isPointerOnGrid(pointer)) {
+      // 拖到网格外松手：直接撤销选中，避免留下"看不见但仍选中"的卡槽。
+      this.changeCursorMode({ mode: 'default' });
+      CardpileManager.Instance.cancelSelection();
+      return;
+    }
+    this.onClickUp(pointer);
+  }
+
+  private isPointerOnGrid(pointer: Phaser.Input.Pointer): boolean {
+    if (!this.scene) return false;
+    const worldPoint = this.scene.getBattleWorldPoint(pointer);
+    const { col, row } = PositionManager.Instance.GetGridByPos(worldPoint.x, worldPoint.y);
+    return col >= 0 && row >= 0;
+  }
+
+  /**
+   * 兜底校正光标与选中态。
+   *
+   * 选中态可能在别处被清空（资源不足、逻辑层取消），只要没走 `onCancelChosen`，
+   * 光标精灵 / 格子预览就会停在原地不再跟随鼠标。这里在每次移动时对齐一次，
+   * 保证"有选中才有光标"，不会卡住。
+   */
+  private syncCursorWithSelection(choice: CardpileManager) {
+    if (this.pickaxeSprite?.visible && !choice.usePickaxe) {
+      this.pickaxeSprite.setVisible(false);
+    }
+    if (this.starSprite?.visible && !choice.useStarShards) {
+      this.starSprite.setVisible(false);
+    }
+    const idle = choice.prePlantPid === null && !choice.usePickaxe && !choice.useStarShards;
+    if (idle && (this.highlightSprite || this.glowSprites.length > 0)) {
+      this.stopHighlight();
+    }
+  }
+
   public onMouseMoveEvent(pointer: Phaser.Input.Pointer) {
     if (!this.scene || !this.pickaxeSprite || !this.starSprite) return;
 
     const choice = CardpileManager.Instance;
+    this.syncCursorWithSelection(choice);
 
     if (choice.usePickaxe) {
       const currentX = this.pickaxeSprite.x;

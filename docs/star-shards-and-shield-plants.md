@@ -16,15 +16,18 @@
    南瓜头（Pumpkin）这种"包裹型护盾"是例外——它自己也能吃能量豆，
    玩家要把它和内部植物区分开，靠的是"点外壳还是点内部植物"。
 
-本作差异：我们是**点选**模式（`StarShardsPanelView` → `CursorManager` 跟随指针 → 点格子），
-没有拖拽，但第 2~5 条同样适用。
+本作支持**点选**与**拖放**两种等效操作（第 2~5 条同样适用）：
+
+- 点选：`StarShardsPanelView` → `CursorManager` 跟随指针 → 点格子；
+- 拖放：按住星之碎片槽位直接拖到植物上松手（`CursorManager.beginCardDragPress`）。
 
 ## 2. 我们落地的交互
 
 | PvZ2 行为 | 本作实现 |
 | --- | --- |
 | 点选能量豆后指针跟随 | `CursorManager.starSprite` 缓动跟随（已有） |
-| 悬浮显示"将作用于谁" | **新增**：目标植物白色加色发光 + 白色描边呼吸（`CursorManager.updateStarShardsHighlight`） |
+| 拖拽星之碎片到植物身上 | **新增**：卡槽按下登记候选拖拽，位移超过阈值后接管选中态，松手走与点选完全相同的落地路径 |
+| 悬浮显示"将作用于谁" | 目标植物白色加色发光 + 白色描边呼吸（`CursorManager.updateTargetHighlight`） |
 | 预览与生效必须一致 | 预览与 `PlantsManager.handleAttemptUseStarShards` 共用 `PlantHelper.GetStarShardsTarget` |
 | 没有合法目标不强给 | 目标为 `null` 时清掉高亮，点击也不会扣碎片 |
 | 一次一个目标 | 单次 `LaunchStarShards` 只作用于一个 `pid` |

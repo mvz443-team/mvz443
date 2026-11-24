@@ -1,5 +1,6 @@
 import DepthHelper from "../utils/helper/DepthHelper";
 import CardpileManager from "../managers/combat/CardpileManager";
+import CursorManager from "../managers/combat/CursorManager";
 import PlantsManager from "../managers/combat/PlantsManager";
 import ResourceManager from "../managers/combat/ResourceManager";
 import type { Game } from "../scenes/Game";
@@ -87,9 +88,16 @@ export class StarShardsPanelView {
     const hitZone = scene.add.zone(0, 0, width, height)
       .setOrigin(0)
       .setInteractive({ useHandCursor: true });
-    hitZone.on("pointerdown", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => stopInput(event));
+    hitZone.on("pointerdown", (pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+      stopInput(event);
+      if (this.starShards <= 0) return;
+      if (!CardpileManager.Instance.CouldOperateCardpile()) return;
+      // 移动端手感：按住星之碎片直接拖到植物上松手即可使用。
+      CursorManager.Instance.beginCardDragPress("starshards", pointer);
+    });
     hitZone.on("pointerup", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       stopInput(event);
+      if (CursorManager.Instance.endCardDragPress()) return;
       this.handleClick();
     });
     this.container.add(hitZone);

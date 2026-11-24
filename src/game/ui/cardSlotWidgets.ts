@@ -2,6 +2,7 @@ import type { Game } from "../scenes/Game";
 import DepthHelper from "../utils/helper/DepthHelper";
 import { PositionManager } from "../managers/view/PositionManager";
 import CardpileManager from "../managers/combat/CardpileManager";
+import CursorManager from "../managers/combat/CursorManager";
 import ResourceManager from "../managers/combat/ResourceManager";
 import PlantsManager from "../managers/combat/PlantsManager";
 import { PlantLibrary } from "../managers/library/PlantLibrary";
@@ -407,22 +408,30 @@ export class PlantCardView {
       this.tooltip?.setVisible(true);
     });
     this.hitZone.on("pointerout", () => {
-      if (this.frame === "mobile-square") {
-        return;
-      }
+      // 移动端没有 hover，但按下后把手指拖出卡槽时也要复位按压缩放，
+      // 否则拖拽种植后卡片会一直停在缩小状态（不再收到 pointerup）。
       this.hovered = false;
       this.applyScale();
       this.tooltip?.setVisible(false);
     });
-    this.hitZone.on("pointerdown", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+    this.hitZone.on("pointerdown", (pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       stopInput(event);
       if (this.canPress()) {
         this.container.setScale(0.97);
+        // 移动端手感：按住卡片直接拖到格子上松手即可种植。
+        CursorManager.Instance.beginCardDragPress("plant", pointer, this.pid, this.level, {
+          texture: this.artTextureKey,
+          width: this.width,
+          height: this.height,
+        });
       }
     });
     this.hitZone.on("pointerup", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       stopInput(event);
+      // 拖拽结束时松手正好落在卡槽上：只结束手势，不再当作点击。
+      const wasDragging = CursorManager.Instance.endCardDragPress();
       this.applyScale();
+      if (wasDragging) return;
       this.handleClick();
     });
     this.draw();
@@ -825,21 +834,23 @@ export class ToolButtonView {
       this.applyScale();
     });
     hitZone.on("pointerout", () => {
-      if (!this.allowHover) {
-        return;
-      }
+      // 移动端没有 hover，但拖出工具按钮后必须复位按压缩放。
       this.hovered = false;
       this.applyScale();
     });
-    hitZone.on("pointerdown", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+    hitZone.on("pointerdown", (pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       stopInput(event);
       if (CardpileManager.Instance.CouldOperateCardpile()) {
         this.container.setScale(0.97);
+        // 移动端手感：按住铲子直接拖到植物上松手即可铲除。
+        CursorManager.Instance.beginCardDragPress("pickaxe", pointer);
       }
     });
     hitZone.on("pointerup", (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       stopInput(event);
+      const wasDragging = CursorManager.Instance.endCardDragPress();
       this.applyScale();
+      if (wasDragging) return;
       CardpileManager.Instance.ClickPickaxe();
     });
     this.draw();
