@@ -3,7 +3,13 @@ import type { GameDeviceType } from "./gameLayout";
 export const MAX_CARD_SLOTS = 15;
 export const MOBILE_CARD_ROWS = 8;
 export const MOBILE_HEADER_ROWS = 1;
-/** 单列最大行数（表头 + 8 张卡）。实际行数由 `getMobileCardSlotRows` 按卡组数量决定。 */
+/**
+ * 单列固定行数（表头 + 8 张卡），不随卡组数量变化。
+ *
+ * 行数一旦跟着卡片数量变，行高就会跟着变：卡少时每张卡被拉高、卡多时又变矮，
+ * 而且底部没有占位。固定 9 行后，每行高度恒为「卡片区可用高度 / 9」，
+ * 卡片不足 8 张时多出来的行就是占位空白。
+ */
 export const MOBILE_GRID_ROWS = MOBILE_HEADER_ROWS + MOBILE_CARD_ROWS;
 export const MOBILE_PRIMARY_CARD_SLOTS = MOBILE_CARD_ROWS;
 export const MOBILE_PRIMARY_COLUMN = 0;
@@ -113,16 +119,13 @@ export function getPcCardSlotChromeLayout(
 }
 
 /**
- * 移动端卡槽列实际需要的行数：1 行表头（能量 / 镐子）+ 卡片行数。
+ * 移动端卡槽列行数：固定 `MOBILE_GRID_ROWS`。
  *
- * 卡片行数按两列中较满的一列算，卡组少于 8 张时行数随之减少，
- * 让每张卡把卡片区的可用高度吃满，而不是固定按 9 行均分后底部留空。
+ * 卡组数量只决定占用前几行，不再压缩行数——行数变了行高就会变，
+ * 卡少时卡片会被拉成大方块，且底部不再有占位空白。
  */
-export function getMobileCardSlotRows(cardCount: number): number {
-  const count = clampCardCount(cardCount);
-  const primaryCount = Math.min(MOBILE_PRIMARY_CARD_SLOTS, count);
-  const expansionCount = Math.max(0, count - MOBILE_PRIMARY_CARD_SLOTS);
-  return MOBILE_HEADER_ROWS + Math.max(1, primaryCount, expansionCount);
+export function getMobileCardSlotRows(): number {
+  return MOBILE_GRID_ROWS;
 }
 
 export function getMobileCardSlotChromeLayout(
@@ -138,7 +141,7 @@ export function getMobileCardSlotChromeLayout(
     (bounds.width - padding * 2 - gap) / 2,
   );
   const slotWidth = Math.max(1, Math.floor(laneWidth));
-  const rows = getMobileCardSlotRows(count);
+  const rows = getMobileCardSlotRows();
   const headerY = bounds.y + padding;
   const expansionX = bounds.x + padding;
   const primaryX = expansionX + slotWidth + gap;
@@ -212,7 +215,8 @@ export function getMobileCardSlotChromeLayout(
     },
     cards: {
       slots,
-      rowCount: Math.max(1, primaryCount, expansionCount),
+      // 行数固定，未使用的行即占位空白。
+      rowCount: MOBILE_CARD_ROWS,
       columnCount: expansionCount > 0 ? 2 : 1,
     },
   };

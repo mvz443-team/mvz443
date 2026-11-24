@@ -61,7 +61,7 @@ function getMobileSideBarBounds(chrome: GameSceneChromeLayout): Rect {
 /**
  * 移动端侧边栏布局。
  *
- * `slotWidth` / `slotHeight` 直接取自卡槽排布（行数随卡组数量自适应），
+ * `slotWidth` / `slotHeight` 直接取自卡槽排布（固定 9 行均分卡片区高度），
  * 避免这里和 `getMobileCardSlotChromeLayout` 各算一份、卡少时对不上。
  */
 export function getMobileSideBarLayout(
