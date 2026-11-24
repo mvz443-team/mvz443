@@ -21,13 +21,19 @@ export default function ResourceGateDialog() {
   const [error, setError] = useState<string | null>(null);
   const busyRef = useRef(false);
 
+  // 只在资源门禁真正盖住画面时才吞掉 Esc。平时常驻监听会在冒泡阶段
+  // preventDefault，Phaser 的 KeyboardManager 会直接丢弃 defaultPrevented
+  // 的事件，导致游戏内 Esc（暂停菜单）失效。
+  const gateVisible = status.loading || status.gateRequired;
+
   useEffect(() => {
+    if (!gateVisible) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') event.preventDefault();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [gateVisible]);
 
   if (status.loading) {
     return (
