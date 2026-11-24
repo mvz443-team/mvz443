@@ -23,6 +23,15 @@ import {
  * 计时器的 kind/args 进快照 + 哈希，重连/回滚后由工厂重建回调，保证 desync 安全。
  */
 
+/**
+ * 到账金额规范化：与 timer 工厂的 Number(args.amount) 解析、canonicalize 的
+ * 有限数检查保持一致，保证正常到账与 checkpoint 重建到账拿到完全相同的数值。
+ */
+function sanitizeAmount(amount: number): number {
+  const n = Number(amount);
+  return Number.isFinite(n) ? n : 0;
+}
+
 /** 把 col/row 或 x/y 起点解析成世界坐标。 */
 function resolveOriginWorld(origin: ResourceSfxCfg["origin"]): { x: number; y: number } {
   if (origin && typeof origin.x === "number" && typeof origin.y === "number") {
@@ -51,10 +60,12 @@ namespace ResourceCmd {
   export function AddEnergyToAllWithAnim(amount: number, sfxCfg?: ResourceSfxCfg): void {
     if (amount <= 0) return;
     playEnergyAnimation(amount, sfxCfg);
-    const args: AddResourceTimerArgs = { amount };
+    // 到账金额只以 JSON 安全的 args 为唯一数据源：闭包路径与 checkpoint/factory
+    // 重建路径读同一份 args，杜绝"原始浮点值"与"JSON 往返值"在某端不一致。
+    const args: AddResourceTimerArgs = { amount: sanitizeAmount(amount) };
     TickerManager.Instance.delayedCall({
       delay: RESOURCE_GAIN_DELAY_MS,
-      callback: () => AddEnergyToAll(amount),
+      callback: () => AddEnergyToAll(args.amount),
       snapshot: { kind: RESOURCE_ADD_ENERGY_TIMER, args: args as unknown as JsonValue },
     });
   }
@@ -65,10 +76,10 @@ namespace ResourceCmd {
   export function AddStarshardToAllWithAnim(amount: number, sfxCfg?: ResourceSfxCfg): void {
     if (amount <= 0) return;
     playStarShardAnimation(amount, sfxCfg);
-    const args: AddResourceTimerArgs = { amount };
+    const args: AddResourceTimerArgs = { amount: sanitizeAmount(amount) };
     TickerManager.Instance.delayedCall({
       delay: RESOURCE_GAIN_DELAY_MS,
-      callback: () => AddStarshardToAll(amount),
+      callback: () => AddStarshardToAll(args.amount),
       snapshot: { kind: RESOURCE_ADD_STARSHARD_TIMER, args: args as unknown as JsonValue },
     });
   }

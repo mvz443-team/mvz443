@@ -213,7 +213,10 @@ export default class ResourceManager extends BaseManager {
 
   public UpdateEnergy(energyDelta: number, playerId: PlayerIdentify | 'mine' | 'all') {
     if (playerId === 'all') {
-      for (let pid of this.EnergyMaps.keys()) {
+      // 按 pid 排序遍历：Map 的插入顺序在两端可能因操作/回滚顺序不同而不同，
+      // 而递归 UpdateEnergy 会触发 EnsurePlayerResources 与 emit，顺序必须确定性。
+      const pids = [...this.EnergyMaps.keys()].sort((a, b) => a - b);
+      for (const pid of pids) {
         this.UpdateEnergy(energyDelta, pid);
       }
       return;
@@ -231,7 +234,9 @@ export default class ResourceManager extends BaseManager {
 
   public UpdateStarShards(starShardsDelta: number, playerId: PlayerIdentify | 'mine' | 'all') {
     if (playerId === 'all') {
-      for (let pid of this.StarShardsMaps.keys()) {
+      // 同 UpdateEnergy：按 pid 排序遍历，避免插入顺序引起的确定性差异。
+      const pids = [...this.StarShardsMaps.keys()].sort((a, b) => a - b);
+      for (const pid of pids) {
         this.UpdateStarShards(starShardsDelta, pid);
       }
       return;

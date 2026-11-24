@@ -443,9 +443,22 @@ export abstract class MonsterModel extends LogicModel {
     if (this.isFrozen || !this.canStartAttack(target)) return false;
 
     const current = entity.attacking as unknown as { col?: number; row?: number } | null;
-    if (current && typeof current.col === "number" && typeof (target as any).col === "number"
-      && PlantHelper.IsMorePriorityPlant(current as any, target as any)) {
-      this.stopAttacking(entity);
+    if (current && this.isValidAttackTarget(current as unknown as BaseEntity)) {
+      const targetCell = target as unknown as { col?: number; row?: number };
+      const sameCell = typeof current.col === "number" && typeof current.row === "number"
+        && current.col === targetCell.col && current.row === targetCell.row;
+      if (!sameCell) {
+        // 已锁定目标且新接触来自别的格子：不得抢占。
+        // 僵尸啃食时会与右邻格（n+1）的新植物产生 overlap-start，如果让
+        // "护盾/粉尘优先级"跨格生效，n+1 列的南瓜护照就会抢走正在啃 n 列
+        // 的僵尸。攻击优先级只在同一格内比较；同格目标仍由下面的逻辑按
+        // IsMorePriorityPlant 决定是否替换（护盾/粉尘抢占同格普通植物）。
+        // 当前目标消失后，由 onAttackTargetDestroyed 接力或恢复行走后再碰撞建目标。
+        return false;
+      }
+      if (PlantHelper.IsMorePriorityPlant(current as any, target as any)) {
+        this.stopAttacking(entity);
+      }
     }
 
     entity.attacking = target as any;
@@ -537,10 +550,16 @@ export abstract class MonsterModel extends LogicModel {
   }
 
   /**
-   * 一次性接触重检：把「死掉的那一格」与「自己当前所在格」的植物收集起来。
+   * 一次性接触重检：优先在「死掉的那一格」内找接替目标；该格空了才退到
+   * 「自己当前所在格」。
    *
-   * 两格都要扫：僵尸啃植物时身体中心通常落在目标格的右邻格，
-   * 只按自己的格子找会漏；而目标被别的路径清空时又只剩自己的格子可用。
+   * 两格都要考虑，但**有严格的先后**：攻击优先级只与同格有关。僵尸啃 n 列
+   * 植物时身体中心常落在 n+1 格，若把两格的植物混在一起按 attackTargetRank
+   * 全局挑选，n+1 列刚种的护盾（pid 19，rank 0）就会抢走 n 列内部植物。
+   * 正确顺序是：n 列还有植物就接力 n 列（同格护盾/内部植物）；n 列空了才
+   * 考虑自己身体所在格（通常是 n+1），实现"之后才攻击 n+1 列"。
+   * 同时保留 selfCell 兜底，避免僵尸已经与某植物重叠、Rapier 不再派发
+   * overlap-start 而直接走过去。
    */
   private pickContactTarget(entity: MonsterEntity, destroyed: BaseEntity | null): PlantEntity | null {
     const cells: Array<{ col: number, row: number }> = [];
@@ -553,20 +572,66 @@ export abstract class MonsterModel extends LogicModel {
       cells.push({ col: selfCell.col, row: selfCell.row });
     }
 
+    // 行进方向上紧邻的前方格：僵尸啃 n+1 列时身体中心常落在 n+1 格，但碰撞盒
+    // 已经伸进 n 格；n+1 植物死亡后若只扫「死格 + 自身格」会漏掉仍存活且与身体
+    // 重叠的 n 列植物，导致僵尸 stopAttacking → startMove 时没有新的 overlap-start
+    // 事件，直接走过 n 列植物。这里把前方格作为兜底候选补上一次确定性扫描。
+    // 只取紧邻一格（向左走 speed>0 → col-1；向右走 speed<0 → col+1），不倒退。
+    let forwardCell: { col: number; row: number } | null = null;
+    if (selfCell.col >= 0 && selfCell.row >= 0) {
+      const forwardCol = this.speed < 0 ? selfCell.col + 1 : selfCell.col - 1;
+      if (forwardCol >= 0 && forwardCol < PositionManager.Instance.Col_Number) {
+        forwardCell = { col: forwardCol, row: selfCell.row };
+      }
+    }
+    const forwardKey = forwardCell ? `${forwardCell.col}-${forwardCell.row}` : null;
+
     const visited = new Set<string>();
-    const candidates: PlantEntity[] = [];
+    // 逐格收集：先死的格、再自身格。某一格已有候选就立即返回该格的最优者，
+    // 不让后续格子的更高优先级植物跨格抢占（攻击优先级只与同格有关）。
     for (const cell of cells) {
       const key = `${cell.col}-${cell.row}`;
       if (visited.has(key)) continue;
       visited.add(key);
+      const cellCandidates: PlantEntity[] = [];
       for (const plant of PlantHelper.GetPlantsInGrid(cell.col, cell.row)) {
         if ((plant as unknown as BaseEntity) === destroyed) continue;
-        if (candidates.includes(plant)) continue;
         if (!this.canStartAttack(plant)) continue;
-        candidates.push(plant);
+        cellCandidates.push(plant);
       }
+      const best = this.pickBestCandidate(cellCandidates);
+      if (best) return best;
     }
-    return this.pickBestCandidate(candidates);
+
+    // 前面两格都空：最后扫前方格，但要求僵尸碰撞盒与植物真实重叠，
+    // 避免选中还没碰到的更前方植物；同样逐格返回，不做跨格优先级比较。
+    if (forwardCell && forwardKey && !visited.has(forwardKey)) {
+      const cellCandidates: PlantEntity[] = [];
+      for (const plant of PlantHelper.GetPlantsInGrid(forwardCell.col, forwardCell.row)) {
+        if ((plant as unknown as BaseEntity) === destroyed) continue;
+        if (!this.canStartAttack(plant)) continue;
+        if (!this.isCollidingWithCell(forwardCell, entity)) continue;
+        cellCandidates.push(plant);
+      }
+      return this.pickBestCandidate(cellCandidates);
+    }
+    return null;
+  }
+
+  /**
+   * 僵尸碰撞盒是否与某格植物真实重叠（用于前方兜底格的几何确认）。
+   * 植物 collider 半宽 GRID_SIZEX*0.375，僵尸半宽 GRID_SIZEX*0.1875，
+   * 两者中心水平距离小于半宽和即视为重叠；行必须相同。
+   */
+  private isCollidingWithCell(
+    cell: { col: number; row: number },
+    entity: MonsterEntity,
+  ): boolean {
+    if (cell.row !== entity.row) return false;
+    const pos = PositionManager.Instance;
+    const plantCenterX = pos.getGridCenter(cell.col, cell.row).x;
+    const overlapX = pos.GRID_SIZEX * 0.375 + pos.GRID_SIZEX * 0.1875;
+    return Math.abs(entity.x - plantCenterX) < overlapX;
   }
 
   /**
