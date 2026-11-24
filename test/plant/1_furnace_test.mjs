@@ -55,11 +55,21 @@ test("睡眠中的熔炉不产能", () => {
   assert.equal(ResourceCmd.calls.length, 0);
 });
 
-test("星之碎片一次性增加 450 能量", () => {
-  resetSim();
+test("星之碎片：450 拆分 4×large+1×medium 错峰播动画，900ms 后一次性到账", () => {
+  const sim = resetSim();
   const { model, entity } = spawnPlant(FurnaceData, { level: 1 });
 
   model.onStarShards(entity);
+  // 动画立即播：450 = 4×100 + 50 → large×4 + medium×1，错峰 160ms；到账尚未发生。
+  assert.equal(ResourceCmd.anims.length, 1);
+  assert.equal(ResourceCmd.anims[0].kind, "energy");
+  assert.equal(ResourceCmd.anims[0].amount, 450);
+  assert.equal(ResourceCmd.anims[0].sfxCfg.staggerMs, 160);
+  assert.ok(ResourceCmd.anims[0].sfxCfg.origin, "应携带起点坐标");
+  assert.deepEqual(ResourceCmd.calls, [], "到账应延迟，不立即发生");
+
+  // 推进 900ms（18 帧）后一次性到账 450（不按 SFX 数量分次）。
+  tick(sim, 900);
   assert.deepEqual(ResourceCmd.calls, [{ kind: "energy", amount: 450 }]);
 });
 

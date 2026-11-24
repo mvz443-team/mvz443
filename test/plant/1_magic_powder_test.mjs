@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   resetSim,
   applyInstantPlant,
+  tick,
   ProjectileCmd,
   ResourceCmd,
   SfxCmd,
@@ -30,15 +31,16 @@ import { MagicPowderData } from "../../src/game/presets/plant/chapter1/magic_pow
  *   GainStarShardSfx 只经 SfxCmd.Create 创建，不调用 ResourceCmd / UpdateStarShards，也不进快照。
  */
 
-test("Lv1 落地立即发射 1500 伤害激光并 +1 星碎，且不创建实体", () => {
-  resetSim();
+test("Lv1 落地立即发射 1500 伤害激光并 +1 星碎（延迟到账），且不创建实体", () => {
+  const sim = resetSim();
   applyInstantPlant(MagicPowderData, { level: 1 });
 
   assert.equal(ProjectileCmd.calls.length, 1);
   assert.equal(ProjectileCmd.calls[0].kind, "laser");
   assert.equal(ProjectileCmd.calls[0].cfg.damage, 1500);
   assert.equal(ProjectileCmd.calls[0].cfg.distance, 1.2);
-  assert.deepEqual(ResourceCmd.calls, [{ kind: "starshard", amount: 1 }]);
+  assert.deepEqual(ResourceCmd.calls, [], "星碎到账应延迟，不立即发生");
+  assert.equal(ResourceCmd.anims.length, 1, "应立即播星碎动画");
   assert.equal(getPlantsMap().size, 0, "一次性植物不进入 PlantsMap");
 
   const dropSfx = SfxCmd.calls.find((call) => call.name === "GainStarShardSfx");
@@ -47,6 +49,10 @@ test("Lv1 落地立即发射 1500 伤害激光并 +1 星碎，且不创建实体
   assert.equal(dropSfx.args.amount, 1);
   assert.equal(dropSfx.args.x, scatterSfx.args.x, "掉落起点为当前放置格子");
   assert.equal(dropSfx.args.y, scatterSfx.args.y, "掉落起点为当前放置格子");
+
+  // 推进 900ms 后到账。
+  tick(sim, 900);
+  assert.deepEqual(ResourceCmd.calls, [{ kind: "starshard", amount: 1 }]);
 });
 
 test("Lv9 激光伤害 2000", () => {

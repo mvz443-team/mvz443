@@ -7,6 +7,7 @@ import {
   tick,
   getPlantsMap,
   ResourceCmd,
+  PositionManager,
 } from "../harness/sim.mjs";
 import { ZombieData } from "../../src/game/presets/monster/zombie/zombie.ts";
 import { attackTargetRank } from "../../src/game/models/MonsterModel.ts";
@@ -82,16 +83,22 @@ test("血量降到阈值以下进入破损阶段", () => {
   assert.equal(entity.animController.raw.switchBodyFrame !== undefined, true);
 });
 
-test("携带星之碎片死亡后掉落给全场", () => {
-  resetSim();
+test("携带星之碎片死亡后掉落给全场（动画立即、900ms 后到账）", () => {
+  const sim = resetSim();
   const { model, entity } = spawnMob(ZombieData, { col: 8, row: 2 });
   model.addStarShards(entity, 1);
 
   model.takeDamage(entity, 300);
 
-  assert.deepEqual(ResourceCmd.calls, [{ kind: "starshard", amount: 1 }]);
+  // 动画立即播，到账延迟；死亡标记即时置位。
+  assert.equal(ResourceCmd.anims.length, 1);
+  assert.equal(ResourceCmd.anims[0].kind, "starshard");
+  assert.deepEqual(ResourceCmd.calls, []);
   assert.equal(model.starShardsDropped, true);
   assert.equal(model.carryStarShards, false);
+
+  tick(sim, 900);
+  assert.deepEqual(ResourceCmd.calls, [{ kind: "starshard", amount: 1 }]);
 });
 
 test("护盾植物被打碎后继续攻击同格的内部植物", () => {
@@ -337,4 +344,71 @@ test("死亡销毁由 Model 权威帧定时器驱动，不在表现层回调里�
   // 跨过 400ms 的 DeathSettle（第 8 帧）：Model 派发事件调用 host.destroy()。
   tick(sim, 50);
   assert.equal(entity.destroyed, true);
+});
+
+test("啃第 n 列植物时，第 n+1 列种高优先级护盾也不跨格抢占", () => {
+  const sim = resetSim();
+  const { model, entity } = spawnMob(ZombieData, { col: 8, row: 2 });
+  const plantN = makePlantTarget({ col: 7, row: 2, hp: 300, pid: 1 });
+  getPlantsMap().set("7-2", [plantN]);
+
+  assert.equal(model.tryStartAttack(entity, plantN), true);
+  assert.equal(entity.attacking, plantN);
+  const lockedId = model.attackingId;
+  const startsBefore = entity.moveCalls.filter((c) => c === "start").length;
+
+  // 第 n+1 列（col 8）种南瓜护照（护盾 pid19，优先级最高），制造 overlap-start。
+  const shieldN1 = makePlantTarget({ col: 8, row: 2, hp: 300, pid: 19 });
+  getPlantsMap().set("8-2", [shieldN1]);
+  assert.equal(model.tryStartAttack(entity, shieldN1), false, "跨格高优先级不得抢占");
+
+  assert.equal(entity.attacking, plantN, "应继续啃第 n 列");
+  assert.equal(model.attackingId, lockedId);
+  assert.equal(entity.moveCalls.filter((c) => c === "start").length, startsBefore, "不应恢复前进");
+
+  // 伤害仍落在第 n 列。
+  tick(sim, 200);
+  assert.ok(plantN.model.health < 300);
+  assert.equal(shieldN1.model.health, 300);
+});
+
+test("同格内护盾仍可抢占（抢占语义未被跨格守卫破坏）", () => {
+  const sim = resetSim();
+  const { model, entity } = spawnMob(ZombieData, { col: 8, row: 2 });
+  const plantN = makePlantTarget({ col: 7, row: 2, hp: 300, pid: 1 });
+  getPlantsMap().set("7-2", [plantN]);
+
+  assert.equal(model.tryStartAttack(entity, plantN), true);
+
+  // 同格（col 7）放护盾：应允许按优先级抢占。
+  const shieldSameCell = makePlantTarget({ col: 7, row: 2, hp: 300, pid: 19 });
+  assert.equal(model.tryStartAttack(entity, shieldSameCell), true);
+  assert.equal(entity.attacking, shieldSameCell);
+});
+
+test("啃 n+1 列时 n+1 死亡，不漏掉身体仍重叠的 n 列存活植物", () => {
+  const sim = resetSim();
+  const pm = PositionManager.Instance;
+  // 僵尸身体中心落在 n+1 格（col 7），但碰撞盒伸进 n 格（col 6）。
+  const { model, entity } = spawnMob(ZombieData, { col: 7, row: 2 });
+  const plantN1 = makePlantTarget({ col: 7, row: 2, hp: 100, pid: 1 });
+  const plantN = makePlantTarget({ col: 6, row: 2, hp: 300, pid: 1 });
+  getPlantsMap().set("7-2", [plantN1]);
+  getPlantsMap().set("6-2", [plantN]);
+
+  // 把僵尸 x 放到 n/n+1 边界刚过 n+1 一侧，使 GetGridByPos 返回 col 7，
+  // 但仍与 col 6 植物中心保持 < 45px 的碰撞重叠距离。
+  entity.x = pm.getGridTopLeft(7, 2).x + 2;
+  assert.equal(pm.GetGridByPos(entity.x, entity.y).col, 7, "前置条件：身体中心算作 n+1 格");
+  assert.ok(Math.abs(entity.x - pm.getGridCenter(6, 2).x) < pm.GRID_SIZEX * 0.5625,
+    "前置条件：碰撞盒与 col 6 植物重叠");
+
+  assert.equal(model.tryStartAttack(entity, plantN1), true);
+  plantN1.model.health = 0;
+  model.onAttackTargetDestroyed(entity, plantN1);
+
+  assert.equal(entity.attacking, plantN, "n+1 死后应接力到仍重叠的 n 列植物");
+  assert.equal(model.attackingId, plantN.SnapshotId);
+  assert.equal(model.isStop, true);
+  assert.equal(entity.moveCalls.filter((c) => c === "start").length, 0, "不应恢复前进跳过 n 列");
 });
