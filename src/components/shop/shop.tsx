@@ -6,6 +6,7 @@ import NewGoodLists from './goods';
 import { useSetState, useMount, useMemoizedFn } from 'ahooks';
 import { ShopDetail, ShopList } from './shop_tab';
 import BackpackTab from './backpack_tab';
+import CardUpgradeTab from './card_upgrade_tab';
 import { useLocaleMessages } from '../../hooks/useLocaleMessages';
 import { shopKey } from '../../i18n/keys';
 import { ArrowUpFromLine, ChevronLeft, ChevronRight, Coins, FlaskConical, Layers, Package } from 'lucide-react';
@@ -318,13 +319,26 @@ const ShopSelector: React.FC<ShopSelectorProps> = ({
     );
 };
 
+type InventoryTab = 'material' | 'card';
+
+interface InventoryPanelProps extends ShopSelectorProps {
+    /** 从图鉴跳转过来时要聚焦的卡片 pid。 */
+    focusCardPid?: number | null;
+}
+
 /** 独立的背包界面：商店与背包分离后由主菜单直接进入。 */
-export function InventoryPanel({ width, height, onBack }: ShopSelectorProps) {
+export function InventoryPanel({ width, height, onBack, focusCardPid }: InventoryPanelProps) {
     const gameManager = useSaveManager();
     const { translate } = useLocaleMessages();
     const [forceUpdate, setForceUpdate] = useState(0);
+    const [activeTab, setActiveTab] = useState<InventoryTab>(focusCardPid != null ? 'card' : 'material');
+    // 只用于首帧聚焦；消费后清空，避免切回卡片页时又把选中项拉回图鉴跳转的卡片。
+    const [focusOnMountPid, setFocusOnMountPid] = useState<number | null>(focusCardPid ?? null);
 
     useMount(() => {
+        if (focusOnMountPid !== null) {
+            setFocusOnMountPid(null);
+        }
         gameManager.loadProgress().then(() => setForceUpdate(value => value + 1)).catch(error => {
             console.error('加载失败:', error);
         });
@@ -336,6 +350,11 @@ export function InventoryPanel({ width, height, onBack }: ShopSelectorProps) {
         [gameManager, forceUpdate],
     );
     const goldItem = gameManager.currentProgress.items.get(1);
+
+    const tabs: Array<{ id: InventoryTab; labelKey: string }> = [
+        { id: 'material', labelKey: 'shop.inventory_tab_material' },
+        { id: 'card', labelKey: 'shop.inventory_tab_card' },
+    ];
 
     return (
         <div className="shop-root" style={{
@@ -355,10 +374,28 @@ export function InventoryPanel({ width, height, onBack }: ShopSelectorProps) {
                     {translate(shopKey('back'))}
                 </button>
                 <div className="shop-title">{translate(shopKey('inventory_title'))}</div>
+                <nav className="shop-nav">
+                    {tabs.map(tab => (
+                        <button
+                            key={tab.id}
+                            className={`shop-nav-item ${activeTab === tab.id ? 'active' : ''}`}
+                            onClick={() => setActiveTab(tab.id)}
+                        >
+                            {translate(tab.labelKey)}
+                        </button>
+                    ))}
+                </nav>
                 <GoldBadge amount={goldItem ? goldItem.count : 0} />
             </header>
             <div style={{ flex: 1, minHeight: 0, padding: '16px', boxSizing: 'border-box' }}>
-                <BackpackTab myItems={currentItems} />
+                {activeTab === 'material'
+                    ? <BackpackTab myItems={currentItems} />
+                    : (
+                        <CardUpgradeTab
+                            initialCardPid={focusOnMountPid}
+                            onProgressChanged={() => setForceUpdate(value => value + 1)}
+                        />
+                    )}
             </div>
             <style>
                 {`
@@ -378,11 +415,19 @@ export function InventoryPanel({ width, height, onBack }: ShopSelectorProps) {
                   }
                   .shop-back:hover { border-color: #e0b46e; color: #fff; }
                   .shop-title { font-size: 17px; font-weight: 800; letter-spacing: .08em; white-space: nowrap; }
+                  .shop-nav { margin-left: auto; display: flex; gap: 6px; }
+                  .shop-nav-item {
+                    padding: 7px 13px; border: 1px solid rgba(255,255,255,.15);
+                    background: rgba(0,0,0,.25); color: #c9c9c9; border-radius: 3px;
+                    cursor: pointer; font-size: 13px; transition: all .18s ease;
+                  }
+                  .shop-nav-item:hover { border-color: #e0b46e; color: #fff; }
+                  .shop-nav-item.active { border-color: #e0b46e; color: #fff; background: rgba(126,30,45,.62); }
                   .shop-gold {
                     display: flex; align-items: center; gap: 6px; padding: 7px 13px;
                     background: rgba(0,0,0,.35); border: 1px solid rgba(224,176,102,.45);
                     border-radius: 3px; color: #ffd86b; font-weight: 800; font-size: 15px;
-                    white-space: nowrap; margin-left: auto;
+                    white-space: nowrap;
                   }
                 `}
             </style>

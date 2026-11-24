@@ -25,7 +25,7 @@ import DepthHelper from "../../../utils/helper/DepthHelper";
 export class PumpkinPassportModel extends PlantModel {
   public override pid = 19;
   public override nameKey = 'name_pumpkin_passport';
-  public override descriptionKey = 'pumpkin_passport_description';
+  public override descriptionKey = 'pumpkin_passport_brief';
   public override texturePath = 'plant/pumpkin_passport';
 
   public maxHealth = new LevelScaledValue(2500);

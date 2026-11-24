@@ -52,7 +52,7 @@ export const BOUNCING_ANVIL_TIMING = {
 export class BouncingAnvilModel extends PlantModel {
   public override pid = 18;
   public override nameKey = "name_bouncing_anvil";
-  public override descriptionKey = "bouncing_anvil_description";
+  public override descriptionKey = "bouncing_anvil_brief";
   /** 暂无独立素材，当前贴图由黑曜石复制而来。 */
   public override texturePath = "plant/bouncing_anvil";
 

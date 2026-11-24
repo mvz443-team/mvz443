@@ -22,7 +22,7 @@ registerProjectileModel(FireBallModel.projectileKind, FireBallModel);
 export class SmallDispenserModel extends PlantModel {
   public override pid = 5;
   public override nameKey = 'name_small_dispenser';
-  public override descriptionKey = 'small_dispenser_description';
+  public override descriptionKey = 'small_dispenser_brief';
   public override texturePath = 'plant/small_dispenser';
 
   public maxHealth = new LevelScaledValue(300);

@@ -8,6 +8,8 @@ interface Props {
   width: number;
   height: number;
   onBack: () => void;
+  /** 打开背包卡片页并聚焦指定卡片。 */
+  onOpenInventory?: (pid: number) => void;
 }
 
 interface PreviewItem {
@@ -19,13 +21,14 @@ interface PreviewItem {
  * 器械图鉴：完全沿用现有图鉴（列表 / 详情 / 升级材料），
  * 只在右栏标题上方插入 Phaser 实战预览。
  */
-export default function PlantCodexPage({ width, height, onBack }: Props) {
+export default function PlantCodexPage({ width, height, onBack, onOpenInventory }: Props) {
   return (
     <Pokedex
       width={width}
       height={height}
       onBack={onBack}
       renderPreview={(item) => <PlantPreview item={item} />}
+      onOpenInventory={onOpenInventory}
     />
   );
 }

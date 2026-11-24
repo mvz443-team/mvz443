@@ -39,7 +39,7 @@ export const BALLOON_TNT_STAGE = {
 export class BalloonTntModel extends PlantModel {
   public override pid = 20;
   public override nameKey = 'name_balloon_tnt';
-  public override descriptionKey = 'balloon_tnt_description';
+  public override descriptionKey = 'balloon_tnt_brief';
   public override texturePath = 'plant/balloon_tnt';
 
   public maxHealth = new LevelScaledValue(450);

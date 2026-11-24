@@ -21,7 +21,7 @@ type BounceableProjectile = {
 export class ElasticPutinModel extends PlantModel {
   public override pid = 15;
   public override nameKey = 'name_elastic_putin';
-  public override descriptionKey = 'elastic_putin_description';
+  public override descriptionKey = 'elastic_putin_brief';
   public override texturePath = 'plant/elastic_putin';
 
   public maxHealth = new LevelScaledValue(300);

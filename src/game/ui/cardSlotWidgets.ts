@@ -8,6 +8,7 @@ import { PlantLibrary } from "../managers/library/PlantLibrary";
 import type { PlantModel } from "../models/PlantModel";
 import { translate } from "../../i18n";
 import { cardKey } from "../../i18n/keys";
+import { cardBaseName, cardTextKey } from "../../i18n/cardText";
 import {
   getPcCardSlotChromeLayout,
   type CardSlotChromeLayout,
@@ -483,11 +484,11 @@ export class PlantCardView {
     }
 
     const name = translate(cardKey(plantModel.nameKey));
-    const descriptionLines = translate(cardKey(plantModel.descriptionKey))
+    const brief = translate(cardTextKey.brief(cardBaseName(plantModel.nameKey)), { defaultValue: "" });
+    const summary = brief
       .split(/\r?\n/)
       .map((line) => line.trim())
-      .filter(Boolean);
-    const summary = descriptionLines.find((line) => !/^消耗\s*[:：]/.test(line)) ?? "";
+      .filter(Boolean)[0] ?? "";
     const text = this.scene.add.text(0, 0, summary ? `${name} · ${summary}` : name, {
       fontFamily: "Arial, sans-serif",
       fontSize: `${Math.max(11, Math.round(this.height * 0.12))}px`,

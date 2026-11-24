@@ -1,15 +1,15 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCreation, useMemoizedFn, useUpdateEffect, useSetState } from 'ahooks';
 import { useSaveManager } from '../../context/save_ctx';
 import { publicUrl } from '../../utils/browser';
-import type { GoodsItem } from '../../types/goods';
-import StuffList from '../shop/stuff_list';
-import { getUpgradeMaterials, MaterialRequirement } from '../../game/utils/sqlite/materials';
 import { useLocaleMessages } from '../../hooks/useLocaleMessages';
 import { cardKey } from '../../i18n/keys';
+import { cardBaseName, cardTextKey } from '../../i18n/cardText';
 import { PlantLibrary } from '../../game/managers/library/PlantLibrary';
-import LevelBadge from '../widget/levelBadge';
+import type { PlantModel } from '../../game/models/PlantModel';
 import { useDeviceType } from '../../hooks/useDeviceType';
+import CardStatsPanel from '../shop/card_stats';
+import CardAdvanceList from '../shop/card_advance_list';
 
 interface Props {
   width: number;
@@ -20,17 +20,19 @@ interface Props {
    * 传 null 表示当前没有选中项。
    */
   renderPreview?: (item: { pid: number; level: number } | null) => React.ReactNode;
+  /** 打开背包卡片页并聚焦指定卡片；不传则不渲染入口按钮。 */
+  onOpenInventory?: (pid: number) => void;
 }
 
 interface PokedexItem {
   pid: number;
   nameKey: string;
-  descriptionKey: string;
   image: string;
   level: number;
+  model: PlantModel;
 }
 
-export default function Pokedex({ width, height, onBack, renderPreview }: Props) {
+export default function Pokedex({ width, height, onBack, renderPreview, onOpenInventory }: Props) {
   if (height === undefined) {
     height = width * 3 / 4;
   }
@@ -39,10 +41,11 @@ export default function Pokedex({ width, height, onBack, renderPreview }: Props)
     pokedexItems: new Map<number, PokedexItem>(),
     selectedItemPid: null as number | null,
     animationClass: '',
-    upgradeMaterials: [] as MaterialRequirement[],
-    loadingMaterials: false,
     selectedItem: null as PokedexItem | null,
   });
+
+  // 预览等级：默认跟随卡片当前等级，点击 1-9 按钮可查看任意等级数据。
+  const [viewLevel, setViewLevel] = useState<number | null>(null);
 
   // 新增：下一个将要显示的项目（在动画完成后才会显示）
   const nextItemRef = useRef<PokedexItem | null>(null);
@@ -74,9 +77,9 @@ export default function Pokedex({ width, height, onBack, renderPreview }: Props)
         tmpMap.set(plant.pid, {
           pid: plant.pid,
           nameKey: plantModel.nameKey,
-          descriptionKey: plantModel.descriptionKey,
           image: `${publicUrl}/assets/card/${plantModel.texturePath}.png`,
           level: plant.level,
+          model: plantModel,
         });
       });
     return tmpMap;
@@ -147,78 +150,6 @@ export default function Pokedex({ width, height, onBack, renderPreview }: Props)
     return () => clearAnimationTimers();
   }, [state.selectedItemPid, pokedexItems]);
 
-  // 加载升级材料
-  useUpdateEffect(() => {
-    if (!state.selectedItem) {
-      setState({ upgradeMaterials: [] });
-      return;
-    }
-
-    setState({ loadingMaterials: true });
-    getUpgradeMaterials(state.selectedItem.pid, state.selectedItem.level)
-      .then(mats => setState({ upgradeMaterials: mats }))
-      .catch(err => {
-        console.error('加载升级材料失败', err);
-        setState({ upgradeMaterials: [] });
-      })
-      .finally(() => setState({ loadingMaterials: false }));
-  }, [state.selectedItem]);
-
-  const getCurrentItems = useMemoizedFn((): GoodsItem[] => {
-    return Array.from(saveManager.currentProgress.items.values());
-  });
-
-  const canUpgrade = useMemoizedFn((): boolean => {
-    if (state.loadingMaterials || !state.selectedItem) return false;
-    const currentItems = getCurrentItems();
-    const currentMap = new Map(currentItems.map(i => [i.id, i.count]));
-    return state.upgradeMaterials.length > 0 && state.upgradeMaterials.every(mat => (currentMap.get(mat.type) || 0) >= mat.count);
-  });
-
-  const handleUpgrade = useMemoizedFn(async () => {
-    // 防止动画过渡中点击或重复点击
-    if (isAnimating.current || !state.selectedItem || !canUpgrade()) return;
-
-    // 使用状态中保存的 selectedItem，而不是每次重新查找
-    const { pid, level } = state.selectedItem;
-
-    state.upgradeMaterials.forEach(mat => {
-      saveManager.updateItemCount(mat.type, -mat.count);
-    });
-
-    const plantIndex = plants.findIndex(p => p.pid === pid && p.level === level);
-    if (plantIndex !== -1) {
-      // 更新植物等级
-      plants[plantIndex].level += 1;
-      try {
-        await saveManager.saveProgress();
-      } catch (error) {
-        console.error('保存失败:', error);
-      }
-
-      // 更新项目列表
-      const newLevel = level + 1;
-
-      // 更新pokedexItems集合中的对应项
-      setState(prev => {
-        const newMap = new Map(prev.pokedexItems);
-        if (newMap.has(pid)) {
-          const item = newMap.get(pid)!;
-          newMap.set(pid, { ...item, level: newLevel });
-        }
-        return { pokedexItems: newMap };
-      });
-
-      // 直接更新选中项，只更新level值
-      setState(prev => ({
-        selectedItem: prev.selectedItem ? {
-          ...prev.selectedItem,
-          level: newLevel
-        } : null
-      }));
-    }
-  });
-
   // 选择一个新的项目（已修改）
   const selectItem = useMemoizedFn((pid: number) => {
     // 如果点击的是当前已选中的项目，不做任何处理
@@ -229,14 +160,27 @@ export default function Pokedex({ width, height, onBack, renderPreview }: Props)
     setState({ selectedItemPid: pid });
   });
 
+  // 切换卡片时，预览等级回到该卡片自己的当前等级。
+  useEffect(() => {
+    setViewLevel(state.selectedItem ? state.selectedItem.level : null);
+  }, [state.selectedItem?.pid, state.selectedItem?.level]);
+
+  const activeLevel = viewLevel ?? state.selectedItem?.level ?? 1;
+
   // 图鉴预览固定在右栏顶部（标题上方），不随详情内容滚动。
   const previewSlot = renderPreview
     ? renderPreview(
       state.selectedItem
-        ? { pid: state.selectedItem.pid, level: state.selectedItem.level }
+        ? { pid: state.selectedItem.pid, level: activeLevel }
         : null,
     )
     : null;
+
+  // 文案按区块拆开：简介 / 星之碎片技能 / 背景故事；缺失的区块返回空串后不渲染。
+  const selectedBase = state.selectedItem ? cardBaseName(state.selectedItem.nameKey) : '';
+  const selectedBrief = selectedBase ? translate(cardTextKey.brief(selectedBase), { defaultValue: '' }) : '';
+  const selectedSkill = selectedBase ? translate(cardTextKey.starshards(selectedBase), { defaultValue: '' }) : '';
+  const selectedStory = selectedBase ? translate(cardTextKey.story(selectedBase), { defaultValue: '' }) : '';
 
   return (
     <div style={{
@@ -297,6 +241,25 @@ export default function Pokedex({ width, height, onBack, renderPreview }: Props)
               fontSize: "18px",
               fontWeight: 700
             }}>{translate('edx.plants')}</h2>
+            {onOpenInventory && state.selectedItemPid !== null ? (
+              <button
+                style={{
+                  marginLeft: 'auto',
+                  padding: '6px 10px',
+                  background: 'rgba(79,163,199,.16)',
+                  border: '1px solid #4fa3c7',
+                  color: '#9fd4ea',
+                  cursor: 'pointer',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
+                onClick={() => onOpenInventory(state.selectedItemPid as number)}
+              >
+                {translate('edx.view_in_backpack')}
+              </button>
+            ) : null}
           </div>
 
           <div style={{
@@ -340,19 +303,16 @@ export default function Pokedex({ width, height, onBack, renderPreview }: Props)
                   title={item ? translate(cardKey(item.nameKey)) : undefined}
                 >
                   {item && (
-                    <>
-                      <LevelBadge level={item.level} />
-                      <img
-                        src={item.image}
-                        alt={translate(cardKey(item.nameKey))}
-                        style={{
-                          width: "100%",
-                          height: "70%",
-                          objectFit: "contain"
-                        }}
-                        draggable="false"
-                      />
-                    </>
+                    <img
+                      src={item.image}
+                      alt={translate(cardKey(item.nameKey))}
+                      style={{
+                        width: "100%",
+                        height: "70%",
+                        objectFit: "contain"
+                      }}
+                      draggable="false"
+                    />
                   )}
                   <div style={{
                     color: "#ddd",
@@ -404,50 +364,46 @@ export default function Pokedex({ width, height, onBack, renderPreview }: Props)
             scrollbarWidth: "thin",
             scrollbarColor: "#888 #333",
           }}>
-            <h2 style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {state.selectedItem ? (
-                <>
-                  <span>{translate(cardKey(state.selectedItem.nameKey))}</span>
-                  <LevelBadge level={state.selectedItem.level} className="level-badge--inline" />
-                </>
-              ) : '未选择'}
-            </h2>
+            <div className="pokedex-detail-head">
+              <h2>
+                {state.selectedItem ? translate(cardKey(state.selectedItem.nameKey)) : '未选择'}
+              </h2>
+            </div>
 
             {state.selectedItem ? (
               <>
-                <div style={{ whiteSpace: 'pre-wrap', marginBottom: '16px' }}>
-                  {translate(cardKey(state.selectedItem.descriptionKey))}
-                </div>
-                <hr style={{ borderColor: '#666', margin: '16px 0' }} />
-                <div>
-                  <h3 style={{ margin: '0 0 12px 0' }}>
-                    升级到 LV.{state.selectedItem.level + 1}
-                  </h3>
-                  {/* 材料列表 */}
-                  <StuffList
-                    items={state.upgradeMaterials.map(mat => ({ id: mat.type, count: mat.count }))}
-                    currentItems={getCurrentItems()}
-                    translate={translate}
-                  />
-
-                  {/* 升级按钮 - 使用新的handleUpgrade函数，不依赖selected参数 */}
-                  <button
-                    onClick={handleUpgrade}
-                    disabled={!canUpgrade()}
-                    style={{
-                      padding: '10px 24px',
-                      marginTop: '16px',
-                      border: 'none',
-                      borderRadius: '4px',
-                      background: canUpgrade() ? '#007bff' : '#555',
-                      color: '#fff',
-                      cursor: canUpgrade() ? 'pointer' : 'not-allowed',
-                      opacity: state.loadingMaterials ? 0.6 : 1,
-                    }}
-                  >
-                    {state.loadingMaterials ? '加载中...' : (canUpgrade() ? '升级' : '材料不足')}
-                  </button>
-                </div>
+                {selectedBrief ? (
+                  <div className="pokedex-brief">{selectedBrief}</div>
+                ) : null}
+                {selectedSkill ? (
+                  <div className="pokedex-section">
+                    <span className="pokedex-section-label">{translate('shop.card_section_skill')}</span>
+                    <div>{selectedSkill}</div>
+                  </div>
+                ) : null}
+                {selectedStory ? (
+                  <div className="pokedex-story">{selectedStory}</div>
+                ) : null}
+                <CardStatsPanel
+                  model={state.selectedItem.model}
+                  level={activeLevel}
+                  title={translate('shop.card_stats_base')}
+                  headerRight={(
+                    <div className="pokedex-levels">
+                      {Array.from({ length: 9 }, (_, index) => index + 1).map(level => (
+                        <button
+                          key={level}
+                          type="button"
+                          className={`pokedex-level-btn ${level === activeLevel ? 'active' : ''}`}
+                          onClick={() => setViewLevel(level)}
+                        >
+                          {level}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                />
+                <CardAdvanceList base={selectedBase} unlockedLevel={activeLevel} />
               </>
             ) : (
               <div style={{ paddingTop: '40px', textAlign: 'center', color: '#888' }}>
@@ -484,6 +440,90 @@ export default function Pokedex({ width, height, onBack, renderPreview }: Props)
                     
                     .slide-in {
                         animation: slideIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+                    }
+
+                    .pokedex-brief {
+                        white-space: pre-wrap;
+                        margin-bottom: 14px;
+                        color: #ededed;
+                        line-height: 1.6;
+                    }
+
+                    .pokedex-section {
+                        margin-bottom: 14px;
+                        padding-left: 10px;
+                        border-left: 3px solid #e0b46e;
+                        color: #dedede;
+                        line-height: 1.6;
+                    }
+
+                    .pokedex-section-label {
+                        display: block;
+                        color: #e0b46e;
+                        font-size: 12px;
+                        font-weight: 800;
+                        letter-spacing: .08em;
+                        margin-bottom: 2px;
+                    }
+
+                    .pokedex-story {
+                        white-space: pre-wrap;
+                        margin-bottom: 16px;
+                        padding: 10px 12px;
+                        border-radius: 6px;
+                        background: rgba(255,255,255,.04);
+                        color: #9fa8b3;
+                        font-size: 13px;
+                        line-height: 1.7;
+                    }
+
+                    .pokedex-detail-head {
+                        display: flex;
+                        align-items: center;
+                        flex-wrap: wrap;
+                        gap: 8px 12px;
+                        margin-bottom: 10px;
+                    }
+
+                    .pokedex-detail-head h2 {
+                        margin: 0;
+                        flex: 1 1 auto;
+                        min-width: 0;
+                    }
+
+                    .pokedex-levels {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 4px;
+                        flex: 0 0 auto;
+                        margin-left: auto;
+                    }
+
+                    .pokedex-level-btn {
+                        width: 26px;
+                        height: 26px;
+                        padding: 0;
+                        border: 1px solid #555;
+                        border-radius: 4px;
+                        background: #111;
+                        color: #8a9099;
+                        font-size: 13px;
+                        font-weight: 700;
+                        line-height: 1;
+                        cursor: pointer;
+                        transition: background .15s, color .15s, border-color .15s;
+                    }
+
+                    .pokedex-level-btn:hover {
+                        border-color: #b98a2e;
+                        color: #d8c39a;
+                    }
+
+                    .pokedex-level-btn.active {
+                        background: #b98a2e;
+                        border-color: #d9a94a;
+                        color: #fff;
+                        box-shadow: 0 0 6px rgba(217, 169, 74, .5);
                     }
 
                     /* 滚动条样式美化 */

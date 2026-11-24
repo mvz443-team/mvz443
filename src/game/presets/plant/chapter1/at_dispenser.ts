@@ -63,7 +63,7 @@ export class ATAirHFireWorkEntity extends HFireWorkEntity {
 export class ATDispenserModel extends PlantModel {
   public override pid = 14;
   public override nameKey = 'name_at_dispenser';
-  public override descriptionKey = 'at_dispenser_description';
+  public override descriptionKey = 'at_dispenser_brief';
   public override texturePath = 'plant/at_dispenser';
 
   public maxHealth = new LevelScaledValue(450).setIncRatio(2);

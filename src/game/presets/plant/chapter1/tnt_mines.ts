@@ -35,7 +35,7 @@ type TntContactResult = "explode" | "ignore";
 export class TntMinesModel extends PlantModel {
   public override pid = 4;
   public override nameKey = 'name_tnt_mines';
-  public override descriptionKey = 'tnt_mines_description';
+  public override descriptionKey = 'tnt_mines_brief';
   public override texturePath = 'plant/tnt_mines';
 
   public maxHealth = new LevelScaledValue(400);

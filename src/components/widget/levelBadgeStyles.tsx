@@ -1,0 +1,155 @@
+/**
+ * 等级 badge 的样式集合。
+ *
+ * badge 会出现在图鉴、背包等多个界面，样式不能只挂在某一个页面的 <style> 里，
+ * 否则换页后 badge 会退化成无样式的数字。需要 badge 的页面渲染一次本组件即可。
+ */
+export const LEVEL_BADGE_CSS = `
+  .badge-wrapper {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 32px;
+    height: 32px;
+    z-index: 5;
+    pointer-events: none;
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+
+  .badge-body {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  .badge-body::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 40%, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.3) 100%);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .sweep-light {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(to right, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.8) 50%, rgba(255, 255, 255, 0) 100%);
+    transform: rotate(45deg) translateX(-100%);
+    animation: badgeSweep 3.5s infinite cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 3;
+    pointer-events: none;
+  }
+
+  .badge-text {
+    font-size: 16px;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.5px;
+    font-family: 'Arial Black', Impact, 'Segoe UI', sans-serif;
+    position: relative;
+    z-index: 4;
+  }
+
+  .shape-star {
+    clip-path: polygon(50% 4%, 70% 32%, 96% 42%, 76% 68%, 82% 96%, 50% 82%, 18% 96%, 24% 68%, 4% 42%, 30% 32%);
+  }
+
+  .shape-diamond {
+    clip-path: polygon(15% 10%, 85% 10%, 100% 45%, 50% 98%, 0% 45%);
+  }
+
+  .shape-star .badge-text {
+    transform: translateY(1px);
+  }
+
+  .shape-diamond .badge-text {
+    transform: translateY(-1px);
+  }
+
+  .badge-wrapper:not(.level-badge--inline) .shape-star .badge-text {
+    transform: translate(-0.8px, 1px);
+  }
+
+  .badge-wrapper:not(.level-badge--inline) .shape-diamond .badge-text {
+    transform: translate(-0.8px, -1px);
+  }
+
+  .shadow-brown {
+    filter: drop-shadow(0 1.5px 0 #3e1c00) drop-shadow(0 -1.5px 0 #3e1c00) drop-shadow(1.5px 0 0 #3e1c00) drop-shadow(-1.5px 0 0 #3e1c00) drop-shadow(0 3px 4px rgba(0, 0, 0, 0.6));
+  }
+
+  .bg-tier1 {
+    background: radial-gradient(circle at 50% 50%, #ffe845 0%, #ffaa00 40%, #853c00 100%);
+  }
+
+  .text-tier1 {
+    color: #4a2200;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+  }
+
+  .shadow-black {
+    filter: drop-shadow(0 1.5px 0 #000) drop-shadow(0 -1.5px 0 #000) drop-shadow(1.5px 0 0 #000) drop-shadow(-1.5px 0 0 #000) drop-shadow(0 3px 4px rgba(0, 0, 0, 0.6));
+  }
+
+  .bg-tier2 {
+    background: radial-gradient(circle at 50% 50%, #ffffff 0%, #b0b0b0 40%, #222222 100%);
+  }
+
+  .text-tier2 {
+    color: #111111;
+    text-shadow: 0 1px 1px rgba(255, 255, 255, 0.8);
+  }
+
+  .shadow-blue {
+    filter: drop-shadow(0 1.5px 0 #003a8c) drop-shadow(0 -1.5px 0 #003a8c) drop-shadow(1.5px 0 0 #003a8c) drop-shadow(-1.5px 0 0 #003a8c) drop-shadow(0 0 8px #00aaff);
+  }
+
+  .bg-tier3 {
+    background: radial-gradient(circle at 50% 40%, #7dedff 0%, #c4f4ff 45%, #ffffff 100%);
+  }
+
+  .text-tier3 {
+    color: #ffffff;
+    text-shadow: -1px -1px 0 #004bb5, 1px -1px 0 #004bb5, -1px 1px 0 #004bb5, 1px 1px 0 #004bb5, 0 2px 2px rgba(0, 0, 0, 0.5);
+  }
+
+  .shadow-pink {
+    filter: drop-shadow(0 1.5px 0 #8c0054) drop-shadow(0 -1.5px 0 #8c0054) drop-shadow(1.5px 0 0 #8c0054) drop-shadow(-1.5px 0 0 #8c0054) drop-shadow(0 0 9px #ff33aa);
+  }
+
+  .bg-tier4 {
+    background: radial-gradient(circle at 50% 40%, #ff5ce6 0%, #ffbcf1 45%, #ffffff 100%);
+  }
+
+  .text-tier4 {
+    color: #ff33aa;
+    text-shadow: -1px -1px 0 #ffffff, 1px -1px 0 #ffffff, -1px 1px 0 #ffffff, 1px 1px 0 #ffffff, 0 2px 0 #a1005a, 0 3px 3px rgba(0, 0, 0, 0.5);
+  }
+
+  @keyframes badgeSweep {
+    0% { transform: rotate(45deg) translateX(-100%); }
+    20% { transform: rotate(45deg) translateX(100%); }
+    100% { transform: rotate(45deg) translateX(100%); }
+  }
+
+  .level-badge--inline {
+    position: relative;
+    top: auto;
+    left: auto;
+    /* span 默认是 inline，宽高会被忽略，导致 badge 被压扁；必须显式 block 化。 */
+    display: block;
+    flex: 0 0 auto;
+  }
+`;
+
+export default function LevelBadgeStyles() {
+  return <style>{LEVEL_BADGE_CSS}</style>;
+}

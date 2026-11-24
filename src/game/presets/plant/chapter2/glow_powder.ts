@@ -18,7 +18,7 @@ const SECKILL = 99889988; // 秒杀血量
 export class GlowPowderModel extends PlantModel {
   public override pid = 17;
   public override nameKey = 'name_glow_powder';
-  public override descriptionKey = 'glow_powder_description';
+  public override descriptionKey = 'glow_powder_brief';
   public override texturePath = 'plant/glow_powder';
 
   public maxHealth = new LevelScaledValue(SECKILL);

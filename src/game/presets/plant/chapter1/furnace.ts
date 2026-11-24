@@ -17,7 +17,7 @@ export class FurnaceModel extends PlantModel {
 
   public override pid = 2;
   public override nameKey = 'name_furnace';
-  public override descriptionKey = 'furnace_description';
+  public override descriptionKey = 'furnace_brief';
   public override texturePath = 'plant/furnace';
 
   public override get tickEventNames(): readonly string[] {

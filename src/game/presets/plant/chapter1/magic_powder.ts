@@ -19,7 +19,7 @@ import ResourceCmd from "../../../utils/cmd/ResourceCmd";
 export class MagicPowderModel extends PlantModel {
   public override pid = 10;
   public override nameKey = 'name_magic_powder';
-  public override descriptionKey = 'magic_powder_description';
+  public override descriptionKey = 'magic_powder_brief';
   public override texturePath = 'plant/magic_powder';
 
   public maxHealth = new LevelScaledValue(9999); // 秒杀值，几乎无敌

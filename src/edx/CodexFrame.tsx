@@ -8,6 +8,8 @@ interface Props {
   width: number;
   height?: number;
   onBack: () => void;
+  /** 打开背包卡片页并聚焦指定卡片。 */
+  onOpenInventory?: (pid: number) => void;
 }
 
 type CodexView = 'home' | 'plants' | 'zombie' | 'map';
@@ -21,7 +23,7 @@ const PANEL_BACKGROUND = 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)';
  * 主视觉左侧是返回按钮与「器械图鉴」大入口，右侧自上下分别是地图图鉴、僵尸图鉴。
  * 三个子页各自独立，避免把三种完全不同的展示塞进一个组件。
  */
-export default function CodexFrame({ width, height, onBack }: Props) {
+export default function CodexFrame({ width, height, onBack, onOpenInventory }: Props) {
   if (height === undefined) {
     height = width * 3 / 4;
   }
@@ -29,7 +31,14 @@ export default function CodexFrame({ width, height, onBack }: Props) {
   const [view, setView] = useState<CodexView>('home');
 
   if (view === 'plants') {
-    return <PlantCodexPage width={width} height={height} onBack={() => setView('home')} />;
+    return (
+      <PlantCodexPage
+        width={width}
+        height={height}
+        onBack={() => setView('home')}
+        onOpenInventory={onOpenInventory}
+      />
+    );
   }
   if (view === 'zombie') {
     return <ZombieCodexPage width={width} height={height} onBack={() => setView('home')} />;

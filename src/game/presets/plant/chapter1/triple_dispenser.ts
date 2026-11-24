@@ -15,7 +15,7 @@ import { SightLineGroup } from "../../../models/entities/SightLineEntity";
 export class TripleDispenserModel extends PlantModel {
   public override pid = 13;
   public override nameKey = 'name_triple_dispenser';
-  public override descriptionKey = 'triple_dispenser_description';
+  public override descriptionKey = 'triple_dispenser_brief';
   public override texturePath = 'plant/triple_dispenser';
 
   public maxHealth = new LevelScaledValue(300);

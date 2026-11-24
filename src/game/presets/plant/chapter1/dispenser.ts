@@ -16,7 +16,7 @@ import { SightLineEntity } from "../../../models/entities/SightLineEntity";
 export class DispenserModel extends PlantModel {
   public override pid = 1;
   public override nameKey = 'name_dispenser';
-  public override descriptionKey = 'dispenser_description';
+  public override descriptionKey = 'dispenser_brief';
   public override texturePath = 'plant/dispenser';
 
   public maxHealth = new LevelScaledValue(300);

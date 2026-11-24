@@ -32,7 +32,7 @@ const PUMPKIN_WAN_EVENTS = {
 export class PumpkinWanModel extends PlantModel {
   public override pid = 11;
   public override nameKey = 'name_pumpkin_wan';
-  public override descriptionKey = 'pumpkin_wan_description';
+  public override descriptionKey = 'pumpkin_wan_brief';
   public override texturePath = 'plant/pumpkin_wan';
 
   public maxHealth = new LevelScaledValue(425);

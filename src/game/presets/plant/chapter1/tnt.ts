@@ -19,7 +19,7 @@ const TNT_EVENTS = {
 export class TntModel extends PlantModel {
   public override pid = 7;
   public override nameKey = 'name_tnt';
-  public override descriptionKey = 'tnt_description';
+  public override descriptionKey = 'tnt_brief';
   public override texturePath = 'plant/tnt';
 
   public maxHealth = new LevelScaledValue(2000).setThreshold(1, 2000); // SECKILL 高血量

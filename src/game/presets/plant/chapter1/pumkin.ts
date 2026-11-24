@@ -23,7 +23,7 @@ import { PumpkinLaserSfx } from "../../../sfx/laser/PumpkinLaserSfx";
 export class PumpkinModel extends PlantModel {
   public override pid = 9;
   public override nameKey = 'name_pumpkin';
-  public override descriptionKey = 'pumpkin_description';
+  public override descriptionKey = 'pumpkin_brief';
   public override texturePath = 'plant/pumpkin';
 
   public maxHealth = new LevelScaledValue(300);

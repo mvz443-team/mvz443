@@ -12,7 +12,7 @@ import { PlantCmd } from "../../../utils/cmd/PlantCmd";
 export class LilyModel extends PlantModel {
   public override pid = 6;
   public override nameKey = 'name_lily';
-  public override descriptionKey = 'lily_description';
+  public override descriptionKey = 'lily_brief';
   public override texturePath = 'plant/lily';
 
   public maxHealth = new LevelScaledValue(300).setIncRatio(2);

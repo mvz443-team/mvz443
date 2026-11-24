@@ -20,7 +20,7 @@ import { ShieldActivateSfx } from "../../../sfx/flash/ShieldActivateSfx";
 export class ObsidianModel extends PlantModel {
   public override pid = 3;
   public override nameKey = 'name_obsidian';
-  public override descriptionKey = 'obsidian_description';
+  public override descriptionKey = 'obsidian_brief';
   public override texturePath = 'plant/obsidian';
 
   public maxHealth = new LevelScaledValue(4000).setIncRatio(1.4);

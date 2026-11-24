@@ -43,6 +43,8 @@ export default function DocFrame({ width, height, setGameParams, gameStart, init
 
   // 状态管理
   const [currentView, setCurrentView] = useState(initialRoomView ? 'levels' : 'main'); // main, levels, pokedex, shop, inventory, about
+  // 从器械图鉴跳转到背包时，需要聚焦到的那张卡片。
+  const [inventoryFocusPid, setInventoryFocusPid] = useState<number | null>(null);
   const navItems = [
     { key: 'menu.shop', icon: Store, view: 'shop' },
     { key: 'menu.inventory', icon: Backpack, view: 'inventory' },
@@ -205,6 +207,10 @@ export default function DocFrame({ width, height, setGameParams, gameStart, init
       if (view === 'settings') {
         navigate(`${publicUrl}/settings`);
       } else {
+        // 普通入口进入背包时不聚焦任何卡片，避免沿用图鉴跳转的残留目标。
+        if (view === 'inventory') {
+          setInventoryFocusPid(null);
+        }
         setCurrentView(view);
       }
     };
@@ -297,9 +303,29 @@ export default function DocFrame({ width, height, setGameParams, gameStart, init
         startGame={gameStart} setGameParams={setGameParams} skipToParams={skipToParams} chosenStage={chosenStage || undefined}
         initialRoomView={initialRoomView}
       />}
-      {currentView === 'pokedex' && <CodexFrame width={width} height={height} onBack={() => setCurrentView('main')} />}
+      {currentView === 'pokedex' && (
+        <CodexFrame
+          width={width}
+          height={height}
+          onBack={() => setCurrentView('main')}
+          onOpenInventory={(pid) => {
+            setInventoryFocusPid(pid);
+            setCurrentView('inventory');
+          }}
+        />
+      )}
       {currentView === 'shop' && <Shop width={width} height={height} onBack={() => setCurrentView('main')} />}
-      {currentView === 'inventory' && <InventoryPanel width={width} height={height} onBack={() => setCurrentView('main')} />}
+      {currentView === 'inventory' && (
+        <InventoryPanel
+          width={width}
+          height={height}
+          focusCardPid={inventoryFocusPid}
+          onBack={() => {
+            setInventoryFocusPid(null);
+            setCurrentView('main');
+          }}
+        />
+      )}
       {currentView === 'settings' && <Settings width={width} height={height} onBack={() => setCurrentView('main')} />}
 
       <style>

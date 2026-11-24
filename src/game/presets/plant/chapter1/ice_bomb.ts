@@ -13,7 +13,7 @@ import { PowderScatterSfx } from "../../../sfx/powder/PowderScatterSfx";
 export class IceBombModel extends PlantModel {
   public override pid = 12;
   public override nameKey = 'name_ice_bomb';
-  public override descriptionKey = 'ice_bomb_description';
+  public override descriptionKey = 'ice_bomb_brief';
   public override texturePath = 'plant/ice_bomb';
 
   public maxHealth = new LevelScaledValue(600);

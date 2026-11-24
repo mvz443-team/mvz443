@@ -17,7 +17,7 @@ export class GeneratorModel extends PlantModel {
 
   public override pid = 8;
   public override nameKey = 'name_generator';
-  public override descriptionKey = 'generator_description';
+  public override descriptionKey = 'generator_brief';
   public override texturePath = 'plant/generator';
 
   public maxHealth = new LevelScaledValue(800).setIncRatio(1.2);
