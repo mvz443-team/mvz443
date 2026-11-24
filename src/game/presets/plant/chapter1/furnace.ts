@@ -5,9 +5,7 @@ import { PositionManager } from "../../../managers/view/PositionManager";
 import { PlantEntity } from "../../../models/entities/PlantEntity";
 import { PlantModel } from "../../../models/PlantModel";
 import type { Game } from "../../../scenes/Game";
-import { GainEnergySfx, GainEnergySfxSize } from "../../../sfx/energy/GainEnergySfx";
 import ResourceCmd from "../../../utils/cmd/ResourceCmd";
-import { SfxCmd } from "../../../utils/cmd/SfxCmd";
 
 const FURNACE_EVENTS = {
   FurnaceGenerate: "FurnaceGenerate",
@@ -78,45 +76,29 @@ export class FurnaceModel extends PlantModel {
 
     this.generating = true;
     entity.syncViewFromModel();
-    this.playGainEnergySfx(entity, "medium", true);
     const energyToAdd = this.generateEnergyAmount.getValueAt(entity.level);
-    ResourceCmd.AddEnergyToAll(energyToAdd);
+    const center = this.getEnergySfxCenter(entity);
+    // 特效立即播（medium 单块），到账由可恢复全局计时器延迟；两者解耦。
+    ResourceCmd.AddEnergyToAllWithAnim(energyToAdd, {
+      origin: { x: center.x, y: center.y },
+      energySize: "medium",
+    });
     this.tickmanager.schedule(FURNACE_EVENTS.FurnaceGenerate, 1000, {
       args: { reset: true },
     });
   }
 
   onStarShards(entity: FurnaceEntity): void {
-    this.playGainEnergyBurstSfx(entity);
-    // 一次性加能量
-    ResourceCmd.AddEnergyToAll(450);
+    const center = this.getEnergySfxCenter(entity);
+    // 450 = 4×100 + 50 → large×4 + medium，错峰 160ms（纯表现）；到账统一延迟一次。
+    ResourceCmd.AddEnergyToAllWithAnim(450, {
+      origin: { x: center.x, y: center.y },
+      staggerMs: 160,
+    });
   }
 
   public createEntity(scene: Game, col: number, row: number, level: number) {
     return this.initializeEntity(new FurnaceEntity(scene, col, row, level));
-  }
-
-  private playGainEnergyBurstSfx(entity: FurnaceEntity): void {
-    for (let i = 0; i < 5; i += 1) {
-      entity.scene.time.delayedCall(i * 160, () => {
-        if (entity.currentHealth <= 0) {
-          return;
-        }
-        this.playGainEnergySfx(entity, "large", false);
-      });
-    }
-  }
-
-  private playGainEnergySfx(entity: FurnaceEntity, size: GainEnergySfxSize, exactCenter: boolean): void {
-    const center = this.getEnergySfxCenter(entity);
-
-    SfxCmd.Create(GainEnergySfx, {
-      scene: entity.scene,
-      x: center.x,
-      y: center.y,
-      size,
-      exactCenter,
-    });
   }
 
   private getEnergySfxCenter(entity: FurnaceEntity): { x: number; y: number } {

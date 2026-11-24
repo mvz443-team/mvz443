@@ -6,6 +6,12 @@ const metadata = CHAPTER1_STAGES.find((s) => s.levelId === 9)!;
 
 /** 触发地图崩塌的波次。 */
 export const STAGE9_COLLAPSE_WAVE = 22;
+/**
+ * 崩塌动画开始后，逻辑水格延迟多久生效（ms）。
+ * 比动画总时长（300ms 颤抖 + 460ms 下坠 = 760ms）略短，让 crop 层还在淡出时
+ * 地形判定就切换，衔接更紧凑。由可恢复的全局 ticker 驱动，进快照/哈希。
+ */
+export const STAGE9_COLLAPSE_WATER_DELAY_MS = 600;
 /** 触发取消地图光照的波次。 */
 export const STAGE9_LIGHTS_OUT_WAVE = 36;
 /** 光照取消前的闪烁次数。 */
@@ -82,9 +88,10 @@ const script: LevelScript = {
   },
   onWaveStart(ctx, waveId) {
     if (waveId === STAGE9_COLLAPSE_WAVE && !ctx.getFlag("collapse")) {
+      // 两个独立事件：表现标记立即触发动画与水面贴图；权威水格延迟由可恢复计时器改写。
       ctx.setFlag("collapse", true);
-      for (const cell of STAGE9_COLLAPSE_CELLS) ctx.setCellWater(cell.col, cell.row);
       ctx.playCollapseVisual(STAGE9_COLLAPSE_CELLS);
+      ctx.scheduleCellWater(STAGE9_COLLAPSE_CELLS, STAGE9_COLLAPSE_WATER_DELAY_MS);
     }
     if (waveId === STAGE9_LIGHTS_OUT_WAVE && !ctx.getFlag("lightsOut")) {
       ctx.setFlag("lightsOut", true);

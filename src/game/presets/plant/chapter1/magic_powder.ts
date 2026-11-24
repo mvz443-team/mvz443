@@ -7,7 +7,6 @@ import type { Game } from "../../../scenes/Game";
 import { ProjectileCmd } from "../../../utils/cmd/ProjectileCmd";
 import { SfxCmd } from "../../../utils/cmd/SfxCmd";
 import { PowderScatterSfx } from "../../../sfx/powder/PowderScatterSfx";
-import { GainStarShardSfx } from "../../../sfx/star/GainStarShardSfx";
 import SoundCmd from "../../../utils/cmd/SoundCmd";
 import ResourceCmd from "../../../utils/cmd/ResourceCmd";
 
@@ -62,15 +61,11 @@ export class MagicPowderModel extends PlantModel {
       duration: 900,
     });
 
-    // 纯视觉掉落物：起点就是当前放置格子的底部中心，不参与任何逻辑结算。
-    SfxCmd.Create(GainStarShardSfx, {
-      scene,
-      x,
-      y,
+    // 星碎掉落：特效立即播（起点为当前格子底部中心），到账由可恢复全局计时器延迟。
+    ResourceCmd.AddStarshardToAllWithAnim(1, {
+      origin: { x, y },
       amount: 1,
     });
-
-    ResourceCmd.AddStarshardToAll(1);
 
     ProjectileCmd.CreateLaser(
       scene,

@@ -8,7 +8,6 @@ import type { Game } from "../../scenes/Game";
 import ResourceCmd from "../../utils/cmd/ResourceCmd";
 import { SfxCmd } from "../../utils/cmd/SfxCmd";
 import { StarShardsOrbitSfx } from "../../sfx/star/StarShardsOrbitSfx";
-import { GainStarShardSfx } from "../../sfx/star/GainStarShardSfx";
 
 export class MineRockObstacleModel extends ObstacleModel {
   public readonly oid = 2;
@@ -23,15 +22,14 @@ export class MineRockObstacleModel extends ObstacleModel {
   public override onDeath(entity: ObstacleEntity): void {
     if (this.dropped) return;
     this.dropped = true;
-    if (entity.scene) {
-      SfxCmd.Create(GainStarShardSfx, {
-        scene: entity.scene,
+    // 星碎掉落：特效立即播，到账由可恢复全局计时器延迟。
+    ResourceCmd.AddStarshardToAllWithAnim(1, {
+      origin: {
         x: entity.x,
         y: entity.y - PositionManager.Instance.GRID_SIZEY * 0.5,
-        amount: 1,
-      });
-    }
-    ResourceCmd.AddStarshardToAll(1);
+      },
+      amount: 1,
+    });
   }
 }
 

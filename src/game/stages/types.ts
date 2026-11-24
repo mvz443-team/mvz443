@@ -22,8 +22,16 @@ export interface BossHooks {
   onHalfHealth?: () => void;
 }
 
-/** 关卡事件标记键。管理器把具名快照布尔映射到这些键。 */
-export type StageEventFlagKey = "collapse" | "lightsOut";
+/**
+ * 关卡事件标记键。管理器把具名快照布尔映射到这些键。
+ * - collapse：崩塌动画/水面贴图表现已触发（表现层，立即生效）
+ * - collapseWater：逻辑水格已由可恢复计时器改写（权威状态，延迟生效）
+ * - lightsOut：熄灯事件已触发
+ */
+export type StageEventFlagKey = "collapse" | "collapseWater" | "lightsOut";
+
+/** 崩塌格坐标的 JSON 安全表示（timer 快照参数，跨端/跨进程一致）。 */
+export type GridCellArgs = Array<{ col: number; row: number }>;
 
 /**
  * 关卡脚本可用的副作用入口。
@@ -41,6 +49,12 @@ export interface LevelScriptContext {
   fillRowWater(row: number): void;
   /** 单格设为水格。 */
   setCellWater(col: number, row: number): void;
+  /**
+   * 延迟把若干格改成水格（崩塌逻辑事件）。
+   * 由可回滚/可恢复/可重连的全局 ticker 驱动，args 为 JSON 安全数据；
+   * 到点后由稳定回调改写 GridManager 并置 collapseWater 标记。
+   */
+  scheduleCellWater(cells: readonly GridCell[], delayMs: number): void;
   /** 全屏暗色遮罩（纯表现）。 */
   addDarkOverlay(alpha: number): void;
   /** 设置昼夜（影响光敏植物与产能规则）。 */

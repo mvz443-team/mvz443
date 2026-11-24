@@ -9,6 +9,11 @@
 
 /**
  * 快照 / 哈希口径版本。
+ * v13：资源获得（能量/星碎）特效与到账解耦，到账由带 snapshot 的全局 timer
+ *      延迟 900ms 触发；新 timer kind `resource.addEnergyWithAnim` /
+ *      `resource.addStarshardWithAnim` 的 args 进入快照与哈希。
+ * v12：ch9 崩塌逻辑水格由可恢复 ticker 延迟触发，`preset.stage22CollapseWater`
+ *      标记进入快照与哈希；表现动画（collapse）与权威水格（collapseWater）解耦。
  * v11：魅惑剩余时间以绝对帧 `charmUntilFrame` 进入快照与哈希，到期走
  *      `CharmExpired` tick 事件清除；重连/回滚后端到端按同一帧到期。
  * v10：植物与怪物新增运行时 `charmedBy` 字段（魅惑覆盖），进入快照与哈希；
@@ -26,7 +31,7 @@
  * v3：跨端哈希只投影确定性逻辑状态，剔除表现消费游标、物理句柄与视觉事件队列。
  * 该值会随心跳上报，服务端用它拒绝新旧客户端混用。
  */
-export const SIMULATION_STATE_VERSION = 11;
+export const SIMULATION_STATE_VERSION = 13;
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };

@@ -7,6 +7,11 @@ import { RoomAllReadyEvent } from "../../../types/online";
 import type { PlayerResourceState } from "../../../pb/common";
 import { desyncDiagnostics } from "../../../utils/debug/desyncDiagnostics";
 import SyncManager from "./SyncManager";
+import TickerManager from "./TickerManager";
+import {
+  RESOURCE_ADD_ENERGY_TIMER,
+  RESOURCE_ADD_STARSHARD_TIMER,
+} from "../../utils/cmd/ResourceTiming";
 
 export type PlayerIdentify = number;
 
@@ -166,6 +171,19 @@ export default class ResourceManager extends BaseManager {
   }
 
   public Load(): void {
+    // 资源延迟到账 timer 的重建工厂：从纯 JSON args 恢复稳定到账回调。
+    // 工厂必须在每局 Load() 注册（TickerManager.Reset 会清空注册表）。
+    TickerManager.Instance.registerTimerFactory(RESOURCE_ADD_ENERGY_TIMER, (args) => {
+      const amount = Number((args as { amount?: unknown } | null)?.amount);
+      if (!Number.isFinite(amount)) return null;
+      return { callback: () => this.UpdateEnergy(amount, 'all') };
+    });
+    TickerManager.Instance.registerTimerFactory(RESOURCE_ADD_STARSHARD_TIMER, (args) => {
+      const amount = Number((args as { amount?: unknown } | null)?.amount);
+      if (!Number.isFinite(amount)) return null;
+      return { callback: () => this.UpdateStarShards(amount, 'all') };
+    });
+
     PhaserEventBus.on(PhaserEvents.RoomAllReady, this.handleRoomAllReady, this);
 
     PhaserEventBus.on(PhaserEvents.RoomGameStart, this.handleRoomGameStart, this);

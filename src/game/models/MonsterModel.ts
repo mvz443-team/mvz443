@@ -29,8 +29,6 @@ import type { PlantEntity } from "./entities/PlantEntity";
 import CombatManager from "../managers/CombatManager";
 import { PositionManager } from "../managers/view/PositionManager";
 import ResourceCmd from "../utils/cmd/ResourceCmd";
-import { SfxCmd } from "../utils/cmd/SfxCmd";
-import { GainStarShardSfx } from "../sfx/star/GainStarShardSfx";
 import type { CollisionContext } from "../types";
 
 const MONSTER_EVENTS = {
@@ -675,15 +673,14 @@ export abstract class MonsterModel extends LogicModel {
     this.starShardsDropped = true;
     const amount = Math.max(1, this.carriedStarShards);
     const view = entity as unknown as { scene?: Game; x: number; y: number };
-    if (view.scene) {
-      SfxCmd.Create(GainStarShardSfx, {
-        scene: view.scene,
+    // 特效立即播（每个星碎一个 SFX），到账由可恢复全局计时器延迟。
+    ResourceCmd.AddStarshardToAllWithAnim(amount, {
+      origin: {
         x: view.x,
         y: view.y - PositionManager.Instance.GRID_SIZEY * 0.8,
-        amount,
-      });
-    }
-    ResourceCmd.AddStarshardToAll(amount);
+      },
+      amount,
+    });
     this.carryStarShards = false;
     this.carriedStarShards = 0;
   }

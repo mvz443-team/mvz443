@@ -1,8 +1,7 @@
 import { setCentipedeHooks } from "../../presets/monster/centipede/centipede";
 import DepthHelper from "../../utils/helper/DepthHelper";
 import type { Game } from "../../scenes/Game";
-import { GainEnergySfx } from "../../sfx/energy/GainEnergySfx";
-import { SfxCmd } from "../../utils/cmd/SfxCmd";
+import ResourceCmd from "../../utils/cmd/ResourceCmd";
 import { BaseManager } from "../BaseManager";
 import CombatManager from "../CombatManager";
 import { PositionManager } from "../view/PositionManager";
@@ -18,6 +17,7 @@ import { StageLibrary } from "../../stages/StageLibrary";
 import { WATER_TILE_VARIANT_COUNT, waterTileTextureKey } from "../../stages/waterTiles";
 import type {
   GridCell,
+  GridCellArgs,
   LevelScript,
   LevelScriptContext,
   StageEventFlagKey,
@@ -45,6 +45,14 @@ export class PresetEventManager extends BaseManager {
   /** 关卡事件触发标记（具名快照布尔，进快照 + 跨端哈希）。 */
   public stage22Collapsed: boolean = false;
   public stage36LightRemoved: boolean = false;
+  /**
+   * 崩塌逻辑水格是否已由可恢复计时器改写（进快照 + 跨端哈希）。
+   * 与 stage22Collapsed（表现标记）分离：动画先播，逻辑水格延迟 600ms 生效。
+   */
+  public stage22CollapseWater: boolean = false;
+
+  /** 延迟崩塌逻辑水格的 timer kind，工厂回调与 args 均为 JSON 安全、可重建。 */
+  private static readonly STAGE_COLLAPSE_WATER_TIMER = "preset.stageCollapseWater";
 
   /** 纯视图对象：水面覆盖层 + 暗场遮罩，不进快照，由标记/脚本驱动重建。 */
   private waterTileObjects: Phaser.GameObjects.GameObject[] = [];
@@ -79,6 +87,12 @@ export class PresetEventManager extends BaseManager {
       if (!Number.isFinite(delta) || !Number.isFinite(intervalMs)) return null;
       return { callback: () => this.beginAutoGenerateEnergy(intervalMs, delta) };
     });
+    // 崩塌逻辑水格：从纯 JSON args 重建稳定回调，重连/回滚后不依赖闭包。
+    TickerManager.Instance.registerTimerFactory(PresetEventManager.STAGE_COLLAPSE_WATER_TIMER, (args) => {
+      const cells = PresetEventManager.parseCellArgs(args);
+      if (!cells) return null;
+      return { callback: () => this.applyStageCollapseWater(cells) };
+    });
     // 监听 MobManager ??onNewWave 事件
     this.onNewWaveHandler = (waveId: number, isFlag: boolean) => {
       if (waveId === 0) {
@@ -101,8 +115,10 @@ export class PresetEventManager extends BaseManager {
     console.log('Combat start event triggered at wave 0');
     // wave 0 是一局的权威起点：回滚重放或跨局重启时都应清空地图事件标记与上下文。
     this.stage22Collapsed = false;
+    this.stage22CollapseWater = false;
     this.stage36LightRemoved = false;
     this.cachedContext = null;
+    TickerManager.Instance.removeTimersByKind(PresetEventManager.STAGE_COLLAPSE_WATER_TIMER);
 
     GridManager.Instance.initGridProperties();
 
@@ -180,6 +196,7 @@ export class PresetEventManager extends BaseManager {
       setCellWater: (col, row) => {
         GridManager.Instance.setSingleGridProperty(col, row, { type: "water" });
       },
+      scheduleCellWater: (cells, delayMs) => this.scheduleCellWater(cells, delayMs),
       addDarkOverlay: (alpha) => {
         const rect = scene.add.rectangle(
           LOGICAL_BATTLE_WIDTH / 2, LOGICAL_BATTLE_HEIGHT / 2,
@@ -204,13 +221,50 @@ export class PresetEventManager extends BaseManager {
 
   private getFlag(key: StageEventFlagKey): boolean {
     if (key === "collapse") return this.stage22Collapsed;
+    if (key === "collapseWater") return this.stage22CollapseWater;
     if (key === "lightsOut") return this.stage36LightRemoved;
     return false;
   }
 
   private setFlag(key: StageEventFlagKey, value: boolean): void {
     if (key === "collapse") this.stage22Collapsed = value;
+    else if (key === "collapseWater") this.stage22CollapseWater = value;
     else if (key === "lightsOut") this.stage36LightRemoved = value;
+  }
+
+  /** 校验 timer 快照里的格子参数，防止脏数据写进 GridManager。 */
+  private static parseCellArgs(args: unknown): GridCellArgs | null {
+    if (!Array.isArray(args)) return null;
+    const cells: Array<{ col: number; row: number }> = [];
+    for (const item of args) {
+      if (!item || typeof item !== "object") return null;
+      const { col, row } = item as Record<string, unknown>;
+      if (!Number.isInteger(col) || !Number.isInteger(row)) return null;
+      cells.push({ col: col as number, row: row as number });
+    }
+    return cells;
+  }
+
+  /**
+   * 关卡脚本入口：延迟把若干格改成水格。
+   * 用带 snapshot 的 delayedCall，timer 状态与 args 进快照/哈希；重连时走工厂重建。
+   * 不使用 startAt（会把回调包成不可重建的闭包），不使用 localOnly。
+   */
+  private scheduleCellWater(cells: readonly GridCell[], delayMs: number): void {
+    const args: GridCellArgs = cells.map(({ col, row }) => ({ col, row }));
+    TickerManager.Instance.delayedCall({
+      delay: delayMs,
+      callback: () => this.applyStageCollapseWater(args),
+      snapshot: { kind: PresetEventManager.STAGE_COLLAPSE_WATER_TIMER, args },
+    });
+  }
+
+  /** timer 到点后的稳定回调：写格子 + 置逻辑标记。工厂重建后指向同一方法。 */
+  private applyStageCollapseWater(cells: GridCellArgs): void {
+    for (const { col, row } of cells) {
+      GridManager.Instance.setSingleGridProperty(col, row, { type: "water" });
+    }
+    this.stage22CollapseWater = true;
   }
 
   /** 按脚本要求重建/回收水面替代贴图（幂等，纯表现）。 */
@@ -281,7 +335,9 @@ export class PresetEventManager extends BaseManager {
     }
     this.stopAutoGenerateEnergy();
     setCentipedeHooks(null);
+    TickerManager.Instance.removeTimersByKind(PresetEventManager.STAGE_COLLAPSE_WATER_TIMER);
     this.stage22Collapsed = false;
+    this.stage22CollapseWater = false;
     this.stage36LightRemoved = false;
     this.cachedContext = null;
     this.destroyWaterTiles();
@@ -317,8 +373,17 @@ export class PresetEventManager extends BaseManager {
   }
 
   private autoGenerateEnergyTick(delta: number): void {
-    this.playAutoGenerateEnergySfx();
-    ResourceManager.Instance.UpdateEnergy(+delta, 'all');
+    // 随机世界坐标起点；动画立即播、到账由可恢复全局计时器延迟。
+    const pos = PositionManager.Instance;
+    const gridBounds = pos.getGridBounds();
+    const centerX = gridBounds.x + pos.GRID_SIZEX * 0.5
+      + defaultRandom() * Math.max(0, gridBounds.width - pos.GRID_SIZEX);
+    const centerY = gridBounds.y + pos.GRID_SIZEY * 0.35
+      + defaultRandom() * Math.max(0, gridBounds.height - pos.GRID_SIZEY * 0.7);
+    ResourceCmd.AddEnergyToAllWithAnim(+delta, {
+      origin: { x: centerX, y: centerY },
+      energySize: "medium",
+    });
   }
 
   private stopAutoGenerateEnergy() {
@@ -339,23 +404,4 @@ export class PresetEventManager extends BaseManager {
     ResourceManager.Instance.SetInitialEnergy(+initialEnergy);
   }
 
-  private playAutoGenerateEnergySfx() {
-    if (!this.scene) {
-      return;
-    }
-
-    const pos = PositionManager.Instance;
-    const gridBounds = pos.getGridBounds();
-    const centerX = gridBounds.x + pos.GRID_SIZEX * 0.5
-      + defaultRandom() * Math.max(0, gridBounds.width - pos.GRID_SIZEX);
-    const centerY = gridBounds.y + pos.GRID_SIZEY * 0.35
-      + defaultRandom() * Math.max(0, gridBounds.height - pos.GRID_SIZEY * 0.7);
-
-    SfxCmd.Create(GainEnergySfx, {
-      scene: this.scene,
-      x: centerX,
-      y: centerY,
-      size: "medium",
-    });
-  }
 }

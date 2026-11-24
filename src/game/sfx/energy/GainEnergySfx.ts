@@ -16,6 +16,8 @@ export interface GainEnergySfxArgs extends BaseSfxArgs {
   exactCenter?: boolean;
   size?: GainEnergySfxSize;
   delayMs?: number;
+  /** 动画总时长（ms）：按飞行距离反推停留时间，使远近起点的动画都在此时长内结束。 */
+  totalDurationMs?: number;
   targetX?: number;
   targetY?: number;
 }
@@ -63,7 +65,17 @@ export class GainEnergySfx extends BaseSfx<GainEnergySfxArgs> {
       repeat: -1,
     }));
 
-    this.flyTimer = this.scene.time.delayedCall(this.args.delayMs ?? 1000, () => {
+    // 两段式：先原地停留，再飞向左上/左下的 HUD。停留时长按飞行距离反推，
+    // 使无论起点远近，动画总时长都接近 totalDurationMs（纯视觉，不影响逻辑到账延迟）。
+    const flightMs = Phaser.Math.Clamp(
+      Phaser.Math.Distance.Between(startWorld.x, startWorld.y, target.x, target.y) / 1.18,
+      260,
+      920,
+    );
+    const stayMs = this.args.totalDurationMs !== undefined
+      ? Math.max(0, this.args.totalDurationMs - flightMs - 90)
+      : (this.args.delayMs ?? 1000);
+    this.flyTimer = this.scene.time.delayedCall(stayMs, () => {
       this.flyToTarget(target.x, target.y);
     });
   }

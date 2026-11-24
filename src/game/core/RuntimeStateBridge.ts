@@ -305,6 +305,14 @@ export function installRuntimeStateSources(): void {
     },
   );
   simulationState.registerValue(
+    "preset.stage22CollapseWater",
+    () => PresetEventManager.Instance.stage22CollapseWater,
+    (value) => {
+      PresetEventManager.Instance.stage22CollapseWater = Boolean(value);
+      PresetEventManager.Instance.applyRestoredStageMapState();
+    },
+  );
+  simulationState.registerValue(
     "preset.stage36LightRemoved",
     () => PresetEventManager.Instance.stage36LightRemoved,
     (value) => {

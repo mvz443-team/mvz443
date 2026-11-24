@@ -11,6 +11,8 @@ export interface GainStarShardSfxArgs extends BaseSfxArgs {
   x: number;
   y: number;
   amount?: number;
+  /** 动画总时长（ms）：按飞行距离反推停留时间，使远近起点动画都在此时长内结束。 */
+  totalDurationMs?: number;
   targetX?: number;
   targetY?: number;
 }
@@ -39,10 +41,31 @@ export class GainStarShardSfx extends BaseSfx<GainStarShardSfxArgs> {
     const distance = Phaser.Math.Distance.Between(start.x, start.y, target.x, target.y);
     const duration = Phaser.Math.Clamp(distance / 1.05, 320, 980);
 
+    // 两段式：先原地停留，再飞向 HUD。停留时长按飞行距离反推，使动画总时长
+    // 接近 totalDurationMs（纯视觉，不影响逻辑到账延迟）。
+    const stayMs = this.args.totalDurationMs !== undefined
+      ? Math.max(0, this.args.totalDurationMs - duration - 110)
+      : 0;
+    if (stayMs > 0) {
+      this.tweens.push(this.scene.tweens.add({
+        targets: this.container,
+        scale: { from: 1, to: 1.08 },
+        duration: stayMs,
+        ease: "Sine.easeInOut",
+        yoyo: true,
+        onComplete: () => this.flyToTarget(target.x, target.y, zoom, duration),
+      }));
+    } else {
+      this.flyToTarget(target.x, target.y, zoom, duration);
+    }
+  }
+
+  private flyToTarget(targetX: number, targetY: number, zoom: number, duration: number): void {
+    if (!this.container || this.stopped) return;
     this.tweens.push(this.scene.tweens.add({
       targets: this.container,
-      x: target.x,
-      y: target.y,
+      x: targetX,
+      y: targetY,
       scale: 0.6 * zoom,
       angle: 200,
       duration,
