@@ -7,6 +7,8 @@
  * - ui：其余 UI。渲染在最后，始终最上层。
  *
  * 悬停在卡槽带时，卡槽对象从 cardBand 切到 ui（回到最上层）。
+ * 移动端没有 hover，且移动端侧边栏的不透明背景位于 ui 层；卡槽若留在 cardBand
+ * 会被该背景盖住，因此移动端卡槽始终固定在 ui 层，不参与 hover 切换。
  * 为让第 0 行怪物画进卡槽带，battle 视口向上扩展到 y=0，并用背景遮罩隐藏
  * 原可见顶部以上的地图，避免地图盖住卡槽。
  */
@@ -46,10 +48,12 @@ export class BattleViewLayers {
   private readonly cameraLayerState = new WeakMap<Phaser.GameObjects.GameObject, CameraLayer>();
   private readonly cardBandObjects = new Set<Phaser.GameObjects.GameObject>();
   private cardBandFront = false;
+  private cardBandAlwaysFront = false;
   private cardBandHoverRect: Rect | null = null;
   private backgroundMaskShape: Phaser.GameObjects.Graphics | null = null;
 
   private readonly onCardBandPointer = (pointer: Phaser.Input.Pointer) => {
+    if (this.cardBandAlwaysFront) return;
     const rect = this.cardBandHoverRect;
     if (!rect) return;
     const inBand = pointer.x >= rect.x && pointer.x <= rect.x + rect.width
@@ -64,6 +68,9 @@ export class BattleViewLayers {
 
   public configure(deviceType: string): void {
     const scene = this.scene;
+    // 移动端没有 hover，且侧边栏不透明背景在 ui 层；卡槽必须常驻 ui 才不会被盖住。
+    this.cardBandAlwaysFront = deviceType === "mobile";
+    this.cardBandFront = this.cardBandAlwaysFront;
     const layout = PositionManager.Instance.getSceneChromeLayout(deviceType);
     const viewport = layout.mainViewport;
     const gridBounds = PositionManager.Instance.getGridBounds();
@@ -140,8 +147,10 @@ export class BattleViewLayers {
       ? mobileBand
       : layout.topCardSlot;
 
-    scene.input.on("pointermove", this.onCardBandPointer);
-    scene.input.on("pointerdown", this.onCardBandPointer);
+    if (!this.cardBandAlwaysFront) {
+      scene.input.on("pointermove", this.onCardBandPointer);
+      scene.input.on("pointerdown", this.onCardBandPointer);
+    }
 
     this.sync();
   }
@@ -189,6 +198,7 @@ export class BattleViewLayers {
     this.cardBandHoverRect = null;
     this.cardBandObjects.clear();
     this.cardBandFront = false;
+    this.cardBandAlwaysFront = false;
     this.cardBandCamera = null;
     this.backgroundMaskShape?.destroy();
     this.backgroundMaskShape = null;
