@@ -122,7 +122,9 @@ class ServerStatusMonitor {
       this.disconnect();
       return;
     }
-    if (this.address === address && this.state === "connected") {
+    // 同一地址已在探测/已连接时直接复用：重复 connect 会在探测中再次
+    // probe，probe() 的“上一次探测尚未结束”会被当成失败把状态打回 offline。
+    if (this.address === address && (this.state === "connected" || this.state === "connecting")) {
       return;
     }
     await this.connect(address);

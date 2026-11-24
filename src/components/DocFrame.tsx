@@ -74,13 +74,12 @@ export default function DocFrame({ width, height, setGameParams, gameStart, init
       try {
         membership = await queryMyRoom(address, config.username);
       } catch (error) {
-        // 服务器不可达 / 证书未信任：查询请求失败，不能沿用可能残留的本地房间会话。
+        // 服务器不可达 / 证书未信任：查询请求失败，不能沿用可能残留的本地房间会话，
+        // 但单机不需要服务器，必须继续进入选关，不能把玩家挡在主页。
         console.error('Query user room failed:', error);
         BackendWS.cancelReconnect();
         BackendWS.closeConnection();
         onlineStateManager.resetAllState();
-        void showAlert(translate('menu.settings_server_unreachable'));
-        return;
       }
       if (membership) {
         const reconnect = await showConfirm(translate('menu.online_reconnect_message'), {

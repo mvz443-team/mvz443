@@ -357,9 +357,23 @@ class WebSocketClient {
   public startSinglePlayerRoom() {
     if (this.mockRoomMode) return;
     desyncDiagnostics.record("net", "startSinglePlayerRoom");
+    // 单机对局不依赖服务器：先清掉可能残留的在线会话。
+    // 否则旧 socket 关闭时会按 InLobby/Preparing 弹“无法连接到服务器”，
+    // 且 dispatchBinaryMessage 会优先走仍打开的 socket，把单机请求发给服务器。
+    this.reconnect.cancel();
+    this.stopLobbyHeartbeat();
+    this.clearPendingTimers();
+    if (this.offlineMode !== "none") {
+      this.exitDesyncOfflineMode();
+    }
+    if (this.transport.currentSocket()) {
+      // transport.close() 会清空回调，不会触发 onClose 的断线重连/提示链路。
+      this.transport.close();
+    }
     this.ResetGameData();
     this.mockRoomMode = true;
     this.dispatchMockPackets(mockServer.startSingleRoom());
+    this.publishNetworkStatus();
   }
 
   /** 分叉后进入不可恢复的离线单机模式 */

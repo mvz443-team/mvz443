@@ -76,6 +76,21 @@ function App() {
   useGlobalErrorGuard();
   useScreenOrientationLock(deviceType === 'mobile' && showGameScreen);
 
+  // 启动时静默恢复上次连接的服务器：只做连通性探测，不建立房间连接，
+  // 失败也不提示（单机不受影响）。存档是异步加载的，必须等初始化完成再读
+  // serverAddr，否则会读到默认空值，导致设置页/选关页一直显示未连接。
+  useEffect(() => {
+    let cancelled = false;
+    void saveManager.whenReady().then(() => {
+      if (cancelled) return;
+      const address = saveManager.getOnlineConfig().serverAddr;
+      if (address) void serverStatus.attach(address);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [saveManager]);
+
   const gameStart = useCallback(() => {
     // 页面刷新后的重连没有本地 ParamsSelector，需要从服务端 AllReady
     // 下发的 seed / loadout / 章节关卡重建 GameParams，否则 Phaser 只能显示

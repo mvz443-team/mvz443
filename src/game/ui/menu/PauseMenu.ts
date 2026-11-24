@@ -398,6 +398,10 @@ export class PauseMenu {
     if (this.isOnlineMode) {
       this.game.time.timeScale = 1;
       this.speedSwitch?.setChecked(false);
+    } else {
+      // 快捷键 T 直接改时钟，不经过菜单；打开菜单时必须回读当前倍速，
+      // 否则开关会停留在创建时的 1x，与实际运行速度不一致。
+      this.speedSwitch?.setChecked(this.game.time.timeScale > 1);
     }
     this.speedSwitch?.setEnabled(!this.isOnlineMode);
     this.noticeText?.setText(translate("game.online_pause_notice"));

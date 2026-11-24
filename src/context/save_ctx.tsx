@@ -398,6 +398,16 @@ export class GameManager {
         return true;
     }
 
+    /** 存档是否已完成异步加载（含联机配置）。 */
+    public isReady(): boolean {
+        return this._isInitialized;
+    }
+
+    /** 等待存档加载完成；启动时读取联机配置等异步数据前必须先等它。 */
+    public async whenReady(): Promise<void> {
+        await this.waitForInitialization();
+    }
+
     // 等待初始化完成
     private async waitForInitialization(): Promise<void> {
         if (!this._isInitialized) {
