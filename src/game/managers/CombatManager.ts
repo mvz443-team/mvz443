@@ -439,12 +439,16 @@ export default class CombatManager extends BaseManager {
 
     // 渲染插值必须每个渲染帧都执行：等待权威帧/追帧时固定步可能停摆，
     // 若在这里跳过，实体会冻结在上一帧位置并出现跳变；Tween/动画却仍在
-    // 渲染帧更新，所以箭矢会显得比特效明显卡顿。快进中刻意跳过，避免抖动放大。
-    if (!this.isPaused && !catchUp) {
-      const interpolationAlpha = Math.min(
-        this.elapsedFrameTime / frameIntervalMs,
-        1,
-      );
+    // 渲染帧更新，所以箭矢会显得比特效明显卡顿。
+    // alpha 允许略微超过 1（最多外推一帧）：联机下权威帧可能因网络抖动迟到，
+    // 此时 elapsedFrameTime 已越过一个帧间隔但 fixed step 还没推进，若把 alpha
+    // 钉死在 1，子弹会贴在最后已知逻辑帧上不动，直到下一帧到来才瞬移，视觉上
+    // 就变成“按逻辑帧跳一格”。子弹按速度外推可保持 60fps 平滑，权威帧到达后
+    // 插值端点更新会自然对齐，不会产生回跳。
+    if (!this.isPaused) {
+      const interpolationAlpha = catchUp
+        ? 1
+        : Math.min(this.elapsedFrameTime / frameIntervalMs, 2);
       this.scene?.rapierWorld?.bodies.forEach(rigidBody => {
         const gameObject = rigidBody.userData;
         if (gameObject instanceof BaseEntity) {

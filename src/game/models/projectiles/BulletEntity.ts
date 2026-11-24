@@ -20,6 +20,9 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
   private prevRenderY: number;
   private currentRenderX: number;
   private currentRenderY: number;
+  /** 上一逻辑帧的位移（像素/帧），用于权威帧迟到时按速度外推。 */
+  private renderVelocityX: number = 0;
+  private renderVelocityY: number = 0;
 
   constructor(scene: Game, x: number, row: number, model: BulletModel, cfg: BulletConfig) {
     const y = PositionManager.Instance.getRowCenterY(row);
@@ -67,6 +70,10 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
     this.currentRenderX = vec.x;
     this.currentRenderY = vec.y;
 
+    // 用真实的一帧位移作为外推速度；反弹/变速由下一逻辑帧自动刷新。
+    this.renderVelocityX = this.currentRenderX - this.prevRenderX;
+    this.renderVelocityY = this.currentRenderY - this.prevRenderY;
+
     this.x = vec.x;
     this.y = vec.y;
 
@@ -103,13 +110,34 @@ export class BulletEntity extends ProjectileEntity<BulletModel> {
   }
 
   public override updateRenderPosition(alpha: number): void {
-    const x = Phaser.Math.Linear(this.prevRenderX, this.currentRenderX, alpha);
-    const y = Phaser.Math.Linear(this.prevRenderY, this.currentRenderY, alpha);
+    let x: number;
+    let y: number;
+    if (alpha <= 1) {
+      x = Phaser.Math.Linear(this.prevRenderX, this.currentRenderX, alpha);
+      y = Phaser.Math.Linear(this.prevRenderY, this.currentRenderY, alpha);
+    } else {
+      // 权威帧迟到：alpha>1 表示已越过上一个逻辑帧间隔但新帧尚未就绪，
+      // 按上一帧位移继续外推，避免子弹冻结后瞬移。最多外推一帧，防止长时间
+      // 无权威帧时飞出世界；新帧到达后端点更新会自然对齐。
+      const extraFrames = Math.min(alpha - 1, 1);
+      x = this.currentRenderX + this.renderVelocityX * extraFrames;
+      y = this.currentRenderY + this.renderVelocityY * extraFrames;
+    }
     this.sprite.setPosition(x, y);
   }
 
   public override stepMove(alpha: number): void {
     this.updateRenderPosition(alpha);
+  }
+
+  /** 回滚后重置插值端点，避免用陈旧外推值渲染一帧。 */
+  public override syncViewFromModel(): void {
+    this.prevRenderX = this.x;
+    this.prevRenderY = this.y;
+    this.currentRenderX = this.x;
+    this.currentRenderY = this.y;
+    this.renderVelocityX = 0;
+    this.renderVelocityY = 0;
   }
 
   // Reverse horizontal velocity after a bounce.
