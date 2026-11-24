@@ -182,11 +182,18 @@ function buildNetTestHooks({ saveManager, phaserRef, setGameParams, gameExit }: 
     },
     // 性能测试专用：单机 mock 房间启动。设置 GameParams 后启动 mockServer，
     // 再复用与真实 UI 相同的 chooseMap + ready 进入 Preloader/Game。
-    startSinglePlayerForPerf: (plants: Array<{ pid: number; level: number }>, stageId: number, chapterId: number) => {
+    // `deviceType` 可选：性能用例需要复现移动端布局时传 'mobile'。
+    startSinglePlayerForPerf: (
+      plants: Array<{ pid: number; level: number }>,
+      stageId: number,
+      chapterId: number,
+      deviceType?: string,
+    ) => {
       const params: GameParams = {
         level: stageId,
         plants,
         gold: 0,
+        deviceType,
         gameExit: (result: StageResult) => gameExit(result),
         gameSettings: {
           isBluePrint: false,

@@ -106,6 +106,13 @@ export class CardSlots {
     return this.energyPanel?.getEnergyText() ?? null;
   }
 
+  private applyCooldownStatus(status: Map<number, { hasReloaded: boolean; leftPercent: number }>) {
+    for (const card of this.controller?.cards ?? []) {
+      const cardStatus = status.get(card.pid);
+      if (cardStatus) card.setCooldown(cardStatus.hasReloaded, cardStatus.leftPercent);
+    }
+  }
+
   private syncCardCount() {
     if (this.scene.params.plants.length !== this.cardCount) this.rebuild();
   }
@@ -118,10 +125,7 @@ export class CardSlots {
       for (const card of this.controller?.cards ?? []) card.setEnergy(energy);
     }));
     this.unsubs.push(CardpileManager.Instance.EventBus.on("onCooldownStatus", (status) => {
-      for (const card of this.controller?.cards ?? []) {
-        const cardStatus = status.get(card.pid);
-        if (cardStatus) card.setCooldown(cardStatus.hasReloaded, cardStatus.leftPercent);
-      }
+      this.applyCooldownStatus(status);
     }));
     for (const event of ["onChosenCard", "onChosenPickaxe", "onChosenStarShards", "onCancelChosen"] as const) {
       this.unsubs.push(CardpileManager.Instance.EventBus.on(event, () => {

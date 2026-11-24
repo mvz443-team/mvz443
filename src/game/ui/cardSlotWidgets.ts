@@ -58,6 +58,187 @@ function stopInput(event?: Phaser.Types.Input.EventData) {
   event?.stopPropagation();
 }
 
+/** 预渲染卡槽皮肤纹理的版本号：改样式常量时递增，避免复用旧纹理。 */
+const SLOT_SKIN_VERSION = "v1";
+
+function slotSkinKey(
+  kind: "fill" | "stroke",
+  width: number,
+  height: number,
+  radius: number,
+  stroke: number,
+): string {
+  const w = Math.max(1, Math.ceil(width));
+  const h = Math.max(1, Math.ceil(height));
+  const r = Math.max(0, Math.min(radius, Math.min(w, h) / 2));
+  return `slot-skin/${SLOT_SKIN_VERSION}/${kind}/${w}x${h}/r${r.toFixed(1)}/s${stroke}`;
+}
+
+/**
+ * 卡槽底板/描边改成一次性预渲染的白色纹理，靠 `setTint` 上色。
+ *
+ * Phaser 的 Graphics 每次渲染都要重新三角化路径（earcut）并重传顶点缓冲，
+ * 这是纯 JS 成本，卡槽越多越慢；iOS Safari 上它是卡槽 UI 掉帧的主因。
+ * 换成 Image 后所有卡牌共享同一张纹理，顶点由 MultiPipeline 统一批处理，
+ * 渲染成本与卡片数量基本解耦。
+ *
+ * `stroke` 模式的纹理尺寸即纹理边界，描边路径向内收缩半个线宽，
+ * 因此调用方按「期望的路径矩形」传入宽高即可。
+ */
+function ensureSlotSkin(
+  scene: Game,
+  kind: "fill" | "stroke",
+  width: number,
+  height: number,
+  radius: number,
+  stroke: number,
+): string {
+  const key = slotSkinKey(kind, width, height, radius, stroke);
+  if (scene.textures.exists(key)) return key;
+  const w = Math.max(1, Math.ceil(width));
+  const h = Math.max(1, Math.ceil(height));
+  const r = Math.max(0, Math.min(radius, Math.min(w, h) / 2));
+  const graphics = scene.make.graphics({ x: 0, y: 0 }, false);
+  if (kind === "fill") {
+    graphics.fillStyle(0xffffff, 1);
+    graphics.fillRoundedRect(0, 0, w, h, r);
+  } else {
+    const inset = stroke / 2;
+    graphics.lineStyle(stroke, 0xffffff, 1);
+    graphics.strokeRoundedRect(inset, inset, w - stroke, h - stroke, Math.max(0, r));
+  }
+  graphics.generateTexture(key, w, h);
+  graphics.destroy();
+  return key;
+}
+
+type CardArtSpec = {
+  width: number;
+  height: number;
+  radius: number;
+  stroke: number;
+  fillColor: number;
+  expensive: boolean;
+  /** 植物卡面纹理 key。 */
+  textureKey: string;
+  frame: SlotFrameKind;
+  costText: string;
+};
+
+function colorToCss(color: number): string {
+  return `#${(color >>> 0).toString(16).padStart(6, "0").slice(-6)}`;
+}
+
+function traceRoundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  const r = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.arcTo(x + width, y, x + width, y + r, r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.arcTo(x + width, y + height, x + width - r, y + height, r);
+  ctx.lineTo(x + r, y + height);
+  ctx.arcTo(x, y + height, x, y + height - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+/**
+ * 卡槽静态外观（底色 + 边框 + 植物图 + 价格）一次性烘焙成一张 canvas 纹理。
+ *
+ * 原来的实现是 2 个 Graphics + 1 个 Image + 1 个 Text：每张卡每帧至少 4 次
+ * draw call，Graphics 还要每帧重新三角化；15 张卡就是 60+ 次 draw call，
+ * iOS Safari 上会明显掉帧。烘焙后每张卡静态部分只剩 1 次 draw call，
+ * 且同尺寸/同状态的卡牌共享纹理。
+ *
+ * 冷却遮罩与选中高亮仍需动态表现，单独保留为 Image。
+ */
+function ensureCardArtSkin(scene: Game, spec: CardArtSpec): string {
+  const w = Math.max(1, Math.ceil(spec.width));
+  const h = Math.max(1, Math.ceil(spec.height));
+  const r = Math.max(0, Math.min(spec.radius, Math.min(w, h) / 2));
+  const key = `slot-skin/${SLOT_SKIN_VERSION}/art/${spec.textureKey}/${w}x${h}/r${r.toFixed(1)}/f${spec.fillColor}/${spec.expensive ? "e" : "n"}`;
+  if (scene.textures.exists(key)) return key;
+  const texture = scene.textures.createCanvas(key, w, h);
+  if (!texture) {
+    // 极端情况下 canvas 纹理创建失败：退回纯底板纹理，至少不抛异常。
+    return ensureSlotSkin(scene, "fill", spec.width, spec.height, spec.radius, spec.stroke);
+  }
+  const ctx = texture.getContext();
+
+  // 底色
+  traceRoundedRect(ctx, 0, 0, w, h, r);
+  ctx.fillStyle = colorToCss(spec.fillColor);
+  ctx.fill();
+
+  // 边框（先画，避免压住植物图与价格）
+  const inset = spec.stroke / 2;
+  traceRoundedRect(ctx, inset, inset, w - spec.stroke, h - spec.stroke, Math.max(0, r - inset));
+  ctx.lineWidth = spec.stroke;
+  ctx.strokeStyle = colorToCss(SLOT_BORDER);
+  ctx.stroke();
+
+  // 植物图
+  const artFrame = scene.textures.getFrame(spec.textureKey);
+  const artSource = artFrame?.source?.image as CanvasImageSource | undefined;
+  if (artFrame && artSource) {
+    const layout = getArtLayout(spec.frame, spec.width, spec.height);
+    const srcW = artFrame.cutWidth || artFrame.width;
+    const srcH = artFrame.cutHeight || artFrame.height;
+    const rawScale = Math.min(layout.maxWidth / srcW, layout.maxHeight / srcH);
+    const drawScale = Number.isFinite(rawScale) && rawScale > 0 ? rawScale : 1;
+    const drawWidth = srcW * drawScale;
+    const drawHeight = srcH * drawScale;
+    ctx.drawImage(
+      artSource,
+      artFrame.cutX,
+      artFrame.cutY,
+      srcW,
+      srcH,
+      layout.x - drawWidth / 2,
+      layout.y - drawHeight / 2,
+      drawWidth,
+      drawHeight,
+    );
+  }
+
+  // 能量不足红层：与原实现一致，压在植物图之上、价格之下
+  if (spec.expensive) {
+    traceRoundedRect(ctx, 0, 0, w, h, r);
+    ctx.fillStyle = "rgba(146, 31, 31, 0.24)";
+    ctx.fill();
+  }
+
+  // 价格
+  const costLayout = getCostLayout(spec.frame, spec.width, spec.height);
+  let fontSize = costLayout.fontSize;
+  const fontOf = (size: number) => `bold ${size}px Arial, sans-serif`;
+  ctx.font = fontOf(fontSize);
+  while (ctx.measureText(spec.costText).width > costLayout.maxWidth && fontSize > 8) {
+    fontSize -= 1;
+    ctx.font = fontOf(fontSize);
+  }
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = costLayout.strokeWidth;
+  ctx.strokeStyle = "#111111";
+  ctx.strokeText(spec.costText, costLayout.x, costLayout.y);
+  ctx.fillStyle = spec.expensive ? "#ff2f2f" : "#ffffff";
+  ctx.fillText(spec.costText, costLayout.x, costLayout.y);
+
+  texture.refresh();
+  return key;
+}
+
 function setTextSizeToFit(
   text: Phaser.GameObjects.Text,
   maxWidth: number,
@@ -66,6 +247,8 @@ function setTextSizeToFit(
 ) {
   let size = preferred;
   text.setFontSize(size);
+  // 每次 setFontSize 都会重跑 MeasureText + updateText，宽度够时立刻返回。
+  if (text.width <= maxWidth) return;
   while (text.width > maxWidth && size > minSize) {
     size -= 1;
     text.setFontSize(size);
@@ -136,19 +319,37 @@ export class PlantCardView {
   private readonly frame: SlotFrameKind;
   private readonly radius: number;
   private readonly disableWhenExpensive: boolean;
+  private readonly artTextureKey: string;
   private readonly container: Phaser.GameObjects.Container;
-  private readonly bg: Phaser.GameObjects.Graphics;
-  private readonly overlay: Phaser.GameObjects.Graphics;
-  private readonly selectionGlow: Phaser.GameObjects.Graphics;
+  /**
+   * 卡槽静态外观（底色 + 边框 + 植物图 + 价格）烘焙成一张纹理。
+   *
+   * 原来这些是 2 个 Graphics + 1 个 Image + 1 个 Text，每张卡每帧至少 4 次
+   * draw call 且 Graphics 还要每帧三角化；15 张卡就是 60+ 次 draw call，
+   * iOS Safari 上直接掉帧。烘焙后每张卡静态部分只有 1 次 draw call。
+   */
+  private readonly skin: Phaser.GameObjects.Image;
+  /**
+   * 冷却遮罩：满尺寸纹理只取一次，之后按 `leftPercent` 只做 transform 缩放。
+   * 冷却进度每个逻辑步都在变，若每步重建几何，15 张卡就是每步 15 次重建 + 重传。
+   */
+  private readonly coolingMask: Phaser.GameObjects.Image;
+  private readonly selectionGlow: Phaser.GameObjects.Image;
   private readonly tooltip: Phaser.GameObjects.Container | null;
   private readonly hitZone: Phaser.GameObjects.Zone;
-  private costText: Phaser.GameObjects.Text | null = null;
   private energy = 0;
   private reloaded = false;
   private leftPercent = 1;
   private selected = false;
   private hovered = false;
   private selectionTween: Phaser.Tweens.Tween | null = null;
+  // 绘制脏标记：只有这些值真的变化时才换纹理 / 改可见性。
+  private skinKey = "";
+  private drawnSelected: boolean | null = null;
+  private drawnLeftPercent = -1;
+  /** `setDisplaySize` 写入的基础缩放，冷却进度缩放要在它之上叠加。 */
+  private maskBaseScaleX = 1;
+  private maskBaseScaleY = 1;
 
   constructor(options: CardViewOptions) {
     this.scene = options.scene;
@@ -161,16 +362,35 @@ export class PlantCardView {
     this.pid = options.plantModel.pid;
     this.level = options.level;
     this.cost = options.plantModel.cost.getValueAt(options.level);
+    this.artTextureKey = getCardTextureKey(this.scene, options.plantModel);
     this.container = this.scene.add.container(options.slot.x, options.slot.y)
       .setDepth(DepthHelper.UI.chromeControl());
     this.scene.registerCardBandObject(this.container);
-    this.bg = this.scene.add.graphics();
-    this.overlay = this.scene.add.graphics();
-    this.selectionGlow = this.scene.add.graphics();
-    this.container.add(this.bg);
-    this.addPlantImage(options.plantModel);
-    this.container.add(this.overlay);
-    this.addCostText();
+    const skinKey = this.buildSkinKey(false, false);
+    this.skin = this.scene.add.image(0, 0, skinKey)
+      .setOrigin(0, 0)
+      .setDisplaySize(this.width, this.height);
+    this.skinKey = skinKey;
+    this.container.add(this.skin);
+    const maskKey = ensureSlotSkin(this.scene, "fill", this.width, this.height, this.radius, SLOT_STROKE);
+    this.coolingMask = this.scene.add.image(0, 0, maskKey)
+      .setOrigin(0, 0)
+      .setDisplaySize(this.width, this.height)
+      .setTint(0x111111)
+      .setAlpha(SLOT_MASK_ALPHA)
+      .setVisible(false);
+    this.container.add(this.coolingMask);
+    this.maskBaseScaleX = this.coolingMask.scaleX;
+    this.maskBaseScaleY = this.coolingMask.scaleY;
+    const glowStroke = Math.max(3, Math.min(5, this.width * 0.07));
+    const glowWidth = this.width + 4 + glowStroke;
+    const glowHeight = this.height + 4 + glowStroke;
+    const glowKey = ensureSlotSkin(this.scene, "stroke", glowWidth, glowHeight, this.radius + 2, glowStroke);
+    this.selectionGlow = this.scene.add.image(-2 - glowStroke / 2, -2 - glowStroke / 2, glowKey)
+      .setOrigin(0, 0)
+      .setDisplaySize(glowWidth, glowHeight)
+      .setTint(SLOT_BORDER_CHOSEN)
+      .setVisible(false);
     this.container.add(this.selectionGlow);
     this.tooltip = this.addTooltip(options.plantModel);
     this.hitZone = this.scene.add.zone(this.width / 2, this.height / 2, this.width, this.height)
@@ -212,13 +432,18 @@ export class PlantCardView {
   }
 
   public setEnergy(energy: number) {
+    if (this.energy === energy) return;
     this.energy = energy;
     this.draw();
   }
 
   public setCooldown(hasReloaded: boolean, leftPercent: number) {
+    const nextPercent = Math.max(0, Math.min(1, leftPercent));
+    // `onCooldownStatus` 每个逻辑步都广播一次；冷却完成、进度没变时必须直接返回，
+    // 否则 15 张卡会每秒触发 300 次无效重绘。
+    if (this.reloaded === hasReloaded && this.leftPercent === nextPercent) return;
     this.reloaded = hasReloaded;
-    this.leftPercent = Math.max(0, Math.min(1, leftPercent));
+    this.leftPercent = nextPercent;
     this.draw();
   }
 
@@ -238,28 +463,18 @@ export class PlantCardView {
     this.container.destroy(true);
   }
 
-  private addPlantImage(plantModel: PlantModel) {
-    const layout = getArtLayout(this.frame, this.width, this.height);
-    const textureKey = getCardTextureKey(this.scene, plantModel);
-    const image = this.scene.add.image(layout.x, layout.y, textureKey);
-    const scale = Math.min(layout.maxWidth / image.width, layout.maxHeight / image.height);
-    image.setScale(Number.isFinite(scale) ? scale : 1);
-    this.container.add(image);
-  }
-
-  private addCostText() {
-    const layout = getCostLayout(this.frame, this.width, this.height);
-    const text = this.scene.add.text(layout.x, layout.y, String(this.cost), {
-      fontFamily: "Arial, sans-serif",
-      fontSize: `${layout.fontSize}px`,
-      color: "#ffffff",
-      fontStyle: "bold",
-      stroke: "#111111",
-      strokeThickness: layout.strokeWidth,
-    }).setOrigin(0.5);
-    setTextSizeToFit(text, layout.maxWidth, layout.fontSize, 8);
-    this.costText = text;
-    this.container.add(text);
+  private buildSkinKey(cooling: boolean, expensive: boolean): string {
+    return ensureCardArtSkin(this.scene, {
+      width: this.width,
+      height: this.height,
+      radius: this.radius,
+      stroke: SLOT_STROKE,
+      fillColor: this.getFillColor(cooling),
+      expensive,
+      textureKey: this.artTextureKey,
+      frame: this.frame,
+      costText: String(this.cost),
+    });
   }
 
   private addTooltip(plantModel: PlantModel): Phaser.GameObjects.Container | null {
@@ -348,56 +563,52 @@ export class PlantCardView {
 
   private draw() {
     // 单例 manager 的事件总线跨对局存活；若残留订阅驱动到已销毁的卡牌，
-    // Graphics/Text 的 CanvasTexture 已被回收，重绘会抛 drawImage 空指针。
-    // 与 EnergyPanelView.setEnergy 一致：表现层异常必须吞掉。
-    if (!this.container?.scene || !this.overlay?.scene || !this.selectionGlow?.scene) return;
+    // 纹理已被回收，改 tint / 可见性会抛异常。表现层异常必须吞掉。
+    if (!this.container?.scene || !this.skin?.scene || !this.coolingMask?.scene || !this.selectionGlow?.scene) return;
     try {
       const cooling = !this.reloaded && this.leftPercent > 0;
-      redrawSlotFrame(
-        this.bg,
-        this.width,
-        this.height,
-        this.getFillColor(cooling),
-        SLOT_BORDER,
-        SLOT_STROKE,
-        this.radius,
-      );
-      this.overlay.clear();
-      // 能量不足统一叠浅红，冷却与否只由遮罩表达。
-      if (this.expensive) {
-        this.overlay.fillStyle(0x921f1f, 0.24);
-        this.overlay.fillRoundedRect(0, 0, this.width, this.height, this.radius);
+      const expensive = this.expensive;
+
+      // 底色/边框/植物图/价格烘焙在同一张纹理里，状态变化时只换纹理。
+      const skinKey = this.buildSkinKey(cooling, expensive);
+      if (skinKey !== this.skinKey) {
+        this.skin.setTexture(skinKey);
+        this.skin.setDisplaySize(this.width, this.height);
+        this.skinKey = skinKey;
       }
-      if (cooling) {
-        this.overlay.fillStyle(0x111111, SLOT_MASK_ALPHA);
-        if (this.frame === "mobile-square") {
-          const fillWidth = this.width * this.leftPercent;
-          this.overlay.fillRoundedRect(
-            0,
-            0,
-            fillWidth,
-            this.height,
-            Math.min(this.radius, fillWidth * 0.5),
-          );
-        } else {
-          const fillHeight = this.height * this.leftPercent;
-          this.overlay.fillRoundedRect(
-            0,
-            0,
-            this.width,
-            fillHeight,
-            Math.min(this.radius, fillHeight * 0.5),
-          );
-        }
-      }
-      this.costText?.setColor(this.expensive ? "#ff2f2f" : "#ffffff");
-      this.selectionGlow.clear();
-      if (this.selected) {
-        drawSlotSelectionOutline(this.selectionGlow, this.width, this.height, SLOT_BORDER_CHOSEN, this.radius);
+
+      this.syncCoolingMask(cooling);
+
+      if (this.selected !== this.drawnSelected) {
+        this.selectionGlow.setVisible(this.selected);
+        this.drawnSelected = this.selected;
       }
     } catch (error) {
       console.warn("[PlantCardView] draw skipped because the view is no longer available.", error);
     }
+  }
+
+  /**
+   * 冷却遮罩进度：满尺寸纹理只取一次，之后只用 `setScale` 表达剩余比例。
+   * 缩放围绕 Image 的 origin(0,0)，因此移动端横向收缩、PC 纵向收缩都从左上开始，
+   * 与原实现按比例画小矩形的方向一致。基础缩放来自 `setDisplaySize`，必须乘回去。
+   */
+  private syncCoolingMask(cooling: boolean) {
+    const mask = this.coolingMask;
+    if (!cooling) {
+      if (mask.visible) mask.setVisible(false);
+      // 下次冷却需要重新设置一次缩放，避免沿用上一轮的百分比。
+      this.drawnLeftPercent = -1;
+      return;
+    }
+    if (!mask.visible) mask.setVisible(true);
+    if (this.drawnLeftPercent === this.leftPercent) return;
+    if (this.frame === "mobile-square") {
+      mask.setScale(this.maskBaseScaleX * this.leftPercent, this.maskBaseScaleY);
+    } else {
+      mask.setScale(this.maskBaseScaleX, this.maskBaseScaleY * this.leftPercent);
+    }
+    this.drawnLeftPercent = this.leftPercent;
   }
 
   private syncSelectionTween() {
@@ -471,6 +682,8 @@ export class EnergyPanelView {
   private readonly height: number;
   private readonly contentLayout: EnergyContentLayout;
   private flashTimer: Phaser.Time.TimerEvent | null = null;
+  /** 上次渲染的能量值：相同就不必重跑 setText + 字号自适应。 */
+  private lastEnergy: number | null = null;
 
   constructor(
     scene: Game,
@@ -516,6 +729,9 @@ export class EnergyPanelView {
     // ApplyPreviewEnergy → handleAttemptPlant，导致点击后无法种植。
     const text = this.valueText;
     if (!text?.scene) return;
+    // 同一数值重复推送（资源预演/回滚恢复会多次广播）时跳过整段 canvas 重绘。
+    if (this.lastEnergy === energy) return;
+    this.lastEnergy = energy;
     try {
       text.setText(String(energy));
       setTextSizeToFit(
