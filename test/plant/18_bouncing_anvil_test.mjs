@@ -21,7 +21,7 @@ function putInLane(row, mobs) {
 
 /**
  * 描述（bouncing_anvil_description）：
- *   蹦蹦铁砧从种植中心向左右各伸出 1.4 格警戒线；地面、非飞行、非虚空中的
+ *   蹦蹦铁砧从种植中心向左右各伸出 1.6 格警戒线；地面、非飞行、非虚空中的
  *   敌人接触警戒线后，铁砧跃起并以该敌人中心为目标中心，300ms 后落地。
  *   落地造成一道不可见的 0.8 格激光，伤害与 TNT 地雷相同；5 级起向左召唤
  *   分身，激光长度扩展为 1.5 格。按倭瓜原型，铁砧落地后碎裂。
@@ -43,12 +43,12 @@ function putInLane(row, mobs) {
  * 预期结果：
  *   Lv1 冷却 30000ms、伤害 1500、激光长 0.8 格且中心落在目标 x；
  *   Lv5 起激光长 1.5 格并显示分身；Lv9 冷却降至 25500ms；
- *   飞行/虚空/睡眠/超出 1.4 格的目标不触发；
+ *   飞行/虚空/睡眠/超出 1.6 格的目标不触发；
  *   星碎两个目标共 4 发激光（单目标 2 发），无目标 0 发；
  *   Lv1 与 Lv9 的星碎均为 0.8 格 / 1500 伤害，且不销毁本体。
  *
  * 为什么：
- *   onModelStep 扫描 MobsByLane，canTriggerOn 负责阵营、地面、行与 1.4 格判定；
+ *   onModelStep 扫描 MobsByLane，canTriggerOn 负责阵营、地面、行与 1.6 格判定；
  *   startJump 把目标 x/row 写入 Model 并 schedule 300ms Land；
  *   land 以目标中心反推激光左端点，调用 ProjectileCmd.CreateLaser 后销毁铁砧；
  *   onStarShards 按 currentHealth 降序取前 2 个敌对目标（排除虚空），
@@ -72,7 +72,7 @@ test("警戒线内地面敌人触发，300ms 后以目标中心生成隐形激�
   const sim = resetSim();
   const { model, entity } = spawnPlant(BouncingAnvilData, { level: 1, col: 1, row: 2 });
   const zombie = spawnMob(ZombieData, { col: 2, row: 2 });
-  zombie.entity.x = entity.x + GRID_X * 1.4;
+  zombie.entity.x = entity.x + GRID_X * 1.6;
   putInLane(2, [zombie.entity]);
 
   model.onModelStep(entity);
@@ -107,7 +107,7 @@ test("超出警戒线、睡眠、飞行与虚空目标都不触发", () => {
   const zombie = spawnMob(ZombieData, { col: 2, row: 2 });
   putInLane(2, [zombie.entity]);
 
-  zombie.entity.x = entity.x + GRID_X * 1.4 + 1;
+  zombie.entity.x = entity.x + GRID_X * 1.6 + 1;
   model.onModelStep(entity);
   assert.equal(model.hasTriggered, false);
 
